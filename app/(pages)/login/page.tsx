@@ -113,9 +113,11 @@ function LoginForm() {
           router.push('/dashboard/user');
         }
       } else {
-        setErrors({ general: data.message || 'Login failed' });
+        console.error('Login failed:', { status: response.status, data });
+        setErrors({ general: data.message || `Login failed (${response.status})` });
       }
     } catch (error) {
+      console.error('Login error:', error);
       setErrors({ general: 'Network error. Please try again.' });
     } finally {
       setIsLoading(false);
