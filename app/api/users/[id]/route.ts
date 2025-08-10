@@ -18,12 +18,16 @@ async function requireSuperadmin(req: NextRequest) {
   return { status: 200 as const };
 }
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const auth = await requireSuperadmin(req);
     if (auth.status !== 200) return auth.error;
     await dbConnect();
-    const user = await User.findById(params.id).select("-password");
+    const { id } = await params;
+    const user = await User.findById(id).select("-password");
     if (!user) return new Response("Not found", { status: 404 });
     return new Response(JSON.stringify(user), { status: 200 });
   } catch (error: unknown) {
@@ -32,7 +36,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const auth = await requireSuperadmin(req);
     if (auth.status !== 200) return auth.error;
@@ -47,7 +54,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     await dbConnect();
-    const updated = await User.findByIdAndUpdate(params.id, update, { new: true })
+    const { id } = await params;
+    const updated = await User.findByIdAndUpdate(id, update, { new: true })
       .select("-password");
     if (!updated) return new Response("Not found", { status: 404 });
     return new Response(JSON.stringify({ message: "User updated", user: updated }), { status: 200 });
@@ -57,12 +65,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const auth = await requireSuperadmin(req);
     if (auth.status !== 200) return auth.error;
     await dbConnect();
-    const deleted = await User.findByIdAndDelete(params.id);
+    const { id } = await params;
+    const deleted = await User.findByIdAndDelete(id);
     if (!deleted) return new Response("Not found", { status: 404 });
     return new Response(JSON.stringify({ message: "User deleted" }), { status: 200 });
   } catch (error: unknown) {
