@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   EyeIcon, 
@@ -27,7 +27,8 @@ interface LoginErrors {
   general?: string;
 }
 
-export default function LoginPage() {
+// Separate component for search params logic
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPasswordShown, setIsPasswordShown] = useState(false);
@@ -101,19 +102,20 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
+        // Store token and user data
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         
+        // Redirect based on role
         if (data.user.role === 'superadmin') {
           router.push('/dashboard/superadmin');
         } else {
           router.push('/dashboard/user');
         }
       } else {
-        setErrors({ general: data.error || 'Login failed' });
+        setErrors({ general: data.message || 'Login failed' });
       }
     } catch (error) {
-      console.error('Login error:', error);
       setErrors({ general: 'Network error. Please try again.' });
     } finally {
       setIsLoading(false);
@@ -122,272 +124,273 @@ export default function LoginPage() {
 
   const handleInputChange = (field: keyof LoginFormData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
     if (errors[field as keyof LoginErrors]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
     }
-    if (errors.general) {
-      setErrors(prev => ({ ...prev, general: undefined }));
-    }
   };
 
-     return (
-     <div className={`min-h-screen flex flex-col justify-center items-center relative p-6 transition-colors duration-300 ${
-       isDarkMode 
-         ? 'bg-slate-800' 
-         : 'bg-blue-50'
-     }`}>
-      {/* Theme Toggle */}
-      <button
-        onClick={toggleDarkMode}
-        className={`absolute top-6 right-6 p-3 rounded-full transition-all duration-300 cursor-pointer ${
-          isDarkMode 
-            ? 'bg-white/10 text-white hover:bg-white/20' 
-            : 'bg-white/80 text-gray-700 hover:bg-white'
-        } shadow-lg backdrop-blur-sm`}
-      >
-        {isDarkMode ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
-      </button>
+  const handleInputFocus = (field: string) => {
+    setFocusedField(field);
+  };
 
-             {/* Main Card */}
-       <div className={`w-full max-w-md relative z-10 ${
-         isDarkMode 
-           ? 'bg-white/10 backdrop-blur-sm border border-white/10 shadow-[0_0_10px_rgba(0,0,0,0.1)]' 
-           : 'bg-white/80 border border-gray-200/50 shadow-[0_0_10px_rgba(30,64,175,0.4)]'
-       } rounded-xl transition-all duration-300`}>
-        <div className="p-8">
-          {/* Logo */}
-          <div className="flex justify-center items-center mb-6">
-            <div className={`h-10 w-10 rounded-lg flex items-center justify-center shadow-lg transition-all duration-300 ${
-              isDarkMode 
-                ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/25' 
-                : 'bg-gradient-to-br from-blue-600 to-indigo-700 shadow-blue-500/25'
-            }`}>
-              <BuildingOfficeIcon className="h-5 w-5 text-white" />
-            </div>
-            <span className={`ml-3 text-2xl font-bold transition-colors duration-300 ${
-              isDarkMode ? 'text-white' : 'text-gray-900'
-            }`}>
-              CRM
-            </span>
-          </div>
+  const handleInputBlur = () => {
+    setFocusedField(null);
+  };
 
-                     {/* Header */}
-           <div className="text-left mb-8">
-             <h1 className={`text-2xl font-bold mb-3 transition-colors duration-300 ${
-               isDarkMode ? 'text-white' : 'text-gray-900'
-             }`}>
-               Adventure starts here 🚀
-             </h1>
-             <p className={`text-base transition-colors duration-300 ${
-               isDarkMode ? 'text-gray-300' : 'text-gray-600'
-             }`}>
-               Make your app management easy and fun!
-             </p>
-           </div>
-
-          {/* Success Message */}
-          {showSuccessMessage && (
-            <div className={`mb-6 p-4 rounded-lg border transition-all duration-300 ${
-              isDarkMode 
-                ? 'bg-green-500/20 border-green-400/30' 
-                : 'bg-green-50 border-green-200'
-            } animate-in slide-in-from-top-2 duration-300`}>
-              <div className="flex items-center">
-                <CheckCircleIcon className={`h-5 w-5 mr-3 flex-shrink-0 ${
-                  isDarkMode ? 'text-green-400' : 'text-green-600'
-                }`} />
-                <p className={`text-sm font-medium ${
-                  isDarkMode ? 'text-green-200' : 'text-green-700'
-                }`}>
-                  Account created successfully! Please sign in.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Error Message */}
-          {errors.general && (
-            <div className={`mb-6 p-4 rounded-lg border transition-all duration-300 ${
-              isDarkMode 
-                ? 'bg-red-500/20 border-red-400/30' 
-                : 'bg-red-50 border-red-200'
-            } animate-in slide-in-from-top-2 duration-300`}>
-              <div className="flex items-center">
-                <ExclamationTriangleIcon className={`h-5 w-5 mr-3 flex-shrink-0 ${
-                  isDarkMode ? 'text-red-400' : 'text-red-600'
-                }`} />
-                <p className={`text-sm font-medium ${
-                  isDarkMode ? 'text-red-200' : 'text-red-700'
-                }`}>
-                  {errors.general}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Username Field */}
-            <div className="space-y-2">
-              <div className="relative">
-                <input
-                  type="text"
-                  autoComplete="username"
-                  required
-                  value={formData.username}
-                  onChange={(e) => handleInputChange('username', e.target.value)}
-                  onFocus={() => setFocusedField('username')}
-                  onBlur={() => setFocusedField(null)}
-                                     className={`block w-full px-4 py-4 border rounded-lg shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-300 ${
-                     isDarkMode 
-                       ? 'bg-white/10 text-white border-white/20 backdrop-blur-sm' 
-                       : 'bg-white text-gray-900 border-gray-300'
-                   } ${
-                     errors.username 
-                       ? 'border-red-400 focus:ring-red-500/50 focus:border-red-400' 
-                       : ''
-                   } ${
-                     focusedField === 'username' || formData.username
-                       ? 'border-blue-500' 
-                       : ''
-                   }`}
-                  placeholder=""
-                />
-                                 <label className={`absolute left-4 transition-all duration-300 pointer-events-none ${
-                   focusedField === 'username' || formData.username
-                     ? isDarkMode 
-                       ? 'top-[-10px] text-sm font-extralight text-white bg-[#343F51] px-1   border-blue-500 rounded-md'
-                       : 'top-[-10px] text-sm font-medium text-blue-500 bg-white px-1'
-                     : isDarkMode ? 'top-4 text-sm text-gray-300' : 'top-4 text-sm text-gray-500'
-                 } ${isDarkMode && (focusedField === 'username' || formData.username) ? 'bg-[#5A6371]' : ''}`}>
-                  Username
-                </label>
-              </div>
-              {errors.username && (
-                <p className="text-sm text-red-500 animate-in slide-in-from-top-1 duration-200">
-                  {errors.username}
-                </p>
-              )}
-            </div>
-
-            {/* Password Field */}
-            <div className="space-y-2">
-              <div className="relative">
-                <input
-                  type={isPasswordShown ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  onFocus={() => setFocusedField('password')}
-                  onBlur={() => setFocusedField(null)}
-                                     className={`block w-full px-4 pr-12 py-4 border rounded-lg shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-300 ${
-                     isDarkMode 
-                       ? 'bg-white/10 text-white border-white/20 backdrop-blur-sm' 
-                       : 'bg-white text-gray-900 border-gray-300'
-                   } ${
-                     errors.password 
-                       ? 'border-red-400 focus:ring-red-500/50 focus:border-red-400' 
-                       : ''
-                   } ${
-                     focusedField === 'password' || formData.password
-                       ? 'border-blue-500' 
-                       : ''
-                   }`}
-                  placeholder=""
-                />
-                                 <label className={`absolute left-4 transition-all duration-300 pointer-events-none ${
-                   focusedField === 'password' || formData.password
-                     ? isDarkMode 
-                       ? 'top-[-10px] text-sm font-extralight text-white bg-[#343F51] px-1   border-blue-500 rounded-md'
-                       : 'top-[-10px] text-sm font-medium text-blue-500 bg-white px-1'
-                     : isDarkMode ? 'top-4 text-sm text-gray-300' : 'top-4 text-sm text-gray-500'
-                 } ${isDarkMode && (focusedField === 'password' || formData.password) ? 'bg-slate-800' : ''}`}>
-                  Password
-                </label>
-                <button
-                  type="button"
-                  className={`absolute inset-y-0 right-0 pr-4 flex items-center transition-colors duration-200 ${
-                    isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'
-                  }`}
-                  onClick={() => setIsPasswordShown(!isPasswordShown)}
-                >
-                  {isPasswordShown ? (
-                    <EyeSlashIcon className="h-5 w-5" />
-                  ) : (
-                    <EyeIcon className="h-5 w-5" />
-                  )}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="text-sm text-red-500 animate-in slide-in-from-top-1 duration-200">
-                  {errors.password}
-                </p>
-              )}
-            </div>
-
-            {/* Remember Me & Forgot Password */}
-            <div className="flex justify-between items-center">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.rememberMe}
-                  onChange={(e) => handleInputChange('rememberMe', e.target.checked)}
-                  className={`w-4 h-4 rounded border-2 transition-colors duration-200 ${
-                    isDarkMode 
-                      ? 'bg-white/10 border-white/30 text-blue-500 focus:ring-blue-500/50' 
-                      : 'bg-white border-gray-300 text-blue-600 focus:ring-blue-500/50'
-                  }`}
-                />
-                <span className={`ml-2 text-sm transition-colors duration-300 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  Remember me
-                </span>
-              </label>
-              <button
-                type="button"
-                className={`text-sm font-medium transition-colors duration-200 ${
-                  isDarkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-500'
-                }`}
-              >
-                Forgot password?
-              </button>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="group relative w-full flex justify-center py-4 px-6 border border-transparent text-base font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/25 transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-            >
-              {isLoading ? (
-                <div className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Signing in...
-                </div>
-              ) : (
-                <div className="flex items-center">
-                  <span>Sign In</span>
-                  <ArrowRightIcon className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform duration-200" />
-                </div>
-              )}
-            </button>
-          </form>
+  return (
+    <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-300 ${
+      isDarkMode 
+        ? 'bg-slate-900' 
+        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+    }`}>
+      {/* Background Graphics for larger screens */}
+      <div className="hidden md:block fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-10 left-10 w-32 h-32 opacity-10">
+          <svg viewBox="0 0 100 100" className="w-full h-full">
+            <path d="M50 10 L90 30 L90 70 L50 90 L10 70 L10 30 Z" fill="currentColor" className="text-blue-600"/>
+          </svg>
+        </div>
+        <div className="absolute top-20 right-20 w-24 h-24 opacity-10">
+          <svg viewBox="0 0 100 100" className="w-full h-full">
+            <path d="M20 20 L80 20 L80 80 L20 80 Z" fill="currentColor" className="text-indigo-600"/>
+          </svg>
+        </div>
+        <div className="absolute bottom-20 left-20 w-20 h-20 opacity-10">
+          <svg viewBox="0 0 100 100" className="w-full h-full">
+            <circle cx="50" cy="50" r="40" fill="currentColor" className="text-purple-600"/>
+          </svg>
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="text-center mt-8">
-        <p className={`text-xs transition-colors duration-300 ${
-          isDarkMode ? 'text-gray-400' : 'text-gray-500'
-        }`}>
-          © 2024 CRM Admin Panel. All rights reserved.
-        </p>
+      {/* Main Login Card */}
+      <div className={`w-full max-w-md relative z-10 transition-all duration-300 ${
+        isDarkMode
+          ? 'bg-white/10 backdrop-blur-sm border border-white/20 shadow-2xl shadow-blue-800/50'
+          : 'bg-white/80 backdrop-blur-sm border border-white/20 shadow-xl shadow-blue-800/20'
+      } rounded-xl p-8`}>
+        
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center mb-4">
+            <div className={`h-12 w-12 rounded-xl flex items-center justify-center shadow-lg transition-all duration-300 ${
+              isDarkMode
+                ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/25'
+                : 'bg-gradient-to-br from-blue-600 to-indigo-700 shadow-blue-500/25'
+            }`}>
+              <BuildingOfficeIcon className="h-6 w-6 text-white" />
+            </div>
+            <div className="ml-3">
+              <h1 className={`text-xl font-bold transition-colors duration-300 ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
+                CRM
+              </h1>
+            </div>
+          </div>
+          
+          <h2 className={`text-2xl font-bold mb-2 transition-colors duration-300 ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+            Adventure starts here 🚀
+          </h2>
+          <p className={`text-sm transition-colors duration-300 ${
+            isDarkMode ? 'text-gray-300' : 'text-gray-600'
+          }`}>
+            Make your app management easy and fun!
+          </p>
+        </div>
+
+        {/* Success Message */}
+        {showSuccessMessage && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2">
+            <CheckCircleIcon className="h-5 w-5 text-green-600" />
+            <span className="text-green-800 text-sm">Registration successful! Please log in.</span>
+          </div>
+        )}
+
+        {/* Error Message */}
+        {errors.general && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+            <ExclamationTriangleIcon className="h-5 w-5 text-red-600" />
+            <span className="text-red-800 text-sm">{errors.general}</span>
+          </div>
+        )}
+
+        {/* Login Form */}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Username Field */}
+          <div className="relative">
+            <div className={`relative transition-all duration-300 ${
+              focusedField === 'username' 
+                ? 'ring-2 ring-blue-500 ring-opacity-50' 
+                : ''
+            }`}>
+              <div className={`absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors duration-300 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                <UserIcon className="h-5 w-5" />
+              </div>
+              <input
+                type="text"
+                value={formData.username}
+                onChange={(e) => handleInputChange('username', e.target.value)}
+                onFocus={() => handleInputFocus('username')}
+                onBlur={handleInputBlur}
+                placeholder="Username"
+                className={`w-full pl-10 pr-4 py-3 border rounded-lg transition-all duration-300 ${
+                  isDarkMode
+                    ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500 focus:bg-white/20'
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+                } ${errors.username ? 'border-red-500' : ''}`}
+              />
+              {focusedField === 'username' && (
+                <div className={`absolute -top-2 left-3 px-2 text-xs font-medium transition-colors duration-300 ${
+                  isDarkMode 
+                    ? 'text-blue-400 bg-transparent' 
+                    : 'text-blue-500 bg-white'
+                }`}>
+                  Username
+                </div>
+              )}
+            </div>
+            {errors.username && (
+              <p className="mt-1 text-sm text-red-600">{errors.username}</p>
+            )}
+          </div>
+
+          {/* Password Field */}
+          <div className="relative">
+            <div className={`relative transition-all duration-300 ${
+              focusedField === 'password' 
+                ? 'ring-2 ring-blue-500 ring-opacity-50' 
+                : ''
+            }`}>
+              <div className={`absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors duration-300 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                <LockClosedIcon className="h-5 w-5" />
+              </div>
+              <input
+                type={isPasswordShown ? 'text' : 'password'}
+                value={formData.password}
+                onChange={(e) => handleInputChange('password', e.target.value)}
+                onFocus={() => handleInputFocus('password')}
+                onBlur={handleInputBlur}
+                placeholder="Password"
+                className={`w-full pl-10 pr-12 py-3 border rounded-lg transition-all duration-300 ${
+                  isDarkMode
+                    ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500 focus:bg-white/20'
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+                } ${errors.password ? 'border-red-500' : ''}`}
+              />
+              {focusedField === 'password' && (
+                <div className={`absolute -top-2 left-3 px-2 text-xs font-medium transition-colors duration-300 ${
+                  isDarkMode 
+                    ? 'text-blue-400 bg-transparent' 
+                    : 'text-blue-500 bg-white'
+                }`}>
+                  Password
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsPasswordShown(!isPasswordShown)}
+                className={`absolute inset-y-0 right-0 pr-3 flex items-center transition-colors duration-300 ${
+                  isDarkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {isPasswordShown ? (
+                  <EyeSlashIcon className="h-5 w-5" />
+                ) : (
+                  <EyeIcon className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+            {errors.password && (
+              <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+            )}
+          </div>
+
+          {/* Remember Me */}
+          <div className="flex items-center justify-between">
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.rememberMe}
+                onChange={(e) => handleInputChange('rememberMe', e.target.checked)}
+                className={`w-4 h-4 rounded transition-colors duration-300 ${
+                  isDarkMode
+                    ? 'bg-white/10 border-white/20 text-blue-500 focus:ring-blue-500/20'
+                    : 'bg-white border-gray-300 text-blue-600 focus:ring-blue-500/20'
+                }`}
+              />
+              <span className={`text-sm transition-colors duration-300 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                Remember me
+              </span>
+            </label>
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className={`w-full flex items-center justify-center px-6 py-3 rounded-lg font-medium transition-all duration-300 cursor-pointer ${
+              isLoading
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : isDarkMode
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/25'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/25'
+            }`}
+          >
+            {isLoading ? (
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Signing in...</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <span>Sign in</span>
+                <ArrowRightIcon className="h-4 w-4" />
+              </div>
+            )}
+          </button>
+        </form>
+
+        {/* Theme Toggle */}
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={toggleDarkMode}
+            className={`p-2 rounded-lg transition-all duration-300 ${
+              isDarkMode
+                ? 'bg-white/10 text-white hover:bg-white/20'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            aria-label="Toggle dark mode"
+          >
+            {isDarkMode ? (
+              <SunIcon className="h-5 w-5" />
+            ) : (
+              <MoonIcon className="h-5 w-5" />
+            )}
+          </button>
+        </div>
       </div>
     </div>
+  );
+}
+
+// Main component with Suspense boundary
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-500"></div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
