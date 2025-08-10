@@ -1,0 +1,91 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+
+export function useDarkMode() {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Get initial state
+    const savedMode = localStorage.getItem('darkMode');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    // If no saved preference, use system preference
+    let initialMode = prefersDark;
+    
+    // If there's a saved preference, use it
+    if (savedMode !== null) {
+      initialMode = savedMode === 'true';
+    }
+    
+    setIsDarkMode(initialMode);
+
+    // Listen for custom dark mode change events
+    const handleDarkModeChange = (event: CustomEvent) => {
+      setIsDarkMode(event.detail);
+    };
+
+    // Listen for storage changes
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'darkMode') {
+        setIsDarkMode(event.newValue === 'true');
+      }
+    };
+
+                    // Listen for system preference changes
+                const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+                const handleSystemChange = (event: MediaQueryListEvent) => {
+                  // Only update if user hasn't set a manual preference
+                  const savedMode = localStorage.getItem('darkMode');
+                  if (savedMode === null) {
+                    setIsDarkMode(event.matches);
+                  }
+                };
+
+    window.addEventListener('darkModeChange', handleDarkModeChange as EventListener);
+    window.addEventListener('storage', handleStorageChange);
+    mediaQuery.addEventListener('change', handleSystemChange);
+
+    return () => {
+      window.removeEventListener('darkModeChange', handleDarkModeChange as EventListener);
+      window.removeEventListener('storage', handleStorageChange);
+      mediaQuery.removeEventListener('change', handleSystemChange);
+    };
+  }, []);
+
+  const toggleDarkMode = () => {
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    localStorage.setItem('darkMode', newMode.toString());
+    
+    // Dispatch custom event
+    const event = new CustomEvent('darkModeChange', { 
+      detail: newMode,
+      bubbles: true,
+      cancelable: true
+    });
+    window.dispatchEvent(event);
+  };
+
+  const setSystemTheme = () => {
+    localStorage.removeItem('darkMode');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    setIsDarkMode(prefersDark);
+    
+    // Dispatch custom event
+    const event = new CustomEvent('darkModeChange', { 
+      detail: prefersDark,
+      bubbles: true,
+      cancelable: true
+    });
+    window.dispatchEvent(event);
+  };
+
+  const getThemeMode = () => {
+    const savedMode = localStorage.getItem('darkMode');
+    if (savedMode === null) return 'system';
+    return savedMode === 'true' ? 'dark' : 'light';
+  };
+
+  return { isDarkMode, toggleDarkMode, setSystemTheme, getThemeMode };
+}
