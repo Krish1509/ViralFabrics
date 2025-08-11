@@ -165,6 +165,25 @@ function LoginForm() {
         </div>
       </div>
 
+      {/* Dark Mode Toggle - Top Right */}
+      <div className="absolute top-4 right-4 z-20">
+        <button
+          onClick={toggleDarkMode}
+          className={`p-3 rounded-full transition-all duration-300 ${
+            isDarkMode
+              ? 'bg-white/10 text-white hover:bg-white/20'
+              : 'bg-white/80 text-gray-700 hover:bg-white shadow-lg backdrop-blur-sm'
+          }`}
+          aria-label="Toggle dark mode"
+        >
+          {isDarkMode ? (
+            <SunIcon className="h-5 w-5" />
+          ) : (
+            <MoonIcon className="h-5 w-5" />
+          )}
+        </button>
+      </div>
+
       {/* Main Login Card */}
       <div className={`w-full max-w-md relative z-10 transition-all duration-300 ${
         isDarkMode
@@ -173,7 +192,7 @@ function LoginForm() {
       } rounded-xl p-8`}>
         
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="text-left mb-8">
           <div className="flex items-center justify-center mb-4">
             <div className={`h-12 w-12 rounded-xl flex items-center justify-center shadow-lg transition-all duration-300 ${
               isDarkMode
@@ -183,7 +202,7 @@ function LoginForm() {
               <BuildingOfficeIcon className="h-6 w-6 text-white" />
             </div>
             <div className="ml-3">
-              <h1 className={`text-xl font-bold transition-colors duration-300 ${
+              <h1 className={`text-2xl font-bold transition-colors duration-300 ${
                 isDarkMode ? 'text-white' : 'text-gray-900'
               }`}>
                 CRM
@@ -191,7 +210,7 @@ function LoginForm() {
             </div>
           </div>
           
-          <h2 className={`text-2xl font-bold mb-2 transition-colors duration-300 ${
+          {/* <h2 className={`text-2xl font-bold mb-2 transition-colors duration-300 ${
             isDarkMode ? 'text-white' : 'text-gray-900'
           }`}>
             Adventure starts here 🚀
@@ -200,7 +219,7 @@ function LoginForm() {
             isDarkMode ? 'text-gray-300' : 'text-gray-600'
           }`}>
             Make your app management easy and fun!
-          </p>
+          </p> */}
         </div>
 
         {/* Success Message */}
@@ -221,31 +240,27 @@ function LoginForm() {
 
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Username Field */}
-          <div className="relative">
-            <div className={`relative transition-all duration-300 ${
-              focusedField === 'username' 
-                ? 'ring-2 ring-blue-500 ring-opacity-50' 
-                : ''
-            }`}>
+                     {/* Username Field */}
+           <div className="relative">
+             <div className="relative transition-all duration-300">
               <div className={`absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors duration-300 ${
                 isDarkMode ? 'text-gray-400' : 'text-gray-500'
               }`}>
                 <UserIcon className="h-5 w-5" />
               </div>
-              <input
-                type="text"
-                value={formData.username}
-                onChange={(e) => handleInputChange('username', e.target.value)}
-                onFocus={() => handleInputFocus('username')}
-                onBlur={handleInputBlur}
-                placeholder="Username"
-                className={`w-full pl-10 pr-4 py-3 border rounded-lg transition-all duration-300 ${
-                  isDarkMode
-                    ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500 focus:bg-white/20'
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                } ${errors.username ? 'border-red-500' : ''}`}
-              />
+                             <input
+                 type="text"
+                 value={formData.username}
+                 onChange={(e) => handleInputChange('username', e.target.value)}
+                 onFocus={() => handleInputFocus('username')}
+                 onBlur={handleInputBlur}
+                 placeholder="Username"
+                                   className={`w-full pl-10 pr-4 py-3 border rounded-lg transition-all duration-300 focus:outline-none ${
+                    isDarkMode
+                      ? 'bg-white/10 border-gray-600 text-white placeholder-gray-400 focus:border-blue-600 focus:bg-white/20'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-600'
+                  } ${errors.username ? 'border-red-500' : ''}`}
+               />
               {focusedField === 'username' && (
                 <div className={`absolute -top-2 left-3 px-2 text-xs font-medium transition-colors duration-300 ${
                   isDarkMode 
@@ -261,35 +276,31 @@ function LoginForm() {
             )}
           </div>
 
-          {/* Password Field */}
-          <div className="relative">
-            <div className={`relative transition-all duration-300 ${
-              focusedField === 'password' 
-                ? 'ring-2 ring-blue-500 ring-opacity-50' 
-                : ''
-            }`}>
+                     {/* Password Field */}
+           <div className="relative">
+             <div className="relative transition-all duration-300">
               <div className={`absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors duration-300 ${
                 isDarkMode ? 'text-gray-400' : 'text-gray-500'
               }`}>
                 <LockClosedIcon className="h-5 w-5" />
               </div>
-              <input
-                type={isPasswordShown ? 'text' : 'password'}
-                value={formData.password}
-                onChange={(e) => handleInputChange('password', e.target.value)}
-                onFocus={() => handleInputFocus('password')}
-                onBlur={handleInputBlur}
-                placeholder="Password"
-                className={`w-full pl-10 pr-12 py-3 border rounded-lg transition-all duration-300 ${
-                  isDarkMode
-                    ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500 focus:bg-white/20'
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                } ${errors.password ? 'border-red-500' : ''}`}
-              />
+                             <input
+                 type={isPasswordShown ? 'text' : 'password'}
+                 value={formData.password}
+                 onChange={(e) => handleInputChange('password', e.target.value)}
+                 onFocus={() => handleInputFocus('password')}
+                 onBlur={handleInputBlur}
+                 placeholder="Password"
+                                   className={`w-full pl-10 pr-12 py-3 border rounded-lg transition-all duration-300 focus:outline-none ${
+                    isDarkMode
+                      ? 'bg-white/10 border-gray-600 text-white placeholder-gray-400 focus:border-blue-600 focus:bg-white/20'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-600'
+                  } ${errors.password ? 'border-red-500' : ''}`}
+               />
               {focusedField === 'password' && (
                 <div className={`absolute -top-2 left-3 px-2 text-xs font-medium transition-colors duration-300 ${
                   isDarkMode 
-                    ? 'text-blue-400 bg-transparent' 
+                    ? 'text-blue-400 bg-gray-700/20 bg-blur-xl' 
                     : 'text-blue-500 bg-white'
                 }`}>
                   Password
@@ -361,24 +372,9 @@ function LoginForm() {
           </button>
         </form>
 
-        {/* Theme Toggle */}
-        <div className="mt-6 flex justify-center">
-          <button
-            onClick={toggleDarkMode}
-            className={`p-2 rounded-lg transition-all duration-300 ${
-              isDarkMode
-                ? 'bg-white/10 text-white hover:bg-white/20'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-            aria-label="Toggle dark mode"
-          >
-            {isDarkMode ? (
-              <SunIcon className="h-5 w-5" />
-            ) : (
-              <MoonIcon className="h-5 w-5" />
-            )}
-          </button>
-        </div>
+
+
+
       </div>
     </div>
   );

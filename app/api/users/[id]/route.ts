@@ -44,11 +44,13 @@ export async function PUT(
     const auth = await requireSuperadmin(req);
     if (auth.status !== 200) return auth.error;
 
-    const { name, username, password, role } = await req.json();
+    const { name, username, password, role, phoneNumber, address } = await req.json();
     const update: Record<string, unknown> = {};
     if (typeof name === "string" && name.trim()) update.name = name;
     if (typeof username === "string" && username.trim()) update.username = username;
     if (role === "user" || role === "superadmin") update.role = role;
+    if (typeof phoneNumber === "string") update.phoneNumber = phoneNumber;
+    if (typeof address === "string") update.address = address;
     if (typeof password === "string" && password.length > 0) {
       update.password = await bcrypt.hash(password, 10);
     }

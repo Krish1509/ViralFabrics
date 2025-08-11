@@ -37,10 +37,12 @@ export async function PUT(req: NextRequest) {
     const auth = await requireAuth(req);
     if (auth.status !== 200) return auth.error;
 
-    const { name, username, password } = await req.json();
+    const { name, username, password, phoneNumber, address } = await req.json();
     const update: Record<string, unknown> = {};
     if (typeof name === "string" && name.trim()) update.name = name;
     if (typeof username === "string" && username.trim()) update.username = username;
+    if (typeof phoneNumber === "string") update.phoneNumber = phoneNumber;
+    if (typeof address === "string") update.address = address;
     if (typeof password === "string" && password.length > 0) {
       update.password = await bcrypt.hash(password, 10);
     }

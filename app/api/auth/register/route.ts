@@ -5,7 +5,7 @@ import { type NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, username, password } = await req.json();
+    const { name, username, password, phoneNumber, address } = await req.json();
 
     await dbConnect();
 
@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
       name,
       username,
       password: hashedPassword,
+      phoneNumber,
+      address,
       role: "user"
     });
 

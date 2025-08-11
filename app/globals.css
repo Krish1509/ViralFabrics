@@ -90,3 +90,6 @@ body {
 .hover\:scrollbar-thumb-slate-400:hover::-webkit-scrollbar-thumb {
   background: #94a3b8;
 }
+button{
+  cursor: pointer;
+}

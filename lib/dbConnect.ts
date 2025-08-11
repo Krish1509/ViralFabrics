@@ -27,13 +27,19 @@ const cached: MongooseCache =
   (globalWithCache.mongooseCache = { conn: null, promise: null });
 
 export default async function dbConnect(): Promise<Mongoose> {
-  if (cached.conn) return cached.conn;
+  console.log('🔌 Attempting to connect to MongoDB...'); // Debug log
+  if (cached.conn) {
+    console.log('✅ Using cached connection'); // Debug log
+    return cached.conn;
+  }
   if (!cached.promise) {
+    console.log('🔄 Creating new connection promise...'); // Debug log
     cached.promise = mongoose.connect(MONGODB_URI, {
       bufferCommands: false,
     });
   }
   cached.conn = await cached.promise;
+  console.log('✅ Connected to MongoDB successfully'); // Debug log
   return cached.conn;
 }
 

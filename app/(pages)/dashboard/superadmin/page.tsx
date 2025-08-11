@@ -149,12 +149,12 @@ export default function SuperAdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
         <div>
-          <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+          <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
             Welcome back, Super Admin!
           </h1>
-          <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+          <p className={`mt-2 text-lg ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
             Manage your CRM system and monitor all activities from your dashboard.
           </p>
         </div>
@@ -162,7 +162,7 @@ export default function SuperAdminDashboard() {
         {/* Camera Button */}
         <button
           onClick={openCamera}
-          className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+          className={`inline-flex items-center px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
             isDarkMode
               ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
               : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
@@ -174,27 +174,27 @@ export default function SuperAdminDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className={`p-6 rounded-xl border transition-all duration-300 ${
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className={`p-8 rounded-xl border transition-all duration-300 ${
           isDarkMode
             ? 'bg-white/5 border-white/10'
             : 'bg-white border-gray-200'
         }`}>
           <div className="flex items-center">
-            <div className={`p-3 rounded-xl ${
+            <div className={`p-4 rounded-xl ${
               isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
             }`}>
-              <UsersIcon className={`h-8 w-8 ${
+              <UsersIcon className={`h-10 w-10 ${
                 isDarkMode ? 'text-blue-400' : 'text-blue-600'
               }`} />
             </div>
-            <div className="ml-4">
+            <div className="ml-6">
               <p className={`text-sm font-medium ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
               }`}>
                 Total Users
               </p>
-              <p className={`text-2xl font-bold ${
+              <p className={`text-3xl font-bold ${
                 isDarkMode ? 'text-white' : 'text-gray-900'
               }`}>
                 1,234
@@ -203,26 +203,26 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
 
-        <div className={`p-6 rounded-xl border transition-all duration-300 ${
+        <div className={`p-8 rounded-xl border transition-all duration-300 ${
           isDarkMode
             ? 'bg-white/5 border-white/10'
             : 'bg-white border-gray-200'
         }`}>
           <div className="flex items-center">
-            <div className={`p-3 rounded-xl ${
+            <div className={`p-4 rounded-xl ${
               isDarkMode ? 'bg-green-500/20' : 'bg-green-100'
             }`}>
-              <BuildingOfficeIcon className={`h-8 w-8 ${
+              <BuildingOfficeIcon className={`h-10 w-10 ${
                 isDarkMode ? 'text-green-400' : 'text-green-600'
               }`} />
             </div>
-            <div className="ml-4">
+            <div className="ml-6">
               <p className={`text-sm font-medium ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
               }`}>
                 Companies
               </p>
-              <p className={`text-2xl font-bold ${
+              <p className={`text-3xl font-bold ${
                 isDarkMode ? 'text-white' : 'text-gray-900'
               }`}>
                 89
@@ -231,26 +231,26 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
 
-        <div className={`p-6 rounded-xl border transition-all duration-300 ${
+        <div className={`p-8 rounded-xl border transition-all duration-300 ${
           isDarkMode
             ? 'bg-white/5 border-white/10'
             : 'bg-white border-gray-200'
         }`}>
           <div className="flex items-center">
-            <div className={`p-3 rounded-xl ${
+            <div className={`p-4 rounded-xl ${
               isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
             }`}>
-              <DocumentTextIcon className={`h-8 w-8 ${
+              <DocumentTextIcon className={`h-10 w-10 ${
                 isDarkMode ? 'text-purple-400' : 'text-purple-600'
               }`} />
             </div>
-            <div className="ml-4">
+            <div className="ml-6">
               <p className={`text-sm font-medium ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
               }`}>
                 Documents
               </p>
-              <p className={`text-2xl font-bold ${
+              <p className={`text-3xl font-bold ${
                 isDarkMode ? 'text-white' : 'text-gray-900'
               }`}>
                 456
@@ -259,26 +259,26 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
 
-        <div className={`p-6 rounded-xl border transition-all duration-300 ${
+        <div className={`p-8 rounded-xl border transition-all duration-300 ${
           isDarkMode
             ? 'bg-white/5 border-white/10'
             : 'bg-white border-gray-200'
         }`}>
           <div className="flex items-center">
-            <div className={`p-3 rounded-xl ${
+            <div className={`p-4 rounded-xl ${
               isDarkMode ? 'bg-orange-500/20' : 'bg-orange-100'
             }`}>
-              <PhotoIcon className={`h-8 w-8 ${
+              <PhotoIcon className={`h-10 w-10 ${
                 isDarkMode ? 'text-orange-400' : 'text-orange-600'
               }`} />
             </div>
-            <div className="ml-4">
+            <div className="ml-6">
               <p className={`text-sm font-medium ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
               }`}>
                 Photos
               </p>
-              <p className={`text-2xl font-bold ${
+              <p className={`text-3xl font-bold ${
                 isDarkMode ? 'text-white' : 'text-gray-900'
               }`}>
                 {photos.length}
@@ -294,30 +294,30 @@ export default function SuperAdminDashboard() {
           ? 'bg-white/5 border-white/10'
           : 'bg-white border-gray-200'
       }`}>
-        <div className="p-6 border-b border-gray-200 dark:border-white/10">
-          <h2 className={`text-lg font-semibold ${
+        <div className="p-8 border-b border-gray-200 dark:border-white/10">
+          <h2 className={`text-2xl font-semibold ${
             isDarkMode ? 'text-white' : 'text-gray-900'
           }`}>
             Photo Gallery
           </h2>
-          <p className={`text-sm ${
+          <p className={`text-lg mt-2 ${
             isDarkMode ? 'text-gray-300' : 'text-gray-600'
           }`}>
             Your captured photos and memories
           </p>
         </div>
 
-        <div className="p-6">
+        <div className="p-8">
           {photos.length === 0 ? (
-            <div className={`text-center py-12 ${
+            <div className={`text-center py-16 ${
               isDarkMode ? 'text-gray-400' : 'text-gray-500'
             }`}>
-              <PhotoIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium mb-2">No photos yet</p>
-              <p className="text-sm">Click "Take Photo" to capture your first image</p>
+              <PhotoIcon className="h-16 w-16 mx-auto mb-6 opacity-50" />
+              <p className="text-xl font-medium mb-3">No photos yet</p>
+              <p className="text-lg">Click "Take Photo" to capture your first image</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {photos.map((photo) => (
                 <div key={photo.id} className={`group relative rounded-lg overflow-hidden border transition-all duration-300 ${
                   isDarkMode ? 'border-white/10' : 'border-gray-200'
@@ -325,45 +325,45 @@ export default function SuperAdminDashboard() {
                   <img
                     src={photo.dataUrl}
                     alt={photo.name}
-                    className="w-full h-48 object-cover"
+                    className="w-full h-56 object-cover"
                   />
                   
                   {/* Overlay with actions */}
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center space-x-2">
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center space-x-3">
                     <button
                       onClick={() => downloadPhoto(photo)}
-                      className={`p-2 rounded-lg transition-all duration-300 ${
+                      className={`p-3 rounded-lg transition-all duration-300 ${
                         isDarkMode
                           ? 'bg-white/20 text-white hover:bg-white/30'
                           : 'bg-white/80 text-gray-900 hover:bg-white'
                       }`}
                       title="Download"
                     >
-                      <ArrowDownTrayIcon className="h-4 w-4" />
+                      <ArrowDownTrayIcon className="h-5 w-5" />
                     </button>
                     <button
                       onClick={() => deletePhoto(photo.id)}
-                      className={`p-2 rounded-lg transition-all duration-300 ${
+                      className={`p-3 rounded-lg transition-all duration-300 ${
                         isDarkMode
                           ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
                           : 'bg-red-100 text-red-600 hover:bg-red-200'
                       }`}
                       title="Delete"
                     >
-                      <TrashIcon className="h-4 w-4" />
+                      <TrashIcon className="h-5 w-5" />
                     </button>
                   </div>
                   
                   {/* Photo info */}
-                  <div className={`absolute bottom-0 left-0 right-0 p-2 ${
+                  <div className={`absolute bottom-0 left-0 right-0 p-4 ${
                     isDarkMode ? 'bg-black/50' : 'bg-white/80'
                   }`}>
-                    <p className={`text-xs font-medium ${
+                    <p className={`text-sm font-medium ${
                       isDarkMode ? 'text-white' : 'text-gray-900'
                     }`}>
                       {photo.name}
                     </p>
-                    <p className={`text-xs ${
+                    <p className={`text-sm ${
                       isDarkMode ? 'text-gray-300' : 'text-gray-600'
                     }`}>
                       {photo.timestamp.toLocaleDateString()}

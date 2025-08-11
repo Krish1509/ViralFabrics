@@ -16,6 +16,8 @@ interface User {
   _id: string;
   name: string;
   username: string;
+  phoneNumber?: string;
+  address?: string;
   role: string;
   createdAt: string;
   updatedAt: string;
@@ -25,6 +27,8 @@ interface UserFormData {
   name: string;
   username: string;
   password: string;
+  phoneNumber: string;
+  address: string;
   role: string;
 }
 
@@ -37,16 +41,38 @@ export default function UsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [screenSize, setScreenSize] = useState<number>(0);
   const [formData, setFormData] = useState<UserFormData>({
     name: '',
     username: '',
     password: '',
+    phoneNumber: '',
+    address: '',
     role: 'user'
   });
   const [formErrors, setFormErrors] = useState<Partial<UserFormData>>({});
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const usersPerPage = 7;
+
+  // Track screen size
+  useEffect(() => {
+    const handleResize = () => {
+      setScreenSize(window.innerWidth);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isLargeScreen = screenSize > 1000;
+  const isMediumScreen = screenSize > 600;
+  const isSmallScreen = screenSize > 500;
+  const isTinyScreen = screenSize <= 500;
 
   // Fetch users
   const fetchUsers = async () => {
@@ -83,6 +109,34 @@ export default function UsersPage() {
     return matchesSearch && matchesRole;
   });
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, roleFilter]);
+
+  // Page navigation functions
+  const goToPage = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
   // Show message
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
@@ -107,6 +161,9 @@ export default function UsersPage() {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('token');
+      console.log('Creating user with data:', formData); // Debug log
+      console.log('Phone Number:', formData.phoneNumber); // Debug log
+      console.log('Address:', formData.address); // Debug log
       const response = await fetch('/api/users', {
         method: 'POST',
         headers: {
@@ -116,14 +173,19 @@ export default function UsersPage() {
         body: JSON.stringify(formData)
       });
 
+      console.log('Response status:', response.status); // Debug log
+      const responseText = await response.text();
+      console.log('Response text:', responseText); // Debug log
+
       if (response.ok) {
-        const data = await response.json();
+        const data = JSON.parse(responseText);
+        console.log('User created successfully:', data); // Debug log
         setUsers([...users, data.user]);
         setShowCreateModal(false);
         resetForm();
         showMessage('success', 'User created successfully');
       } else {
-        const error = await response.json();
+        const error = JSON.parse(responseText);
         showMessage('error', error.message || 'Failed to create user');
       }
     } catch (error) {
@@ -217,6 +279,8 @@ export default function UsersPage() {
       name: '',
       username: '',
       password: '',
+      phoneNumber: '',
+      address: '',
       role: 'user'
     });
     setFormErrors({});
@@ -250,7 +314,7 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -328,15 +392,22 @@ export default function UsersPage() {
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+              className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 appearance-none cursor-pointer ${
                 isDarkMode
-                  ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                  : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                  ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:border-white/30'
+                  : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
               }`}
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='${isDarkMode ? 'rgb(156 163 175)' : 'rgb(107 114 128)'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+                backgroundPosition: 'right 0.5rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.5em 1.5em',
+                paddingRight: '2.5rem'
+              }}
             >
-              <option value="all">All Roles</option>
-              <option value="superadmin">Super Admin</option>
-              <option value="user">User</option>
+              <option value="all" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>All Roles</option>
+              <option value="superadmin" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Super Admin</option>
+              <option value="user" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>User</option>
             </select>
           </div>
         </div>
@@ -361,16 +432,27 @@ export default function UsersPage() {
                 }`}>
                   User
                 </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                }`}>
-                  Role
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                }`}>
-                  Created
-                </th>
+                {isSmallScreen && (
+                  <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                  }`}>
+                    Role
+                  </th>
+                )}
+                {isLargeScreen && (
+                  <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                  }`}>
+                    Contact Info
+                  </th>
+                )}
+                {isMediumScreen && (
+                  <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                  }`}>
+                    Created
+                  </th>
+                )}
                 <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
                   isDarkMode ? 'text-gray-300' : 'text-gray-500'
                 }`}>
@@ -381,7 +463,7 @@ export default function UsersPage() {
             <tbody className={`divide-y ${
               isDarkMode ? 'divide-white/10' : 'divide-gray-200'
             }`}>
-              {filteredUsers.map((user) => (
+              {currentUsers.map((user) => (
                 <tr key={user._id} className={`hover:${
                   isDarkMode ? 'bg-white/5' : 'bg-gray-50'
                 } transition-colors duration-200`}>
@@ -394,7 +476,7 @@ export default function UsersPage() {
                       }`}>
                         {getUserInitials(user.name)}
                       </div>
-                      <div className="ml-4">
+                      <div className="ml-4 flex-1">
                         <div className={`text-sm font-medium ${
                           isDarkMode ? 'text-white' : 'text-gray-900'
                         }`}>
@@ -405,27 +487,65 @@ export default function UsersPage() {
                         }`}>
                           {user.username}
                         </div>
+                        {(!isLargeScreen || !isSmallScreen || !isMediumScreen) && (
+                          <button
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setShowProfileModal(true);
+                            }}
+                            className={`mt-1 text-xs px-2 py-1 rounded-md transition-all duration-300 ${
+                              isDarkMode
+                                ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                                : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                            }`}
+                          >
+                            View Profile
+                          </button>
+                        )}
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      user.role === 'superadmin'
-                        ? isDarkMode
-                          ? 'bg-purple-900/20 text-purple-400'
-                          : 'bg-purple-100 text-purple-800'
-                        : isDarkMode
-                          ? 'bg-blue-900/20 text-blue-400'
-                          : 'bg-blue-100 text-blue-800'
+                  {isSmallScreen && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        user.role === 'superadmin'
+                          ? isDarkMode
+                            ? 'bg-purple-900/20 text-purple-400'
+                            : 'bg-purple-100 text-purple-800'
+                          : isDarkMode
+                            ? 'bg-blue-900/20 text-blue-400'
+                            : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {user.role === 'superadmin' ? 'Super Admin' : 'User'}
+                      </span>
+                    </td>
+                  )}
+                  {isLargeScreen && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                        {user.phoneNumber && (
+                          <div className="mb-1">
+                            📞 {user.phoneNumber}
+                          </div>
+                        )}
+                        {user.address && (
+                          <div className="text-xs">
+                            📍 {user.address.length > 30 ? `${user.address.substring(0, 30)}...` : user.address}
+                          </div>
+                        )}
+                        {!user.phoneNumber && !user.address && (
+                          <span className="text-gray-400">No contact info</span>
+                        )}
+                      </div>
+                    </td>
+                  )}
+                  {isMediumScreen && (
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-500'
                     }`}>
-                      {user.role === 'superadmin' ? 'Super Admin' : 'User'}
-                    </span>
-                  </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    {formatDate(user.createdAt)}
-                  </td>
+                      {formatDate(user.createdAt)}
+                    </td>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center space-x-2">
                       <button
@@ -435,6 +555,8 @@ export default function UsersPage() {
                             name: user.name,
                             username: user.username,
                             password: '',
+                            phoneNumber: user.phoneNumber || '',
+                            address: user.address || '',
                             role: user.role
                           });
                           setShowEditModal(true);
@@ -479,10 +601,100 @@ export default function UsersPage() {
         )}
       </div>
 
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className={`flex items-center justify-between px-4 py-3 border-t ${
+          isDarkMode 
+            ? 'bg-white/5 border-white/10' 
+            : 'bg-white border-gray-200'
+        } sm:px-6`}>
+          <div className="flex-1 flex justify-between sm:hidden">
+            <button
+              onClick={goToPreviousPage}
+              disabled={currentPage === 1}
+              className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium rounded-md transition-all duration-300 ${
+                isDarkMode
+                  ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed'
+                  : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
+              }`}
+            >
+              Previous
+            </button>
+            <button
+              onClick={goToNextPage}
+              disabled={currentPage === totalPages}
+              className={`ml-3 relative inline-flex items-center px-4 py-2 border text-sm font-medium rounded-md transition-all duration-300 ${
+                isDarkMode
+                  ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed'
+                  : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
+              }`}
+            >
+              Next
+            </button>
+          </div>
+          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            <div className={`flex-1 text-sm text-center ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              Page <span className="font-semibold">{currentPage}</span> of <span className="font-semibold">{totalPages}</span>
+            </div>
+            <div className="flex items-center">
+              <button
+                onClick={goToPreviousPage}
+                disabled={currentPage === 1}
+                className={`relative inline-flex items-center px-2 py-2 rounded-l-md border text-sm font-medium transition-all duration-300 ${
+                  isDarkMode
+                    ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed'
+                    : 'border-gray-300 text-gray-500 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
+                }`}
+              >
+                <span className="sr-only">Previous</span>
+                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => goToPage(page)}
+                    className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium transition-all duration-300 ${
+                      currentPage === page
+                        ? isDarkMode
+                          ? 'z-10 bg-blue-600 border-blue-500 text-white'
+                          : 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                        : isDarkMode
+                          ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20'
+                          : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </nav>
+              <button
+                onClick={goToNextPage}
+                disabled={currentPage === totalPages}
+                className={`relative inline-flex items-center px-2 py-2 rounded-r-md border text-sm font-medium transition-all duration-300 ${
+                  isDarkMode
+                    ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed'
+                    : 'border-gray-300 text-gray-500 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
+                }`}
+              >
+                <span className="sr-only">Next</span>
+                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create User Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`w-full max-w-md rounded-lg shadow-xl ${
+          <div className={`w-full max-w-2xl rounded-lg shadow-xl ${
             isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
           }`}>
             <div className={`flex items-center justify-between p-6 border-b ${
@@ -508,101 +720,159 @@ export default function UsersPage() {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
-              {/* Name */}
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
-                    formErrors.name
-                      ? 'border-red-500'
-                      : isDarkMode
-                        ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                        : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                  }`}
-                  placeholder="Enter full name"
-                />
-                {formErrors.name && (
-                  <p className="mt-1 text-sm text-red-500">{formErrors.name}</p>
-                )}
-              </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left Column */}
+                <div className="space-y-4">
+                  {/* Name */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                        formErrors.name
+                          ? 'border-red-500'
+                          : isDarkMode
+                            ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                      }`}
+                      placeholder="Enter full name"
+                    />
+                    {formErrors.name && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.name}</p>
+                    )}
+                  </div>
 
-              {/* Username */}
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
-                    formErrors.username
-                      ? 'border-red-500'
-                      : isDarkMode
-                        ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                        : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                  }`}
-                  placeholder="Enter username"
-                />
-                {formErrors.username && (
-                  <p className="mt-1 text-sm text-red-500">{formErrors.username}</p>
-                )}
-              </div>
+                  {/* Username */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.username}
+                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                        formErrors.username
+                          ? 'border-red-500'
+                          : isDarkMode
+                            ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                      }`}
+                      placeholder="Enter username"
+                    />
+                    {formErrors.username && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.username}</p>
+                    )}
+                  </div>
 
-              {/* Password */}
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
-                    formErrors.password
-                      ? 'border-red-500'
-                      : isDarkMode
-                        ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                        : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                  }`}
-                  placeholder="Enter password"
-                />
-                {formErrors.password && (
-                  <p className="mt-1 text-sm text-red-500">{formErrors.password}</p>
-                )}
-              </div>
+                  {/* Password */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                        formErrors.password
+                          ? 'border-red-500'
+                          : isDarkMode
+                            ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                      }`}
+                      placeholder="Enter password"
+                    />
+                    {formErrors.password && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.password}</p>
+                    )}
+                  </div>
+                </div>
 
-              {/* Role */}
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  Role
-                </label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
-                    isDarkMode
-                      ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                      : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                  }`}
-                >
-                  <option value="user">User</option>
-                  <option value="superadmin">Super Admin</option>
-                </select>
+                {/* Right Column */}
+                <div className="space-y-4">
+                  {/* Phone Number */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.phoneNumber}
+                      onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                        formErrors.phoneNumber
+                          ? 'border-red-500'
+                          : isDarkMode
+                            ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                      }`}
+                      placeholder="Enter phone number"
+                    />
+                    {formErrors.phoneNumber && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.phoneNumber}</p>
+                    )}
+                  </div>
+
+                  {/* Address */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Address
+                    </label>
+                    <textarea
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      rows={3}
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                        formErrors.address
+                          ? 'border-red-500'
+                          : isDarkMode
+                            ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                      } resize-none`}
+                      placeholder="Enter address"
+                    />
+                    {formErrors.address && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.address}</p>
+                    )}
+                  </div>
+
+                  {/* Role */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Role
+                    </label>
+                    <select
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                        isDarkMode
+                          ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                          : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                      }`}
+                    >
+                      <option value="user" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>User</option>
+                      <option value="superadmin" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Super Admin</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -638,7 +908,7 @@ export default function UsersPage() {
       {/* Edit User Modal */}
       {showEditModal && selectedUser && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`w-full max-w-md rounded-lg shadow-xl ${
+          <div className={`w-full max-w-2xl rounded-lg shadow-xl ${
             isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
           }`}>
             <div className={`flex items-center justify-between p-6 border-b ${
@@ -664,101 +934,159 @@ export default function UsersPage() {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
-              {/* Name */}
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
-                    formErrors.name
-                      ? 'border-red-500'
-                      : isDarkMode
-                        ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                        : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                  }`}
-                  placeholder="Enter full name"
-                />
-                {formErrors.name && (
-                  <p className="mt-1 text-sm text-red-500">{formErrors.name}</p>
-                )}
-              </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left Column */}
+                <div className="space-y-4">
+                  {/* Name */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                        formErrors.name
+                          ? 'border-red-500'
+                          : isDarkMode
+                            ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                      }`}
+                      placeholder="Enter full name"
+                    />
+                    {formErrors.name && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.name}</p>
+                    )}
+                  </div>
 
-              {/* Username */}
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
-                    formErrors.username
-                      ? 'border-red-500'
-                      : isDarkMode
-                        ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                        : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                  }`}
-                  placeholder="Enter username"
-                />
-                {formErrors.username && (
-                  <p className="mt-1 text-sm text-red-500">{formErrors.username}</p>
-                )}
-              </div>
+                  {/* Username */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.username}
+                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                        formErrors.username
+                          ? 'border-red-500'
+                          : isDarkMode
+                            ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                      }`}
+                      placeholder="Enter username"
+                    />
+                    {formErrors.username && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.username}</p>
+                    )}
+                  </div>
 
-              {/* Password */}
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  Password (leave blank to keep current)
-                </label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
-                    formErrors.password
-                      ? 'border-red-500'
-                      : isDarkMode
-                        ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                        : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                  }`}
-                  placeholder="Enter new password"
-                />
-                {formErrors.password && (
-                  <p className="mt-1 text-sm text-red-500">{formErrors.password}</p>
-                )}
-              </div>
+                  {/* Password */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                        formErrors.password
+                          ? 'border-red-500'
+                          : isDarkMode
+                            ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                      }`}
+                      placeholder="Enter password (leave blank to keep current)"
+                    />
+                    {formErrors.password && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.password}</p>
+                    )}
+                  </div>
+                </div>
 
-              {/* Role */}
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  Role
-                </label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
-                    isDarkMode
-                      ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                      : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                  }`}
-                >
-                  <option value="user">User</option>
-                  <option value="superadmin">Super Admin</option>
-                </select>
+                {/* Right Column */}
+                <div className="space-y-4">
+                  {/* Phone Number */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.phoneNumber}
+                      onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                        formErrors.phoneNumber
+                          ? 'border-red-500'
+                          : isDarkMode
+                            ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                      }`}
+                      placeholder="Enter phone number"
+                    />
+                    {formErrors.phoneNumber && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.phoneNumber}</p>
+                    )}
+                  </div>
+
+                  {/* Address */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Address
+                    </label>
+                    <textarea
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      rows={3}
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                        formErrors.address
+                          ? 'border-red-500'
+                          : isDarkMode
+                            ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                      } resize-none`}
+                      placeholder="Enter address"
+                    />
+                    {formErrors.address && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.address}</p>
+                    )}
+                  </div>
+
+                  {/* Role */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Role
+                    </label>
+                    <select
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                        isDarkMode
+                          ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                          : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                      }`}
+                    >
+                      <option value="user" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>User</option>
+                      <option value="superadmin" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Super Admin</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -873,6 +1201,152 @@ export default function UsersPage() {
                 className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all duration-300 disabled:opacity-50"
               >
                 {submitting ? 'Deleting...' : 'Delete User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Modal */}
+      {showProfileModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`w-full max-w-md rounded-lg shadow-xl ${
+            isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
+          }`}>
+            <div className={`flex items-center justify-between p-6 border-b ${
+              isDarkMode ? 'border-slate-700' : 'border-gray-200'
+            }`}>
+              <h3 className={`text-lg font-semibold ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
+                User Profile
+              </h3>
+              <button
+                onClick={() => {
+                  setShowProfileModal(false);
+                  setSelectedUser(null);
+                }}
+                className={`p-2 rounded-lg transition-all duration-300 ${
+                  isDarkMode
+                    ? 'text-gray-400 hover:bg-white/10'
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="flex items-center mb-6">
+                <div className={`h-16 w-16 rounded-full flex items-center justify-center text-xl font-semibold ${
+                  isDarkMode
+                    ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
+                    : 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white'
+                }`}>
+                  {getUserInitials(selectedUser.name)}
+                </div>
+                <div className="ml-4">
+                  <h4 className={`text-xl font-bold ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    {selectedUser.name}
+                  </h4>
+                  <p className={`text-sm ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                  }`}>
+                    {selectedUser.username}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {selectedUser.phoneNumber && (
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Phone Number
+                    </label>
+                    <p className={`text-sm ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                    }`}>
+                      📞 {selectedUser.phoneNumber}
+                    </p>
+                  </div>
+                )}
+
+                {selectedUser.address && (
+                  <div>
+                    <label className={`block text-sm font-medium mb-1 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Address
+                    </label>
+                    <p className={`text-sm ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                    }`}>
+                      📍 {selectedUser.address}
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Role
+                  </label>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    selectedUser.role === 'superadmin'
+                      ? isDarkMode
+                        ? 'bg-purple-900/20 text-purple-400'
+                        : 'bg-purple-100 text-purple-800'
+                      : isDarkMode
+                        ? 'bg-blue-900/20 text-blue-400'
+                        : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {selectedUser.role === 'superadmin' ? 'Super Admin' : 'User'}
+                  </span>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Created
+                  </label>
+                  <p className={`text-sm ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}>
+                    {formatDate(selectedUser.createdAt)}
+                  </p>
+                </div>
+
+                {!selectedUser.phoneNumber && !selectedUser.address && (
+                  <div className={`text-center py-4 ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    No contact information available
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className={`flex justify-end p-6 border-t ${
+              isDarkMode ? 'border-slate-700' : 'border-gray-200'
+            }`}>
+              <button
+                onClick={() => {
+                  setShowProfileModal(false);
+                  setSelectedUser(null);
+                }}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                  isDarkMode
+                    ? 'text-gray-300 hover:bg-white/10'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Close
               </button>
             </div>
           </div>
