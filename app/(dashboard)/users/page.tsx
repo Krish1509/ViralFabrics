@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   PlusIcon,
   MagnifyingGlassIcon,
@@ -8,7 +9,8 @@ import {
   TrashIcon,
   XMarkIcon,
   CheckIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
 
@@ -33,17 +35,20 @@ interface UserFormData {
 }
 
 export default function UsersPage() {
+  const router = useRouter();
   const { isDarkMode } = useDarkMode();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [dateSort, setDateSort] = useState<'latest' | 'oldest'>('latest');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [screenSize, setScreenSize] = useState<number>(0);
+  const [currentUser, setCurrentUser] = useState<{ _id: string; username: string } | null>(null);
   const [formData, setFormData] = useState<UserFormData>({
     name: '',
     username: '',
@@ -54,9 +59,33 @@ export default function UsersPage() {
   });
   const [formErrors, setFormErrors] = useState<Partial<UserFormData>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [validationAlert, setValidationAlert] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 7;
+
+  // Get current user from localStorage and check access
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setCurrentUser({ _id: user._id, username: user.username });
+        
+        // Check if user has superadmin access
+        if (user.role !== 'superadmin') {
+          router.push('/access-denied');
+          return;
+        }
+      } catch (error) {
+        console.error('Error parsing user from localStorage:', error);
+        router.push('/login');
+      }
+    } else {
+      router.push('/login');
+    }
+  }, [router]);
 
   // Track screen size
   useEffect(() => {
@@ -101,13 +130,32 @@ export default function UsersPage() {
     fetchUsers();
   }, []);
 
-  // Filter users
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.username.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    return matchesSearch && matchesRole;
-  });
+  // Handle refresh
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchUsers();
+      showMessage('success', 'Users refreshed successfully');
+    } catch (error) {
+      showMessage('error', 'Failed to refresh users');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Filter and sort users
+  const filteredUsers = users
+    .filter(user => {
+      const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           user.username.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+      return matchesSearch && matchesRole;
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return dateSort === 'latest' ? dateB - dateA : dateA - dateB;
+    });
 
   // Pagination logic
   const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
@@ -118,7 +166,7 @@ export default function UsersPage() {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, roleFilter]);
+  }, [searchTerm, roleFilter, dateSort]);
 
   // Page navigation functions
   const goToPage = (pageNumber: number) => {
@@ -161,9 +209,6 @@ export default function UsersPage() {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('token');
-      console.log('Creating user with data:', formData); // Debug log
-      console.log('Phone Number:', formData.phoneNumber); // Debug log
-      console.log('Address:', formData.address); // Debug log
       const response = await fetch('/api/users', {
         method: 'POST',
         headers: {
@@ -173,23 +218,22 @@ export default function UsersPage() {
         body: JSON.stringify(formData)
       });
 
-      console.log('Response status:', response.status); // Debug log
       const responseText = await response.text();
-      console.log('Response text:', responseText); // Debug log
 
       if (response.ok) {
         const data = JSON.parse(responseText);
-        console.log('User created successfully:', data); // Debug log
         setUsers([...users, data.user]);
         setShowCreateModal(false);
         resetForm();
         showMessage('success', 'User created successfully');
       } else {
         const error = JSON.parse(responseText);
-        showMessage('error', error.message || 'Failed to create user');
+        setValidationAlert({ type: 'error', text: error.message || 'Failed to create user' });
+        setTimeout(() => setValidationAlert(null), 5000);
       }
     } catch (error) {
-      showMessage('error', 'Failed to create user');
+      setValidationAlert({ type: 'error', text: 'Failed to create user' });
+      setTimeout(() => setValidationAlert(null), 5000);
     } finally {
       setSubmitting(false);
     }
@@ -231,13 +275,16 @@ export default function UsersPage() {
         setUsers(users.map(user => user._id === selectedUser._id ? data.user : user));
         setShowEditModal(false);
         resetForm();
-        showMessage('success', 'User updated successfully');
+        setValidationAlert({ type: 'success', text: 'User updated successfully' });
+        setTimeout(() => setValidationAlert(null), 3000);
       } else {
         const error = await response.json();
-        showMessage('error', error.message || 'Failed to update user');
+        setValidationAlert({ type: 'error', text: error.message || 'Failed to update user' });
+        setTimeout(() => setValidationAlert(null), 5000);
       }
     } catch (error) {
-      showMessage('error', 'Failed to update user');
+      setValidationAlert({ type: 'error', text: 'Failed to update user' });
+      setTimeout(() => setValidationAlert(null), 5000);
     } finally {
       setSubmitting(false);
     }
@@ -261,13 +308,16 @@ export default function UsersPage() {
         setUsers(users.filter(user => user._id !== selectedUser._id));
         setShowDeleteModal(false);
         setSelectedUser(null);
-        showMessage('success', 'User deleted successfully');
+        setValidationAlert({ type: 'success', text: 'User deleted successfully' });
+        setTimeout(() => setValidationAlert(null), 3000);
       } else {
         const error = await response.json();
-        showMessage('error', error.message || 'Failed to delete user');
+        setValidationAlert({ type: 'error', text: error.message || 'Failed to delete user' });
+        setTimeout(() => setValidationAlert(null), 5000);
       }
     } catch (error) {
-      showMessage('error', 'Failed to delete user');
+      setValidationAlert({ type: 'error', text: 'Failed to delete user' });
+      setTimeout(() => setValidationAlert(null), 5000);
     } finally {
       setSubmitting(false);
     }
@@ -296,6 +346,11 @@ export default function UsersPage() {
       .slice(0, 2);
   };
 
+  // Check if user can be deleted (prevent self-deletion)
+  const canDeleteUser = (user: User) => {
+    return currentUser && user._id !== currentUser._id;
+  };
+
   // Format date
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -307,7 +362,7 @@ export default function UsersPage() {
 
   if (loading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-slate-900' : 'bg-gray-50'}`}>
+      <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-[#1D293D]' : 'bg-gray-50'}`}>
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
       </div>
     );
@@ -326,7 +381,10 @@ export default function UsersPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowCreateModal(true)}
+                      onClick={() => {
+              setShowCreateModal(true);
+              setValidationAlert(null);
+            }}
           className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
             isDarkMode
               ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
@@ -366,52 +424,136 @@ export default function UsersPage() {
           ? 'bg-white/5 border-white/10'
           : 'bg-white border-gray-200'
       }`}>
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1">
-            <div className="relative">
-              <MagnifyingGlassIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-              }`} />
-              <input
-                type="text"
-                placeholder="Search users..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className={`w-full pl-10 pr-4 py-2 rounded-lg border transition-colors duration-300 ${
+        <div className="flex flex-col gap-4">
+          {/* Top Row - Search and Refresh */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Search */}
+            <div className="flex-1">
+              <div className="relative">
+                <MagnifyingGlassIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                }`} />
+                <input
+                  type="text"
+                  placeholder="Search users..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className={`w-full pl-10 pr-4 py-2 rounded-lg border transition-colors duration-300 ${
+                    isDarkMode
+                      ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                  }`}
+                />
+              </div>
+            </div>
+
+            {/* Refresh Button */}
+            <div className="sm:w-auto">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                  refreshing
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:scale-105 active:scale-95'
+                } ${
                   isDarkMode
-                    ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500'
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                    ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-white/30'
+                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'
                 }`}
-              />
+                title="Refresh users list"
+              >
+                <ArrowPathIcon className={`h-5 w-5 ${screenSize > 1000 ? 'mr-2' : ''} ${refreshing ? 'animate-spin' : ''}`} />
+                {screenSize > 1000 && (refreshing ? 'Refreshing...' : 'Refresh')}
+              </button>
             </div>
           </div>
 
-          {/* Role Filter */}
-          <div className="sm:w-48">
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 appearance-none cursor-pointer ${
-                isDarkMode
-                  ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:border-white/30'
-                  : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-              }`}
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='${isDarkMode ? 'rgb(156 163 175)' : 'rgb(107 114 128)'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                backgroundPosition: 'right 0.5rem center',
-                backgroundRepeat: 'no-repeat',
-                backgroundSize: '1.5em 1.5em',
-                paddingRight: '2.5rem'
-              }}
-            >
-              <option value="all" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>All Roles</option>
-              <option value="superadmin" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Super Admin</option>
-              <option value="user" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>User</option>
-            </select>
+          {/* Bottom Row - Filters */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Role Filter */}
+            <div className="sm:w-48">
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 appearance-none cursor-pointer ${
+                  isDarkMode
+                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:border-white/30'
+                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                }`}
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='${isDarkMode ? 'rgb(156 163 175)' : 'rgb(107 114 128)'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+                  backgroundPosition: 'right 0.5rem center',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '1.5em 1.5em',
+                  paddingRight: '2.5rem'
+                }}
+              >
+                <option value="all" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>All Roles</option>
+                <option value="superadmin" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Super Admin</option>
+                <option value="user" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>User</option>
+              </select>
+            </div>
+
+            {/* Date Sort Filter */}
+            <div className="sm:w-48">
+              <select
+                value={dateSort}
+                onChange={(e) => setDateSort(e.target.value as 'latest' | 'oldest')}
+                className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 appearance-none cursor-pointer ${
+                  isDarkMode
+                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:border-white/30'
+                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                }`}
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='${isDarkMode ? 'rgb(156 163 175)' : 'rgb(107 114 128)'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+                  backgroundPosition: 'right 0.5rem center',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '1.5em 1.5em',
+                  paddingRight: '2.5rem'
+                }}
+              >
+                <option value="latest" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Latest First</option>
+                <option value="oldest" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Oldest First</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Validation Alert - Top of Table */}
+      {validationAlert && (
+        <div className={`mb-4 p-4 rounded-lg border ${
+          validationAlert.type === 'success'
+            ? isDarkMode
+              ? 'bg-green-900/20 border-green-500/30 text-green-400'
+              : 'bg-green-50 border-green-200 text-green-800'
+            : isDarkMode
+              ? 'bg-red-900/20 border-red-500/30 text-red-400'
+              : 'bg-red-50 border-red-200 text-red-800'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              {validationAlert.type === 'success' ? (
+                <CheckIcon className="h-5 w-5 mr-2" />
+              ) : (
+                <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+              )}
+              {validationAlert.text}
+            </div>
+            <button
+              onClick={() => setValidationAlert(null)}
+              className={`p-1 rounded transition-all duration-300 ${
+                isDarkMode
+                  ? 'text-gray-400 hover:bg-white/10'
+                  : 'text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Users Table */}
       <div className={`rounded-lg border overflow-hidden ${
@@ -466,7 +608,13 @@ export default function UsersPage() {
               {currentUsers.map((user) => (
                 <tr key={user._id} className={`hover:${
                   isDarkMode ? 'bg-white/5' : 'bg-gray-50'
-                } transition-colors duration-200`}>
+                } transition-colors duration-200 ${
+                  currentUser && user._id === currentUser._id
+                    ? isDarkMode
+                      ? 'bg-blue-500/5 border-l-4 border-blue-500'
+                      : 'bg-blue-50 border-l-4 border-blue-500'
+                    : ''
+                }`}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold ${
@@ -484,8 +632,17 @@ export default function UsersPage() {
                         </div>
                         <div className={`text-sm ${
                           isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                        }`}>
+                        } flex items-center gap-2`}>
                           {user.username}
+                          {currentUser && user._id === currentUser._id && (
+                            <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
+                              isDarkMode
+                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                : 'bg-blue-100 text-blue-700 border border-blue-200'
+                            }`}>
+                              You
+                            </span>
+                          )}
                         </div>
                         {(!isLargeScreen || !isSmallScreen || !isMediumScreen) && (
                           <button
@@ -560,6 +717,7 @@ export default function UsersPage() {
                             role: user.role
                           });
                           setShowEditModal(true);
+                          setValidationAlert(null);
                         }}
                         className={`p-2 rounded-lg transition-all duration-300 ${
                           isDarkMode
@@ -572,17 +730,29 @@ export default function UsersPage() {
                       </button>
                       <button
                         onClick={() => {
-                          setSelectedUser(user);
-                          setShowDeleteModal(true);
+                          if (canDeleteUser(user)) {
+                            setSelectedUser(user);
+                            setShowDeleteModal(true);
+                            setValidationAlert(null);
+                          }
                         }}
+                        disabled={!canDeleteUser(user)}
                         className={`p-2 rounded-lg transition-all duration-300 ${
-                          isDarkMode
-                            ? 'text-red-400 hover:bg-red-500/20'
-                            : 'text-red-600 hover:bg-red-50'
+                          canDeleteUser(user)
+                            ? isDarkMode
+                              ? 'text-red-400 hover:bg-red-500/20 hover:text-red-300 active:bg-red-500/30'
+                              : 'text-red-600 hover:bg-red-50 hover:text-red-700 active:bg-red-100'
+                            : isDarkMode
+                              ? 'text-gray-500 cursor-not-allowed opacity-50 hover:bg-gray-500/10 hover:text-gray-400'
+                              : 'text-gray-400 cursor-not-allowed opacity-50 hover:bg-gray-100 hover:text-gray-500'
                         }`}
-                        title="Delete user"
+                        title={canDeleteUser(user) ? "Delete user" : "Cannot delete yourself - This would lock you out of the system"}
                       >
-                        <TrashIcon className="h-4 w-4" />
+                        <TrashIcon className={`h-4 w-4 transition-all duration-300 ${
+                          !canDeleteUser(user) 
+                            ? 'opacity-60 scale-95' 
+                            : 'hover:scale-110'
+                        }`} />
                       </button>
                     </div>
                   </td>
@@ -709,6 +879,7 @@ export default function UsersPage() {
                 onClick={() => {
                   setShowCreateModal(false);
                   resetForm();
+                  setValidationAlert(null);
                 }}
                 className={`p-2 rounded-lg transition-all duration-300 ${
                   isDarkMode
@@ -721,6 +892,27 @@ export default function UsersPage() {
             </div>
 
             <div className="p-6">
+              {/* Validation Alert */}
+              {validationAlert && (
+                <div className={`mb-6 p-4 rounded-lg border ${
+                  validationAlert.type === 'success'
+                    ? isDarkMode
+                      ? 'bg-green-900/20 border-green-500/30 text-green-400'
+                      : 'bg-green-50 border-green-200 text-green-800'
+                    : isDarkMode
+                      ? 'bg-red-900/20 border-red-500/30 text-red-400'
+                      : 'bg-red-50 border-red-200 text-red-800'
+                }`}>
+                  <div className="flex items-center">
+                    {validationAlert.type === 'success' ? (
+                      <CheckIcon className="h-5 w-5 mr-2" />
+                    ) : (
+                      <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+                    )}
+                    {validationAlert.text}
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Left Column */}
                 <div className="space-y-4">
@@ -883,6 +1075,7 @@ export default function UsersPage() {
                 onClick={() => {
                   setShowCreateModal(false);
                   resetForm();
+                  setValidationAlert(null);
                 }}
                 className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
                   isDarkMode
@@ -923,6 +1116,7 @@ export default function UsersPage() {
                 onClick={() => {
                   setShowEditModal(false);
                   resetForm();
+                  setValidationAlert(null);
                 }}
                 className={`p-2 rounded-lg transition-all duration-300 ${
                   isDarkMode
@@ -935,6 +1129,28 @@ export default function UsersPage() {
             </div>
 
             <div className="p-6">
+              {/* Validation Alert */}
+              {validationAlert && (
+                <div className={`mb-6 p-4 rounded-lg border ${
+                  validationAlert.type === 'success'
+                    ? isDarkMode
+                      ? 'bg-green-900/20 border-green-500/30 text-green-400'
+                      : 'bg-green-50 border-green-200 text-green-800'
+                    : isDarkMode
+                      ? 'bg-red-900/20 border-red-500/30 text-red-400'
+                      : 'bg-red-50 border-red-200 text-red-800'
+                }`}>
+                  <div className="flex items-center">
+                    {validationAlert.type === 'success' ? (
+                      <CheckIcon className="h-5 w-5 mr-2" />
+                    ) : (
+                      <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+                    )}
+                    {validationAlert.text}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Left Column */}
                 <div className="space-y-4">
@@ -1097,6 +1313,7 @@ export default function UsersPage() {
                 onClick={() => {
                   setShowEditModal(false);
                   resetForm();
+                  setValidationAlert(null);
                 }}
                 className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
                   isDarkMode
@@ -1137,6 +1354,7 @@ export default function UsersPage() {
                 onClick={() => {
                   setShowDeleteModal(false);
                   setSelectedUser(null);
+                  setValidationAlert(null);
                 }}
                 className={`p-2 rounded-lg transition-all duration-300 ${
                   isDarkMode
@@ -1171,11 +1389,25 @@ export default function UsersPage() {
                 </div>
               </div>
               
-              <p className={`text-sm ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-              }`}>
-                Are you sure you want to delete this user? This action cannot be undone.
-              </p>
+              {!canDeleteUser(selectedUser) ? (
+                <div className={`p-4 rounded-lg border ${
+                  isDarkMode 
+                    ? 'bg-red-500/10 border-red-500/20 text-red-400' 
+                    : 'bg-red-50 border-red-200 text-red-700'
+                }`}>
+                  <p className="text-sm font-medium mb-1">⚠️ Cannot Delete Yourself</p>
+                  <p className="text-sm">
+                    You cannot delete your own account as it would lock you out of the system. 
+                    Please ask another superadmin to delete your account if needed.
+                  </p>
+                </div>
+              ) : (
+                <p className={`text-sm ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>
+                  Are you sure you want to delete this user? This action cannot be undone.
+                </p>
+              )}
             </div>
 
             <div className={`flex justify-end space-x-3 p-6 border-t ${
@@ -1185,6 +1417,7 @@ export default function UsersPage() {
                 onClick={() => {
                   setShowDeleteModal(false);
                   setSelectedUser(null);
+                  setValidationAlert(null);
                 }}
                 className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
                   isDarkMode
@@ -1197,8 +1430,12 @@ export default function UsersPage() {
               </button>
               <button
                 onClick={handleDeleteUser}
-                disabled={submitting}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all duration-300 disabled:opacity-50"
+                disabled={submitting || !canDeleteUser(selectedUser)}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                  canDeleteUser(selectedUser)
+                    ? 'bg-red-600 text-white hover:bg-red-700'
+                    : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                } disabled:opacity-50`}
               >
                 {submitting ? 'Deleting...' : 'Delete User'}
               </button>

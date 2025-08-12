@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "create-admin": "node scripts/createSuperAdmin.js"
+    "create-admin": "node scripts/createSuperAdmin.js",
+    "migrate-users": "node scripts/migrate-user-schema.js"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

@@ -108,9 +108,9 @@ function LoginForm() {
         
         // Redirect based on role
         if (data.user.role === 'superadmin') {
-          router.push('/dashboard/superadmin');
+          router.push('/dashboard');
         } else {
-          router.push('/dashboard/user');
+          router.push('/dashboard');
         }
       } else {
         console.error('Login failed:', { status: response.status, data });

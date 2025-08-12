@@ -16,7 +16,7 @@ import {
   ArrowDownTrayIcon,
   TrashIcon
 } from '@heroicons/react/24/outline';
-import { useDarkMode } from './hooks/useDarkMode';
+import { useDarkMode } from '../hooks/useDarkMode';
 
 interface Photo {
   id: string;
@@ -154,9 +154,9 @@ export default function SuperAdminDashboard() {
           <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
             Welcome back, Super Admin!
           </h1>
-          <p className={`mt-2 text-lg ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+          {/* <p className={`mt-2 text-lg ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
             Manage your CRM system and monitor all activities from your dashboard.
-          </p>
+          </p> */}
         </div>
         
         {/* Camera Button */}
@@ -173,120 +173,7 @@ export default function SuperAdminDashboard() {
         </button>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-        <div className={`p-8 rounded-xl border transition-all duration-300 ${
-          isDarkMode
-            ? 'bg-white/5 border-white/10'
-            : 'bg-white border-gray-200'
-        }`}>
-          <div className="flex items-center">
-            <div className={`p-4 rounded-xl ${
-              isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
-            }`}>
-              <UsersIcon className={`h-10 w-10 ${
-                isDarkMode ? 'text-blue-400' : 'text-blue-600'
-              }`} />
-            </div>
-            <div className="ml-6">
-              <p className={`text-sm font-medium ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-              }`}>
-                Total Users
-              </p>
-              <p className={`text-3xl font-bold ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                1,234
-              </p>
-            </div>
-          </div>
-        </div>
 
-        <div className={`p-8 rounded-xl border transition-all duration-300 ${
-          isDarkMode
-            ? 'bg-white/5 border-white/10'
-            : 'bg-white border-gray-200'
-        }`}>
-          <div className="flex items-center">
-            <div className={`p-4 rounded-xl ${
-              isDarkMode ? 'bg-green-500/20' : 'bg-green-100'
-            }`}>
-              <BuildingOfficeIcon className={`h-10 w-10 ${
-                isDarkMode ? 'text-green-400' : 'text-green-600'
-              }`} />
-            </div>
-            <div className="ml-6">
-              <p className={`text-sm font-medium ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-              }`}>
-                Companies
-              </p>
-              <p className={`text-3xl font-bold ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                89
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className={`p-8 rounded-xl border transition-all duration-300 ${
-          isDarkMode
-            ? 'bg-white/5 border-white/10'
-            : 'bg-white border-gray-200'
-        }`}>
-          <div className="flex items-center">
-            <div className={`p-4 rounded-xl ${
-              isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
-            }`}>
-              <DocumentTextIcon className={`h-10 w-10 ${
-                isDarkMode ? 'text-purple-400' : 'text-purple-600'
-              }`} />
-            </div>
-            <div className="ml-6">
-              <p className={`text-sm font-medium ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-              }`}>
-                Documents
-              </p>
-              <p className={`text-3xl font-bold ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                456
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className={`p-8 rounded-xl border transition-all duration-300 ${
-          isDarkMode
-            ? 'bg-white/5 border-white/10'
-            : 'bg-white border-gray-200'
-        }`}>
-          <div className="flex items-center">
-            <div className={`p-4 rounded-xl ${
-              isDarkMode ? 'bg-orange-500/20' : 'bg-orange-100'
-            }`}>
-              <PhotoIcon className={`h-10 w-10 ${
-                isDarkMode ? 'text-orange-400' : 'text-orange-600'
-              }`} />
-            </div>
-            <div className="ml-6">
-              <p className={`text-sm font-medium ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-              }`}>
-                Photos
-              </p>
-              <p className={`text-3xl font-bold ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                {photos.length}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Photos Gallery */}
       <div className={`rounded-xl border transition-all duration-300 ${

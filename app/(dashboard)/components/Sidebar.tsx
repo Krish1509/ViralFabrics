@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { 
   HomeIcon,
   UsersIcon,
+  UserIcon,
   Cog6ToothIcon,
   ChartBarIcon,
   BuildingOfficeIcon,
@@ -21,6 +22,9 @@ interface SidebarProps {
   onClose: () => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  user?: {
+    role: string;
+  } | null;
 }
 
 interface NavItem {
@@ -30,23 +34,35 @@ interface NavItem {
   badge?: string;
 }
 
-const navItems: NavItem[] = [
-  {
-    name: 'Dashboard',
-    href: '/dashboard/superadmin',
-    icon: HomeIcon
-  },
-  {
-    name: 'Manage Users',
-    href: '/dashboard/superadmin/users',
-    icon: UsersIcon
-  }
-];
+const getNavItems = (userRole?: string): NavItem[] => {
+  const items: NavItem[] = [
+    {
+      name: 'Dashboard',
+      href: '/dashboard',
+      icon: HomeIcon
+    }
+  ];
 
-export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: SidebarProps) {
+  // Only show Users management for superadmin
+  if (userRole === 'superadmin') {
+    items.push({
+      name: 'Manage Users',
+      href: '/users',
+      icon: UsersIcon
+    });
+  }
+
+  // Profile link for all users
+ 
+
+  return items;
+};
+
+export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse, user }: SidebarProps) {
   const pathname = usePathname();
   const { isDarkMode } = useDarkMode();
   const [screenSize, setScreenSize] = useState<number>(0);
+  const navItems = getNavItems(user?.role);
 
   // Track screen size
   useEffect(() => {

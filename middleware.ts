@@ -2,10 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
 export async function middleware(req: NextRequest) {
-  // Temporarily disable middleware to debug phone/address issue
-  return NextResponse.next();
-  
-  /*
   const authHeader = req.headers.get("authorization");
 
   if (!authHeader) {
@@ -29,14 +25,13 @@ export async function middleware(req: NextRequest) {
 
     const role = typeof payload === "object" && payload !== null ? (payload as any).role : undefined;
     if (role !== "superadmin") {
-      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ message: "Access denied - Superadmin access required" }, { status: 403 });
     }
 
     return NextResponse.next();
   } catch (error) {
     return NextResponse.json({ message: "Invalid token" }, { status: 403 });
   }
-  */
 }
 
 export const config = {

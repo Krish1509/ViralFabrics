@@ -52,7 +52,8 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
     name: '',
     username: '',
     phoneNumber: '',
-    address: ''
+    address: '',
+    password: ''
   });
 
   // Track screen size
@@ -122,7 +123,8 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
       name: user?.name || '',
       username: user?.username || '',
       phoneNumber: user?.phoneNumber || '',
-      address: user?.address || ''
+      address: user?.address || '',
+      password: ''
     });
   };
 
@@ -593,16 +595,18 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                     }`}>
                       Name
                     </label>
-                    <button
-                      onClick={() => startEditing('name')}
-                      className={`p-1 rounded transition-all duration-300 ${
-                        isDarkMode
-                          ? 'text-gray-400 hover:bg-white/10'
-                          : 'text-gray-500 hover:bg-gray-100'
-                      }`}
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                    </button>
+                    {user?.role === 'superadmin' && (
+                      <button
+                        onClick={() => startEditing('name')}
+                        className={`p-1 rounded transition-all duration-300 ${
+                          isDarkMode
+                            ? 'text-gray-400 hover:bg-white/10'
+                            : 'text-gray-500 hover:bg-gray-100'
+                        }`}
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                   {editingField === 'name' ? (
                     <div className="flex items-center space-x-2">
@@ -660,16 +664,18 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                     }`}>
                       Username
                     </label>
-                    <button
-                      onClick={() => startEditing('username')}
-                      className={`p-1 rounded transition-all duration-300 ${
-                        isDarkMode
-                          ? 'text-gray-400 hover:bg-white/10'
-                          : 'text-gray-500 hover:bg-gray-100'
-                      }`}
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                    </button>
+                    {user?.role === 'superadmin' && (
+                      <button
+                        onClick={() => startEditing('username')}
+                        className={`p-1 rounded transition-all duration-300 ${
+                          isDarkMode
+                            ? 'text-gray-400 hover:bg-white/10'
+                            : 'text-gray-500 hover:bg-gray-100'
+                        }`}
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                   {editingField === 'username' ? (
                     <div className="flex items-center space-x-2">
@@ -727,16 +733,18 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                     }`}>
                       Phone Number
                     </label>
-                    <button
-                      onClick={() => startEditing('phoneNumber')}
-                      className={`p-1 rounded transition-all duration-300 ${
-                        isDarkMode
-                          ? 'text-gray-400 hover:bg-white/10'
-                          : 'text-gray-500 hover:bg-gray-100'
-                      }`}
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                    </button>
+                    {user?.role === 'superadmin' && (
+                      <button
+                        onClick={() => startEditing('phoneNumber')}
+                        className={`p-1 rounded transition-all duration-300 ${
+                          isDarkMode
+                            ? 'text-gray-400 hover:bg-white/10'
+                            : 'text-gray-500 hover:bg-gray-100'
+                        }`}
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                   {editingField === 'phoneNumber' ? (
                     <div className="flex items-center space-x-2">
@@ -794,16 +802,18 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                     }`}>
                       Address
                     </label>
-                    <button
-                      onClick={() => startEditing('address')}
-                      className={`p-1 rounded transition-all duration-300 ${
-                        isDarkMode
-                          ? 'text-gray-400 hover:bg-white/10'
-                          : 'text-gray-500 hover:bg-gray-100'
-                      }`}
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                    </button>
+                    {user?.role === 'superadmin' && (
+                      <button
+                        onClick={() => startEditing('address')}
+                        className={`p-1 rounded transition-all duration-300 ${
+                          isDarkMode
+                            ? 'text-gray-400 hover:bg-white/10'
+                            : 'text-gray-500 hover:bg-gray-100'
+                        }`}
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                   {editingField === 'address' ? (
                     <div className="flex items-start space-x-2">
@@ -854,6 +864,76 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                     </p>
                   )}
                 </div>
+
+                {/* Password - Only for superadmin */}
+                {user?.role === 'superadmin' && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className={`block text-sm font-medium ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        Password
+                      </label>
+                      <button
+                        onClick={() => startEditing('password')}
+                        className={`p-1 rounded transition-all duration-300 ${
+                          isDarkMode
+                            ? 'text-gray-400 hover:bg-white/10'
+                            : 'text-gray-500 hover:bg-gray-100'
+                        }`}
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                    {editingField === 'password' ? (
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="password"
+                          value={editValues.password}
+                          onChange={(e) => setEditValues({ ...editValues, password: e.target.value })}
+                          className={`flex-1 px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                            isDarkMode
+                              ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                              : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                          }`}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleSaveField('password', e.currentTarget.value);
+                            }
+                          }}
+                          placeholder="Enter new password"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => handleSaveField('password', editValues.password)}
+                          className={`p-2 rounded-lg transition-all duration-300 ${
+                            isDarkMode
+                              ? 'bg-blue-600 text-white hover:bg-blue-700'
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                          }`}
+                        >
+                          <CheckIcon className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => setEditingField(null)}
+                          className={`p-2 rounded-lg transition-all duration-300 ${
+                            isDarkMode
+                              ? 'bg-gray-600 text-white hover:bg-gray-700'
+                              : 'bg-gray-600 text-white hover:bg-gray-700'
+                          }`}
+                        >
+                          <XMarkIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <p className={`text-sm ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                      }`}>
+                        ••••••••
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -936,7 +1016,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                       isDarkMode
                         ? 'bg-blue-600 text-white'
                         : isDarkMode
-                          ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? 'bg-slate-700 text-white hover:bg-slate-600'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
@@ -955,7 +1035,9 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                     className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
                       !isDarkMode
                         ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        : isDarkMode
+                          ? 'bg-slate-700 text-white hover:bg-slate-600'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
                     <div className="flex items-center space-x-3">
@@ -972,7 +1054,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                     }}
                     className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
                       isDarkMode
-                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? 'bg-slate-700 text-white hover:bg-slate-600'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >

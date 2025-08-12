@@ -62,10 +62,6 @@ export default function SuperAdminLayout({
 
     try {
       const parsedUser = JSON.parse(userData);
-      if (parsedUser.role !== 'superadmin') {
-        router.push('/dashboard/user');
-        return;
-      }
       setUser(parsedUser);
     } catch (error) {
       router.push('/login');
@@ -144,6 +140,7 @@ export default function SuperAdminLayout({
         onClose={closeSidebar} 
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={toggleSidebarCollapse}
+        user={user}
       />
       
       {/* Main content area - Flush with sidebar */}

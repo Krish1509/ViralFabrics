@@ -12,8 +12,7 @@ export async function POST(req: Request) {
     if (!username || !password) {
       return NextResponse.json({ message: "Username and password are required" }, { status: 400 });
     }
-
-    const user = await User.findOne({ $or: [{ username }, { name: username }] });
+    const user = await User.findOne({ $or: [{ username }, { name: username }] }).select('+password');
     if (!user) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
