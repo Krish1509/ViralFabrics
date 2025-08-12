@@ -5,12 +5,13 @@ import Order, { IOrder } from '@/models/Order';
 // GET /api/orders/[orderNo] - Get order by order number
 export async function GET(
   request: NextRequest,
-  { params }: { params: { orderNo: string } }
+  { params }: { params: Promise<{ orderNo: string }> }
 ) {
   try {
     await dbConnect();
     
-    const order = await Order.findByOrderNo(params.orderNo);
+    const { orderNo } = await params;
+    const order = await Order.findByOrderNo(orderNo);
     
     if (!order) {
       return NextResponse.json(
@@ -36,15 +37,16 @@ export async function GET(
 // PUT /api/orders/[orderNo] - Update order
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { orderNo: string } }
+  { params }: { params: Promise<{ orderNo: string }> }
 ) {
   try {
     await dbConnect();
     
     const body = await request.json();
+    const { orderNo } = await params;
     
     // Find the order first
-    const existingOrder = await Order.findByOrderNo(params.orderNo);
+    const existingOrder = await Order.findByOrderNo(orderNo);
     if (!existingOrder) {
       return NextResponse.json(
         { success: false, error: 'Order not found' },
@@ -94,7 +96,7 @@ export async function PUT(
     
     // Update the order
     const updatedOrder = await Order.findOneAndUpdate(
-      { orderNo: params.orderNo.toUpperCase() },
+      { orderNo: orderNo.toUpperCase() },
       updateData,
       { new: true, runValidators: true }
     );
@@ -127,13 +129,14 @@ export async function PUT(
 // DELETE /api/orders/[orderNo] - Delete order
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { orderNo: string } }
+  { params }: { params: Promise<{ orderNo: string }> }
 ) {
   try {
     await dbConnect();
     
+    const { orderNo } = await params;
     const order = await Order.findOneAndDelete({ 
-      orderNo: params.orderNo.toUpperCase() 
+      orderNo: orderNo.toUpperCase() 
     });
     
     if (!order) {

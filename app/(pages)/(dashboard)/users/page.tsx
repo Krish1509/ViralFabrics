@@ -917,8 +917,14 @@ export default function UsersPage() {
               )}
               
               {/* Required Fields Note */}
-              <div className="mb-6 p-3 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-500/30">
-                <p className="text-sm text-blue-800 dark:text-blue-300">
+              <div className={`mb-6 p-3 rounded-lg border ${
+                isDarkMode
+                  ? 'bg-blue-900/20 border-blue-500/30'
+                  : 'bg-blue-50 border-blue-200'
+              }`}>
+                <p className={`text-sm ${
+                  isDarkMode ? 'text-blue-300' : 'text-blue-800'
+                }`}>
                   <span className="text-red-500 font-semibold">*</span> Required fields
                 </p>
               </div>
