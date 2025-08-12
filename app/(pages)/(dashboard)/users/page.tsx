@@ -200,6 +200,7 @@ export default function UsersPage() {
     if (!formData.username.trim()) errors.username = 'Username is required';
     if (!formData.password.trim()) errors.password = 'Password is required';
     if (formData.password.length < 6) errors.password = 'Password must be at least 6 characters';
+    if (!formData.role.trim()) errors.role = 'Role is required';
     
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
@@ -249,6 +250,7 @@ export default function UsersPage() {
     if (!formData.name.trim()) errors.name = 'Name is required';
     if (!formData.username.trim()) errors.username = 'Username is required';
     if (formData.password && formData.password.length < 6) errors.password = 'Password must be at least 6 characters';
+    if (!formData.role.trim()) errors.role = 'Role is required';
     
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
@@ -913,6 +915,14 @@ export default function UsersPage() {
                   </div>
                 </div>
               )}
+              
+              {/* Required Fields Note */}
+              <div className="mb-6 p-3 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-500/30">
+                <p className="text-sm text-blue-800 dark:text-blue-300">
+                  <span className="text-red-500 font-semibold">*</span> Required fields
+                </p>
+              </div>
+              
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Left Column */}
                 <div className="space-y-4">
@@ -921,7 +931,7 @@ export default function UsersPage() {
                     <label className={`block text-sm font-medium mb-2 ${
                       isDarkMode ? 'text-gray-300' : 'text-gray-700'
                     }`}>
-                      Name
+                      Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -946,7 +956,7 @@ export default function UsersPage() {
                     <label className={`block text-sm font-medium mb-2 ${
                       isDarkMode ? 'text-gray-300' : 'text-gray-700'
                     }`}>
-                      Username
+                      Username <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -971,7 +981,7 @@ export default function UsersPage() {
                     <label className={`block text-sm font-medium mb-2 ${
                       isDarkMode ? 'text-gray-300' : 'text-gray-700'
                     }`}>
-                      Password
+                      Password <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="password"
@@ -996,11 +1006,11 @@ export default function UsersPage() {
                 <div className="space-y-4">
                   {/* Phone Number */}
                   <div>
-                    <label className={`block text-sm font-medium mb-2 ${
-                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                    }`}>
-                      Phone Number
-                    </label>
+                                            <label className={`block text-sm font-medium mb-2 ${
+                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                        }`}>
+                          Phone Number
+                        </label>
                     <input
                       type="tel"
                       value={formData.phoneNumber}
@@ -1049,20 +1059,25 @@ export default function UsersPage() {
                     <label className={`block text-sm font-medium mb-2 ${
                       isDarkMode ? 'text-gray-300' : 'text-gray-700'
                     }`}>
-                      Role
+                      Role <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                       className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
-                        isDarkMode
-                          ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                          : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                        formErrors.role
+                          ? 'border-red-500'
+                          : isDarkMode
+                            ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
                       }`}
                     >
                       <option value="user" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>User</option>
                       <option value="superadmin" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Super Admin</option>
                     </select>
+                    {formErrors.role && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.role}</p>
+                    )}
                   </div>
                 </div>
               </div>
