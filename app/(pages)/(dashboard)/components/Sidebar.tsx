@@ -6,13 +6,7 @@ import { usePathname } from 'next/navigation';
 import { 
   HomeIcon,
   UsersIcon,
-  UserIcon,
-  Cog6ToothIcon,
-  ChartBarIcon,
   BuildingOfficeIcon,
-  DocumentTextIcon,
-  UserGroupIcon,
-  ShieldCheckIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
@@ -51,9 +45,6 @@ const getNavItems = (userRole?: string): NavItem[] => {
       icon: UsersIcon
     });
   }
-
-  // Profile link for all users
- 
 
   return items;
 };

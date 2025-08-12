@@ -1,6 +1,6 @@
 'use client';
 
-import { useDarkMode } from './(dashboard)/hooks/useDarkMode';
+import { useDarkMode } from './(pages)/(dashboard)/hooks/useDarkMode';
 
 export default function GlobalError({
   error,

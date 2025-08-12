@@ -2,14 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { 
-  HomeIcon,
-  UsersIcon,
-  Cog6ToothIcon,
-  ChartBarIcon,
-  BuildingOfficeIcon,
-  DocumentTextIcon,
-  UserGroupIcon,
-  ShieldCheckIcon,
   CameraIcon,
   PhotoIcon,
   XMarkIcon,

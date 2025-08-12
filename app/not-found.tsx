@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useDarkMode } from './(dashboard)/hooks/useDarkMode';
+import { useDarkMode } from './(pages)/(dashboard)/hooks/useDarkMode';
 
 export default function NotFound() {
   const router = useRouter();

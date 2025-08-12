@@ -3,8 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
-  BuildingOfficeIcon,
-  BellIcon,
   CogIcon,
   UserIcon,
   SunIcon,
@@ -233,23 +231,6 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
               >
                 {isDarkMode ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
               </button>
-
-              {/* Notification Bell */}
-              {/* <button
-                className={`relative p-3 rounded-lg transition-all duration-300 cursor-pointer ${
-                  isDarkMode 
-                    ? 'bg-white/10 text-white hover:bg-white/20' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                } shadow-lg backdrop-blur-sm`}
-                aria-label="Notifications"
-              >
-                <BellIcon className="h-5 w-5" />
-                {notificationCount > 0 && (
-                  <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
-                    {notificationCount > 9 ? '9+' : notificationCount}
-                  </span>
-                )}
-              </button> */}
 
               {/* Profile Dropdown */}
               <div className="relative">
@@ -502,23 +483,6 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                   </div>
                 )}
               </div>
-
-              {/* Notification Bell */}
-              {/* <button
-                className={`relative p-2 rounded-lg transition-all duration-300 cursor-pointer ${
-                  isDarkMode 
-                    ? 'bg-white/10 text-white hover:bg-white/20' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                } shadow-lg backdrop-blur-sm`}
-                aria-label="Notifications"
-              >
-                <BellIcon className="h-5 w-5" />
-                {notificationCount > 0 && (
-                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
-                    {notificationCount > 9 ? '9+' : notificationCount}
-                  </span>
-                )}
-              </button> */}
             </div>
           </div>
         </div>
