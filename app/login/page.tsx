@@ -340,10 +340,10 @@ function LoginForm() {
 
           {/* Error Message */}
           {errors.general && (
-            <div className={`mb-6 lg:mb-8 p-3 lg:p-4 rounded-xl flex items-center space-x-3 shadow-lg ${
+            <div className={`mb-6 lg:mb-8 p-3 lg:p-4 ml-6 rounded-xl flex items-center justify-center space-x-3 shadow-lg w-full lg:w-80 xl:w-96 ${
               isDarkMode 
-                ? 'bg-red-900/30 border border-red-700/50 backdrop-blur-sm' 
-                : 'bg-red-50 border border-red-200 shadow-red-100'
+                ? 'bg-transparent border-none shadow-none ' 
+                : 'bg-transparent border-none shadow-none'
             }`}>
               <ExclamationTriangleIcon className={`h-5 w-5 lg:h-6 lg:w-6 ${
                 isDarkMode ? 'text-red-400' : 'text-red-600'
@@ -567,7 +567,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="min-h-screen flex items-centeria aec justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-500"></div>
       </div>
     }>
