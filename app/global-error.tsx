@@ -1,6 +1,6 @@
 'use client';
 
-import { useTheme } from './components/ThemeProvider';
+import { useDarkMode } from './(dashboard)/hooks/useDarkMode';
 
 export default function GlobalError({
   error,
@@ -9,7 +9,7 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const { isDarkMode } = useTheme();
+  const { isDarkMode } = useDarkMode();
 
   return (
     <html>

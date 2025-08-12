@@ -1,11 +1,11 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useTheme } from './components/ThemeProvider';
+import { useDarkMode } from './(dashboard)/hooks/useDarkMode';
 
 export default function NotFound() {
   const router = useRouter();
-  const { isDarkMode } = useTheme();
+  const { isDarkMode } = useDarkMode();
 
   const handleGoBack = () => {
     if (window.history.length > 1) {
