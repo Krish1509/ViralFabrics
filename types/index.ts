@@ -16,6 +16,13 @@ export interface Quality {
   updatedAt: string;
 }
 
+export interface OrderItem {
+  quality?: string | Quality;
+  quantity?: number;
+  imageUrl?: string;
+  description?: string;
+}
+
 export interface Order {
   _id: string;
   orderId: string;
@@ -29,9 +36,7 @@ export interface Order {
   styleNo?: string;
   poDate?: string;
   deliveryDate?: string;
-  quality?: string | Quality;
-  quantity?: number;
-  imageUrl?: string;
+  items: OrderItem[];
   createdAt: string;
   updatedAt: string;
 }
@@ -46,9 +51,7 @@ export interface OrderFormData {
   styleNo?: string;
   poDate?: string;
   deliveryDate?: string;
-  quality?: string;
-  quantity?: number;
-  imageUrl?: string;
+  items: OrderItem[];
 }
 
 export interface PartyFormData {

@@ -9,15 +9,15 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Require authentication
-    await requireAuth(req);
+    // Remove authentication requirement for now
+    // await requireAuth(req);
 
     await dbConnect();
     
     const order = await Order.findById(params.id)
       .populate('party', '_id name contactName contactPhone address')
-      .populate('quality', '_id name description')
-      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate quality quantity imageUrl createdAt updatedAt');
+      .populate('items.quality', '_id name description')
+      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items createdAt updatedAt');
 
     if (!order) {
       return new Response(
@@ -55,8 +55,8 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Require authentication
-    await requireAuth(req);
+    // Remove authentication requirement for now
+    // await requireAuth(req);
 
     const {
       orderType,
@@ -68,9 +68,7 @@ export async function PUT(
       styleNo,
       poDate,
       deliveryDate,
-      quality,
-      quantity,
-      imageUrl
+      items
     } = await req.json();
 
     // Validation
@@ -123,20 +121,28 @@ export async function PUT(
       }
     }
     
-    if (quality !== undefined && quality) {
-      if (!quality.match(/^[0-9a-fA-F]{24}$/)) {
-        errors.push("Invalid quality ID format");
+    // Validate items if provided
+    if (items !== undefined) {
+      if (!Array.isArray(items) || items.length === 0) {
+        errors.push("At least one order item is required");
+      } else {
+        items.forEach((item, index) => {
+          if (item.quality && !item.quality.match(/^[0-9a-fA-F]{24}$/)) {
+            errors.push(`Invalid quality ID format in item ${index + 1}`);
+          }
+          if (item.quantity !== undefined && item.quantity !== null) {
+            if (typeof item.quantity !== 'number' || item.quantity < 0) {
+              errors.push(`Quantity must be a non-negative number in item ${index + 1}`);
+            }
+          }
+          if (item.imageUrl && item.imageUrl.trim().length > 500) {
+            errors.push(`Image URL cannot exceed 500 characters in item ${index + 1}`);
+          }
+          if (item.description && item.description.trim().length > 200) {
+            errors.push(`Description cannot exceed 200 characters in item ${index + 1}`);
+          }
+        });
       }
-    }
-    
-    if (quantity !== undefined && quantity !== null) {
-      if (typeof quantity !== 'number' || quantity < 0) {
-        errors.push("Quantity must be a non-negative number");
-      }
-    }
-    
-    if (imageUrl !== undefined && imageUrl && imageUrl.trim().length > 500) {
-      errors.push("Image URL cannot exceed 500 characters");
     }
     
     if (errors.length > 0) {
@@ -168,15 +174,19 @@ export async function PUT(
       }
     }
 
-    // Verify quality exists if being updated
-    if (quality) {
+    // Verify qualities exist if being updated
+    if (items && items.length > 0) {
       const Quality = (await import('@/models/Quality')).default;
-      const qualityExists = await Quality.findById(quality);
-      if (!qualityExists) {
-        return new Response(
-          JSON.stringify({ message: "Quality not found" }), 
-          { status: 400 }
-        );
+      for (const item of items) {
+        if (item.quality) {
+          const qualityExists = await Quality.findById(item.quality);
+          if (!qualityExists) {
+            return new Response(
+              JSON.stringify({ message: `Quality not found for item` }), 
+              { status: 400 }
+            );
+          }
+        }
       }
     }
 
@@ -211,9 +221,14 @@ export async function PUT(
     if (styleNo !== undefined) updateData.styleNo = styleNo ? styleNo.trim() : undefined;
     if (poDate !== undefined) updateData.poDate = poDate ? new Date(poDate) : undefined;
     if (deliveryDate !== undefined) updateData.deliveryDate = deliveryDate ? new Date(deliveryDate) : undefined;
-    if (quality !== undefined) updateData.quality = quality || undefined;
-    if (quantity !== undefined) updateData.quantity = quantity !== null ? quantity : undefined;
-    if (imageUrl !== undefined) updateData.imageUrl = imageUrl ? imageUrl.trim() : undefined;
+    if (items !== undefined) {
+      updateData.items = items.map((item: any) => ({
+        quality: item.quality || undefined,
+        quantity: item.quantity !== undefined && item.quantity !== null ? item.quantity : undefined,
+        imageUrl: item.imageUrl ? item.imageUrl.trim() : undefined,
+        description: item.description ? item.description.trim() : undefined,
+      }));
+    }
 
     const updatedOrder = await Order.findByIdAndUpdate(
       params.id,
@@ -221,8 +236,8 @@ export async function PUT(
       { new: true, runValidators: true }
     )
     .populate('party', '_id name contactName contactPhone address')
-    .populate('quality', '_id name description')
-    .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate quality quantity imageUrl createdAt updatedAt');
+    .populate('items.quality', '_id name description')
+    .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items createdAt updatedAt');
 
     return new Response(
       JSON.stringify({ 
@@ -270,8 +285,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Require authentication
-    await requireAuth(req);
+    // Remove authentication requirement for now
+    // await requireAuth(req);
 
     await dbConnect();
     

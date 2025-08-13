@@ -1,5 +1,13 @@
 import mongoose, { Document, Schema } from "mongoose";
 
+// Order Item interface
+export interface IOrderItem {
+  quality?: mongoose.Types.ObjectId;
+  quantity?: number;
+  imageUrl?: string;
+  description?: string;
+}
+
 // TypeScript interface for better type safety
 export interface IOrder extends Document {
   orderId: string;
@@ -13,11 +21,21 @@ export interface IOrder extends Document {
   styleNo?: string;
   poDate?: Date;
   deliveryDate?: Date;
-  quality?: mongoose.Types.ObjectId;
-  quantity?: number;
-  imageUrl?: string;
+  items: IOrderItem[]; // Multiple order items
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Static methods interface
+export interface IOrderModel extends mongoose.Model<IOrder> {
+  createOrder(orderData: any): Promise<IOrder>;
+  findByOrderId(orderId: string): Promise<IOrder | null>;
+  findByParty(partyId: string): Promise<IOrder[]>;
+  findByPoNumber(poNumber: string): Promise<IOrder[]>;
+  findByStyleNo(styleNo: string): Promise<IOrder[]>;
+  findByOrderType(orderType: "Dying" | "Printing"): Promise<IOrder[]>;
+  searchOrders(searchTerm: string): Promise<IOrder[]>;
+  findByDateRange(startDate: Date, endDate: Date): Promise<IOrder[]>;
 }
 
 const OrderSchema = new Schema<IOrder>({
@@ -26,10 +44,6 @@ const OrderSchema = new Schema<IOrder>({
     unique: true,
     index: true, // Primary lookup field
     required: true, // Ensure it's always present
-    default: function() {
-      // Generate a unique orderId using timestamp and random number
-      return `ORD-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-    }
   },
   // Add orderNo field for backward compatibility (auto-generated)
   orderNo: {
@@ -38,10 +52,6 @@ const OrderSchema = new Schema<IOrder>({
     sparse: true, // Allow multiple null values
     index: true,
     required: false, // Make it optional to avoid validation errors
-    default: function() {
-      // Generate orderNo using timestamp and random number
-      return `ORD-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-    }
   },
   orderType: {
     type: String,
@@ -89,19 +99,34 @@ const OrderSchema = new Schema<IOrder>({
   deliveryDate: {
     type: Date
   },
-  quality: {
-    type: Schema.Types.ObjectId,
-    ref: "Quality",
-    index: true // For quality-based queries
-  },
-  quantity: {
-    type: Number,
-    min: [0, "Quantity cannot be negative"]
-  },
-  imageUrl: {
-    type: String,
-    trim: true,
-    maxlength: [500, "Image URL cannot exceed 500 characters"]
+  items: {
+    type: [{
+      quality: {
+        type: Schema.Types.ObjectId,
+        ref: "Quality"
+      },
+      quantity: {
+        type: Number,
+        min: [0, "Quantity cannot be negative"]
+      },
+      imageUrl: {
+        type: String,
+        trim: true,
+        maxlength: [500, "Image URL cannot exceed 500 characters"]
+      },
+      description: {
+        type: String,
+        trim: true,
+        maxlength: [200, "Description cannot exceed 200 characters"]
+      }
+    }],
+    default: [],
+    validate: {
+      validator: function(items: IOrderItem[]) {
+        return items && items.length > 0;
+      },
+      message: "Order must contain at least one item"
+    }
   }
 }, {
   timestamps: true,
@@ -142,70 +167,60 @@ OrderSchema.index({ party: 1, poNumber: 1, styleNo: 1 }, { unique: true, sparse:
 
 // Text index for search functionality
 OrderSchema.index({ 
-  orderId: "text", 
   poNumber: "text", 
   styleNo: "text"
 }, {
   weights: {
-    orderId: 3,
     poNumber: 2,
     styleNo: 2
   }
 });
 
-// Pre-save middleware for auto-generating orderId and orderNo
+// Static method to create order with proper ID
+OrderSchema.statics.createOrder = async function(orderData: any) {
+  try {
+    // Get the count of existing orders
+    const count = await this.countDocuments();
+    const nextNumber = count + 1;
+    const orderId = `ORD-${nextNumber.toString().padStart(2, '0')}`; // ORD-01, ORD-02, etc.
+    
+    console.log(`Creating order with ID: ${orderId}`); // Debug log
+    
+    // Create the order with the generated ID
+    const order = new this({
+      ...orderData,
+      orderId,
+      orderNo: orderId
+    });
+    
+    const savedOrder = await order.save();
+    console.log(`Order created successfully with ID: ${savedOrder.orderId}`); // Debug log
+    return savedOrder;
+  } catch (error) {
+    console.error('Error creating order:', error);
+    throw error;
+  }
+};
+
+// Pre-save middleware for auto-generating orderId and orderNo (fallback)
 OrderSchema.pre('save', async function(next) {
-  if (this.isNew) {
+  if (this.isNew && !this.orderId) {
     try {
-      // Generate orderId if not provided
-      if (!this.orderId) {
-        const count = await mongoose.model('Order').countDocuments();
-        const nextNumber = count + 1;
-        this.orderId = `ORD-${nextNumber.toString().padStart(4, '0')}`;
-      }
+      // Always generate a new orderId with ORD- prefix
+      const count = await mongoose.model('Order').countDocuments();
+      const nextNumber = count + 1;
+      this.orderId = `ORD-${nextNumber.toString().padStart(2, '0')}`; // ORD-01, ORD-02, etc.
+      this.orderNo = this.orderId; // Use the same format
       
-      // Generate orderNo if not provided
-      if (!this.orderNo) {
-        this.orderNo = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-      }
-      
-      // Ensure uniqueness with retry logic
-      let retryCount = 0;
-      const maxRetries = 3;
-      
-      while (retryCount < maxRetries) {
-        try {
-          const existingOrder = await mongoose.model('Order').findOne({
-            $or: [
-              { orderId: this.orderId },
-              { orderNo: this.orderNo }
-            ]
-          });
-          
-          if (existingOrder) {
-            // Regenerate if there's a conflict
-            this.orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-            this.orderNo = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-            retryCount++;
-          } else {
-            break; // No conflict, proceed
-          }
-        } catch (error) {
-          retryCount++;
-          if (retryCount >= maxRetries) {
-            // Final fallback
-            this.orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-            this.orderNo = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-            break;
-          }
-        }
-      }
+      console.log(`Generated orderId: ${this.orderId}`); // Debug log
       
       next();
     } catch (error) {
-      // Fallback to timestamp-based IDs if anything fails
-      this.orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-      this.orderNo = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+      console.error('Error generating orderId:', error);
+      // Fallback - use a simple increment
+      const fallbackNumber = Date.now() % 1000;
+      this.orderId = `ORD-${fallbackNumber.toString().padStart(2, '0')}`;
+      this.orderNo = this.orderId;
       next();
     }
   } else {
@@ -215,29 +230,29 @@ OrderSchema.pre('save', async function(next) {
 
 // Static methods for common queries
 OrderSchema.statics.findByOrderId = function(orderId: string) {
-  return this.findOne({ orderId }).populate('party').populate('quality');
+  return this.findOne({ orderId }).populate('party').populate('items.quality');
 };
 
 OrderSchema.statics.findByParty = function(partyId: string) {
-  return this.find({ party: partyId }).populate('party').populate('quality').sort({ createdAt: -1 });
+  return this.find({ party: partyId }).populate('party').populate('items.quality').sort({ createdAt: -1 });
 };
 
 OrderSchema.statics.findByPoNumber = function(poNumber: string) {
-  return this.find({ poNumber: { $regex: poNumber, $options: 'i' } }).populate('party').populate('quality');
+  return this.find({ poNumber: { $regex: poNumber, $options: 'i' } }).populate('party').populate('items.quality');
 };
 
 OrderSchema.statics.findByStyleNo = function(styleNo: string) {
-  return this.find({ styleNo: { $regex: styleNo, $options: 'i' } }).populate('party').populate('quality');
+  return this.find({ styleNo: { $regex: styleNo, $options: 'i' } }).populate('party').populate('items.quality');
 };
 
 OrderSchema.statics.findByOrderType = function(orderType: "Dying" | "Printing") {
-  return this.find({ orderType }).populate('party').populate('quality').sort({ createdAt: -1 });
+  return this.find({ orderType }).populate('party').populate('items.quality').sort({ createdAt: -1 });
 };
 
 OrderSchema.statics.searchOrders = function(searchTerm: string) {
   return this.find({
     $text: { $search: searchTerm }
-  }).populate('party').populate('quality').sort({ score: { $meta: "textScore" } });
+  }).populate('party').populate('items.quality').sort({ score: { $meta: "textScore" } });
 };
 
 OrderSchema.statics.findByDateRange = function(startDate: Date, endDate: Date) {
@@ -246,7 +261,7 @@ OrderSchema.statics.findByDateRange = function(startDate: Date, endDate: Date) {
       $gte: startDate,
       $lte: endDate
     }
-  }).populate('party').populate('quality').sort({ arrivalDate: -1 });
+  }).populate('party').populate('items.quality').sort({ arrivalDate: -1 });
 };
 
 // Virtual for order's full info with populated party
@@ -263,9 +278,7 @@ OrderSchema.virtual('fullInfo').get(function() {
     styleNo: this.styleNo,
     poDate: this.poDate,
     deliveryDate: this.deliveryDate,
-    quality: this.quality,
-    quantity: this.quantity,
-    imageUrl: this.imageUrl,
+    items: this.items,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt
   };
@@ -294,6 +307,6 @@ OrderSchema.post('save', function(error: any, doc: any, next: any) {
 });
 
 // Create and export the model
-const Order = mongoose.models.Order || mongoose.model<IOrder>("Order", OrderSchema);
+const Order = mongoose.models.Order || mongoose.model<IOrder, IOrderModel>("Order", OrderSchema);
 
 export default Order;

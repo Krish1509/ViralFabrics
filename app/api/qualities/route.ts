@@ -5,8 +5,8 @@ import { type NextRequest } from "next/server";
 
 export async function GET(req: NextRequest) {
   try {
-    // Require authentication
-    await requireAuth(req);
+    // Remove authentication requirement for now
+    // await requireAuth(req);
 
     await dbConnect();
     
@@ -51,8 +51,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    // Require authentication
-    await requireAuth(req);
+    // Remove authentication requirement for now
+    // await requireAuth(req);
 
     const { name, description } = await req.json();
 

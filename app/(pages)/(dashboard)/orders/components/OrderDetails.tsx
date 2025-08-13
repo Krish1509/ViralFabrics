@@ -98,10 +98,10 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                       {getOrderStatus(order)}
                     </span>
                   </div>
-                  {order.quantity && (
+                  {order.items && order.items.length > 0 && (
                     <div className="flex justify-between">
-                      <span className="text-sm font-medium text-gray-500">Quantity:</span>
-                      <span className="text-sm text-gray-900">{order.quantity.toLocaleString()}</span>
+                      <span className="text-sm font-medium text-gray-500">Total Items:</span>
+                      <span className="text-sm text-gray-900">{order.items.length}</span>
                     </div>
                   )}
                 </div>
@@ -218,28 +218,71 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                 </div>
               )}
 
-              {/* Quality */}
-              {order.quality && (
+              {/* Order Items */}
+              {order.items && order.items.length > 0 && (
                 <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Quality Description</h3>
-                  <p className="text-sm text-gray-900">
-                    {typeof order.quality === 'string' 
-                      ? order.quality 
-                      : order.quality.description || 'No description available'
-                    }
-                  </p>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Items</h3>
+                  <div className="space-y-4">
+                    {order.items.map((item, index) => (
+                      <div key={index} className="border-l-4 border-indigo-500 pl-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-medium text-gray-900">Item {index + 1}</h4>
+                          {item.quantity && (
+                            <span className="text-sm text-gray-600">
+                              Qty: {item.quantity.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {item.quality && (
+                          <p className="text-sm text-gray-700 mb-1">
+                            <span className="font-medium">Quality:</span> {
+                              typeof item.quality === 'string' 
+                                ? item.quality 
+                                : item.quality.name || 'Unknown'
+                            }
+                          </p>
+                        )}
+                        
+                        {item.description && (
+                          <p className="text-sm text-gray-700 mb-2">
+                            <span className="font-medium">Description:</span> {item.description}
+                          </p>
+                        )}
+                        
+                        {item.imageUrl && (
+                          <div className="mt-2">
+                            <img
+                              src={item.imageUrl}
+                              alt={`Item ${index + 1}`}
+                              className="w-20 h-20 object-cover rounded border"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {/* Image */}
-              {order.imageUrl && (
+              {/* Order Images */}
+              {order.items && order.items.some(item => item.imageUrl) && (
                 <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Image</h3>
-                  <img
-                    src={order.imageUrl}
-                    alt="Order"
-                    className="w-full h-48 object-cover rounded-lg border"
-                  />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Images</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {order.items.map((item, index) => (
+                      item.imageUrl && (
+                        <div key={index} className="text-center">
+                          <img
+                            src={item.imageUrl}
+                            alt={`Item ${index + 1}`}
+                            className="w-full h-32 object-cover rounded-lg border"
+                          />
+                          <p className="text-sm text-gray-600 mt-2">Item {index + 1}</p>
+                        </div>
+                      )
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

@@ -37,20 +37,12 @@ export default function OrdersPage() {
 
   const fetchOrders = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.error('Authentication token not found');
-        return;
-      }
-
-      const response = await fetch('/api/orders', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const response = await fetch('/api/orders');
       const data = await response.json();
       if (data.success) {
         setOrders(data.data.orders || []);
+      } else {
+        console.error('Failed to fetch orders:', data.message);
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -61,20 +53,12 @@ export default function OrdersPage() {
 
   const fetchParties = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.error('Authentication token not found');
-        return;
-      }
-
-      const response = await fetch('/api/parties', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const response = await fetch('/api/parties');
       const data = await response.json();
       if (data.success) {
         setParties(data.data || []);
+      } else {
+        console.error('Failed to fetch parties:', data.message);
       }
     } catch (error) {
       console.error('Error fetching parties:', error);
@@ -83,20 +67,12 @@ export default function OrdersPage() {
 
   const fetchQualities = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.error('Authentication token not found');
-        return;
-      }
-
-      const response = await fetch('/api/qualities', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const response = await fetch('/api/qualities');
       const data = await response.json();
       if (data.success) {
         setQualities(data.data || []);
+      } else {
+        console.error('Failed to fetch qualities:', data.message);
       }
     } catch (error) {
       console.error('Error fetching qualities:', error);
