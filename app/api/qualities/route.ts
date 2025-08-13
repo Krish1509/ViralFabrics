@@ -1,5 +1,5 @@
 import dbConnect from "@/lib/dbConnect";
-import Party from "@/models/Party";
+import Quality from "@/models/Quality";
 import { requireAuth } from "@/lib/session";
 import { type NextRequest } from "next/server";
 
@@ -22,15 +22,15 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    // Get parties with search filter, limit to 20 results, sorted by name
-    const parties = await Party.find(query)
+    // Get qualities with search filter, limit to 20 results, sorted by name
+    const qualities = await Quality.find(query)
       .sort({ name: 1 })
       .limit(20)
-      .select('_id name contactName contactPhone address createdAt updatedAt');
+      .select('_id name description createdAt updatedAt');
 
     return new Response(JSON.stringify({ 
       success: true, 
-      data: parties 
+      data: qualities 
     }), { status: 200 });
   } catch (error: unknown) {
     if (error instanceof Error) {
@@ -54,29 +54,21 @@ export async function POST(req: NextRequest) {
     // Require authentication
     await requireAuth(req);
 
-    const { name, contactName, contactPhone, address } = await req.json();
+    const { name, description } = await req.json();
 
     // Validation
     const errors: string[] = [];
     
     if (!name || !name.trim()) {
-      errors.push("Party name is required");
+      errors.push("Quality name is required");
     } else if (name.trim().length < 2) {
-      errors.push("Party name must be at least 2 characters long");
+      errors.push("Quality name must be at least 2 characters long");
     } else if (name.trim().length > 100) {
-      errors.push("Party name cannot exceed 100 characters");
+      errors.push("Quality name cannot exceed 100 characters");
     }
     
-    if (contactName && contactName.trim().length > 50) {
-      errors.push("Contact name cannot exceed 50 characters");
-    }
-    
-    if (contactPhone && contactPhone.trim().length > 20) {
-      errors.push("Contact phone cannot exceed 20 characters");
-    }
-    
-    if (address && address.trim().length > 200) {
-      errors.push("Address cannot exceed 200 characters");
+    if (description && description.trim().length > 500) {
+      errors.push("Description cannot exceed 500 characters");
     }
     
     if (errors.length > 0) {
@@ -91,47 +83,43 @@ export async function POST(req: NextRequest) {
 
     await dbConnect();
 
-    // Check if party with same name already exists (case-insensitive)
-    const existingParty = await Party.findOne({ 
+    // Check if quality with same name already exists (case-insensitive)
+    const existingQuality = await Quality.findOne({ 
       name: { $regex: `^${name.trim()}$`, $options: 'i' } 
     });
     
-    if (existingParty) {
+    if (existingQuality) {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "A party with this name already exists" 
+          message: "A quality with this name already exists" 
         }), 
         { status: 400 }
       );
     }
 
-    // Create party data object
-    const partyData = {
+    // Create quality data object
+    const qualityData = {
       name: name.trim(),
-      contactName: contactName ? contactName.trim() : undefined,
-      contactPhone: contactPhone ? contactPhone.trim() : undefined,
-      address: address ? address.trim() : undefined,
+      description: description ? description.trim() : undefined,
     };
     
-    const createdParty = await Party.create(partyData);
+    const createdQuality = await Quality.create(qualityData);
 
-    // Return the created party without sensitive fields
-    const partySafe = {
-      _id: createdParty._id,
-      name: createdParty.name,
-      contactName: createdParty.contactName,
-      contactPhone: createdParty.contactPhone,
-      address: createdParty.address,
-      createdAt: createdParty.createdAt,
-      updatedAt: createdParty.updatedAt,
+    // Return the created quality without sensitive fields
+    const qualitySafe = {
+      _id: createdQuality._id,
+      name: createdQuality.name,
+      description: createdQuality.description,
+      createdAt: createdQuality.createdAt,
+      updatedAt: createdQuality.updatedAt,
     };
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: "Party created successfully", 
-        data: partySafe 
+        message: "Quality created successfully", 
+        data: qualitySafe 
       }), 
       { status: 201 }
     );
@@ -150,7 +138,7 @@ export async function POST(req: NextRequest) {
           return new Response(
             JSON.stringify({ 
               success: false, 
-              message: "A party with this name already exists" 
+              message: "A quality with this name already exists" 
             }), 
             { status: 400 }
           );

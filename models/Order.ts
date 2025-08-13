@@ -4,7 +4,7 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface IOrder extends Document {
   orderId: string;
   orderNo?: string; // Optional for backward compatibility
-  orderType: "Bulk" | "Sample";
+  orderType: "Dying" | "Printing";
   arrivalDate: Date;
   party: mongoose.Types.ObjectId;
   contactName?: string;
@@ -13,7 +13,7 @@ export interface IOrder extends Document {
   styleNo?: string;
   poDate?: Date;
   deliveryDate?: Date;
-  quality?: string;
+  quality?: mongoose.Types.ObjectId;
   quantity?: number;
   imageUrl?: string;
   createdAt: Date;
@@ -46,8 +46,8 @@ const OrderSchema = new Schema<IOrder>({
   orderType: {
     type: String,
     enum: {
-      values: ["Bulk", "Sample"],
-      message: "Order type must be either 'Bulk' or 'Sample'"
+      values: ["Dying", "Printing"],
+      message: "Order type must be either 'Dying' or 'Printing'"
     },
     required: [true, "Order type is required"]
   },
@@ -90,9 +90,9 @@ const OrderSchema = new Schema<IOrder>({
     type: Date
   },
   quality: {
-    type: String,
-    trim: true,
-    maxlength: [100, "Quality description cannot exceed 100 characters"]
+    type: Schema.Types.ObjectId,
+    ref: "Quality",
+    index: true // For quality-based queries
   },
   quantity: {
     type: Number,
@@ -144,14 +144,12 @@ OrderSchema.index({ party: 1, poNumber: 1, styleNo: 1 }, { unique: true, sparse:
 OrderSchema.index({ 
   orderId: "text", 
   poNumber: "text", 
-  styleNo: "text",
-  quality: "text"
+  styleNo: "text"
 }, {
   weights: {
     orderId: 3,
     poNumber: 2,
-    styleNo: 2,
-    quality: 1
+    styleNo: 2
   }
 });
 
@@ -217,29 +215,29 @@ OrderSchema.pre('save', async function(next) {
 
 // Static methods for common queries
 OrderSchema.statics.findByOrderId = function(orderId: string) {
-  return this.findOne({ orderId }).populate('party');
+  return this.findOne({ orderId }).populate('party').populate('quality');
 };
 
 OrderSchema.statics.findByParty = function(partyId: string) {
-  return this.find({ party: partyId }).populate('party').sort({ createdAt: -1 });
+  return this.find({ party: partyId }).populate('party').populate('quality').sort({ createdAt: -1 });
 };
 
 OrderSchema.statics.findByPoNumber = function(poNumber: string) {
-  return this.find({ poNumber: { $regex: poNumber, $options: 'i' } }).populate('party');
+  return this.find({ poNumber: { $regex: poNumber, $options: 'i' } }).populate('party').populate('quality');
 };
 
 OrderSchema.statics.findByStyleNo = function(styleNo: string) {
-  return this.find({ styleNo: { $regex: styleNo, $options: 'i' } }).populate('party');
+  return this.find({ styleNo: { $regex: styleNo, $options: 'i' } }).populate('party').populate('quality');
 };
 
-OrderSchema.statics.findByOrderType = function(orderType: "Bulk" | "Sample") {
-  return this.find({ orderType }).populate('party').sort({ createdAt: -1 });
+OrderSchema.statics.findByOrderType = function(orderType: "Dying" | "Printing") {
+  return this.find({ orderType }).populate('party').populate('quality').sort({ createdAt: -1 });
 };
 
 OrderSchema.statics.searchOrders = function(searchTerm: string) {
   return this.find({
     $text: { $search: searchTerm }
-  }).populate('party').sort({ score: { $meta: "textScore" } });
+  }).populate('party').populate('quality').sort({ score: { $meta: "textScore" } });
 };
 
 OrderSchema.statics.findByDateRange = function(startDate: Date, endDate: Date) {
@@ -248,7 +246,7 @@ OrderSchema.statics.findByDateRange = function(startDate: Date, endDate: Date) {
       $gte: startDate,
       $lte: endDate
     }
-  }).populate('party').sort({ arrivalDate: -1 });
+  }).populate('party').populate('quality').sort({ arrivalDate: -1 });
 };
 
 // Virtual for order's full info with populated party

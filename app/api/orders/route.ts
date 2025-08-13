@@ -90,6 +90,7 @@ export async function GET(req: NextRequest) {
     const [orders, totalCount] = await Promise.all([
       Order.find(query)
         .populate('party', '_id name contactName contactPhone address')
+        .populate('quality', '_id name description')
         .sort(sortObject)
         .limit(limit)
         .select('_id orderId orderNo orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate quality quantity imageUrl createdAt updatedAt'),
@@ -155,8 +156,8 @@ export async function POST(req: NextRequest) {
     // Validation
     const errors: string[] = [];
     
-    if (!orderType || !['Bulk', 'Sample'].includes(orderType)) {
-      errors.push("Order type is required and must be either 'Bulk' or 'Sample'");
+    if (!orderType || !['Dying', 'Printing'].includes(orderType)) {
+      errors.push("Order type is required and must be either 'Dying' or 'Printing'");
     }
     
     if (!arrivalDate) {
@@ -204,8 +205,10 @@ export async function POST(req: NextRequest) {
       }
     }
     
-    if (quality && quality.trim().length > 100) {
-      errors.push("Quality description cannot exceed 100 characters");
+    if (quality) {
+      if (!quality.match(/^[0-9a-fA-F]{24}$/)) {
+        errors.push("Invalid quality ID format");
+      }
     }
     
     if (quantity !== undefined && quantity !== null) {
@@ -234,6 +237,18 @@ export async function POST(req: NextRequest) {
         JSON.stringify({ message: "Party not found" }), 
         { status: 400 }
       );
+    }
+
+    // Verify quality exists if provided
+    if (quality) {
+      const Quality = (await import('@/models/Quality')).default;
+      const qualityExists = await Quality.findById(quality);
+      if (!qualityExists) {
+        return new Response(
+          JSON.stringify({ message: "Quality not found" }), 
+          { status: 400 }
+        );
+      }
     }
 
     // Check for duplicate PO + Style combination for the same party
@@ -265,16 +280,17 @@ export async function POST(req: NextRequest) {
       styleNo: styleNo ? styleNo.trim() : undefined,
       poDate: poDate ? new Date(poDate) : undefined,
       deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
-      quality: quality ? quality.trim() : undefined,
+      quality: quality || undefined,
       quantity: quantity !== undefined && quantity !== null ? quantity : undefined,
       imageUrl: imageUrl ? imageUrl.trim() : undefined,
     };
     
     const createdOrder = await Order.create(orderData);
 
-    // Populate party data and return
+    // Populate party and quality data and return
     const populatedOrder = await Order.findById(createdOrder._id)
       .populate('party', '_id name contactName contactPhone address')
+      .populate('quality', '_id name description')
       .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate quality quantity imageUrl createdAt updatedAt');
 
     return new Response(

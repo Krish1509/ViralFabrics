@@ -16,6 +16,7 @@ export async function GET(
     
     const order = await Order.findById(params.id)
       .populate('party', '_id name contactName contactPhone address')
+      .populate('quality', '_id name description')
       .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate quality quantity imageUrl createdAt updatedAt');
 
     if (!order) {
@@ -75,8 +76,8 @@ export async function PUT(
     // Validation
     const errors: string[] = [];
     
-    if (orderType !== undefined && !['Bulk', 'Sample'].includes(orderType)) {
-      errors.push("Order type must be either 'Bulk' or 'Sample'");
+    if (orderType !== undefined && !['Dying', 'Printing'].includes(orderType)) {
+      errors.push("Order type must be either 'Dying' or 'Printing'");
     }
     
     if (arrivalDate !== undefined) {
@@ -122,8 +123,10 @@ export async function PUT(
       }
     }
     
-    if (quality !== undefined && quality && quality.trim().length > 100) {
-      errors.push("Quality description cannot exceed 100 characters");
+    if (quality !== undefined && quality) {
+      if (!quality.match(/^[0-9a-fA-F]{24}$/)) {
+        errors.push("Invalid quality ID format");
+      }
     }
     
     if (quantity !== undefined && quantity !== null) {
@@ -165,6 +168,18 @@ export async function PUT(
       }
     }
 
+    // Verify quality exists if being updated
+    if (quality) {
+      const Quality = (await import('@/models/Quality')).default;
+      const qualityExists = await Quality.findById(quality);
+      if (!qualityExists) {
+        return new Response(
+          JSON.stringify({ message: "Quality not found" }), 
+          { status: 400 }
+        );
+      }
+    }
+
     // Check for duplicate PO + Style combination for the same party
     if (poNumber && styleNo) {
       const targetParty = party || existingOrder.party;
@@ -196,7 +211,7 @@ export async function PUT(
     if (styleNo !== undefined) updateData.styleNo = styleNo ? styleNo.trim() : undefined;
     if (poDate !== undefined) updateData.poDate = poDate ? new Date(poDate) : undefined;
     if (deliveryDate !== undefined) updateData.deliveryDate = deliveryDate ? new Date(deliveryDate) : undefined;
-    if (quality !== undefined) updateData.quality = quality ? quality.trim() : undefined;
+    if (quality !== undefined) updateData.quality = quality || undefined;
     if (quantity !== undefined) updateData.quantity = quantity !== null ? quantity : undefined;
     if (imageUrl !== undefined) updateData.imageUrl = imageUrl ? imageUrl.trim() : undefined;
 
@@ -206,6 +221,7 @@ export async function PUT(
       { new: true, runValidators: true }
     )
     .populate('party', '_id name contactName contactPhone address')
+    .populate('quality', '_id name description')
     .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate quality quantity imageUrl createdAt updatedAt');
 
     return new Response(

@@ -1,375 +1,305 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { 
-  CameraIcon,
-  PhotoIcon,
-  XMarkIcon,
-  ArrowDownTrayIcon,
-  TrashIcon
+  ShoppingBagIcon, 
+  UsersIcon, 
+  BuildingOfficeIcon,
+  ClockIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
+import { Order, Party } from '@/types';
 import { useDarkMode } from '../hooks/useDarkMode';
 
-interface Photo {
-  id: string;
-  dataUrl: string;
-  timestamp: Date;
-  name: string;
-}
-
-export default function SuperAdminDashboard() {
+export default function DashboardPage() {
   const { isDarkMode } = useDarkMode();
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [showCamera, setShowCamera] = useState(false);
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [parties, setParties] = useState<Party[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Load photos from localStorage on component mount
   useEffect(() => {
-    const savedPhotos = localStorage.getItem('dashboard-photos');
-    if (savedPhotos) {
-      try {
-        setPhotos(JSON.parse(savedPhotos));
-      } catch (error) {
-        console.error('Error loading photos:', error);
-      }
-    }
+    fetchData();
   }, []);
 
-  // Save photos to localStorage whenever photos change
-  useEffect(() => {
-    localStorage.setItem('dashboard-photos', JSON.stringify(photos));
-  }, [photos]);
-
-  // Start camera
-  const startCamera = async () => {
+  const fetchData = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        } 
-      });
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        setIsCameraActive(true);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('Authentication token not found');
+        return;
+      }
+
+      const [ordersResponse, partiesResponse] = await Promise.all([
+        fetch('/api/orders', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }),
+        fetch('/api/parties', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        })
+      ]);
+
+      const ordersData = await ordersResponse.json();
+      const partiesData = await partiesResponse.json();
+
+      if (ordersData.success) {
+        setOrders(ordersData.data.orders || []);
+      }
+      if (partiesData.success) {
+        setParties(partiesData.data || []);
       }
     } catch (error) {
-      console.error('Error accessing camera:', error);
-      alert('Unable to access camera. Please check permissions.');
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Stop camera
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    setIsCameraActive(false);
-    setCurrentPhoto(null);
+  const getOrderStats = () => {
+    const total = orders.length;
+    const pending = orders.filter(order => {
+      const now = new Date();
+      return now <= new Date(order.arrivalDate);
+    }).length;
+    const arrived = orders.filter(order => {
+      const now = new Date();
+      return now > new Date(order.arrivalDate) && 
+             (!order.deliveryDate || now <= new Date(order.deliveryDate));
+    }).length;
+    const delivered = orders.filter(order => {
+      const now = new Date();
+      return order.deliveryDate && now > new Date(order.deliveryDate);
+    }).length;
+
+    return { total, pending, arrived, delivered };
   };
 
-  // Take photo
-  const takePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const context = canvas.getContext('2d');
+  const stats = getOrderStats();
 
-      if (context) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        context.drawImage(video, 0, 0);
-        
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        setCurrentPhoto(dataUrl);
-      }
-    }
-  };
-
-  // Save photo
-  const savePhoto = () => {
-    if (currentPhoto) {
-      const newPhoto: Photo = {
-        id: Date.now().toString(),
-        dataUrl: currentPhoto,
-        timestamp: new Date(),
-        name: `Photo_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}`
-      };
-      
-      setPhotos(prev => [newPhoto, ...prev]);
-      setCurrentPhoto(null);
-      setShowCamera(false);
-      stopCamera();
-    }
-  };
-
-  // Delete photo
-  const deletePhoto = (photoId: string) => {
-    setPhotos(prev => prev.filter(photo => photo.id !== photoId));
-  };
-
-  // Download photo
-  const downloadPhoto = (photo: Photo) => {
-    const link = document.createElement('a');
-    link.download = `${photo.name}.jpg`;
-    link.href = photo.dataUrl;
-    link.click();
-  };
-
-  // Open camera modal
-  const openCamera = () => {
-    setShowCamera(true);
-    setTimeout(() => {
-      startCamera();
-    }, 100);
-  };
-
-  // Close camera modal
-  const closeCamera = () => {
-    setShowCamera(false);
-    stopCamera();
-  };
+  if (loading) {
+    return (
+      <div className={`flex items-center justify-center min-h-screen ${isDarkMode ? 'bg-slate-900' : 'bg-gray-50'}`}>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
-        <div>
-          <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            Welcome back, Super Admin!
-          </h1>
-          {/* <p className={`mt-2 text-lg ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            Manage your CRM system and monitor all activities from your dashboard.
-          </p> */}
-        </div>
-        
-        {/* Camera Button */}
-        <button
-          onClick={openCamera}
-          className={`inline-flex items-center px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
-            isDarkMode
-              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
-              : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
-          }`}
-        >
-          <CameraIcon className="h-5 w-5 mr-2" />
-          Take Photo
-        </button>
-      </div>
-
-
-
-      {/* Photos Gallery */}
-      <div className={`rounded-xl border transition-all duration-300 ${
-        isDarkMode
-          ? 'bg-white/5 border-white/10'
-          : 'bg-white border-gray-200'
-      }`}>
-        <div className="p-8 border-b border-gray-200 dark:border-white/10">
-          <h2 className={`text-2xl font-semibold ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
-          }`}>
-            Photo Gallery
-          </h2>
-          <p className={`text-lg mt-2 ${
-            isDarkMode ? 'text-gray-300' : 'text-gray-600'
-          }`}>
-            Your captured photos and memories
-          </p>
-        </div>
-
-        <div className="p-8">
-          {photos.length === 0 ? (
-            <div className={`text-center py-16 ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-500'
-            }`}>
-              <PhotoIcon className="h-16 w-16 mx-auto mb-6 opacity-50" />
-              <p className="text-xl font-medium mb-3">No photos yet</p>
-              <p className="text-lg">Click "Take Photo" to capture your first image</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {photos.map((photo) => (
-                <div key={photo.id} className={`group relative rounded-lg overflow-hidden border transition-all duration-300 ${
-                  isDarkMode ? 'border-white/10' : 'border-gray-200'
-                }`}>
-                  <img
-                    src={photo.dataUrl}
-                    alt={photo.name}
-                    className="w-full h-56 object-cover"
-                  />
-                  
-                  {/* Overlay with actions */}
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center space-x-3">
-                    <button
-                      onClick={() => downloadPhoto(photo)}
-                      className={`p-3 rounded-lg transition-all duration-300 ${
-                        isDarkMode
-                          ? 'bg-white/20 text-white hover:bg-white/30'
-                          : 'bg-white/80 text-gray-900 hover:bg-white'
-                      }`}
-                      title="Download"
-                    >
-                      <ArrowDownTrayIcon className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => deletePhoto(photo.id)}
-                      className={`p-3 rounded-lg transition-all duration-300 ${
-                        isDarkMode
-                          ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                          : 'bg-red-100 text-red-600 hover:bg-red-200'
-                      }`}
-                      title="Delete"
-                    >
-                      <TrashIcon className="h-5 w-5" />
-                    </button>
-                  </div>
-                  
-                  {/* Photo info */}
-                  <div className={`absolute bottom-0 left-0 right-0 p-4 ${
-                    isDarkMode ? 'bg-black/50' : 'bg-white/80'
-                  }`}>
-                    <p className={`text-sm font-medium ${
-                      isDarkMode ? 'text-white' : 'text-gray-900'
-                    }`}>
-                      {photo.name}
-                    </p>
-                    <p className={`text-sm ${
-                      isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                    }`}>
-                      {photo.timestamp.toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+    <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'bg-slate-900' : 'bg-gray-50'}`}>
+      {/* Header */}
+      <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white'} shadow-sm border-b`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="py-6">
+            <h1 className={`text-3xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Dashboard</h1>
+            <p className={`mt-1 text-sm transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+              Welcome to your CRM Admin Panel
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Camera Modal */}
-      {showCamera && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`w-full max-w-2xl rounded-xl shadow-2xl ${
-            isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
-          }`}>
-            {/* Header */}
-            <div className={`flex items-center justify-between p-6 border-b ${
-              isDarkMode ? 'border-slate-700' : 'border-gray-200'
-            }`}>
-              <h3 className={`text-lg font-semibold ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                Camera
-              </h3>
-              <button
-                onClick={closeCamera}
-                className={`p-2 rounded-lg transition-all duration-300 ${
-                  isDarkMode
-                    ? 'text-gray-400 hover:bg-white/10'
-                    : 'text-gray-500 hover:bg-gray-100'
-                }`}
-              >
-                <XMarkIcon className="h-5 w-5" />
-              </button>
+              {/* Stats Cards */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {/* Total Orders */}
+            <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800' : 'bg-white'} rounded-lg shadow p-6`}>
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <ShoppingBagIcon className="h-8 w-8 text-blue-600" />
+                </div>
+                <div className="ml-4">
+                  <p className={`text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Total Orders</p>
+                  <p className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.total}</p>
+                </div>
+              </div>
             </div>
 
-            {/* Camera View */}
-            <div className="p-6">
-              {!currentPhoto ? (
-                <div className="space-y-4">
-                  {/* Video Preview */}
-                  <div className={`relative rounded-lg overflow-hidden border-2 border-dashed ${
-                    isDarkMode ? 'border-white/20' : 'border-gray-300'
-                  }`}>
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-64 object-cover"
-                    />
-                    {!isCameraActive && (
-                      <div className={`absolute inset-0 flex items-center justify-center ${
-                        isDarkMode ? 'bg-slate-700/50' : 'bg-gray-100/50'
-                      }`}>
-                        <div className="text-center">
-                          <CameraIcon className={`h-12 w-12 mx-auto mb-2 ${
-                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                          }`} />
-                          <p className={`text-sm ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                          }`}>
-                            Camera loading...
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+          {/* Pending Orders */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <ClockIcon className="h-8 w-8 text-yellow-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Pending</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
+              </div>
+            </div>
+          </div>
 
-                  {/* Camera Controls */}
-                  <div className="flex justify-center space-x-4">
-                    <button
-                      onClick={takePhoto}
-                      disabled={!isCameraActive}
-                      className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
-                        isCameraActive
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
-                    >
-                      <CameraIcon className="h-5 w-5 mr-2 inline" />
-                      Take Photo
-                    </button>
-                  </div>
+          {/* Arrived Orders */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <ExclamationTriangleIcon className="h-8 w-8 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Arrived</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.arrived}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Delivered Orders */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <CheckCircleIcon className="h-8 w-8 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Delivered</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.delivered}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Orders Management */}
+          <Link href="/orders" className="group">
+            <div className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <ShoppingBagIcon className="h-8 w-8 text-blue-600 group-hover:text-blue-700" />
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Photo Preview */}
-                  <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-white/20">
-                    <img
-                      src={currentPhoto}
-                      alt="Captured photo"
-                      className="w-full h-64 object-cover"
-                    />
-                  </div>
+                <div className="ml-4">
+                  <h3 className="text-lg font-medium text-gray-900 group-hover:text-blue-600">
+                    Manage Orders
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Create, edit, and track orders
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Link>
 
-                  {/* Photo Actions */}
-                  <div className="flex justify-center space-x-4">
-                    <button
-                      onClick={() => setCurrentPhoto(null)}
-                      className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
-                        isDarkMode
-                          ? 'bg-gray-600 text-white hover:bg-gray-700'
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
-                    >
-                      Retake
-                    </button>
-                    <button
-                      onClick={savePhoto}
-                      className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-all duration-300"
-                    >
-                      Save Photo
-                    </button>
-                  </div>
+          {/* Parties Management */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <BuildingOfficeIcon className="h-8 w-8 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Manage Parties
+                </h3>
+                <p className="text-sm text-gray-500">
+                  {parties.length} parties in system
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Users Management */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <UsersIcon className="h-8 w-8 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  User Management
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Manage system users
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Orders */}
+        {orders.length > 0 && (
+          <div className="mt-8">
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Recent Orders</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Order ID
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Arrival Date
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {orders.slice(0, 5).map((order) => {
+                      const status = (() => {
+                        const now = new Date();
+                        if (order.deliveryDate && now > new Date(order.deliveryDate)) return 'Delivered';
+                        if (order.arrivalDate && now > new Date(order.arrivalDate)) return 'Arrived';
+                        return 'Pending';
+                      })();
+
+                      const statusColor = (() => {
+                        switch (status) {
+                          case 'Delivered': return 'bg-green-100 text-green-800';
+                          case 'Arrived': return 'bg-blue-100 text-blue-800';
+                          case 'Pending': return 'bg-yellow-100 text-yellow-800';
+                          default: return 'bg-gray-100 text-gray-800';
+                        }
+                      })();
+
+                      return (
+                        <tr key={order._id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {order.orderId}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              order.orderType === 'Dying'
+                                ? 'bg-red-100 text-red-800' 
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {order.orderType}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {new Date(order.arrivalDate).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColor}`}>
+                              {status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {orders.length > 5 && (
+                <div className="px-6 py-4 border-t border-gray-200">
+                  <Link 
+                    href="/orders"
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    View all orders →
+                  </Link>
                 </div>
               )}
             </div>
-
-            {/* Hidden canvas for capturing */}
-            <canvas ref={canvasRef} className="hidden" />
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

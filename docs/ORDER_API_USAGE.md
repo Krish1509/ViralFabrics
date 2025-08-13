@@ -267,7 +267,7 @@ Delete a specific order by ID.
 ### 400 Bad Request
 ```json
 {
-  "message": "Order type is required and must be either 'Bulk' or 'Sample', Party is required"
+  "message": "Order type is required and must be either 'Dying' or 'Printing', Party is required"
 }
 ```
 
@@ -295,7 +295,7 @@ Delete a specific order by ID.
 ## Validation Rules
 
 ### Required Fields
-- **orderType**: Must be "Bulk" or "Sample"
+- **orderType**: Must be "Dying" or "Printing"
 - **arrivalDate**: Valid date format
 - **party**: Valid MongoDB ObjectId
 
