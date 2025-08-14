@@ -14,7 +14,8 @@ export async function GET(
 
     await dbConnect();
     
-    const order = await Order.findById(params.id)
+    const { id } = await params;
+    const order = await Order.findById(id)
       .populate('party', '_id name contactName contactPhone address')
       .populate('items.quality', '_id name description')
       .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items createdAt updatedAt');
@@ -155,7 +156,8 @@ export async function PUT(
     await dbConnect();
 
     // Check if order exists
-    const existingOrder = await Order.findById(params.id);
+    const { id } = await params;
+    const existingOrder = await Order.findById(id);
     if (!existingOrder) {
       return new Response(
         JSON.stringify({ message: "Order not found" }), 
@@ -231,7 +233,7 @@ export async function PUT(
     }
 
     const updatedOrder = await Order.findByIdAndUpdate(
-      params.id,
+      id,
       updateData,
       { new: true, runValidators: true }
     )

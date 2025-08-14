@@ -9,8 +9,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Require authentication
-    await requireAuth(req);
+    // Authentication temporarily disabled
+    // await requireAuth(req);
 
     await dbConnect();
     
@@ -53,8 +53,8 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Require authentication
-    await requireAuth(req);
+    // Authentication temporarily disabled
+    // await requireAuth(req);
 
     const { name, contactName, contactPhone, address } = await req.json();
 
@@ -191,17 +191,16 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Require authentication
-    await requireAuth(req);
-
     await dbConnect();
     
+    const { id } = await params;
+    
     // Check if party exists
-    const party = await Party.findById(params.id);
-    if (!party) {
+    const existingParty = await Party.findById(id);
+    if (!existingParty) {
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -211,21 +210,20 @@ export async function DELETE(
       );
     }
 
-    // Check if there are related orders
-    const relatedOrders = await Order.countDocuments({ party: params.id });
-    
-    if (relatedOrders > 0) {
+    // Check if party is being used in any orders
+    const ordersUsingParty = await Order.find({ party: id });
+    if (ordersUsingParty.length > 0) {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: `Cannot delete party. There are ${relatedOrders} related orders. Please delete the orders first.` 
+          message: `Cannot delete party "${existingParty.name}" - it's being used in ${ordersUsingParty.length} order(s). Please remove all orders using this party first.` 
         }), 
         { status: 400 }
       );
     }
 
     // Delete the party
-    await Party.findByIdAndDelete(params.id);
+    await Party.findByIdAndDelete(id);
 
     return new Response(
       JSON.stringify({ 
@@ -235,18 +233,13 @@ export async function DELETE(
       { status: 200 }
     );
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      if (error.message.includes("Unauthorized")) {
-        return new Response(JSON.stringify({ 
-          success: false, 
-          message: "Unauthorized" 
-        }), { status: 401 });
-      }
-    }
     const message = error instanceof Error ? error.message : "Internal Server Error";
-    return new Response(JSON.stringify({ 
-      success: false, 
-      message 
-    }), { status: 500 });
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        message 
+      }), 
+      { status: 500 }
+    );
   }
 }

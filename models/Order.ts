@@ -42,7 +42,6 @@ const OrderSchema = new Schema<IOrder>({
   orderId: {
     type: String,
     unique: true,
-    index: true, // Primary lookup field
     required: true, // Ensure it's always present
   },
   // Add orderNo field for backward compatibility (auto-generated)
@@ -50,7 +49,6 @@ const OrderSchema = new Schema<IOrder>({
     type: String,
     unique: true,
     sparse: true, // Allow multiple null values
-    index: true,
     required: false, // Make it optional to avoid validation errors
   },
   orderType: {
@@ -68,8 +66,7 @@ const OrderSchema = new Schema<IOrder>({
   party: {
     type: Schema.Types.ObjectId,
     ref: "Party",
-    required: [true, "Party is required"],
-    index: true // For party-based queries
+    required: [true, "Party is required"]
   },
   contactName: {
     type: String,
@@ -84,14 +81,12 @@ const OrderSchema = new Schema<IOrder>({
   poNumber: {
     type: String,
     trim: true,
-    maxlength: [50, "PO number cannot exceed 50 characters"],
-    index: true // For PO-based searches
+    maxlength: [50, "PO number cannot exceed 50 characters"]
   },
   styleNo: {
     type: String,
     trim: true,
-    maxlength: [50, "Style number cannot exceed 50 characters"],
-    index: true // For style-based searches
+    maxlength: [50, "Style number cannot exceed 50 characters"]
   },
   poDate: {
     type: Date

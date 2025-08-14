@@ -16,8 +16,7 @@ const PartySchema = new Schema<IParty>({
     required: [true, "Party name is required"],
     trim: true,
     minlength: [2, "Party name must be at least 2 characters long"],
-    maxlength: [100, "Party name cannot exceed 100 characters"],
-    index: true // For name-based searches
+    maxlength: [100, "Party name cannot exceed 100 characters"]
   },
   contactName: {
     type: String,

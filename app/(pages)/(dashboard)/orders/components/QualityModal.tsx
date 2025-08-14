@@ -50,16 +50,10 @@ export default function QualityModal({ onClose, onSuccess }: QualityModalProps) 
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication token not found');
-      }
-
       const response = await fetch('/api/qualities', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           name: formData.name.trim()

@@ -10,8 +10,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Require authentication
-    await requireAuth(request);
+    // Authentication temporarily disabled
+    // await requireAuth(request);
 
     await dbConnect();
     
@@ -47,8 +47,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Require authentication
-    await requireAuth(request);
+    // Authentication temporarily disabled
+    // await requireAuth(request);
 
     const body = await request.json();
     const { id } = await params;
@@ -154,22 +154,18 @@ export async function PUT(
   }
 }
 
-// DELETE /api/qualities/[id] - Delete quality
 export async function DELETE(
-  request: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Require authentication
-    await requireAuth(request);
-
     await dbConnect();
     
     const { id } = await params;
     
     // Check if quality exists
-    const quality = await Quality.findById(id);
-    if (!quality) {
+    const existingQuality = await Quality.findById(id);
+    if (!existingQuality) {
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -179,14 +175,16 @@ export async function DELETE(
       );
     }
 
-    // Check if there are related orders
-    const relatedOrders = await Order.countDocuments({ quality: id });
+    // Check if quality is being used in any order items
+    const ordersUsingQuality = await Order.find({
+      'items.quality': id
+    });
     
-    if (relatedOrders > 0) {
+    if (ordersUsingQuality.length > 0) {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: `Cannot delete quality. There are ${relatedOrders} related orders. Please delete the orders first.` 
+          message: `Cannot delete quality "${existingQuality.name}" - it's being used in ${ordersUsingQuality.length} order(s). Please remove all order items using this quality first.` 
         }), 
         { status: 400 }
       );
@@ -203,12 +201,13 @@ export async function DELETE(
       { status: 200 }
     );
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      if (error.message.includes("Unauthorized")) {
-        return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
-      }
-    }
     const message = error instanceof Error ? error.message : "Internal Server Error";
-    return new Response(JSON.stringify({ message }), { status: 500 });
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        message 
+      }), 
+      { status: 500 }
+    );
   }
 }

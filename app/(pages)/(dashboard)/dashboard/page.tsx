@@ -8,7 +8,9 @@ import {
   BuildingOfficeIcon,
   ClockIcon,
   CheckCircleIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  CalendarIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/outline';
 import { Order, Party } from '@/types';
 import { useDarkMode } from '../hooks/useDarkMode';
@@ -79,7 +81,53 @@ export default function DashboardPage() {
     return { total, pending, arrived, delivered };
   };
 
+  const getMonthlyStats = () => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentYear = new Date().getFullYear();
+    const monthlyData = months.map((month, index) => {
+      const monthOrders = orders.filter(order => {
+        const orderDate = new Date(order.arrivalDate);
+        return orderDate.getFullYear() === currentYear && orderDate.getMonth() === index;
+      });
+      return {
+        month,
+        orders: monthOrders.length,
+        dying: monthOrders.filter(o => o.orderType === 'Dying').length,
+        printing: monthOrders.filter(o => o.orderType === 'Printing').length
+      };
+    });
+    return monthlyData;
+  };
+
+  const getOrderTypeStats = () => {
+    const dying = orders.filter(order => order.orderType === 'Dying').length;
+    const printing = orders.filter(order => order.orderType === 'Printing').length;
+    return { dying, printing };
+  };
+
+  const getRecentActivity = () => {
+    const now = new Date();
+    const last7Days = orders.filter(order => {
+      const orderDate = new Date(order.arrivalDate);
+      const diffTime = Math.abs(now.getTime() - orderDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 7;
+    }).length;
+
+    const last30Days = orders.filter(order => {
+      const orderDate = new Date(order.arrivalDate);
+      const diffTime = Math.abs(now.getTime() - orderDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 30;
+    }).length;
+
+    return { last7Days, last30Days };
+  };
+
   const stats = getOrderStats();
+  const monthlyStats = getMonthlyStats();
+  const orderTypeStats = getOrderTypeStats();
+  const recentActivity = getRecentActivity();
 
   if (loading) {
     return (
@@ -107,10 +155,12 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {/* Total Orders */}
-            <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800' : 'bg-white'} rounded-lg shadow p-6`}>
+            <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'} rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300`}>
               <div className="flex items-center">
                 <div className="flex-shrink-0">
-                  <ShoppingBagIcon className="h-8 w-8 text-blue-600" />
+                  <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
+                    <ShoppingBagIcon className="h-8 w-8 text-blue-600" />
+                  </div>
                 </div>
                 <div className="ml-4">
                   <p className={`text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Total Orders</p>
@@ -120,59 +170,201 @@ export default function DashboardPage() {
             </div>
 
           {/* Pending Orders */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'} rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300`}>
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <ClockIcon className="h-8 w-8 text-yellow-600" />
+                <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-yellow-500/20' : 'bg-yellow-100'}`}>
+                  <ClockIcon className="h-8 w-8 text-yellow-600" />
+                </div>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Pending</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
+                <p className={`text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Pending</p>
+                <p className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.pending}</p>
               </div>
             </div>
           </div>
 
           {/* Arrived Orders */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'} rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300`}>
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <ExclamationTriangleIcon className="h-8 w-8 text-blue-600" />
+                <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
+                  <ExclamationTriangleIcon className="h-8 w-8 text-blue-600" />
+                </div>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Arrived</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.arrived}</p>
+                <p className={`text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Arrived</p>
+                <p className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.arrived}</p>
               </div>
             </div>
           </div>
 
           {/* Delivered Orders */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'} rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300`}>
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <CheckCircleIcon className="h-8 w-8 text-green-600" />
+                <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-green-500/20' : 'bg-green-100'}`}>
+                  <CheckCircleIcon className="h-8 w-8 text-green-600" />
+                </div>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Delivered</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.delivered}</p>
+                <p className={`text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Delivered</p>
+                <p className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.delivered}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Charts and Analytics */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* Monthly Orders Chart */}
+          <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'} rounded-xl shadow-lg p-6`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Monthly Orders Trend
+              </h3>
+              <CalendarIcon className={`h-6 w-6 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+            </div>
+            <div className="space-y-4">
+              {monthlyStats.map((data, index) => (
+                <div key={data.month} className="flex items-center justify-between">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    {data.month}
+                  </span>
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {data.orders}
+                      </span>
+                    </div>
+                    <div className="w-24 bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.max((data.orders / Math.max(...monthlyStats.map(m => m.orders))) * 100, 5)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Order Type Distribution */}
+          <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'} rounded-xl shadow-lg p-6`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Order Type Distribution
+              </h3>
+              <ChartBarIcon className={`h-6 w-6 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+            </div>
+            <div className="space-y-6">
+              {/* Dying Orders */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 bg-red-500 rounded-full"></div>
+                  <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Dying</span>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <span className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {orderTypeStats.dying}
+                  </span>
+                  <div className="w-32 bg-gray-200 rounded-full h-3">
+                    <div 
+                      className="bg-red-500 h-3 rounded-full transition-all duration-300"
+                      style={{ width: `${stats.total > 0 ? (orderTypeStats.dying / stats.total) * 100 : 0}%` }}
+                    ></div>
+                  </div>
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {stats.total > 0 ? Math.round((orderTypeStats.dying / stats.total) * 100) : 0}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Printing Orders */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
+                  <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Printing</span>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <span className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {orderTypeStats.printing}
+                  </span>
+                  <div className="w-32 bg-gray-200 rounded-full h-3">
+                    <div 
+                      className="bg-blue-500 h-3 rounded-full transition-all duration-300"
+                      style={{ width: `${stats.total > 0 ? (orderTypeStats.printing / stats.total) * 100 : 0}%` }}
+                    ></div>
+                  </div>
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {stats.total > 0 ? Math.round((orderTypeStats.printing / stats.total) * 100) : 0}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Activity Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'} rounded-xl shadow-lg p-6`}>
+            <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              Recent Activity
+            </h3>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Last 7 days</span>
+                <span className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {recentActivity.last7Days} orders
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Last 30 days</span>
+                <span className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {recentActivity.last30Days} orders
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'} rounded-xl shadow-lg p-6`}>
+            <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              System Overview
+            </h3>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Total Parties</span>
+                <span className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {parties.length}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Completion Rate</span>
+                <span className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {stats.total > 0 ? Math.round((stats.delivered / stats.total) * 100) : 0}%
+                </span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {/* Orders Management */}
           <Link href="/orders" className="group">
-            <div className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
+            <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border border-slate-700 hover:bg-slate-700' : 'bg-white border border-gray-200 hover:bg-gray-50'} rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 cursor-pointer`}>
               <div className="flex items-center">
                 <div className="flex-shrink-0">
-                  <ShoppingBagIcon className="h-8 w-8 text-blue-600 group-hover:text-blue-700" />
+                  <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-blue-500/20 group-hover:bg-blue-500/30' : 'bg-blue-100 group-hover:bg-blue-200'}`}>
+                    <ShoppingBagIcon className="h-8 w-8 text-blue-600 group-hover:text-blue-700" />
+                  </div>
                 </div>
                 <div className="ml-4">
-                  <h3 className="text-lg font-medium text-gray-900 group-hover:text-blue-600">
+                  <h3 className={`text-lg font-medium transition-colors duration-300 ${isDarkMode ? 'text-white group-hover:text-blue-400' : 'text-gray-900 group-hover:text-blue-600'}`}>
                     Manage Orders
                   </h3>
-                  <p className="text-sm text-gray-500">
+                  <p className={`text-sm transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                     Create, edit, and track orders
                   </p>
                 </div>
@@ -181,66 +373,74 @@ export default function DashboardPage() {
           </Link>
 
           {/* Parties Management */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <BuildingOfficeIcon className="h-8 w-8 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Manage Parties
-                </h3>
-                <p className="text-sm text-gray-500">
-                  {parties.length} parties in system
-                </p>
+          <Link href="/parties" className="group">
+            <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border border-slate-700 hover:bg-slate-700' : 'bg-white border border-gray-200 hover:bg-gray-50'} rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 cursor-pointer`}>
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-green-500/20 group-hover:bg-green-500/30' : 'bg-green-100 group-hover:bg-green-200'}`}>
+                    <BuildingOfficeIcon className="h-8 w-8 text-green-600 group-hover:text-green-700" />
+                  </div>
+                </div>
+                <div className="ml-4">
+                  <h3 className={`text-lg font-medium transition-colors duration-300 ${isDarkMode ? 'text-white group-hover:text-green-400' : 'text-gray-900 group-hover:text-green-600'}`}>
+                    Manage Parties
+                  </h3>
+                  <p className={`text-sm transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                    {parties.length} parties in system
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          </Link>
 
           {/* Users Management */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <UsersIcon className="h-8 w-8 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900">
-                  User Management
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Manage system users
-                </p>
+          <Link href="/users" className="group">
+            <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border border-slate-700 hover:bg-slate-700' : 'bg-white border border-gray-200 hover:bg-gray-50'} rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 cursor-pointer`}>
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-purple-500/20 group-hover:bg-purple-500/30' : 'bg-purple-100 group-hover:bg-purple-200'}`}>
+                    <UsersIcon className="h-8 w-8 text-purple-600 group-hover:text-purple-700" />
+                  </div>
+                </div>
+                <div className="ml-4">
+                  <h3 className={`text-lg font-medium transition-colors duration-300 ${isDarkMode ? 'text-white group-hover:text-purple-400' : 'text-gray-900 group-hover:text-purple-600'}`}>
+                    User Management
+                  </h3>
+                  <p className={`text-sm transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                    Manage system users
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* Recent Orders */}
         {orders.length > 0 && (
           <div className="mt-8">
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Recent Orders</h3>
+            <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'} rounded-xl shadow-lg`}>
+              <div className={`px-6 py-4 border-b ${isDarkMode ? 'border-slate-700' : 'border-gray-200'}`}>
+                <h3 className={`text-lg font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Recent Orders</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className={`${isDarkMode ? 'bg-slate-700' : 'bg-gray-50'}`}>
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                         Order ID
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                         Type
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                         Arrival Date
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                         Status
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className={`${isDarkMode ? 'bg-slate-800 divide-slate-700' : 'bg-white divide-gray-200'}`}>
                     {orders.slice(0, 5).map((order) => {
                       const status = (() => {
                         const now = new Date();
@@ -251,28 +451,28 @@ export default function DashboardPage() {
 
                       const statusColor = (() => {
                         switch (status) {
-                          case 'Delivered': return 'bg-green-100 text-green-800';
-                          case 'Arrived': return 'bg-blue-100 text-blue-800';
-                          case 'Pending': return 'bg-yellow-100 text-yellow-800';
-                          default: return 'bg-gray-100 text-gray-800';
+                          case 'Delivered': return isDarkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-100 text-green-800';
+                          case 'Arrived': return isDarkMode ? 'bg-blue-900/50 text-blue-400' : 'bg-blue-100 text-blue-800';
+                          case 'Pending': return isDarkMode ? 'bg-yellow-900/50 text-yellow-400' : 'bg-yellow-100 text-yellow-800';
+                          default: return isDarkMode ? 'bg-gray-900/50 text-gray-400' : 'bg-gray-100 text-gray-800';
                         }
                       })();
 
                       return (
-                        <tr key={order._id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <tr key={order._id} className={`transition-colors duration-300 ${isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-50'}`}>
+                          <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                             {order.orderId}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                               order.orderType === 'Dying'
-                                ? 'bg-red-100 text-red-800' 
-                                : 'bg-blue-100 text-blue-800'
+                                ? isDarkMode ? 'bg-red-900/50 text-red-400' : 'bg-red-100 text-red-800'
+                                : isDarkMode ? 'bg-blue-900/50 text-blue-400' : 'bg-blue-100 text-blue-800'
                             }`}>
                               {order.orderType}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-900'}`}>
                             {new Date(order.arrivalDate).toLocaleDateString()}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -287,10 +487,10 @@ export default function DashboardPage() {
                 </table>
               </div>
               {orders.length > 5 && (
-                <div className="px-6 py-4 border-t border-gray-200">
+                <div className={`px-6 py-4 border-t ${isDarkMode ? 'border-slate-700' : 'border-gray-200'}`}>
                   <Link 
                     href="/orders"
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    className={`text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'}`}
                   >
                     View all orders →
                   </Link>

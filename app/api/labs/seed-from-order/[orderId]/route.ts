@@ -1,0 +1,114 @@
+import { NextRequest } from 'next/server';
+import dbConnect from '@/lib/dbConnect';
+import Lab from '@/models/Lab';
+import Order from '@/models/Order';
+import { seedFromOrderSchema } from '@/lib/validation/lab';
+import { ok, badRequest, notFound, serverError } from '@/lib/http';
+import { isValidObjectId } from '@/lib/ids';
+
+// POST /api/labs/seed-from-order/[orderId] - Create labs for all items in an order
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { orderId: string } }
+) {
+  try {
+    await dbConnect();
+    
+    const { orderId } = params;
+    
+    // Validate ObjectId
+    if (!isValidObjectId(orderId)) {
+      return badRequest('Invalid order ID');
+    }
+    
+    const body = await request.json();
+    
+    // Validate request body
+    const validationResult = seedFromOrderSchema.safeParse(body);
+    if (!validationResult.success) {
+      return badRequest(validationResult.error.errors[0].message);
+    }
+    
+    const { labSendDate, prefix, startIndex, overrideExisting } = validationResult.data;
+    
+    // Find the order
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return notFound('Order not found');
+    }
+    
+    if (!order.items || order.items.length === 0) {
+      return badRequest('Order has no items');
+    }
+    
+    let createdCount = 0;
+    let skippedCount = 0;
+    const createdLabs = [];
+    
+    // Process each order item
+    for (let i = 0; i < order.items.length; i++) {
+      const orderItem = order.items[i];
+      const orderItemId = orderItem._id.toString();
+      
+      // Check if lab already exists for this order item
+      const existingLab = await Lab.findOne({
+        order: orderId,
+        orderItemId: orderItemId,
+        softDeleted: false
+      });
+      
+      if (existingLab && !overrideExisting) {
+        skippedCount++;
+        continue;
+      }
+      
+      // Generate lab send number
+      const counter = startIndex + i;
+      const labSendNumber = `${prefix}${order.orderNo || order.orderId}-${counter}`;
+      
+      // Create lab data
+      const labData = {
+        order: orderId,
+        orderItemId: orderItemId,
+        labSendDate,
+        labSendNumber,
+        status: 'sent' as const
+      };
+      
+      if (existingLab && overrideExisting) {
+        // Update existing lab
+        Object.assign(existingLab, labData);
+        await existingLab.save();
+        createdLabs.push(existingLab);
+      } else {
+        // Create new lab
+        const lab = new Lab(labData);
+        await lab.save();
+        createdLabs.push(lab);
+      }
+      
+      createdCount++;
+    }
+    
+    // Populate order details for response
+    await Promise.all(createdLabs.map(lab => lab.populate('order')));
+    
+    return ok({
+      message: `Successfully processed ${order.items.length} order items`,
+      createdCount,
+      skippedCount,
+      labs: createdLabs,
+      order: {
+        _id: order._id,
+        orderId: order.orderId,
+        orderNo: order.orderNo,
+        orderType: order.orderType,
+        itemsCount: order.items.length
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error seeding labs from order:', error);
+    return serverError(error);
+  }
+}

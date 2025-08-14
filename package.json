@@ -25,7 +25,8 @@
     "next": "15.4.6",
     "node-fetch": "^3.3.2",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "zod": "^4.0.17"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

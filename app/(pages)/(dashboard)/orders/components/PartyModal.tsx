@@ -1,13 +1,31 @@
 'use client';
 
 import { useState } from 'react';
-import { X } from 'lucide-react';
-import { PartyFormData } from '@/types';
+import { 
+  XMarkIcon,
+  BuildingOfficeIcon,
+  UserIcon,
+  PhoneIcon,
+  MapPinIcon,
+  ExclamationTriangleIcon,
+  CheckIcon
+} from '@heroicons/react/24/outline';
 import { useDarkMode } from '../../hooks/useDarkMode';
 
 interface PartyModalProps {
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (newPartyData?: any) => void;
+}
+
+interface PartyFormData {
+  name: string;
+  contactName: string;
+  contactPhone: string;
+  address: string;
+}
+
+interface ValidationErrors {
+  [key: string]: string;
 }
 
 export default function PartyModal({ onClose, onSuccess }: PartyModalProps) {
@@ -18,205 +36,311 @@ export default function PartyModal({ onClose, onSuccess }: PartyModalProps) {
     contactPhone: '',
     address: ''
   });
-
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<ValidationErrors>({});
+  const [validationMessage, setValidationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const handleInputChange = (field: keyof PartyFormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
+  const validateForm = (): ValidationErrors => {
+    const newErrors: ValidationErrors = {};
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    // Party name validation
     if (!formData.name.trim()) {
       newErrors.name = 'Party name is required';
-    } else if (formData.name.trim().length < 2) {
-      newErrors.name = 'Party name must be at least 2 characters long';
-    } else if (formData.name.trim().length > 100) {
-      newErrors.name = 'Party name cannot exceed 100 characters';
     }
 
-    // Contact name validation
-    if (formData.contactName && formData.contactName.trim().length > 50) {
-      newErrors.contactName = 'Contact name cannot exceed 50 characters';
+    if (formData.contactPhone && !/^[\+]?[1-9][\d]{0,15}$/.test(formData.contactPhone.replace(/\s/g, ''))) {
+      newErrors.contactPhone = 'Please enter a valid phone number';
     }
 
-    // Contact phone validation
-    if (formData.contactPhone) {
-      const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-      if (!phoneRegex.test(formData.contactPhone.replace(/\s/g, ''))) {
-        newErrors.contactPhone = 'Please enter a valid phone number';
-      } else if (formData.contactPhone.trim().length > 20) {
-        newErrors.contactPhone = 'Contact phone cannot exceed 20 characters';
-      }
-    }
+    return newErrors;
+  };
 
-    // Address validation
-    if (formData.address && formData.address.trim().length > 200) {
-      newErrors.address = 'Address cannot exceed 200 characters';
+  const handleFieldChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
     }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) return;
+    const newErrors = validateForm();
+    setErrors(newErrors);
+    
+    if (Object.keys(newErrors).length > 0) {
+      setValidationMessage({ type: 'error', text: 'Please fix the errors below' });
+      return;
+    }
 
     setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setErrors({ submit: 'Authentication token not found. Please login again.' });
-        return;
-      }
+    setValidationMessage(null);
 
+    try {
       const response = await fetch('/api/parties', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        onSuccess();
+      if (response.ok) {
+        const responseData = await response.json();
+        const newParty = responseData.data; // Extract the party data from the response
+        
+        // Debug logging
+        console.log('Party creation response:', responseData);
+        console.log('Extracted party data:', newParty);
+        
+        if (!newParty || !newParty._id || !newParty.name) {
+          console.error('Invalid party data received:', newParty);
+          setValidationMessage({ 
+            type: 'error', 
+            text: 'Invalid party data received from server' 
+          });
+          return;
+        }
+        
+        setValidationMessage({ type: 'success', text: 'Party created successfully!' });
+        setTimeout(() => {
+          onSuccess(newParty);
+        }, 1500);
       } else {
-        setErrors({ submit: data.message || 'Failed to create party' });
+        const errorData = await response.json();
+        setValidationMessage({ 
+          type: 'error', 
+          text: errorData.message || 'Failed to create party' 
+        });
       }
     } catch (error) {
-      setErrors({ submit: 'An error occurred while creating the party' });
+      console.error('Error creating party:', error);
+      setValidationMessage({ 
+        type: 'error', 
+        text: 'An error occurred while creating the party' 
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  const getFieldError = (field: string) => {
+    return errors[field] || '';
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className={`transition-colors duration-300 ${isDarkMode ? 'bg-slate-800' : 'bg-white'} rounded-lg shadow-xl max-w-md w-full`}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className={`w-full max-w-md rounded-xl shadow-2xl ${
+        isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
+      }`}>
         {/* Header */}
-        <div className={`flex justify-between items-center p-6 border-b transition-colors duration-300 ${isDarkMode ? 'border-slate-700' : 'border-gray-200'}`}>
-          <h2 className={`text-xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Add New Party</h2>
+        <div className={`flex justify-between items-center p-6 border-b ${
+          isDarkMode ? 'border-slate-700' : 'border-gray-200'
+        }`}>
+          <div className="flex items-center space-x-3">
+            <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+              isDarkMode 
+                ? 'bg-gradient-to-br from-green-500 to-emerald-600' 
+                : 'bg-gradient-to-br from-green-600 to-emerald-700'
+            }`}>
+              <BuildingOfficeIcon className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h2 className={`text-xl font-bold ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
+                Add New Party
+              </h2>
+              <p className={`text-sm ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-500'
+              }`}>
+                Create a new party
+              </p>
+            </div>
+          </div>
           <button
             onClick={onClose}
-            className={`transition-colors duration-300 ${isDarkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`p-2 rounded-lg transition-all duration-300 ${
+              isDarkMode
+                ? 'text-gray-400 hover:bg-white/10 hover:text-gray-300'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+            }`}
           >
-            <X className="h-6 w-6" />
+            <XMarkIcon className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6">
-          <div className="space-y-4">
-            {/* Party Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Party Name *
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.name ? 'border-red-500' : 'border-gray-300'
-                }`}
-                placeholder="Enter party name"
-              />
-              {errors.name && (
-                <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+        {/* Validation Message */}
+        {validationMessage && (
+          <div className={`mx-6 mt-4 p-4 rounded-lg border ${
+            validationMessage.type === 'success'
+              ? isDarkMode
+                ? 'bg-green-900/20 border-green-500/30 text-green-400'
+                : 'bg-green-50 border-green-200 text-green-800'
+              : isDarkMode
+                ? 'bg-red-900/20 border-red-500/30 text-red-400'
+                : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+            <div className="flex items-center">
+              {validationMessage.type === 'success' ? (
+                <CheckIcon className="h-4 w-4 mr-2" />
+              ) : (
+                <ExclamationTriangleIcon className="h-4 w-4 mr-2" />
               )}
+              {validationMessage.text}
             </div>
+          </div>
+        )}
 
-            {/* Contact Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Contact Name
-              </label>
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Party Name */}
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              Party Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => handleFieldChange('name', e.target.value)}
+              className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 ${
+                getFieldError('name')
+                  ? 'border-red-500'
+                  : isDarkMode
+                    ? 'bg-white/10 border-white/20 text-white focus:border-green-500'
+                    : 'bg-white border-gray-300 text-gray-900 focus:border-green-500'
+              }`}
+              placeholder="Enter party name"
+            />
+            {getFieldError('name') && (
+              <p className="mt-1 text-sm text-red-500">{getFieldError('name')}</p>
+            )}
+          </div>
+
+          {/* Contact Name */}
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              Contact Name
+            </label>
+            <div className="relative">
+              <UserIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`} />
               <input
                 type="text"
                 value={formData.contactName}
-                onChange={(e) => handleInputChange('contactName', e.target.value)}
-                className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.contactName ? 'border-red-500' : 'border-gray-300'
+                onChange={(e) => handleFieldChange('contactName', e.target.value)}
+                className={`w-full pl-10 pr-3 py-2 rounded-lg border transition-colors duration-300 ${
+                  isDarkMode
+                    ? 'bg-white/10 border-white/20 text-white focus:border-green-500'
+                    : 'bg-white border-gray-300 text-gray-900 focus:border-green-500'
                 }`}
                 placeholder="Enter contact name"
               />
-              {errors.contactName && (
-                <p className="mt-1 text-sm text-red-600">{errors.contactName}</p>
-              )}
-            </div>
-
-            {/* Contact Phone */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Contact Phone
-              </label>
-              <input
-                type="tel"
-                value={formData.contactPhone}
-                onChange={(e) => handleInputChange('contactPhone', e.target.value)}
-                className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.contactPhone ? 'border-red-500' : 'border-gray-300'
-                }`}
-                placeholder="Enter contact phone"
-              />
-              {errors.contactPhone && (
-                <p className="mt-1 text-sm text-red-600">{errors.contactPhone}</p>
-              )}
-            </div>
-
-            {/* Address */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Address
-              </label>
-              <textarea
-                value={formData.address}
-                onChange={(e) => handleInputChange('address', e.target.value)}
-                className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.address ? 'border-red-500' : 'border-gray-300'
-                }`}
-                placeholder="Enter address"
-                rows={3}
-              />
-              {errors.address && (
-                <p className="mt-1 text-sm text-red-600">{errors.address}</p>
-              )}
             </div>
           </div>
 
-          {/* Error Message */}
-          {errors.submit && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-600">{errors.submit}</p>
+          {/* Contact Phone */}
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              Contact Phone
+            </label>
+            <div className="relative">
+              <PhoneIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`} />
+              <input
+                type="tel"
+                value={formData.contactPhone}
+                onChange={(e) => handleFieldChange('contactPhone', e.target.value)}
+                className={`w-full pl-10 pr-3 py-2 rounded-lg border transition-colors duration-300 ${
+                  getFieldError('contactPhone')
+                    ? 'border-red-500'
+                    : isDarkMode
+                      ? 'bg-white/10 border-white/20 text-white focus:border-green-500'
+                      : 'bg-white border-gray-300 text-gray-900 focus:border-green-500'
+                }`}
+                placeholder="Enter phone number"
+              />
             </div>
-          )}
+            {getFieldError('contactPhone') && (
+              <p className="mt-1 text-sm text-red-500">{getFieldError('contactPhone')}</p>
+            )}
+          </div>
 
-          {/* Submit Button */}
-          <div className="mt-6 flex justify-end space-x-3">
+          {/* Address */}
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              Address
+            </label>
+            <div className="relative">
+              <MapPinIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`} />
+              <textarea
+                value={formData.address}
+                onChange={(e) => handleFieldChange('address', e.target.value)}
+                rows={3}
+                className={`w-full pl-10 pr-3 py-2 rounded-lg border transition-colors duration-300 resize-none ${
+                  isDarkMode
+                    ? 'bg-white/10 border-white/20 text-white focus:border-green-500'
+                    : 'bg-white border-gray-300 text-gray-900 focus:border-green-500'
+                }`}
+                placeholder="Enter address"
+              />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className={`flex justify-end space-x-3 pt-4 border-t ${
+            isDarkMode ? 'border-slate-700' : 'border-gray-200'
+          }`}>
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                isDarkMode
+                  ? 'text-gray-300 hover:bg-white/10'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`px-6 py-2 rounded-lg font-medium transition-all duration-300 ${
+                loading
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:scale-105 active:scale-95'
+              } ${
+                isDarkMode
+                  ? 'bg-green-600 text-white hover:bg-green-700 shadow-lg'
+                  : 'bg-green-600 text-white hover:bg-green-700 shadow-lg'
+              }`}
             >
-              {loading ? 'Creating...' : 'Create Party'}
+              {loading ? (
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Creating...
+                </div>
+              ) : (
+                'Create Party'
+              )}
             </button>
           </div>
         </form>
@@ -224,3 +348,4 @@ export default function PartyModal({ onClose, onSuccess }: PartyModalProps) {
     </div>
   );
 }
+

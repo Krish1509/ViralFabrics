@@ -1,0 +1,559 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { 
+  XMarkIcon, 
+  PlusIcon, 
+  PencilIcon,
+  CheckIcon,
+  ExclamationTriangleIcon
+} from '@heroicons/react/24/outline';
+import { useDarkMode } from '../../hooks/useDarkMode';
+import { Order, Party, Quality } from '@/types';
+
+interface LabAddModalProps {
+  order: Order | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+interface LabData {
+  orderItemId: string;
+  labSendDate: string;
+  approvalDate: string;
+  sampleNumber: string;
+  existingLabId?: string; // Track if lab already exists
+}
+
+export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalProps) {
+  const { isDarkMode } = useDarkMode();
+  const [labData, setLabData] = useState<LabData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [prefix, setPrefix] = useState('SAMPLE-');
+  const [checkingExisting, setCheckingExisting] = useState(true);
+
+  // Check for existing labs when order changes
+  useEffect(() => {
+    if (order && order.items) {
+      checkExistingLabs();
+    }
+  }, [order]);
+
+  const checkExistingLabs = async () => {
+    if (!order) return;
+    
+    setCheckingExisting(true);
+    try {
+      const response = await fetch(`/api/labs/by-order/${order._id}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        const existingLabs = Array.isArray(data.data) ? data.data : [];
+        
+        // Initialize lab data with existing labs info
+        const initialLabData: LabData[] = order.items.map((item, index) => {
+          const existingLab = existingLabs.find((lab: any) => 
+            lab.orderItemId === item._id
+          );
+          
+          return {
+            orderItemId: item._id,
+            labSendDate: existingLab ? new Date(existingLab.labSendDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            approvalDate: existingLab?.labSendData?.approvalDate || '',
+            sampleNumber: existingLab ? existingLab.labSendNumber : `${prefix}${order.orderId || order.orderId}-${index + 1}`,
+            existingLabId: existingLab?._id
+          };
+        });
+        
+        setLabData(initialLabData);
+      } else {
+        // If API fails, initialize with empty data
+        const initialLabData: LabData[] = order.items.map((item, index) => ({
+          orderItemId: item._id,
+          labSendDate: new Date().toISOString().split('T')[0],
+          approvalDate: '',
+          sampleNumber: `${prefix}${order.orderId || order.orderId}-${index + 1}`,
+          existingLabId: undefined
+        }));
+        setLabData(initialLabData);
+      }
+    } catch (error) {
+      console.error('Error checking existing labs:', error);
+      // Initialize with empty data on error
+      const initialLabData: LabData[] = order.items.map((item, index) => ({
+        orderItemId: item._id,
+        labSendDate: new Date().toISOString().split('T')[0],
+        approvalDate: '',
+        sampleNumber: `${prefix}${order.orderId || order.orderId}-${index + 1}`,
+        existingLabId: undefined
+      }));
+      setLabData(initialLabData);
+    } finally {
+      setCheckingExisting(false);
+    }
+  };
+
+  // Initialize lab data for all order items
+  useEffect(() => {
+    if (order && order.items && !checkingExisting) {
+      const updatedLabData = labData.map((lab, index) => ({
+        ...lab,
+        sampleNumber: lab.existingLabId ? lab.sampleNumber : `${prefix}${order.orderId || order.orderId}-${index + 1}`
+      }));
+      setLabData(updatedLabData);
+    }
+  }, [order, prefix, checkingExisting]);
+
+  const showMessage = (type: 'success' | 'error', text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 5000);
+  };
+
+  const handleLabDataChange = (index: number, field: keyof LabData, value: any) => {
+    const updatedLabData = [...labData];
+    updatedLabData[index] = { ...updatedLabData[index], [field]: value };
+    
+    // Auto-generate sample number if prefix changes and no existing lab
+    if (field === 'sampleNumber' && !updatedLabData[index].existingLabId) {
+      const currentPrefix = updatedLabData[index].sampleNumber.split('-')[0] + '-';
+      if (prefix !== currentPrefix) {
+        updatedLabData[index].sampleNumber = `${prefix}${order?.orderId || order?.orderId}-${index + 1}`;
+      }
+    }
+    
+    setLabData(updatedLabData);
+  };
+
+  const handleSubmit = async () => {
+    if (!order) return;
+
+    setLoading(true);
+    try {
+      const createdLabs = [];
+      const updatedLabs = [];
+      
+      for (const lab of labData) {
+        if (lab.existingLabId) {
+          // Update existing lab
+          const response = await fetch(`/api/labs/${lab.existingLabId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              labSendDate: lab.labSendDate,
+              labSendNumber: lab.sampleNumber,
+              labSendData: {
+                approvalDate: lab.approvalDate,
+                sampleNumber: lab.sampleNumber
+              },
+              remarks: `Sample: ${lab.sampleNumber}`
+            }),
+          });
+
+          const data = await response.json();
+          if (data.success) {
+            updatedLabs.push(data.data);
+          } else {
+            throw new Error(data.error || 'Failed to update lab');
+          }
+        } else {
+          // Create new lab
+          const response = await fetch('/api/labs', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              orderId: order._id,
+              orderItemId: lab.orderItemId,
+              labSendDate: lab.labSendDate,
+              labSendNumber: lab.sampleNumber,
+              labSendData: {
+                approvalDate: lab.approvalDate,
+                sampleNumber: lab.sampleNumber
+              },
+              status: 'sent',
+              remarks: `Sample: ${lab.sampleNumber}`
+            }),
+          });
+
+          const data = await response.json();
+          if (data.success) {
+            createdLabs.push(data.data);
+          } else {
+            if (data.error?.includes('already exists')) {
+              showMessage('error', `Lab already exists for item ${lab.orderItemId}. Please refresh and try again.`);
+            } else {
+              throw new Error(data.error || 'Failed to create lab');
+            }
+          }
+        }
+      }
+
+      const totalProcessed = createdLabs.length + updatedLabs.length;
+      let message = '';
+      if (createdLabs.length > 0 && updatedLabs.length > 0) {
+        message = `Successfully created ${createdLabs.length} and updated ${updatedLabs.length} lab records`;
+      } else if (createdLabs.length > 0) {
+        message = `Successfully created ${createdLabs.length} lab records`;
+      } else if (updatedLabs.length > 0) {
+        message = `Successfully updated ${updatedLabs.length} lab records`;
+      } else {
+        message = 'No changes made';
+      }
+
+      showMessage('success', message);
+      onSuccess();
+      onClose();
+    } catch (error) {
+      console.error('Error processing labs:', error);
+      showMessage('error', 'Failed to process labs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!order) return null;
+
+  if (checkingExisting) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className={`w-full max-w-md rounded-xl shadow-2xl ${
+          isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'
+        }`}>
+          <div className="p-6 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p>Checking existing lab data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const hasExistingLabs = labData.some(lab => lab.existingLabId);
+  const hasNewLabs = labData.some(lab => !lab.existingLabId);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className={`w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl ${
+        isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'
+      }`}>
+        {/* Header */}
+        <div className={`flex items-center justify-between p-6 border-b ${
+          isDarkMode ? 'border-white/10' : 'border-gray-200'
+        }`}>
+          <div>
+            <h2 className="text-xl font-bold">
+              {hasExistingLabs ? 'Edit Lab Data' : 'Add Lab Data'}
+            </h2>
+            <p className={`text-sm mt-1 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-600'
+            }`}>
+              Order: {order.orderId} • {order.items.length} items
+              {hasExistingLabs && hasNewLabs && ' • Some items have existing labs'}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className={`p-2 rounded-lg transition-colors ${
+              isDarkMode
+                ? 'hover:bg-white/10 text-gray-400 hover:text-white'
+                : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <XMarkIcon className="h-6 w-6" />
+          </button>
+        </div>
+
+        {/* Message */}
+        {message && (
+          <div className={`mx-6 mt-4 p-4 rounded-lg border ${
+            message.type === 'success'
+              ? isDarkMode
+                ? 'bg-green-900/20 border-green-500/30 text-green-400'
+                : 'bg-green-50 border-green-200 text-green-800'
+              : isDarkMode
+                ? 'bg-red-900/20 border-red-500/30 text-red-400'
+                : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+            <div className="flex items-center">
+              {message.type === 'success' ? (
+                <CheckIcon className="h-5 w-5 mr-2" />
+              ) : (
+                <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+              )}
+              {message.text}
+            </div>
+          </div>
+        )}
+
+        {/* Settings */}
+        <div className={`p-6 border-b ${
+          isDarkMode ? 'border-white/10' : 'border-gray-200'
+        }`}>
+          <h3 className="text-lg font-semibold mb-4">Sample Number Settings</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                Sample Number Prefix
+              </label>
+              <input
+                type="text"
+                value={prefix}
+                onChange={(e) => setPrefix(e.target.value)}
+                className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                  isDarkMode
+                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                }`}
+                placeholder="SAMPLE-"
+              />
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                Default Lab Send Date
+              </label>
+              <input
+                type="date"
+                value={labData[0]?.labSendDate || ''}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  setLabData(prev => prev.map(lab => ({ ...lab, labSendDate: newDate })));
+                }}
+                className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                  isDarkMode
+                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                }`}
+              />
+            </div>
+          </div>
+        </div>
+
+                       {/* Lab Data Table */}
+               <div className="p-6">
+                 <h3 className="text-lg font-semibold mb-4">Lab Data for Order Items</h3>
+                 
+                 {/* Legend */}
+                 <div className={`mb-4 p-3 rounded-lg border ${
+                   isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'
+                 }`}>
+                   <div className="flex items-center justify-center space-x-6 text-sm">
+                     <div className="flex items-center">
+                       <div className={`w-4 h-4 rounded mr-2 ${
+                         isDarkMode ? 'bg-green-900/20 border-green-500/30' : 'bg-green-50 border-green-200'
+                       } border`}></div>
+                       <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>
+                         Existing Lab Data
+                       </span>
+                     </div>
+                     <div className="flex items-center">
+                       <div className={`w-4 h-4 rounded mr-2 ${
+                         isDarkMode ? 'bg-white/10 border-white/20' : 'bg-white border-gray-300'
+                       } border`}></div>
+                       <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>
+                         New Lab Data
+                       </span>
+                     </div>
+                   </div>
+                 </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className={`${
+                isDarkMode ? 'bg-white/5' : 'bg-gray-50'
+              }`}>
+                <tr>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                  }`}>
+                    Item Details
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                  }`}>
+                    Sample Send Date
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                  }`}>
+                    Approval Date
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                  }`}>
+                    Sample Number
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                  }`}>
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className={`divide-y ${
+                isDarkMode ? 'divide-white/10' : 'divide-gray-200'
+              }`}>
+                {labData.map((lab, index) => (
+                  <tr key={lab.orderItemId} className={`hover:${
+                    isDarkMode ? 'bg-white/5' : 'bg-gray-50'
+                  }`}>
+                    <td className="px-4 py-3">
+                      <div className="text-sm">
+                        <div className={`font-medium flex items-center ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          Item {index + 1}
+                          {lab.existingLabId && (
+                            <span className={`ml-2 inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded-full ${
+                              isDarkMode
+                                ? 'bg-green-900/20 text-green-400'
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              <CheckIcon className="h-2.5 w-2.5 mr-0.5" />
+                              Lab
+                            </span>
+                          )}
+                        </div>
+                        <div className={`text-xs ${
+                          isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                        }`}>
+                          Qty: {order.items[index]?.quantity || 0}
+                        </div>
+                        {order.items[index]?.description && (
+                          <div className={`text-xs ${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                          }`}>
+                            {order.items[index]?.description}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="date"
+                        value={lab.labSendDate}
+                        onChange={(e) => handleLabDataChange(index, 'labSendDate', e.target.value)}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm transition-colors ${
+                          lab.existingLabId
+                            ? isDarkMode
+                              ? 'bg-green-900/10 border-green-500/30 text-white focus:border-green-500'
+                              : 'bg-green-50 border-green-200 text-gray-900 focus:border-green-500'
+                            : isDarkMode
+                              ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                              : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                        }`}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="date"
+                        value={lab.approvalDate}
+                        onChange={(e) => handleLabDataChange(index, 'approvalDate', e.target.value)}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm transition-colors ${
+                          lab.existingLabId && lab.approvalDate
+                            ? isDarkMode
+                              ? 'bg-green-900/10 border-green-500/30 text-white focus:border-green-500'
+                              : 'bg-green-50 border-green-200 text-gray-900 focus:border-green-500'
+                            : isDarkMode
+                              ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                              : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                        }`}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        value={lab.sampleNumber}
+                        onChange={(e) => handleLabDataChange(index, 'sampleNumber', e.target.value)}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm transition-colors ${
+                          lab.existingLabId
+                            ? isDarkMode
+                              ? 'bg-green-900/10 border-green-500/30 text-white focus:border-green-500'
+                              : 'bg-green-50 border-green-200 text-gray-900 focus:border-green-500'
+                            : isDarkMode
+                              ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                              : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                        }`}
+                        placeholder="SAMPLE-001"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center">
+                        {lab.existingLabId ? (
+                          <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
+                            isDarkMode
+                              ? 'bg-green-900/20 text-green-400'
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            <CheckIcon className="h-3 w-3 mr-1" />
+                            Exists
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
+                            isDarkMode
+                              ? 'bg-blue-900/20 text-blue-400'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            <PlusIcon className="h-3 w-3 mr-1" />
+                            New
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className={`flex items-center justify-end gap-3 p-6 border-t ${
+          isDarkMode ? 'border-white/10' : 'border-gray-200'
+        }`}>
+          <button
+            onClick={onClose}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              isDarkMode
+                ? 'text-gray-300 hover:text-white hover:bg-white/10'
+                : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className={`inline-flex items-center px-6 py-2 rounded-lg font-medium transition-all duration-300 ${
+              loading
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:scale-105'
+            } ${
+              isDarkMode
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
+                : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
+            }`}
+          >
+            {loading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Processing...
+              </>
+            ) : (
+              <>
+                {hasExistingLabs ? <PencilIcon className="h-4 w-4 mr-2" /> : <PlusIcon className="h-4 w-4 mr-2" />}
+                {hasExistingLabs && hasNewLabs ? 'Update & Create' : hasExistingLabs ? 'Update Labs' : 'Create Lab Records'}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
