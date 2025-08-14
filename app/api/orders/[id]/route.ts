@@ -6,7 +6,7 @@ import { type NextRequest } from "next/server";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Remove authentication requirement for now
@@ -53,7 +53,7 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Remove authentication requirement for now
@@ -196,7 +196,7 @@ export async function PUT(
     if (poNumber && styleNo) {
       const targetParty = party || existingOrder.party;
       const existingDuplicate = await Order.findOne({
-        _id: { $ne: params.id }, // Exclude current order
+        _id: { $ne: id }, // Exclude current order
         party: targetParty,
         poNumber: poNumber.trim(),
         styleNo: styleNo.trim()
@@ -284,7 +284,7 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Remove authentication requirement for now
@@ -292,7 +292,8 @@ export async function DELETE(
 
     await dbConnect();
     
-    const order = await Order.findByIdAndDelete(params.id);
+    const { id } = await params;
+    const order = await Order.findByIdAndDelete(id);
 
     if (!order) {
       return new Response(

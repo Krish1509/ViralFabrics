@@ -6,7 +6,7 @@ import { type NextRequest } from "next/server";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authentication temporarily disabled
@@ -14,7 +14,8 @@ export async function GET(
 
     await dbConnect();
     
-    const party = await Party.findById(params.id)
+    const { id } = await params;
+    const party = await Party.findById(id)
       .select('_id name contactName contactPhone address createdAt updatedAt');
 
     if (!party) {
@@ -50,7 +51,7 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authentication temporarily disabled
@@ -95,8 +96,10 @@ export async function PUT(
 
     await dbConnect();
 
+    const { id } = await params;
+
     // Check if party exists
-    const existingParty = await Party.findById(params.id);
+    const existingParty = await Party.findById(id);
     if (!existingParty) {
       return new Response(
         JSON.stringify({ 
@@ -111,7 +114,7 @@ export async function PUT(
     if (name && name.trim() !== existingParty.name) {
       const duplicateParty = await Party.findOne({ 
         name: { $regex: `^${name.trim()}$`, $options: 'i' },
-        _id: { $ne: params.id } // Exclude current party
+        _id: { $ne: id } // Exclude current party
       });
       
       if (duplicateParty) {
@@ -133,7 +136,7 @@ export async function PUT(
     if (address !== undefined) updateData.address = address ? address.trim() : undefined;
 
     const updatedParty = await Party.findByIdAndUpdate(
-      params.id,
+      id,
       updateData,
       { new: true, runValidators: true }
     ).select('_id name contactName contactPhone address createdAt updatedAt');

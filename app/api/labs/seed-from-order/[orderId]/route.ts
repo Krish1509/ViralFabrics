@@ -9,12 +9,12 @@ import { isValidObjectId } from '@/lib/ids';
 // POST /api/labs/seed-from-order/[orderId] - Create labs for all items in an order
 export async function POST(
   request: NextRequest,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
   try {
     await dbConnect();
     
-    const { orderId } = params;
+    const { orderId } = await params;
     
     // Validate ObjectId
     if (!isValidObjectId(orderId)) {
@@ -26,7 +26,7 @@ export async function POST(
     // Validate request body
     const validationResult = seedFromOrderSchema.safeParse(body);
     if (!validationResult.success) {
-      return badRequest(validationResult.error.errors[0].message);
+      return badRequest(validationResult.error.issues[0].message);
     }
     
     const { labSendDate, prefix, startIndex, overrideExisting } = validationResult.data;

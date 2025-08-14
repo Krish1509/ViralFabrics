@@ -8,12 +8,12 @@ import { isValidObjectId } from '@/lib/ids';
 // GET /api/labs/[id] - Get a specific lab
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await dbConnect();
     
-    const { id } = params;
+    const { id } = await params;
     
     // Validate ObjectId
     if (!isValidObjectId(id)) {
@@ -41,12 +41,12 @@ export async function GET(
 // PUT /api/labs/[id] - Update a lab
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await dbConnect();
     
-    const { id } = params;
+    const { id } = await params;
     
     // Validate ObjectId
     if (!isValidObjectId(id)) {
@@ -58,7 +58,7 @@ export async function PUT(
     // Validate request body
     const validationResult = updateLabSchema.safeParse(body);
     if (!validationResult.success) {
-      return badRequest(validationResult.error.errors[0].message);
+      return badRequest(validationResult.error.issues[0].message);  
     }
     
     // Find the lab
@@ -95,12 +95,12 @@ export async function PUT(
 // DELETE /api/labs/[id] - Soft delete a lab
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await dbConnect();
     
-    const { id } = params;
+    const { id } = await params;
     
     // Validate ObjectId
     if (!isValidObjectId(id)) {

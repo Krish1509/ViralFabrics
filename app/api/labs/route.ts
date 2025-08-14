@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     // Validate request body
     const validationResult = createLabSchema.safeParse(body);
     if (!validationResult.success) {
-      return badRequest(validationResult.error.errors[0].message);
+      return badRequest(validationResult.error.issues[0].message);
     }
     
     const { orderId, orderItemId, ...labData } = validationResult.data;
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       return notFound((error as Error).message);
     }
-    
+      
     // Check if lab already exists for this order item
     const existingLab = await Lab.findOne({ 
       order: orderId, 
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     // Validate query parameters
     const validationResult = queryLabsSchema.safeParse(query);
     if (!validationResult.success) {
-      return badRequest(validationResult.error.errors[0].message);
+      return badRequest(validationResult.error.issues[0].message);
     }
     
     const { orderId, q, page, limit, status, includeDeleted } = validationResult.data;
