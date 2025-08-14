@@ -63,6 +63,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   const [activeQualityDropdown, setActiveQualityDropdown] = useState<number | null>(null);
   const [selectedPartyName, setSelectedPartyName] = useState('');
   const [showQualityModal, setShowQualityModal] = useState(false);
+  const [newlyCreatedQuality, setNewlyCreatedQuality] = useState<any>(null);
   const [showPartyModal, setShowPartyModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
@@ -75,11 +76,14 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   const [showCameraPreview, setShowCameraPreview] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [activeCameraItem, setActiveCameraItem] = useState<number | null>(null);
+  const [showImagePreview, setShowImagePreview] = useState<{ url: string; index: number } | null>(null);
 
   // Set client-side flag to prevent hydration issues
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+
 
   // Clear validation message after 3 seconds with progress bar
   useEffect(() => {
@@ -185,6 +189,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   useEffect(() => {
     if (!showQualityDropdown) {
       setQualitySearch('');
+      // Clear the newly created quality highlight when dropdown is closed
+      setNewlyCreatedQuality(null);
     }
   }, [showQualityDropdown]);
 
@@ -511,6 +517,14 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     (qualitySearch === '' || quality.name.toLowerCase().includes(qualitySearch.toLowerCase()))
   ) || [];
 
+  // Sort qualities to show newly created quality at the top
+  const sortedQualities = [...filteredQualities].sort((a, b) => {
+    // If there's a newly created quality, show it first
+    if (newlyCreatedQuality && a._id === newlyCreatedQuality._id) return -1;
+    if (newlyCreatedQuality && b._id === newlyCreatedQuality._id) return 1;
+    return 0;
+  });
+
   // Get error for a specific field
   const getFieldError = (field: string) => {
     return touched.has(field) ? errors[field] : '';
@@ -581,18 +595,30 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     setActiveCameraItem(null);
   };
 
+  // Get initial dark mode state
+  const getInitialDarkMode = () => {
+    if (typeof window !== 'undefined') {
+      const savedMode = localStorage.getItem('darkMode');
+      if (savedMode !== null) {
+        return savedMode === 'true';
+      }
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  };
 
   // Don't render until client-side and data is ready
   if (!isClient || !parties || !qualities) {
+    const loadingDarkMode = getInitialDarkMode();
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-2">
         <div className={`w-full max-w-7xl rounded-2xl shadow-2xl ${
-          isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
+          loadingDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
         } max-h-[98vh] overflow-hidden flex items-center justify-center`}>
           <div className="flex items-center space-x-3">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             <span className={`text-lg font-medium ${
-              isDarkMode ? 'text-white' : 'text-gray-900'
+              loadingDarkMode ? 'text-white' : 'text-gray-900'
             }`}>
               Loading...
             </span>
@@ -602,36 +628,36 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     );
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-2">
-      <div className={`w-full max-w-8xl rounded-2xl shadow-2xl ${
-        isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
-      } max-h-[98vh] overflow-hidden`}>
-        {/* Enhanced Header */}
-        <div className={`flex justify-between items-center p-6 border-b ${
-          isDarkMode ? 'border-slate-700' : 'border-gray-200'
-        }`}>
-          <div className="flex items-center space-x-4">
-            <div className={`h-12 w-12 rounded-xl flex items-center justify-center shadow-lg ${
-              isDarkMode 
-                ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
-                : 'bg-gradient-to-br from-blue-600 to-indigo-700'
-            }`}>
-              <PencilIcon className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h2 className={`text-2xl font-bold mb-1 ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                {order ? 'Edit Order' : 'Create New Order'}
-              </h2>
-              <p className={`text-sm ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-500'
-              }`}>
-                {order ? `Order ID: ${order.orderId}` : 'Complete order details with enhanced features'}
-              </p>
-            </div>
-          </div>
+     return (
+     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+       <div className={`w-full max-w-8xl rounded-2xl shadow-2xl mx-4 ${
+         isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
+       } max-h-[98vh] overflow-hidden`}>
+                 {/* Enhanced Header */}
+         <div className={`flex justify-between items-center p-6 border-b ${
+           isDarkMode ? 'border-slate-700' : 'border-gray-200'
+         }`}>
+           <div className="flex items-center space-x-4">
+             <div className={`h-12 w-12 rounded-xl flex items-center justify-center shadow-lg ${
+               isDarkMode 
+                 ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
+                 : 'bg-gradient-to-br from-blue-600 to-indigo-700'
+             }`}>
+               <PencilIcon className="h-6 w-6 text-white" />
+             </div>
+             <div>
+               <h2 className={`text-2xl font-bold mb-1 mx-2 ${
+                 isDarkMode ? 'text-white' : 'text-gray-900'
+               }`}>
+                 {order ? 'Edit Order' : 'Create New Order'}
+               </h2>
+               <p className={`text-sm ${
+                 isDarkMode ? 'text-gray-300' : 'text-gray-500'
+               }`}>
+                 {order ? `Order ID: ${order.orderId}` : 'Complete order details with enhanced features'}
+               </p>
+             </div>
+           </div>
           <button
             onClick={onClose}
             className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${
@@ -830,9 +856,9 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                 <InformationCircleIcon className="h-5 w-5 mr-2 text-green-500" />
                 Party & Contact Information
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Party Selection */}
-                <div className="lg:col-span-2">
+                <div>
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
@@ -884,83 +910,94 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                         <PlusIcon className="h-4 w-4" />
                       </button>
                     </div>
-                                         {showPartyDropdown && (
-                       <div className={`absolute z-50 w-full mt-2 rounded-xl border-2 shadow-2xl ${
-                         isDarkMode 
-                           ? 'bg-slate-800 border-slate-600 shadow-2xl' 
-                           : 'bg-white border-gray-200 shadow-2xl'
-                       } max-h-80 overflow-y-auto custom-scrollbar`}>
-                                                   {filteredParties.length > 0 ? (
-                            filteredParties.map((party) => (
-                              <div key={party?._id || Math.random()} className={`flex items-center justify-between p-4 hover:bg-gray-50 border-b transition-all duration-200 ${
-                                isDarkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-gray-100'
-                              }`}>
-                                                                                               <button
-                                    type="button"
-                                                                         onClick={() => {
-                                       if (party && party._id && party.name) {
-                                         console.log('Party selected:', party.name, 'ID:', party._id);
-                                         handleFieldChange('party', party._id);
-                                         setSelectedPartyName(party.name);
-                                         setPartySearch(party.name);
-                                         setShowPartyDropdown(false);
-                                         // Clear any party-related errors
-                                         setErrors(prev => {
-                                           const newErrors = { ...prev };
-                                           delete newErrors['party'];
-                                           return newErrors;
-                                         });
-                                       }
-                                     }}
-                                                                   className={`flex-1 text-left px-3 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-900 text-lg font-medium transition-all duration-200 ${
+                    {showPartyDropdown && (
+                      <div className={`absolute z-50 w-full mt-2 rounded-xl border-2 shadow-2xl ${
+                        isDarkMode 
+                          ? 'bg-slate-800 border-slate-600 shadow-2xl' 
+                          : 'bg-white border-gray-200 shadow-2xl'
+                      } max-h-80 overflow-y-auto custom-scrollbar`}>
+                        {filteredParties.length > 0 ? (
+                          filteredParties.map((party) => (
+                            <div key={party?._id || Math.random()} className={`flex items-center justify-between p-3 hover:bg-gray-50 border-b transition-all duration-200 ${
+                              isDarkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-gray-100'
+                            }`}>
+                              <div className="flex-1 min-w-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (party && party._id && party.name) {
+                                      console.log('Party selected:', party.name, 'ID:', party._id);
+                                      handleFieldChange('party', party._id);
+                                      setSelectedPartyName(party.name);
+                                      setPartySearch(party.name);
+                                      setShowPartyDropdown(false);
+                                      // Clear any party-related errors
+                                      setErrors(prev => {
+                                        const newErrors = { ...prev };
+                                        delete newErrors['party'];
+                                        return newErrors;
+                                      });
+                                    }
+                                  }}
+                                  className={`w-full text-left px-2 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-900 text-sm font-medium transition-all duration-200 ${
                                     isDarkMode 
                                       ? 'text-white hover:bg-slate-600 hover:text-blue-300' 
                                       : 'text-gray-900'
                                   }`}
                                 >
-                                 {party?.name || 'Unknown Party'}
-                               </button>
-                                                             <button
-                                 type="button"
-                                                                   onClick={async () => {
-                                    // Check if party is being used in any orders
-                                    if (!party || !party._id || !party.name) {
-                                      setValidationMessage({ type: 'error', text: 'Invalid party data' });
-                                      return;
-                                    }
+                                  <div className="font-semibold truncate">{party?.name || 'Unknown Party'}</div>
+                                  {party?.contactName && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                      👤 {party.contactName}
+                                    </div>
+                                  )}
+                                  {party?.contactPhone && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                      📞 {party.contactPhone}
+                                    </div>
+                                  )}
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  // Check if party is being used in any orders
+                                  if (!party || !party._id || !party.name) {
+                                    setValidationMessage({ type: 'error', text: 'Invalid party data' });
+                                    return;
+                                  }
+                                  
+                                  // Direct delete without confirmation
+                                  try {
+                                    const response = await fetch(`/api/parties/${party._id}`, {
+                                      method: 'DELETE',
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                      },
+                                    });
                                     
-                                    if (confirm(`Are you sure you want to delete party "${party.name}"?`)) {
-                                      try {
-                                        const response = await fetch(`/api/parties/${party._id}`, {
-                                          method: 'DELETE',
-                                          headers: {
-                                            'Content-Type': 'application/json',
-                                          },
-                                        });
-                                        
-                                        const data = await response.json();
-                                        
-                                        if (response.ok) {
-                                          onRefreshParties();
-                                          setValidationMessage({ type: 'success', text: 'Party deleted successfully!' });
-                                        } else {
-                                          setValidationMessage({ type: 'error', text: data.message || 'Failed to delete party' });
-                                        }
-                                      } catch (error) {
-                                        console.error('Error deleting party:', error);
-                                        setValidationMessage({ type: 'error', text: 'Failed to delete party. Please try again.' });
-                                      }
+                                    const data = await response.json();
+                                    
+                                    if (response.ok) {
+                                      onRefreshParties();
+                                      setValidationMessage({ type: 'success', text: 'Party deleted successfully!' });
+                                    } else {
+                                      setValidationMessage({ type: 'error', text: data.message || 'Failed to delete party' });
                                     }
-                                 }}
-                                 className={`p-2 rounded-lg hover:bg-red-50 flex items-center justify-center transition-all duration-300 ${
-                                   isDarkMode 
-                                     ? 'text-red-400 hover:bg-red-500/20 hover:scale-110' 
-                                     : 'text-red-600 hover:bg-red-50 hover:scale-110'
-                                 }`}
-                                 title="Delete Party"
-                               >
-                                 <TrashIcon className="h-5 w-5" />
-                               </button>
+                                  } catch (error) {
+                                    console.error('Error deleting party:', error);
+                                    setValidationMessage({ type: 'error', text: 'Failed to delete party. Please try again.' });
+                                  }
+                                }}
+                                className={`p-2 rounded-lg hover:bg-red-50 flex items-center justify-center transition-all duration-300 ${
+                                  isDarkMode 
+                                    ? 'text-red-400 hover:bg-red-500/20 hover:scale-110' 
+                                    : 'text-red-600 hover:bg-red-50 hover:scale-110'
+                                }`}
+                                title="Delete Party"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </button>
                             </div>
                           ))
                         ) : (
@@ -1154,132 +1191,146 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                      {/* Quality */}
-                      <div>
-                        <label className={`block text-sm font-semibold mb-2 ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}>
-                          Quality <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative quality-dropdown">
-                          <div className="flex space-x-2">
-                            <div className="flex-1 relative">
-                              <input
-                                type="text"
-                                placeholder="Search qualities..."
-                                value={(() => {
-                                  // Get the selected quality name for this specific item
-                                  const selectedQuality = qualities?.find(q => q._id === item.quality);
-                                  return selectedQuality?.name || qualitySearch;
-                                })()}
-                                onChange={(e) => {
-                                  setQualitySearch(e.target.value);
-                                  // Clear selected quality if user starts typing
-                                  const selectedQuality = qualities?.find(q => q._id === item.quality);
-                                  if (e.target.value !== selectedQuality?.name) {
-                                    handleItemChange(index, 'quality', '');
-                                  }
-                                }}
-                                onFocus={() => {
-                                  setShowQualityDropdown(true);
-                                  setActiveQualityDropdown(index);
-                                }}
-                                onClick={() => {
-                                  setShowQualityDropdown(true);
-                                  setActiveQualityDropdown(index);
-                                }}
-                                className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                                  getItemFieldError(index, 'quality')
-                                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                                    : isDarkMode
-                                      ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-white/30'
-                                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400'
-                                }`}
-                              />
-                              <MagnifyingGlassIcon className={`absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
-                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                              }`} />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setShowQualityModal(true)}
-                              className={`px-3 py-2 rounded-lg font-semibold transition-all duration-300 hover:scale-105 ${
-                                isDarkMode
-                                  ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg'
-                                  : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg'
-                              }`}
-                            >
-                              <PlusIcon className="h-4 w-4" />
-                            </button>
-                          </div>
-                                                                                   {showQualityDropdown && activeQualityDropdown === index && (
+                                      
+
+                                                                                       {/* Quality, Quantity, and Description in One Row */}
+                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                         {/* Quality */}
+                         <div>
+                           <label className={`block text-sm font-semibold mb-2 ${
+                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                           }`}>
+                             Quality <span className="text-red-500">*</span>
+                           </label>
+                           <div className="relative quality-dropdown">
+                             <div className="flex space-x-2">
+                               <div className="flex-1 relative">
+                                 <input
+                                   type="text"
+                                   placeholder="Search qualities..."
+                                   value={(() => {
+                                     // If we have a newly created quality and this is the active dropdown, show it immediately
+                                     if (newlyCreatedQuality && activeQualityDropdown === index && item.quality === newlyCreatedQuality._id) {
+                                       return newlyCreatedQuality.name;
+                                     }
+                                     // Get the selected quality name for this specific item
+                                     const selectedQuality = qualities?.find(q => q._id === item.quality);
+                                     return selectedQuality?.name || qualitySearch;
+                                   })()}
+                                   onChange={(e) => {
+                                     setQualitySearch(e.target.value);
+                                     // Clear the newly created quality highlight when user types
+                                     setNewlyCreatedQuality(null);
+                                     // Clear selected quality if user starts typing
+                                     const selectedQuality = qualities?.find(q => q._id === item.quality);
+                                     if (e.target.value !== selectedQuality?.name) {
+                                       handleItemChange(index, 'quality', '');
+                                     }
+                                   }}
+                                   onFocus={() => {
+                                     setShowQualityDropdown(true);
+                                     setActiveQualityDropdown(index);
+                                   }}
+                                   onClick={() => {
+                                     setShowQualityDropdown(true);
+                                     setActiveQualityDropdown(index);
+                                   }}
+                                   className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
+                                     getItemFieldError(index, 'quality')
+                                       ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                                       : isDarkMode
+                                         ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-white/30'
+                                         : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400'
+                                   }`}
+                                 />
+                                 <MagnifyingGlassIcon className={`absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
+                                   isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                 }`} />
+                               </div>
+                               <button
+                                 type="button"
+                                 onClick={() => setShowQualityModal(true)}
+                                 className={`px-3 py-2 rounded-lg font-semibold transition-all duration-300 hover:scale-105 ${
+                                   isDarkMode
+                                     ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg'
+                                     : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg'
+                                 }`}
+                               >
+                                 <PlusIcon className="h-4 w-4" />
+                               </button>
+                             </div>
+                             {showQualityDropdown && activeQualityDropdown === index && (
                                <div className={`absolute z-50 w-full mt-2 rounded-xl border-2 shadow-2xl ${
                                  isDarkMode 
                                    ? 'bg-slate-800 border-slate-600 shadow-2xl' 
                                    : 'bg-white border-gray-200 shadow-2xl'
                                } max-h-80 overflow-y-auto custom-scrollbar`}>
-                                                                   {filteredQualities.length > 0 ? (
-                                    filteredQualities.map((quality) => (
-                                      <div key={quality?._id || Math.random()} className={`flex items-center justify-between p-4 hover:bg-gray-50 border-b transition-all duration-200 ${
-                                        isDarkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-gray-100'
-                                      }`}>
-                                                                                                                       <button
-                                            type="button"
-                                                                                         onClick={() => {
-                                               if (quality && quality._id && quality.name) {
-                                                 console.log('Quality selected:', quality.name, 'ID:', quality._id, 'for item:', index);
-                                                 handleItemChange(index, 'quality', quality._id);
-                                                 setQualitySearch(quality.name);
-                                                 setShowQualityDropdown(false);
-                                                 setActiveQualityDropdown(null);
-                                                 // Clear any quality-related errors for this item
-                                                 setErrors(prev => {
-                                                   const newErrors = { ...prev };
-                                                   delete newErrors[`items.${index}.quality`];
-                                                   return newErrors;
-                                                 });
-                                               }
-                                             }}
-                                                                                   className={`flex-1 text-left px-3 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-900 text-lg font-medium transition-all duration-200 ${
-                                            isDarkMode 
-                                              ? 'text-white hover:bg-slate-600 hover:text-blue-300' 
-                                              : 'text-gray-900'
-                                          }`}
-                                        >
+                                 {sortedQualities.length > 0 ? (
+                                   sortedQualities.map((quality) => (
+                                     <div key={quality?._id || Math.random()} className={`flex items-center justify-between p-4 hover:bg-gray-50 border-b transition-all duration-200 ${
+                                       isDarkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-gray-100'
+                                     } ${newlyCreatedQuality && quality._id === newlyCreatedQuality._id ? 
+                                       isDarkMode ? 'bg-blue-900/30 border-blue-500/50' : 'bg-blue-50 border-blue-200' 
+                                       : ''
+                                     }`}>
+                                       <button
+                                         type="button"
+                                         onClick={() => {
+                                           if (quality && quality._id && quality.name) {
+                                             console.log('Quality selected:', quality.name, 'ID:', quality._id, 'for item:', index);
+                                             handleItemChange(index, 'quality', quality._id);
+                                             setQualitySearch(quality.name);
+                                             setShowQualityDropdown(false);
+                                             setActiveQualityDropdown(null);
+                                             // Clear the newly created quality highlight
+                                             setNewlyCreatedQuality(null);
+                                             // Clear any quality-related errors for this item
+                                             setErrors(prev => {
+                                               const newErrors = { ...prev };
+                                               delete newErrors[`items.${index}.quality`];
+                                               return newErrors;
+                                             });
+                                           }
+                                         }}
+                                         className={`flex-1 text-left px-3 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-900 text-lg font-medium transition-all duration-200 ${
+                                           isDarkMode 
+                                             ? 'text-white hover:bg-slate-600 hover:text-white font-bold' 
+                                             : 'text-gray-900 hover:text-gray-900'
+                                         }`}
+                                       >
                                          {quality?.name || 'Unknown Quality'}
                                        </button>
-                                                                             <button
+                                       <button
                                          type="button"
-                                                                                   onClick={async () => {
-                                            // Check if quality is being used in any orders
-                                            if (!quality || !quality._id || !quality.name) {
-                                              setValidationMessage({ type: 'error', text: 'Invalid quality data' });
-                                              return;
-                                            }
-                                            
-                                            if (confirm(`Are you sure you want to delete quality "${quality.name}"?`)) {
-                                              try {
-                                                const response = await fetch(`/api/qualities/${quality._id}`, {
-                                                  method: 'DELETE',
-                                                  headers: {
-                                                    'Content-Type': 'application/json',
-                                                  },
-                                                });
-                                                
-                                                const data = await response.json();
-                                                
-                                                if (response.ok) {
-                                                  onAddQuality(); // Refresh qualities
-                                                  setValidationMessage({ type: 'success', text: 'Quality deleted successfully!' });
-                                                } else {
-                                                  setValidationMessage({ type: 'error', text: data.message || 'Failed to delete quality' });
-                                                }
-                                              } catch (error) {
-                                                console.error('Error deleting quality:', error);
-                                                setValidationMessage({ type: 'error', text: 'Failed to delete quality. Please try again.' });
-                                              }
-                                            }
+                                         onClick={async () => {
+                                           // Check if quality is being used in any orders
+                                           if (!quality || !quality._id || !quality.name) {
+                                             setValidationMessage({ type: 'error', text: 'Invalid quality data' });
+                                             return;
+                                           }
+                                           
+                                           if (confirm(`Are you sure you want to delete quality "${quality.name}"?`)) {
+                                             try {
+                                               const response = await fetch(`/api/qualities/${quality._id}`, {
+                                                 method: 'DELETE',
+                                                 headers: {
+                                                   'Content-Type': 'application/json',
+                                                 },
+                                               });
+                                               
+                                               const data = await response.json();
+                                               
+                                               if (response.ok) {
+                                                 onAddQuality(); // Refresh qualities
+                                                 setValidationMessage({ type: 'success', text: 'Quality deleted successfully!' });
+                                               } else {
+                                                 setValidationMessage({ type: 'error', text: data.message || 'Failed to delete quality' });
+                                               }
+                                             } catch (error) {
+                                               console.error('Error deleting quality:', error);
+                                               setValidationMessage({ type: 'error', text: 'Failed to delete quality. Please try again.' });
+                                             }
+                                           }
                                          }}
                                          className={`p-2 rounded-lg hover:bg-red-50 flex items-center justify-center transition-all duration-300 ${
                                            isDarkMode 
@@ -1290,256 +1341,204 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                                        >
                                          <TrashIcon className="h-5 w-5" />
                                        </button>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div className={`px-6 py-4 text-lg ${
-                                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                  }`}>
-                                    No qualities found
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                        </div>
-                        {getItemFieldError(index, 'quality') && (
-                          <p className="mt-1 text-sm text-red-500">{getItemFieldError(index, 'quality')}</p>
-                        )}
-                      </div>
+                                     </div>
+                                   ))
+                                 ) : (
+                                   <div className={`px-6 py-4 text-lg ${
+                                     isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                   }`}>
+                                     No qualities found
+                                   </div>
+                                 )}
+                               </div>
+                             )}
+                           </div>
+                           {getItemFieldError(index, 'quality') && (
+                             <p className="mt-1 text-sm text-red-500">{getItemFieldError(index, 'quality')}</p>
+                           )}
+                         </div>
 
-                      {/* Quantity */}
-                      <div>
-                        <label className={`block text-sm font-semibold mb-2 ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}>
-                          Quantity <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity || ''}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            handleItemChange(index, 'quantity', value === '' ? undefined : parseInt(value) || undefined);
-                          }}
-                          onBlur={() => handleBlur(`items.${index}.quantity`)}
-                          className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                            getItemFieldError(index, 'quantity')
-                              ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                              : isDarkMode
-                                ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-white/30'
-                                : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400'
-                          }`}
-                          placeholder="Enter quantity"
-                        />
-                        {getItemFieldError(index, 'quantity') && (
-                          <p className="mt-1 text-xs text-red-500">{getItemFieldError(index, 'quantity')}</p>
-                        )}
-                      </div>
+                         {/* Quantity */}
+                         <div>
+                           <label className={`block text-sm font-semibold mb-2 ${
+                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                           }`}>
+                             Quantity <span className="text-red-500">*</span>
+                           </label>
+                           <input
+                             type="number"
+                             min="1"
+                             value={item.quantity || ''}
+                             onChange={(e) => {
+                               const value = e.target.value;
+                               handleItemChange(index, 'quantity', value === '' ? undefined : parseInt(value) || undefined);
+                             }}
+                             onBlur={() => handleBlur(`items.${index}.quantity`)}
+                             className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
+                               getItemFieldError(index, 'quantity')
+                                 ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                                 : isDarkMode
+                                   ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-white/30'
+                                   : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400'
+                             }`}
+                             placeholder="Enter quantity"
+                           />
+                           {getItemFieldError(index, 'quantity') && (
+                             <p className="mt-1 text-xs text-red-500">{getItemFieldError(index, 'quantity')}</p>
+                           )}
+                         </div>
 
-                                            {/* Enhanced Image Upload */}
-                      <div className="lg:col-span-2">
-                        <label className={`block text-sm font-semibold mb-3 ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}>
-                          Item Image
-                        </label>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          {/* Upload Options */}
-                          <div className="space-y-3">
-                            {/* File Upload */}
-                            <div className="flex items-center justify-center w-full">
-                              <label
-                                htmlFor={`image-upload-${index}`}
-                                className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-all duration-300 hover:scale-105 ${
-                                  isDarkMode
-                                    ? 'border-gray-600 hover:border-gray-500 bg-white/5 hover:bg-white/10'
-                                    : 'border-gray-300 hover:border-gray-400 bg-gray-50 hover:bg-gray-100'
-                                }`}
-                                onDragOver={handleDragOver}
-                                onDrop={(e) => handleDrop(e, index)}
-                              >
-                                <div className="flex flex-col items-center justify-center p-4">
-                                  <PhotoIcon className={`w-8 h-8 mb-2 ${
-                                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                  }`} />
-                                  <p className={`mb-1 text-sm font-semibold ${
-                                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                                  }`}>
-                                    📁 Gallery Upload
-                                  </p>
-                                  <p className={`text-xs text-center ${
-                                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                  }`}>
-                                    Click to upload or drag and drop
-                                  </p>
-                                </div>
-                                <input
-                                  id={`image-upload-${index}`}
-                                  type="file"
-                                  className="hidden"
-                                  accept="image/*"
-                                  onChange={(e) => handleFileInputChange(e, index)}
-                                  disabled={imageUploading}
-                                />
-                              </label>
-                            </div>
-                            
-                            {/* Camera Capture */}
-                            <div className="flex items-center justify-center w-full">
-                              <button
-                                type="button"
-                                onClick={() => handleCameraPreview(index)}
-                                disabled={!cameraAvailable || imageUploading}
-                                className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg transition-all duration-300 hover:scale-105 ${
-                                  !cameraAvailable || imageUploading
-                                    ? 'border-gray-400 bg-gray-100 cursor-not-allowed'
-                                    : isDarkMode
-                                      ? 'border-emerald-500 hover:border-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'
-                                      : 'border-emerald-400 hover:border-emerald-300 bg-emerald-50 hover:bg-emerald-100'
-                                }`}
-                              >
-                                <div className="flex flex-col items-center justify-center p-4">
-                                  <svg className={`w-8 h-8 mb-2 ${
-                                    !cameraAvailable || imageUploading
-                                      ? 'text-gray-400'
-                                      : isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
-                                  }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  </svg>
-                                  <p className={`mb-1 text-sm font-semibold ${
-                                    !cameraAvailable || imageUploading
-                                      ? 'text-gray-500'
-                                      : isDarkMode ? 'text-emerald-300' : 'text-emerald-700'
-                                  }`}>
-                                    📸 Live Camera
-                                  </p>
-                                  <p className={`text-xs text-center ${
-                                    !cameraAvailable || imageUploading
-                                      ? 'text-gray-400'
-                                      : isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
-                                  }`}>
-                                    {!cameraAvailable 
-                                      ? 'Camera not available' 
-                                      : imageUploading
-                                        ? 'Uploading...'
-                                        : 'Click for live preview'}
-                                  </p>
-                                </div>
-                              </button>
-                            </div>
+                         {/* Description */}
+                         <div>
+                           <label className={`block text-sm font-semibold mb-2 ${
+                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                           }`}>
+                             Description
+                           </label>
+                           <input
+                             type="text"
+                             value={item.description}
+                             onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                             onBlur={() => handleBlur(`items.${index}.description`)}
+                             className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
+                               getItemFieldError(index, 'description')
+                                 ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                                 : isDarkMode
+                                   ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
+                                   : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
+                             }`}
+                             placeholder="Enter item description..."
+                           />
+                           {getItemFieldError(index, 'description') && (
+                             <p className="mt-1 text-xs text-red-500">{getItemFieldError(index, 'description')}</p>
+                           )}
+                         </div>
+                       </div>
 
-                            {/* Upload Progress */}
-                            {imageUploading && (
-                              <div className="flex items-center justify-center space-x-2 p-3 rounded-lg bg-blue-50 border-2 border-blue-200">
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                                <span className={`text-sm font-medium ${
-                                  isDarkMode ? 'text-blue-300' : 'text-blue-700'
-                                }`}>
-                                  Uploading image...
-                                </span>
-                              </div>
-                            )}
-                          </div>
+                       {/* Item Image Row */}
+                       <div className="mt-4">
+                         <label className={`block text-sm font-semibold mb-2 ${
+                           isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                         }`}>
+                           Item Image
+                         </label>
+                         
+                         {/* Upload Options Row - Just Icons */}
+                         <div className="flex space-x-2 mb-3">
+                           {/* Gallery Upload Icon */}
+                           <label
+                             htmlFor={`image-upload-${index}`}
+                             className={`flex items-center justify-center w-10 h-10 border-2 border-dashed rounded-lg cursor-pointer transition-all duration-300 hover:scale-110 ${
+                               isDarkMode
+                                 ? 'border-gray-600 hover:border-gray-500 bg-white/5 hover:bg-white/10'
+                                 : 'border-gray-300 hover:border-gray-400 bg-gray-50 hover:bg-gray-100'
+                             }`}
+                             onDragOver={handleDragOver}
+                             onDrop={(e) => handleDrop(e, index)}
+                             title="Upload from gallery"
+                           >
+                             <PhotoIcon className={`w-5 h-5 ${
+                               isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                             }`} />
+                             <input
+                               id={`image-upload-${index}`}
+                               type="file"
+                               className="hidden"
+                               accept="image/*"
+                               onChange={(e) => handleFileInputChange(e, index)}
+                               disabled={imageUploading}
+                             />
+                           </label>
+                           
+                           {/* Camera Capture Icon */}
+                           <button
+                             type="button"
+                             onClick={() => handleCameraPreview(index)}
+                             disabled={!cameraAvailable || imageUploading}
+                             className={`flex items-center justify-center w-10 h-10 border-2 border-dashed rounded-lg transition-all duration-300 hover:scale-110 ${
+                               !cameraAvailable || imageUploading
+                                 ? 'border-gray-400 bg-gray-100 cursor-not-allowed'
+                                 : isDarkMode
+                                   ? 'border-emerald-500 hover:border-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'
+                                   : 'border-emerald-400 hover:border-emerald-300 bg-emerald-50 hover:bg-emerald-100'
+                             }`}
+                             title="Capture with camera"
+                           >
+                             <svg className={`w-5 h-5 ${
+                               !cameraAvailable || imageUploading
+                                 ? 'text-gray-400'
+                                 : isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
+                             }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                             </svg>
+                           </button>
+                         </div>
 
-                          {/* Image Preview Box */}
-                          <div className="space-y-3">
-                            <div className={`h-32 border-2 rounded-lg flex items-center justify-center ${
-                              item.imageUrl 
-                                ? 'border-green-300 bg-green-50' 
-                                : isDarkMode 
-                                  ? 'border-gray-600 bg-gray-800/50' 
-                                  : 'border-gray-300 bg-gray-50'
-                            }`}>
-                              {item.imageUrl ? (
-                                <div className="relative w-full h-full group">
-                                  <img
-                                    src={item.imageUrl}
-                                    alt="Item preview"
-                                    className="w-full h-full object-cover rounded-lg"
-                                  />
-                                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleItemChange(index, 'imageUrl', '')}
-                                      className="p-2 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all duration-300 hover:scale-110"
-                                      title="Remove image"
-                                    >
-                                      <XMarkIcon className="h-4 w-4" />
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className={`text-center ${
-                                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                }`}>
-                                  <PhotoIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                                  <p className="text-xs">No image selected</p>
-                                  <p className="text-xs">Upload from gallery or camera</p>
-                                </div>
-                              )}
-                            </div>
-                            
-                            {/* Image Info */}
-                            {item.imageUrl && (
-                              <div className={`p-3 rounded-lg border-2 ${
-                                isDarkMode 
-                                  ? 'bg-green-900/20 border-green-500/30' 
-                                  : 'bg-green-50 border-green-200'
-                              }`}>
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-2">
-                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    <span className={`text-xs font-medium ${
-                                      isDarkMode ? 'text-green-300' : 'text-green-700'
-                                    }`}>
-                                      Image uploaded successfully
-                                    </span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleItemChange(index, 'imageUrl', '')}
-                                    className={`p-1 rounded hover:bg-red-500/20 transition-colors ${
-                                      isDarkMode ? 'text-red-400' : 'text-red-600'
-                                    }`}
-                                    title="Remove image"
-                                  >
-                                    <XMarkIcon className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                         {/* Upload Progress */}
+                         {imageUploading && (
+                           <div className={`flex items-center justify-center space-x-2 p-2 rounded-lg border-2 mb-3 ${
+                             isDarkMode 
+                               ? 'bg-blue-900/20 border-blue-500/30' 
+                               : 'bg-blue-50 border-blue-200'
+                           }`}>
+                             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
+                             <span className={`text-xs font-medium ${
+                               isDarkMode ? 'text-blue-300' : 'text-blue-700'
+                             }`}>
+                               Uploading...
+                             </span>
+                           </div>
+                         )}
 
-                      {/* Description */}
-                      <div className="lg:col-span-2">
-                        <label className={`block text-sm font-semibold mb-2 ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}>
-                          Description
-                        </label>
-                        <textarea
-                          value={item.description}
-                          onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                          onBlur={() => handleBlur(`items.${index}.description`)}
-                          rows={3}
-                          className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 resize-none text-sm ${
-                            getItemFieldError(index, 'description')
-                              ? 'border-red-500 bg-red-50'
-                              : isDarkMode
-                                ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                                : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                          }`}
-                          placeholder="Enter detailed item description..."
-                        />
-                        {getItemFieldError(index, 'description') && (
-                          <p className="mt-1 text-xs text-red-500">{getItemFieldError(index, 'description')}</p>
-                        )}
-                      </div>
-                    </div>
+                         {/* Image Preview */}
+                         <div className={`w-full h-32 border-2 rounded-lg flex items-center justify-center overflow-hidden ${
+                           item.imageUrl 
+                             ? 'border-green-300 bg-green-50 dark:bg-green-900/20' 
+                             : isDarkMode 
+                               ? 'border-gray-600 bg-gray-800/50' 
+                               : 'border-gray-300 bg-gray-50'
+                         }`}>
+                           {item.imageUrl ? (
+                             <div className="relative w-full h-full group">
+                               <img
+                                 src={item.imageUrl}
+                                 alt="Item preview"
+                                 className="w-full h-full object-contain rounded-lg"
+                               />
+                               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center space-x-2">
+                                 <button
+                                   type="button"
+                                   onClick={() => handleItemChange(index, 'imageUrl', '')}
+                                   className="p-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all duration-300 hover:scale-110"
+                                   title="Remove image"
+                                 >
+                                   <XMarkIcon className="h-3 w-3" />
+                                 </button>
+                                 <button
+                                   type="button"
+                                   onClick={() => setShowImagePreview({ url: item.imageUrl || '', index })}
+                                   className="p-1.5 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-all duration-300 hover:scale-110"
+                                   title="Preview full image"
+                                 >
+                                   <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                   </svg>
+                                 </button>
+                               </div>
+                             </div>
+                           ) : (
+                             <div className={`text-center ${
+                               isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                             }`}>
+                               <PhotoIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                               <p className="text-sm">No image selected</p>
+                               <p className="text-xs">Click icons above to upload</p>
+                             </div>
+                           )}
+                         </div>
+                       </div>
                   </div>
                 ))}
               </div>
@@ -1596,6 +1595,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
               setShowQualityModal(false);
               if (newQualityData && newQualityData._id && newQualityData.name) {
                 onAddQuality(newQualityData);
+                // Set the newly created quality for highlighting
+                setNewlyCreatedQuality(newQualityData);
                 // Auto-select the newly created quality for the active item
                 if (activeQualityDropdown !== null) {
                   handleItemChange(activeQualityDropdown, 'quality', newQualityData._id);
@@ -1732,8 +1733,82 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
               </div>
             </div>
           </div>
-        )}
-      
-    </div>
-  );
-}
+                 )}
+
+         {/* Image Preview Modal */}
+         {showImagePreview && (
+           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[70] flex items-center justify-center p-4">
+             <div className={`w-full max-w-4xl rounded-2xl shadow-2xl ${
+               isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
+             } overflow-hidden`}>
+               {/* Header */}
+               <div className={`flex justify-between items-center p-6 border-b ${
+                 isDarkMode ? 'border-slate-700' : 'border-gray-200'
+               }`}>
+                 <h3 className={`text-2xl font-bold ${
+                   isDarkMode ? 'text-white' : 'text-gray-900'
+                 }`}>
+                   📸 Image Preview - Item {showImagePreview.index + 1}
+                 </h3>
+                 <button
+                   onClick={() => setShowImagePreview(null)}
+                   className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 ${
+                     isDarkMode
+                       ? 'text-gray-400 hover:bg-white/10 hover:text-gray-300'
+                       : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                   }`}
+                 >
+                   <XMarkIcon className="h-6 w-6" />
+                 </button>
+               </div>
+
+               {/* Image Content */}
+               <div className="p-6">
+                 <div className="relative">
+                   <img
+                     src={showImagePreview.url}
+                     alt="Full size preview"
+                     className="w-full h-auto max-h-[70vh] object-contain rounded-xl border-2 border-gray-300"
+                   />
+                   <div className="absolute top-4 right-4 flex space-x-2">
+                     <button
+                       onClick={() => window.open(showImagePreview.url, '_blank')}
+                       className={`p-3 rounded-full transition-all duration-300 hover:scale-110 ${
+                         isDarkMode
+                           ? 'bg-black/50 text-white hover:bg-black/70'
+                           : 'bg-white/80 text-gray-700 hover:bg-white'
+                       }`}
+                       title="Open in new tab"
+                     >
+                       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                       </svg>
+                     </button>
+                     <button
+                       onClick={() => {
+                         const link = document.createElement('a');
+                         link.href = showImagePreview.url;
+                         link.download = `item-${showImagePreview.index + 1}-image.jpg`;
+                         link.click();
+                       }}
+                       className={`p-3 rounded-full transition-all duration-300 hover:scale-110 ${
+                         isDarkMode
+                           ? 'bg-black/50 text-white hover:bg-black/70'
+                           : 'bg-white/80 text-gray-700 hover:bg-white'
+                       }`}
+                       title="Download image"
+                     >
+                       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                       </svg>
+                     </button>
+                   </div> 
+                 </div>
+               </div>
+             </div>
+           </div>
+         )}
+       
+     </div>
+   );
+ }

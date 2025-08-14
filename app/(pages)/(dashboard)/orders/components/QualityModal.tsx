@@ -76,9 +76,9 @@ export default function QualityModal({ onClose, onSuccess }: QualityModalProps) 
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className={`relative w-full max-w-md mx-4 rounded-lg shadow-xl transition-colors duration-300 ${
-        isDarkMode ? 'bg-slate-800' : 'bg-white'
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50">
+      <div className={`relative w-full max-w-md mx-4 rounded-lg shadow-2xl transition-colors duration-300 ${
+        isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
       }`}>
         {/* Header */}
         <div className={`flex items-center justify-between p-6 border-b transition-colors duration-300 ${

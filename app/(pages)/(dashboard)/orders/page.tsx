@@ -12,15 +12,10 @@ import {
   ExclamationTriangleIcon,
   ArrowPathIcon,
   CalendarIcon,
-  ChevronUpIcon,
-  ChevronDownIcon,
   BoltIcon,
-  ClockIcon,
-  CheckCircleIcon,
   ExclamationTriangleIcon as WarningIcon,
   BuildingOfficeIcon,
   ChartBarIcon,
-  ShoppingBagIcon,
   BeakerIcon
 } from '@heroicons/react/24/outline';
 import OrderForm from './components/OrderForm';
@@ -48,6 +43,9 @@ export default function OrdersPage() {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [screenSize, setScreenSize] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [showQuickActions, setShowQuickActions] = useState(false);
@@ -251,9 +249,15 @@ export default function OrdersPage() {
     return filtered;
   }, [orders, searchTerm, filters]);
 
-  const handleDelete = useCallback(async (orderId: string) => {
-    if (!confirm('Are you sure you want to delete this order?')) return;
+  const handleDeleteClick = useCallback((order: Order) => {
+    setOrderToDelete(order);
+    setShowDeleteModal(true);
+  }, []);
 
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!orderToDelete) return;
+
+    setDeleting(true);
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -261,7 +265,7 @@ export default function OrdersPage() {
         return;
       }
 
-      const response = await fetch(`/api/orders/${orderId}`, {
+      const response = await fetch(`/api/orders/${orderToDelete._id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -269,16 +273,26 @@ export default function OrdersPage() {
       });
       
       if (response.ok) {
-        setOrders(prev => prev.filter(order => order._id !== orderId));
+        setOrders(prev => prev.filter(order => order._id !== orderToDelete._id));
         showMessage('success', 'Order deleted successfully');
+        setShowDeleteModal(false);
+        setOrderToDelete(null);
       } else {
         showMessage('error', 'Failed to delete order');
       }
     } catch (error) {
       console.error('Error deleting order:', error);
       showMessage('error', 'Failed to delete order');
+    } finally {
+      setDeleting(false);
     }
-  }, [showMessage]);
+  }, [orderToDelete, showMessage]);
+
+  const handleDeleteCancel = useCallback(() => {
+    setShowDeleteModal(false);
+    setOrderToDelete(null);
+    setDeleting(false);
+  }, []);
 
   const handleEdit = (order: Order) => {
     setEditingOrder(order);
@@ -395,7 +409,7 @@ export default function OrdersPage() {
             <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
               🚀 Quick Actions
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <button
                 onClick={() => {
                   setShowForm(true);
@@ -462,7 +476,8 @@ export default function OrdersPage() {
                 <div className="text-xs opacity-75">Update data</div>
               </button>
               
-              <button
+              </div>
+              {/* <button
                 onClick={() => {
                   setShowLabAddModal(true);
                   setShowQuickActions(false);
@@ -476,8 +491,7 @@ export default function OrdersPage() {
                 <BeakerIcon className="h-8 w-8 mb-2" />
                 <div className="text-sm font-semibold">Add Lab</div>
                 <div className="text-xs opacity-75">Lab data for orders</div>
-              </button>
-            </div>
+              </button> */}
           </div>
         )}
 
@@ -819,7 +833,7 @@ export default function OrdersPage() {
                         <BeakerIcon className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(order._id)}
+                        onClick={() => handleDeleteClick(order)}
                         className={`p-2 rounded-lg transition-all duration-300 ${
                           isDarkMode
                             ? 'text-red-400 hover:bg-red-500/20 hover:text-red-300 active:bg-red-500/30'
@@ -1017,6 +1031,108 @@ export default function OrdersPage() {
             showMessage('success', 'Lab data added successfully');
           }}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && orderToDelete && (
+        <div className="fixed inset-0 backdrop-blur-md bg-black/60 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`relative w-full max-w-md mx-auto ${isDarkMode ? 'bg-[#1D293D]' : 'bg-white'} rounded-lg shadow-xl`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between p-6 border-b ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
+              <div className="flex items-center space-x-3">
+                <div className={`p-2 rounded-full ${isDarkMode ? 'bg-red-500/20' : 'bg-red-100'}`}>
+                  <ExclamationTriangleIcon className={`h-6 w-6 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`} />
+                </div>
+                <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Delete Order
+                </h3>
+              </div>
+              <button
+                onClick={handleDeleteCancel}
+                disabled={deleting}
+                className={`p-1 rounded-full transition-colors ${
+                  isDarkMode 
+                    ? 'text-gray-400 hover:text-white hover:bg-white/10' 
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} mb-4`}>
+                Are you sure you want to delete this order? This action cannot be undone.
+              </p>
+              
+              <div className={`p-4 rounded-lg border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Order ID:
+                  </span>
+                  <span className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {orderToDelete.orderId}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Type:
+                  </span>
+                  <span className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {orderToDelete.orderType}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Items:
+                  </span>
+                  <span className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {orderToDelete.items.length} item(s)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className={`flex items-center justify-end space-x-3 p-6 border-t ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
+              <button
+                onClick={handleDeleteCancel}
+                disabled={deleting}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 ${
+                  isDarkMode
+                    ? 'text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50'
+                    : 'text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 flex items-center space-x-2 ${
+                  deleting
+                    ? 'bg-gray-400 text-white cursor-not-allowed'
+                    : isDarkMode
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : 'bg-red-600 hover:bg-red-700 text-white'
+                }`}
+              >
+                {deleting ? (
+                  <>
+                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <TrashIcon className="h-4 w-4" />
+                    <span>Delete Order</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

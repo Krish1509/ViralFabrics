@@ -13,7 +13,9 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   PencilIcon,
-  CheckIcon
+  CheckIcon,
+  ArrowsPointingOutIcon,
+  ArrowsPointingInIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
 
@@ -45,6 +47,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState('blue');
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValues, setEditValues] = useState({
     name: '',
@@ -65,6 +68,25 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Track fullscreen state
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
+
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
@@ -75,6 +97,37 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
 
   const closeProfileDropdown = () => {
     setIsProfileDropdownOpen(false);
+  };
+
+  // Fullscreen functions
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        // Enter fullscreen
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        } else if ((document.documentElement as any).webkitRequestFullscreen) {
+          await (document.documentElement as any).webkitRequestFullscreen();
+        } else if ((document.documentElement as any).mozRequestFullScreen) {
+          await (document.documentElement as any).mozRequestFullScreen();
+        } else if ((document.documentElement as any).msRequestFullscreen) {
+          await (document.documentElement as any).msRequestFullscreen();
+        }
+      } else {
+        // Exit fullscreen
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        } else if ((document as any).mozCancelFullScreen) {
+          await (document as any).mozCancelFullScreen();
+        } else if ((document as any).msExitFullscreen) {
+          await (document as any).msExitFullscreen();
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling fullscreen:', error);
+    }
   };
 
   const getUserInitials = (name: string) => {
@@ -219,6 +272,19 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
 
             {/* Right: Actions */}
             <div className="flex items-center space-x-4">
+              {/* Fullscreen Toggle */}
+              <button
+                onClick={toggleFullscreen}
+                className={`p-3 rounded-lg transition-all duration-300 cursor-pointer ${
+                  isDarkMode 
+                    ? 'bg-white/10 text-white hover:bg-white/20' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                } shadow-lg backdrop-blur-sm`}
+                aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              >
+                {isFullscreen ? <ArrowsPointingInIcon className="h-5 w-5" /> : <ArrowsPointingOutIcon className="h-5 w-5" />}
+              </button>
+
               {/* Theme Toggle */}
               <button
                 onClick={toggleDarkMode}
@@ -311,6 +377,23 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                         </div>
                       </button>
                       
+                      <button
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                          isDarkMode 
+                            ? 'text-blue-300 hover:bg-blue-500/10' 
+                            : 'text-blue-600 hover:bg-blue-50'
+                        }`}
+                        onClick={() => {
+                          closeProfileDropdown();
+                          toggleFullscreen();
+                        }}
+                      >
+                        <div className="flex items-center space-x-2">
+                          {isFullscreen ? <ArrowsPointingInIcon className="h-4 w-4" /> : <ArrowsPointingOutIcon className="h-4 w-4" />}
+                          <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+                        </div>
+                      </button>
+                      
                       <div className={`border-t transition-colors duration-300 ${
                         isDarkMode ? 'border-slate-700' : 'border-gray-200'
                       }`}>
@@ -372,6 +455,19 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
 
             {/* Mobile Actions */}
             <div className="flex items-center space-x-2">
+              {/* Fullscreen Toggle */}
+              <button
+                onClick={toggleFullscreen}
+                className={`p-2 rounded-lg transition-all duration-300 cursor-pointer ${
+                  isDarkMode 
+                    ? 'bg-white/10 text-white hover:bg-white/20' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                } shadow-lg backdrop-blur-sm`}
+                aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              >
+                {isFullscreen ? <ArrowsPointingInIcon className="h-5 w-5" /> : <ArrowsPointingOutIcon className="h-5 w-5" />}
+              </button>
+
               {/* Theme Toggle */}
               <button
                 onClick={toggleDarkMode}
@@ -456,6 +552,23 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                         <div className="flex items-center space-x-2">
                           <SunIcon className="h-4 w-4" />
                           <span>Theme</span>
+                        </div>
+                      </button>
+                      
+                      <button
+                        className={`w-full text-left px-3 py-2 text-sm transition-colors duration-200 ${
+                          isDarkMode 
+                            ? 'text-blue-300 hover:bg-blue-500/10' 
+                            : 'text-blue-600 hover:bg-blue-50'
+                        }`}
+                        onClick={() => {
+                          closeProfileDropdown();
+                          toggleFullscreen();
+                        }}
+                      >
+                        <div className="flex items-center space-x-2">
+                          {isFullscreen ? <ArrowsPointingInIcon className="h-4 w-4" /> : <ArrowsPointingOutIcon className="h-4 w-4" />}
+                          <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
                         </div>
                       </button>
                       

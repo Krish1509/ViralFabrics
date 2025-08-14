@@ -47,9 +47,8 @@ const OrderSchema = new Schema<IOrder>({
   // Add orderNo field for backward compatibility (auto-generated)
   orderNo: {
     type: String,
-    unique: true,
-    sparse: true, // Allow multiple null values
     required: false, // Make it optional to avoid validation errors
+    default: undefined // Ensure it's not null by default
   },
   orderType: {
     type: String,
@@ -143,6 +142,7 @@ const OrderSchema = new Schema<IOrder>({
 // **CRITICAL INDEXES FOR PERFORMANCE**
 // Single field indexes
 OrderSchema.index({ orderId: 1 }); // Primary lookup
+OrderSchema.index({ orderNo: 1 }); // Order number lookup (non-unique)
 OrderSchema.index({ party: 1 }); // Party-based queries
 OrderSchema.index({ poNumber: 1 }); // PO-based searches
 OrderSchema.index({ styleNo: 1 }); // Style-based searches
@@ -174,47 +174,71 @@ OrderSchema.index({
 // Static method to create order with proper ID
 OrderSchema.statics.createOrder = async function(orderData: any) {
   try {
-    // Get the count of existing orders
-    const count = await this.countDocuments();
-    const nextNumber = count + 1;
-    const orderId = `ORD-${nextNumber.toString().padStart(2, '0')}`; // ORD-01, ORD-02, etc.
+    // Generate a unique order ID with retry logic
+    let orderId: string;
+    let attempts = 0;
+    const maxAttempts = 10;
     
-    console.log(`Creating order with ID: ${orderId}`); // Debug log
+    do {
+      attempts++;
+      // Use timestamp + random number to ensure uniqueness
+      const timestamp = Date.now();
+      const random = Math.floor(Math.random() * 1000);
+      orderId = `ORD-${timestamp}-${random}`;
+      
+      // Check if this ID already exists
+      const existingOrder = await this.findOne({ orderId });
+      if (!existingOrder) {
+        break;
+      }
+      
+      // If we've tried too many times, throw an error
+      if (attempts >= maxAttempts) {
+        throw new Error('Failed to generate unique order ID after multiple attempts');
+      }
+      
+      // Small delay to ensure different timestamp
+      await new Promise(resolve => setTimeout(resolve, 1));
+      
+    } while (true);
+    
+    console.log(`Creating order with ID: ${orderId} (attempt ${attempts})`);
     
     // Create the order with the generated ID
     const order = new this({
       ...orderData,
-      orderId,
-      orderNo: orderId
+      orderId
     });
     
     const savedOrder = await order.save();
-    console.log(`Order created successfully with ID: ${savedOrder.orderId}`); // Debug log
+    console.log(`Order created successfully with ID: ${savedOrder.orderId}`);
     return savedOrder;
+    
   } catch (error) {
     console.error('Error creating order:', error);
     throw error;
   }
 };
 
-// Pre-save middleware for auto-generating orderId and orderNo (fallback)
+// Pre-save middleware for auto-generating orderId and orderNo (fallback only)
 OrderSchema.pre('save', async function(next) {
   if (this.isNew && !this.orderId) {
     try {
-      // Always generate a new orderId with ORD- prefix
-      const count = await mongoose.model('Order').countDocuments();
-      const nextNumber = count + 1;
-      this.orderId = `ORD-${nextNumber.toString().padStart(2, '0')}`; // ORD-01, ORD-02, etc.
-      this.orderNo = this.orderId; // Use the same format
+      // Simple fallback - use timestamp + random to ensure uniqueness
+      const timestamp = Date.now();
+      const random = Math.floor(Math.random() * 1000);
+      this.orderId = `ORD-${timestamp}-${random}`;
+      this.orderNo = this.orderId;
       
-      console.log(`Generated orderId: ${this.orderId}`); // Debug log
+      console.log(`Fallback generated orderId: ${this.orderId}`);
       
       next();
     } catch (error) {
-      console.error('Error generating orderId:', error);
-      // Fallback - use a simple increment
-      const fallbackNumber = Date.now() % 1000;
-      this.orderId = `ORD-${fallbackNumber.toString().padStart(2, '0')}`;
+      console.error('Error in fallback orderId generation:', error);
+      // Final fallback
+      const fallbackNumber = Date.now();
+      const random = Math.floor(Math.random() * 1000);
+      this.orderId = `ORD-${fallbackNumber}-${random}`;
       this.orderNo = this.orderId;
       next();
     }

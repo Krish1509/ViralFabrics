@@ -1,5 +1,5 @@
 import dbConnect from "@/lib/dbConnect";
-import Order, { IOrderModel } from "@/models/Order";
+import Order from "@/models/Order";
 import Party from "@/models/Party";
 import { requireAuth } from "@/lib/session";
 import { type NextRequest } from "next/server";
@@ -123,13 +123,38 @@ export async function GET(req: NextRequest) {
       }
     }), { status: 200 });
   } catch (error: unknown) {
+    console.error('Error fetching orders:', error);
+    
     if (error instanceof Error) {
       if (error.message.includes("Unauthorized")) {
-        return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
+        return new Response(JSON.stringify({ 
+          success: false,
+          message: "Unauthorized" 
+        }), { status: 401 });
+      }
+      
+      // Handle MongoDB connection errors
+      if (error.message.includes('ECONNREFUSED') || error.message.includes('MongoNetworkError')) {
+        return new Response(JSON.stringify({ 
+          success: false,
+          message: "Database connection failed. Please try again." 
+        }), { status: 503 });
+      }
+      
+      // Handle duplicate key errors
+      if (error.message.includes('E11000')) {
+        return new Response(JSON.stringify({ 
+          success: false,
+          message: "Duplicate order number detected. Please try again." 
+        }), { status: 409 });
       }
     }
+    
     const message = error instanceof Error ? error.message : "Internal Server Error";
-    return new Response(JSON.stringify({ message }), { status: 500 });
+    return new Response(JSON.stringify({ 
+      success: false,
+      message 
+    }), { status: 500 });
   }
 }
 
@@ -296,19 +321,40 @@ export async function POST(req: NextRequest) {
       })),
     };
     
-    // Generate order ID manually
-    const count = await Order.countDocuments();
-    const nextNumber = count + 1;
-    const orderId = `ORD-${nextNumber.toString().padStart(2, '0')}`; // ORD-01, ORD-02, etc.
+    // Generate a unique order ID
+    let orderId: string;
+    let attempts = 0;
+    const maxAttempts = 10;
     
-    console.log(`Creating order with ID: ${orderId}`); // Debug log
+    do {
+      attempts++;
+      const timestamp = Date.now();
+      const random = Math.floor(Math.random() * 1000);
+      orderId = `ORD-${timestamp}-${random}`;
+      
+      // Check if this ID already exists
+      const existingOrder = await Order.findOne({ orderId });
+      if (!existingOrder) {
+        break;
+      }
+      
+      if (attempts >= maxAttempts) {
+        throw new Error('Failed to generate unique order ID after multiple attempts');
+      }
+      
+      // Small delay to ensure different timestamp
+      await new Promise(resolve => setTimeout(resolve, 1));
+      
+    } while (true);
     
-    // Create the order with the generated ID
-    const createdOrder = await Order.create({
-      ...orderData,
-      orderId,
-      orderNo: orderId
-    });
+         // Create the order directly
+     const order = new Order({
+       ...orderData,
+       orderId,
+       orderNo: orderId // Ensure orderNo is set to avoid null value issues
+     });
+    
+    const createdOrder = await order.save();
 
     // Populate party and quality data and return
     const populatedOrder = await Order.findById(createdOrder._id)
@@ -325,9 +371,14 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error: unknown) {
+    console.error('Error creating order:', error);
+    
     if (error instanceof Error) {
       if (error.message.includes("Unauthorized")) {
-        return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
+        return new Response(JSON.stringify({ 
+          success: false,
+          message: "Unauthorized" 
+        }), { status: 401 });
       }
       
       // Handle MongoDB duplicate key errors
@@ -335,30 +386,59 @@ export async function POST(req: NextRequest) {
         if (error.message.includes('party') && error.message.includes('poNumber') && error.message.includes('styleNo')) {
           return new Response(
             JSON.stringify({ 
+              success: false,
               message: "An order with this PO number and style number already exists for this party" 
             }), 
             { status: 400 }
           );
         }
-        if (error.message.includes('orderId')) {
+        if (error.message.includes('orderId') || error.message.includes('orderNo')) {
           return new Response(
-            JSON.stringify({ message: "Order ID generation failed, please try again" }), 
+            JSON.stringify({ 
+              success: false,
+              message: "Order ID generation failed, please try again" 
+            }), 
             { status: 500 }
           );
         }
+      }
+      
+      // Handle order ID generation errors
+      if (error.message.includes('Failed to generate unique order ID')) {
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            message: "Order ID generation failed, please try again" 
+          }), 
+          { status: 500 }
+        );
       }
       
       // Handle validation errors
       if (error.name === 'ValidationError') {
         const validationErrors = Object.values((error as any).errors).map((err: any) => err.message);
         return new Response(
-          JSON.stringify({ message: validationErrors.join(", ") }), 
+          JSON.stringify({ 
+            success: false,
+            message: validationErrors.join(", ") 
+          }), 
           { status: 400 }
         );
+      }
+      
+      // Handle MongoDB connection errors
+      if (error.message.includes('ECONNREFUSED') || error.message.includes('MongoNetworkError')) {
+        return new Response(JSON.stringify({ 
+          success: false,
+          message: "Database connection failed. Please try again." 
+        }), { status: 503 });
       }
     }
     
     const message = error instanceof Error ? error.message : "Internal Server Error";
-    return new Response(JSON.stringify({ message }), { status: 500 });
+    return new Response(JSON.stringify({ 
+      success: false,
+      message 
+    }), { status: 500 });
   }
 }
