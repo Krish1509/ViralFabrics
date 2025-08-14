@@ -131,7 +131,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className={`flex items-center justify-center min-h-screen ${isDarkMode ? 'bg-slate-900' : 'bg-gray-50'}`}>
+      <div className={`flex items-center justify-center min-h-screen ${isDarkMode ? 'bg-[#1D293D]' : 'bg-gray-50'}`}>
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     );
