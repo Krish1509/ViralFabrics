@@ -54,11 +54,11 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
         // Initialize lab data with existing labs info
         const initialLabData: LabData[] = order.items.map((item, index) => {
           const existingLab = existingLabs.find((lab: any) => 
-            lab.orderItemId === item._id
+            lab.orderItemId === (item as any)._id
           );
           
           return {
-            orderItemId: item._id,
+            orderItemId: (item as any)._id,
             labSendDate: existingLab ? new Date(existingLab.labSendDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             approvalDate: existingLab?.labSendData?.approvalDate || '',
             sampleNumber: existingLab ? existingLab.labSendNumber : `${prefix}${order.orderId || order.orderId}-${index + 1}`,
@@ -70,7 +70,7 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
       } else {
         // If API fails, initialize with empty data
         const initialLabData: LabData[] = order.items.map((item, index) => ({
-          orderItemId: item._id,
+          orderItemId: (item as any)._id,
           labSendDate: new Date().toISOString().split('T')[0],
           approvalDate: '',
           sampleNumber: `${prefix}${order.orderId || order.orderId}-${index + 1}`,
@@ -82,7 +82,7 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
       console.error('Error checking existing labs:', error);
       // Initialize with empty data on error
       const initialLabData: LabData[] = order.items.map((item, index) => ({
-        orderItemId: item._id,
+        orderItemId: (item as any)._id,
         labSendDate: new Date().toISOString().split('T')[0],
         approvalDate: '',
         sampleNumber: `${prefix}${order.orderId || order.orderId}-${index + 1}`,
