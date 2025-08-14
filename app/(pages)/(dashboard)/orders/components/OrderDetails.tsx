@@ -672,7 +672,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
 
                                                      {/* Lab Information */}
                            {(() => {
-                             const lab = getLabForItem(item._id);
+                             const lab = getLabForItem((item as any)._id);
                              return lab ? (
                                <div className={`mt-3 p-4 rounded-lg border ${
                                  isDarkMode 
