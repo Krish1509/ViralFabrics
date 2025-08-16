@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Order, Party } from '@/types';
 import { useDarkMode } from '../hooks/useDarkMode';
+import { BRAND_NAME, BRAND_SHORT_NAME } from '@/lib/config';
 
 export default function DashboardPage() {
   const { isDarkMode } = useDarkMode();
@@ -50,7 +51,7 @@ export default function DashboardPage() {
       const partiesData = await partiesResponse.json();
 
       if (ordersData.success) {
-        setOrders(ordersData.data.orders || []);
+        setOrders(ordersData.data || []);
       }
       if (partiesData.success) {
         setParties(partiesData.data || []);
@@ -66,16 +67,16 @@ export default function DashboardPage() {
     const total = orders.length;
     const pending = orders.filter(order => {
       const now = new Date();
-      return now <= new Date(order.arrivalDate);
+      return now <= new Date(order.arrivalDate || '');
     }).length;
     const arrived = orders.filter(order => {
       const now = new Date();
-      return now > new Date(order.arrivalDate) && 
+      return now > new Date(order.arrivalDate || '') && 
              (!order.deliveryDate || now <= new Date(order.deliveryDate));
     }).length;
     const delivered = orders.filter(order => {
       const now = new Date();
-      return order.deliveryDate && now > new Date(order.deliveryDate);
+      return order.deliveryDate && now > new Date(order.deliveryDate || '');
     }).length;
 
     return { total, pending, arrived, delivered };
@@ -86,7 +87,7 @@ export default function DashboardPage() {
     const currentYear = new Date().getFullYear();
     const monthlyData = months.map((month, index) => {
       const monthOrders = orders.filter(order => {
-        const orderDate = new Date(order.arrivalDate);
+        const orderDate = new Date(order.arrivalDate || '');
         return orderDate.getFullYear() === currentYear && orderDate.getMonth() === index;
       });
       return {
@@ -108,14 +109,14 @@ export default function DashboardPage() {
   const getRecentActivity = () => {
     const now = new Date();
     const last7Days = orders.filter(order => {
-      const orderDate = new Date(order.arrivalDate);
+      const orderDate = new Date(order.arrivalDate || '');
       const diffTime = Math.abs(now.getTime() - orderDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       return diffDays <= 7;
     }).length;
 
     const last30Days = orders.filter(order => {
-      const orderDate = new Date(order.arrivalDate);
+      const orderDate = new Date(order.arrivalDate || '');
       const diffTime = Math.abs(now.getTime() - orderDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       return diffDays <= 30;
@@ -144,9 +145,9 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-6">
             <h1 className={`text-3xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Dashboard</h1>
-            <p className={`mt-1 text-sm transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
-              Welcome to your CRM Admin Panel
-            </p>
+                          <p className={`mt-1 text-sm transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                Welcome to your {BRAND_NAME} Dashboard
+              </p>
           </div>
         </div>
       </div>
@@ -387,7 +388,7 @@ export default function DashboardPage() {
                   </h3>
                   <p className={`text-sm transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                     {parties.length} parties in system
-                  </p>
+                      </p>
                 </div>
               </div>
             </div>
@@ -473,7 +474,7 @@ export default function DashboardPage() {
                             </span>
                           </td>
                           <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-900'}`}>
-                            {new Date(order.arrivalDate).toLocaleDateString()}
+                            {new Date(order.arrivalDate || '').toLocaleDateString()}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColor}`}>

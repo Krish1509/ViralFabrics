@@ -1,92 +1,112 @@
 const mongoose = require('mongoose');
-require('dotenv').config();
+require('dotenv').config({ path: '.env.local' });
 
-// Connect to MongoDB
-const connectDB = async () => {
+async function fixOrderSchema() {
   try {
-    const MONGODB_URI = process.env.MONGODB_URI;
-    
-    if (!MONGODB_URI) {
-      throw new Error("Please add MONGODB_URI to .env");
-    }
-    
-    const conn = await mongoose.connect(MONGODB_URI, {
-      bufferCommands: false,
-    });
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-    return conn;
-  } catch (error) {
-    console.error('Error connecting to MongoDB:', error);
-    process.exit(1);
-  }
-};
+    console.log('Connecting to database...');
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('Connected to database');
 
-const fixOrderSchema = async () => {
-  try {
-    await connectDB();
-    
+    // Get the database instance
     const db = mongoose.connection.db;
-    const collection = db.collection('orders');
-    
-    console.log('🔍 Checking existing indexes...');
+    const ordersCollection = db.collection('orders');
+
+    console.log('Checking existing indexes...');
     
     // Get all indexes
-    const indexes = await collection.indexes();
+    const indexes = await ordersCollection.indexes();
     console.log('Current indexes:', indexes.map(idx => idx.name));
+
+    // Remove problematic indexes
+    const indexesToRemove = ['orderNo_1', 'orderId_1_orderNo_1'];
     
-    // Check if orderNo index exists
-    const orderNoIndex = indexes.find(idx => idx.name === 'orderNo_1');
-    
-    if (orderNoIndex) {
-      console.log('❌ Found old orderNo index, dropping it...');
-      await collection.dropIndex('orderNo_1');
-      console.log('✅ Dropped orderNo_1 index');
-    } else {
-      console.log('✅ No orderNo index found');
+    for (const indexName of indexesToRemove) {
+      try {
+        const indexExists = indexes.find(idx => idx.name === indexName);
+        if (indexExists) {
+          console.log(`Removing index: ${indexName}`);
+          await ordersCollection.dropIndex(indexName);
+          console.log(`Successfully removed index: ${indexName}`);
+        } else {
+          console.log(`Index ${indexName} does not exist, skipping...`);
+        }
+      } catch (error) {
+        console.log(`Error removing index ${indexName}:`, error.message);
+      }
     }
+
+    // Update all existing orders to remove orderNo field
+    console.log('Updating existing orders to remove orderNo field...');
+    const updateResult = await ordersCollection.updateMany(
+      {}, // Update all documents
+      { $unset: { orderNo: "" } } // Remove orderNo field
+    );
+    console.log(`Updated ${updateResult.modifiedCount} orders`);
+
+    // Create new indexes
+    console.log('Creating new indexes...');
     
-    // Create new sparse orderNo index
-    console.log('🔄 Creating new sparse orderNo index...');
-    await collection.createIndex({ orderNo: 1 }, { unique: true, sparse: true });
-    console.log('✅ Created orderNo_1 sparse index');
-    
-    // Check if there are any documents with orderNo field
-    const docsWithOrderNo = await collection.countDocuments({ orderNo: { $exists: true } });
-    
-    if (docsWithOrderNo > 0) {
-      console.log(`⚠️  Found ${docsWithOrderNo} documents with orderNo field`);
-      console.log('🔄 Removing orderNo field from existing documents...');
-      
-      await collection.updateMany(
-        { orderNo: { $exists: true } },
-        { $unset: { orderNo: "" } }
+    // Create orderId index
+    try {
+      await ordersCollection.createIndex({ orderId: 1 }, { unique: true });
+      console.log('Created orderId index');
+    } catch (error) {
+      console.log('Error creating orderId index:', error.message);
+    }
+
+    // Create other necessary indexes
+    const newIndexes = [
+      { party: 1 },
+      { poNumber: 1 },
+      { styleNo: 1 },
+      { orderType: 1 },
+      { arrivalDate: -1 },
+      { createdAt: -1 },
+      { deliveryDate: -1 },
+      { party: 1, createdAt: -1 },
+      { orderType: 1, arrivalDate: -1 },
+      { party: 1, orderType: 1 },
+      { poNumber: 1, styleNo: 1 },
+      { arrivalDate: 1, deliveryDate: 1 },
+      { party: 1, poNumber: 1, styleNo: 1 }
+    ];
+
+    for (const indexSpec of newIndexes) {
+      try {
+        const indexName = Object.keys(indexSpec).map(key => `${key}_${indexSpec[key]}`).join('_');
+        await ordersCollection.createIndex(indexSpec);
+        console.log(`Created index: ${indexName}`);
+      } catch (error) {
+        console.log(`Error creating index ${JSON.stringify(indexSpec)}:`, error.message);
+      }
+    }
+
+    // Create text index
+    try {
+      await ordersCollection.createIndex(
+        { poNumber: "text", styleNo: "text" },
+        {
+          weights: {
+            poNumber: 2,
+            styleNo: 2
+          }
+        }
       );
-      
-      console.log('✅ Removed orderNo field from existing documents');
-    } else {
-      console.log('✅ No documents with orderNo field found');
+      console.log('Created text index');
+    } catch (error) {
+      console.log('Error creating text index:', error.message);
     }
-    
-    // Ensure orderId index exists
-    const orderIdIndex = indexes.find(idx => idx.name === 'orderId_1');
-    
-    if (!orderIdIndex) {
-      console.log('🔄 Creating orderId index...');
-      await collection.createIndex({ orderId: 1 }, { unique: true });
-      console.log('✅ Created orderId_1 index');
-    } else {
-      console.log('✅ orderId index already exists');
-    }
-    
-    console.log('🎉 Schema migration completed successfully!');
-    
+
+    console.log('Order schema fix completed successfully!');
+    console.log('You can now restart your application.');
+
   } catch (error) {
-    console.error('❌ Error during migration:', error);
+    console.error('Error fixing order schema:', error);
   } finally {
     await mongoose.disconnect();
-    console.log('🔌 Disconnected from MongoDB');
+    console.log('Disconnected from database');
   }
-};
+}
 
-// Run the migration
+// Run the script
 fixOrderSchema();

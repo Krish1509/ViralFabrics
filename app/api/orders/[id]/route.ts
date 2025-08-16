@@ -18,7 +18,7 @@ export async function GET(
     const order = await Order.findById(id)
       .populate('party', '_id name contactName contactPhone address')
       .populate('items.quality', '_id name description')
-      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items createdAt updatedAt');
+      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
 
     if (!order) {
       return new Response(
@@ -69,7 +69,8 @@ export async function PUT(
       styleNo,
       poDate,
       deliveryDate,
-      items
+      items,
+      status
     } = await req.json();
 
     // Validation
@@ -122,6 +123,10 @@ export async function PUT(
       }
     }
     
+    if (status !== undefined && !['pending', 'delivered'].includes(status)) {
+      errors.push("Status must be one of: pending, delivered");
+    }
+    
     // Validate items if provided
     if (items !== undefined) {
       if (!Array.isArray(items) || items.length === 0) {
@@ -136,8 +141,12 @@ export async function PUT(
               errors.push(`Quantity must be a non-negative number in item ${index + 1}`);
             }
           }
-          if (item.imageUrl && item.imageUrl.trim().length > 500) {
-            errors.push(`Image URL cannot exceed 500 characters in item ${index + 1}`);
+          if (item.imageUrls && Array.isArray(item.imageUrls)) {
+            item.imageUrls.forEach((url: string, urlIndex: number) => {
+              if (url && url.trim().length > 500) {
+                errors.push(`Image URL cannot exceed 500 characters in item ${index + 1}, image ${urlIndex + 1}`);
+              }
+            });
           }
           if (item.description && item.description.trim().length > 200) {
             errors.push(`Description cannot exceed 200 characters in item ${index + 1}`);
@@ -223,11 +232,12 @@ export async function PUT(
     if (styleNo !== undefined) updateData.styleNo = styleNo ? styleNo.trim() : undefined;
     if (poDate !== undefined) updateData.poDate = poDate ? new Date(poDate) : undefined;
     if (deliveryDate !== undefined) updateData.deliveryDate = deliveryDate ? new Date(deliveryDate) : undefined;
+    if (status !== undefined) updateData.status = status;
     if (items !== undefined) {
       updateData.items = items.map((item: any) => ({
         quality: item.quality || undefined,
         quantity: item.quantity !== undefined && item.quantity !== null ? item.quantity : undefined,
-        imageUrl: item.imageUrl ? item.imageUrl.trim() : undefined,
+        imageUrls: item.imageUrls && Array.isArray(item.imageUrls) ? item.imageUrls.map((url: string) => url.trim()) : [],
         description: item.description ? item.description.trim() : undefined,
       }));
     }
@@ -239,7 +249,7 @@ export async function PUT(
     )
     .populate('party', '_id name contactName contactPhone address')
     .populate('items.quality', '_id name description')
-    .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items createdAt updatedAt');
+    .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
 
     return new Response(
       JSON.stringify({ 
@@ -279,6 +289,94 @@ export async function PUT(
     
     const message = error instanceof Error ? error.message : "Internal Server Error";
     return new Response(JSON.stringify({ message }), { status: 500 });
+  }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await dbConnect();
+    
+    const { id } = await params;
+    const { status } = await req.json();
+
+    // Validate status
+    const validStatuses = ['pending', 'delivered'];
+    if (status && !validStatuses.includes(status)) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: "Invalid status. Must be one of: pending, delivered" 
+        }), 
+        { status: 400 }
+      );
+    }
+
+    // Check if order exists
+    const existingOrder = await Order.findById(id);
+    if (!existingOrder) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: "Order not found" 
+        }), 
+        { status: 404 }
+      );
+    }
+
+    // Update only the status - temporarily disable validators to handle old status values
+    const updatedOrder = await Order.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true, runValidators: false }
+    )
+    .populate('party', '_id name contactName contactPhone address')
+    .populate('items.quality', '_id name description')
+    .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: "Order status updated successfully", 
+        data: updatedOrder 
+      }), 
+      { status: 200 }
+    );
+  } catch (error: unknown) {
+    console.error('PATCH error:', error);
+    
+    if (error instanceof Error) {
+      // Handle validation errors
+      if (error.name === 'ValidationError') {
+        const validationErrors = Object.values((error as any).errors).map((err: any) => err.message);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: validationErrors.join(", ") 
+          }), 
+          { status: 400 }
+        );
+      }
+      
+      // Handle MongoDB errors
+      if (error.message.includes('E11000')) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: "Duplicate key error" 
+          }), 
+          { status: 400 }
+        );
+      }
+    }
+    
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    return new Response(JSON.stringify({ 
+      success: false, 
+      message 
+    }), { status: 500 });
   }
 }
 

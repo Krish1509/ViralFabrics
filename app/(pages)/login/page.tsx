@@ -15,6 +15,7 @@ import {
   MoonIcon
 } from '@heroicons/react/24/outline';
 import { Rocket, Star, Moon as MoonLucide } from 'lucide-react';
+import { BRAND_NAME, BRAND_SHORT_NAME, BRAND_TAGLINE } from '@/lib/config';
 
 interface LoginFormData {
   username: string;
@@ -210,29 +211,29 @@ function LoginForm() {
           <div className="max-w-lg text-center">
                          {/* CRM Logo and Branding */}
              <div className="flex items-center justify-center mb-10 animate-fade-in-subtle">
-               <div className={`h-20 w-20 rounded-2xl flex items-center justify-center shadow-2xl transition-all duration-700 hover:scale-105 hover:rotate-1 transform ${
+               <div className={`h-18 w-18 rounded-2xl flex items-center justify-center shadow-2xl transition-all duration-700 hover:scale-105 hover:rotate-1 transform ${
                  isDarkMode
                    ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/40'
                    : 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/50'
                }`}>
-                 <BuildingOfficeIcon className="h-10 w-10 text-white" />
+                 <BuildingOfficeIcon className="h-9 w-9 text-white" />
                </div>
-               <div className="ml-5 animate-slide-in-subtle">
-                 <h1 className="text-4xl font-bold tracking-tight">CRM</h1>
-                 <p className="text-blue-100 text-base font-medium">Admin Panel</p>
-               </div>
+                                <div className="ml-5 animate-slide-in-subtle">
+                   <h1 className="text-4xl font-bold tracking-tight text-white">{BRAND_NAME}</h1>
+                   <p className="text-blue-200 text-sm font-medium mt-1">{BRAND_TAGLINE}</p>
+                 </div>
              </div>
             
             <h2 className="text-5xl lg:text-6xl font-bold mb-8 leading-tight tracking-tight">
               Welcome to
               <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-blue-100 to-blue-200">
-                CRM Admin Panel
+                {BRAND_NAME}
               </span>
             </h2>
             
                          <p className="text-blue-50 text-lg leading-relaxed mb-10 font-medium">
-               Streamline your business operations with our powerful CRM system. 
+               Streamline your fabric business operations with our powerful management system. 
                Boost productivity and enhance customer satisfaction.
              </p>
             
@@ -273,8 +274,8 @@ function LoginForm() {
              <BuildingOfficeIcon className="h-6 w-6 text-white" />
            </div>
            <div className="ml-3">
-             <h1 className="text-2xl font-bold tracking-tight text-white">CRM</h1>
-             <p className="text-blue-100 text-sm font-medium">Admin Panel</p>
+             <h1 className="text-2xl font-bold tracking-tight text-white">{BRAND_NAME}</h1>
+             <p className="text-blue-200 text-xs font-medium mt-1">{BRAND_TAGLINE}</p>
            </div>
          </div>
        </div>

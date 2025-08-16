@@ -71,12 +71,13 @@ export async function PUT(
       return notFound('Lab not found');
     }
     
-    // Update the lab (excluding order and orderItemId which are immutable)
+    // Update the lab (excluding order which is immutable)
     const updateData = validationResult.data;
     
     // Remove any attempt to change immutable fields
     delete (updateData as any).order;
-    delete (updateData as any).orderItemId;
+    
+    // Allow orderItemId updates for order updates
     
     Object.assign(lab, updateData);
     await lab.save();

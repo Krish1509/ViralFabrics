@@ -1,10 +1,25 @@
 import { NextRequest } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
+import cloudinary from '@/lib/cloudinary';
+import { Readable } from 'stream';
 
 export async function POST(request: NextRequest) {
   try {
+    // Check environment variables first
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      console.error('Missing Cloudinary environment variables');
+      return new Response(
+        JSON.stringify({ 
+          message: 'Cloudinary configuration is incomplete. Please check your environment variables.',
+          details: {
+            cloudName: !!process.env.CLOUDINARY_CLOUD_NAME,
+            apiKey: !!process.env.CLOUDINARY_API_KEY,
+            apiSecret: !!process.env.CLOUDINARY_API_SECRET,
+          }
+        }),
+        { status: 500 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get('image') as File;
 
@@ -23,49 +38,68 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    // Validate file size (max 10MB for Cloudinary)
+    const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
       return new Response(
-        JSON.stringify({ message: 'File size must be less than 5MB' }),
+        JSON.stringify({ message: 'File size must be less than 10MB' }),
         { status: 400 }
       );
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'public', 'uploads');
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
+    console.log('Starting Cloudinary upload for file:', {
+      name: file.name,
+      size: file.size,
+      type: file.type
+    });
 
-    // Generate unique filename
-    const timestamp = Date.now();
-    const randomString = Math.random().toString(36).substring(2, 15);
-    const fileExtension = file.name.split('.').pop();
-    const fileName = `${timestamp}-${randomString}.${fileExtension}`;
-    const filePath = join(uploadsDir, fileName);
-
-    // Convert file to buffer and save
+    // Convert file to buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
 
-    // Return the public URL
-    const imageUrl = `/uploads/${fileName}`;
+    // Create a readable stream from buffer
+    const stream = Readable.from(buffer);
+
+    // Upload to Cloudinary with minimal configuration
+    const uploadPromise = new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'crm-orders',
+          resource_type: 'image'
+        },
+        (error, result) => {
+          if (error) {
+            console.error('Cloudinary upload error:', error);
+            reject(error);
+          } else {
+            console.log('Cloudinary upload success:', result);
+            resolve(result);
+          }
+        }
+      );
+
+      stream.pipe(uploadStream);
+    });
+
+    const result = await uploadPromise as any;
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        imageUrl,
-        message: 'Image uploaded successfully' 
+        imageUrl: result.secure_url,
+        publicId: result.public_id,
+        message: 'Image uploaded successfully to Cloudinary' 
       }),
       { status: 200 }
     );
 
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('Cloudinary upload error:', error);
     return new Response(
-      JSON.stringify({ message: 'Failed to upload image' }),
+      JSON.stringify({ 
+        message: 'Failed to upload image to Cloudinary',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      }),
       { status: 500 }
     );
   }

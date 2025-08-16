@@ -1,6 +1,7 @@
 import dbConnect from "@/lib/dbConnect";
-import Order from "@/models/Order";
+import Order, { IOrderModel } from "@/models/Order";
 import Party from "@/models/Party";
+import Counter from "@/models/Counter";
 import { requireAuth } from "@/lib/session";
 import { type NextRequest } from "next/server";
 
@@ -86,16 +87,16 @@ export async function GET(req: NextRequest) {
       query[sortBy] = { [cursorOperator]: cursor };
     }
     
-         // Execute query with pagination and population
-     const [orders, totalCount] = await Promise.all([
-       Order.find(query)
-         .populate('party', '_id name contactName contactPhone address')
-         .populate('items.quality', '_id name description')
-         .sort(sortObject)
-         .limit(limit)
-         .select('_id orderId orderNo orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items createdAt updatedAt'),
-       Order.countDocuments(query)
-     ]);
+    // Execute query with pagination and population
+    const [orders, totalCount] = await Promise.all([
+      Order.find(query)
+        .populate('party', '_id name contactName contactPhone address')
+        .populate('items.quality', '_id name description')
+        .sort(sortObject)
+        .limit(limit)
+        .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt'),
+      Order.countDocuments(query)
+    ]);
 
     // Calculate pagination info
     const totalPages = Math.ceil(totalCount / limit);
@@ -103,50 +104,32 @@ export async function GET(req: NextRequest) {
     const hasPrevPage = page > 1;
     
     // Get cursor for next page
-    const nextCursor = orders.length > 0 ? orders[orders.length - 1][sortBy] : null;
+    let nextCursor = null;
+    if (hasNextPage && orders.length > 0) {
+      const lastOrder = orders[orders.length - 1];
+      nextCursor = lastOrder[sortBy];
+    }
 
     return new Response(JSON.stringify({
       success: true,
-      data: {
-        orders,
-        pagination: {
-          page,
-          limit,
-          totalCount,
-          totalPages,
-          hasNextPage,
-          hasPrevPage,
-          nextCursor,
-          sortBy,
-          sortOrder
-        }
+      data: orders,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages,
+        hasNextPage,
+        hasPrevPage,
+        nextCursor
       }
     }), { status: 200 });
   } catch (error: unknown) {
-    console.error('Error fetching orders:', error);
-    
     if (error instanceof Error) {
       if (error.message.includes("Unauthorized")) {
         return new Response(JSON.stringify({ 
-          success: false,
+          success: false, 
           message: "Unauthorized" 
         }), { status: 401 });
-      }
-      
-      // Handle MongoDB connection errors
-      if (error.message.includes('ECONNREFUSED') || error.message.includes('MongoNetworkError')) {
-        return new Response(JSON.stringify({ 
-          success: false,
-          message: "Database connection failed. Please try again." 
-        }), { status: 503 });
-      }
-      
-      // Handle duplicate key errors
-      if (error.message.includes('E11000')) {
-        return new Response(JSON.stringify({ 
-          success: false,
-          message: "Duplicate order number detected. Please try again." 
-        }), { status: 409 });
       }
     }
     
@@ -179,22 +162,19 @@ export async function POST(req: NextRequest) {
     // Validation
     const errors: string[] = [];
     
-    if (!orderType || !['Dying', 'Printing'].includes(orderType)) {
-      errors.push("Order type is required and must be either 'Dying' or 'Printing'");
+    // Optional fields validation (only validate if provided)
+    if (orderType && !['Dying', 'Printing'].includes(orderType)) {
+      errors.push("Order type must be either 'Dying' or 'Printing' if provided");
     }
     
-    if (!arrivalDate) {
-      errors.push("Arrival date is required");
-    } else {
+    if (arrivalDate) {
       const arrival = new Date(arrivalDate);
       if (isNaN(arrival.getTime())) {
         errors.push("Invalid arrival date format");
       }
     }
     
-    if (!party) {
-      errors.push("Party is required");
-    } else if (!party.match(/^[0-9a-fA-F]{24}$/)) {
+    if (party && !party.match(/^[0-9a-fA-F]{24}$/)) {
       errors.push("Invalid party ID format");
     }
     
@@ -228,10 +208,8 @@ export async function POST(req: NextRequest) {
       }
     }
     
-    // Validate items
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      errors.push("At least one order item is required");
-    } else {
+    // Validate items (all fields are optional)
+    if (items && Array.isArray(items)) {
       items.forEach((item, index) => {
         if (item.quality && !item.quality.match(/^[0-9a-fA-F]{24}$/)) {
           errors.push(`Invalid quality ID format in item ${index + 1}`);
@@ -241,8 +219,12 @@ export async function POST(req: NextRequest) {
             errors.push(`Quantity must be a non-negative number in item ${index + 1}`);
           }
         }
-        if (item.imageUrl && item.imageUrl.trim().length > 500) {
-          errors.push(`Image URL cannot exceed 500 characters in item ${index + 1}`);
+        if (item.imageUrls && Array.isArray(item.imageUrls)) {
+          item.imageUrls.forEach((url: string, urlIndex: number) => {
+            if (url && url.trim().length > 500) {
+              errors.push(`Image URL cannot exceed 500 characters in item ${index + 1}, image ${urlIndex + 1}`);
+            }
+          });
         }
         if (item.description && item.description.trim().length > 200) {
           errors.push(`Description cannot exceed 200 characters in item ${index + 1}`);
@@ -259,13 +241,15 @@ export async function POST(req: NextRequest) {
 
     await dbConnect();
 
-    // Verify party exists
-    const partyExists = await Party.findById(party);
-    if (!partyExists) {
-      return new Response(
-        JSON.stringify({ message: "Party not found" }), 
-        { status: 400 }
-      );
+    // Verify party exists only if provided
+    if (party) {
+      const partyExists = await Party.findById(party);
+      if (!partyExists) {
+        return new Response(
+          JSON.stringify({ message: "Party not found" }), 
+          { status: 400 }
+        );
+      }
     }
 
     // Verify qualities exist if provided
@@ -284,83 +268,43 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check for duplicate PO + Style combination for the same party
-    if (poNumber && styleNo) {
-      const existingOrder = await Order.findOne({
-        party,
-        poNumber: poNumber.trim(),
-        styleNo: styleNo.trim()
-      });
-      
-      if (existingOrder) {
-        return new Response(
-          JSON.stringify({ 
-            message: "An order with this PO number and style number already exists for this party" 
-          }), 
-          { status: 400 }
-        );
-      }
-    }
+    // Removed duplicate PO + Style combination check - allowing multiple orders with same PO/Style
 
-    // Create order data object
-    const orderData = {
-      orderType,
-      arrivalDate: new Date(arrivalDate),
-      party,
+    // Create order data object with optional fields
+    const orderData: any = {
       contactName: contactName ? contactName.trim() : undefined,
       contactPhone: contactPhone ? contactPhone.trim() : undefined,
       poNumber: poNumber ? poNumber.trim() : undefined,
       styleNo: styleNo ? styleNo.trim() : undefined,
       poDate: poDate ? new Date(poDate) : undefined,
       deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
-      items: items.map((item: any) => ({
+      items: items && items.length > 0 ? items.map((item: any) => ({
         quality: item.quality || undefined,
         quantity: item.quantity !== undefined && item.quantity !== null ? item.quantity : undefined,
-        imageUrl: item.imageUrl ? item.imageUrl.trim() : undefined,
+        imageUrls: item.imageUrls && Array.isArray(item.imageUrls) ? item.imageUrls.map((url: string) => url.trim()) : [],
         description: item.description ? item.description.trim() : undefined,
-      })),
+      })) : [],
     };
-    
-    // Generate a unique order ID
-    let orderId: string;
-    let attempts = 0;
-    const maxAttempts = 10;
-    
-    do {
-      attempts++;
-      const timestamp = Date.now();
-      const random = Math.floor(Math.random() * 1000);
-      orderId = `ORD-${timestamp}-${random}`;
-      
-      // Check if this ID already exists
-      const existingOrder = await Order.findOne({ orderId });
-      if (!existingOrder) {
-        break;
-      }
-      
-      if (attempts >= maxAttempts) {
-        throw new Error('Failed to generate unique order ID after multiple attempts');
-      }
-      
-      // Small delay to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 1));
-      
-    } while (true);
-    
-         // Create the order directly
-     const order = new Order({
-       ...orderData,
-       orderId,
-       orderNo: orderId // Ensure orderNo is set to avoid null value issues
-     });
-    
-    const createdOrder = await order.save();
 
-    // Populate party and quality data and return
-    const populatedOrder = await Order.findById(createdOrder._id)
+    // Add optional fields only if they are provided
+    if (orderType) {
+      orderData.orderType = orderType;
+    }
+    if (arrivalDate) {
+      orderData.arrivalDate = new Date(arrivalDate);
+    }
+    if (party) {
+      orderData.party = party;
+    }
+    
+    // Use the new sequential order creation method
+    const order = await (Order as IOrderModel).createOrder(orderData);
+    
+    // Populate the order with party and quality details
+    const populatedOrder = await Order.findById(order._id)
       .populate('party', '_id name contactName contactPhone address')
       .populate('items.quality', '_id name description')
-      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items createdAt updatedAt');
+      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
 
     return new Response(
       JSON.stringify({ 
@@ -371,74 +315,34 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error: unknown) {
-    console.error('Error creating order:', error);
-    
     if (error instanceof Error) {
       if (error.message.includes("Unauthorized")) {
-        return new Response(JSON.stringify({ 
-          success: false,
-          message: "Unauthorized" 
-        }), { status: 401 });
+        return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
       }
       
       // Handle MongoDB duplicate key errors
       if (error.message.includes('E11000')) {
-        if (error.message.includes('party') && error.message.includes('poNumber') && error.message.includes('styleNo')) {
+        if (error.message.includes('orderId')) {
           return new Response(
             JSON.stringify({ 
-              success: false,
-              message: "An order with this PO number and style number already exists for this party" 
+              message: "Order ID already exists. Please try again." 
             }), 
             { status: 400 }
           );
         }
-        if (error.message.includes('orderId') || error.message.includes('orderNo')) {
-          return new Response(
-            JSON.stringify({ 
-              success: false,
-              message: "Order ID generation failed, please try again" 
-            }), 
-            { status: 500 }
-          );
-        }
-      }
-      
-      // Handle order ID generation errors
-      if (error.message.includes('Failed to generate unique order ID')) {
-        return new Response(
-          JSON.stringify({ 
-            success: false,
-            message: "Order ID generation failed, please try again" 
-          }), 
-          { status: 500 }
-        );
       }
       
       // Handle validation errors
       if (error.name === 'ValidationError') {
         const validationErrors = Object.values((error as any).errors).map((err: any) => err.message);
         return new Response(
-          JSON.stringify({ 
-            success: false,
-            message: validationErrors.join(", ") 
-          }), 
+          JSON.stringify({ message: validationErrors.join(", ") }), 
           { status: 400 }
         );
-      }
-      
-      // Handle MongoDB connection errors
-      if (error.message.includes('ECONNREFUSED') || error.message.includes('MongoNetworkError')) {
-        return new Response(JSON.stringify({ 
-          success: false,
-          message: "Database connection failed. Please try again." 
-        }), { status: 503 });
       }
     }
     
     const message = error instanceof Error ? error.message : "Internal Server Error";
-    return new Response(JSON.stringify({ 
-      success: false,
-      message 
-    }), { status: 500 });
+    return new Response(JSON.stringify({ message }), { status: 500 });
   }
 }

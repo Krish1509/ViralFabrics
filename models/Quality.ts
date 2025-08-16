@@ -15,8 +15,7 @@ const QualitySchema = new Schema<IQuality>({
     trim: true,
     minlength: [2, "Quality name must be at least 2 characters long"],
     maxlength: [100, "Quality name cannot exceed 100 characters"],
-    unique: true,
-    index: true // For name-based searches
+    unique: true
   },
   description: {
     type: String,

@@ -6,7 +6,9 @@ import {
   PlusIcon, 
   PencilIcon,
   CheckIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  PhotoIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { Order, Party, Quality } from '@/types';
@@ -30,8 +32,8 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
   const [labData, setLabData] = useState<LabData[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [prefix, setPrefix] = useState('SAMPLE-');
   const [checkingExisting, setCheckingExisting] = useState(true);
+
 
   // Check for existing labs when order changes
   useEffect(() => {
@@ -53,27 +55,58 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
         
         // Initialize lab data with existing labs info
         const initialLabData: LabData[] = order.items.map((item, index) => {
-          const existingLab = existingLabs.find((lab: any) => 
-            lab.orderItemId === (item as any)._id
+          // Use item index as fallback if _id doesn't exist (for new orders)
+          const itemId = (item as any)._id || `item_${index}`;
+          
+          // Try to find existing lab by multiple criteria
+          let existingLab = existingLabs.find((lab: any) => 
+            lab.orderItemId === itemId || 
+            (lab.orderItem && lab.orderItem._id === itemId)
           );
           
+          // If no direct match, try to match by item position/index
+          if (!existingLab && itemId !== `item_${index}`) {
+            // Sort labs by creation date to maintain order consistency
+            const sortedLabs = [...existingLabs].sort((a: any, b: any) => 
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            );
+            existingLab = sortedLabs[index];
+            
+            // If we found a lab by position, update its orderItemId to match the new item
+            if (existingLab && existingLab.orderItemId !== itemId) {
+              console.log(`Updating lab ${existingLab._id} orderItemId from ${existingLab.orderItemId} to ${itemId}`);
+            }
+          }
+          
           return {
-            orderItemId: (item as any)._id,
+            orderItemId: itemId,
             labSendDate: existingLab ? new Date(existingLab.labSendDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             approvalDate: existingLab?.labSendData?.approvalDate || '',
-            sampleNumber: existingLab ? existingLab.labSendNumber : `${prefix}${order.orderId || order.orderId}-${index + 1}`,
+            sampleNumber: existingLab ? existingLab.labSendNumber : '',
             existingLabId: existingLab?._id
           };
+        });
+        
+        console.log('Lab detection results:', {
+          orderId: order._id,
+          itemCount: order.items.length,
+          existingLabsCount: existingLabs.length,
+          labData: initialLabData.map((lab, index) => ({
+            itemIndex: index,
+            itemId: lab.orderItemId,
+            hasExistingLab: !!lab.existingLabId,
+            existingLabId: lab.existingLabId
+          }))
         });
         
         setLabData(initialLabData);
       } else {
         // If API fails, initialize with empty data
         const initialLabData: LabData[] = order.items.map((item, index) => ({
-          orderItemId: (item as any)._id,
+          orderItemId: (item as any)._id || `item_${index}`,
           labSendDate: new Date().toISOString().split('T')[0],
           approvalDate: '',
-          sampleNumber: `${prefix}${order.orderId || order.orderId}-${index + 1}`,
+          sampleNumber: '',
           existingLabId: undefined
         }));
         setLabData(initialLabData);
@@ -82,10 +115,10 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
       console.error('Error checking existing labs:', error);
       // Initialize with empty data on error
       const initialLabData: LabData[] = order.items.map((item, index) => ({
-        orderItemId: (item as any)._id,
+        orderItemId: (item as any)._id || `item_${index}`,
         labSendDate: new Date().toISOString().split('T')[0],
         approvalDate: '',
-        sampleNumber: `${prefix}${order.orderId || order.orderId}-${index + 1}`,
+        sampleNumber: '',
         existingLabId: undefined
       }));
       setLabData(initialLabData);
@@ -99,11 +132,11 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
     if (order && order.items && !checkingExisting) {
       const updatedLabData = labData.map((lab, index) => ({
         ...lab,
-        sampleNumber: lab.existingLabId ? lab.sampleNumber : `${prefix}${order.orderId || order.orderId}-${index + 1}`
+        sampleNumber: lab.existingLabId ? lab.sampleNumber : ''
       }));
       setLabData(updatedLabData);
     }
-  }, [order, prefix, checkingExisting]);
+        }, [order, checkingExisting]);
 
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
@@ -113,17 +146,10 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
   const handleLabDataChange = (index: number, field: keyof LabData, value: any) => {
     const updatedLabData = [...labData];
     updatedLabData[index] = { ...updatedLabData[index], [field]: value };
-    
-    // Auto-generate sample number if prefix changes and no existing lab
-    if (field === 'sampleNumber' && !updatedLabData[index].existingLabId) {
-      const currentPrefix = updatedLabData[index].sampleNumber.split('-')[0] + '-';
-      if (prefix !== currentPrefix) {
-        updatedLabData[index].sampleNumber = `${prefix}${order?.orderId || order?.orderId}-${index + 1}`;
-      }
-    }
-    
     setLabData(updatedLabData);
   };
+
+
 
   const handleSubmit = async () => {
     if (!order) return;
@@ -134,14 +160,21 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
       const updatedLabs = [];
       
       for (const lab of labData) {
+        // Skip if orderItemId is a temporary ID (for new orders that haven't been saved yet)
+        if (lab.orderItemId.startsWith('item_')) {
+          showMessage('error', 'Please save the order first before adding lab data.');
+          return;
+        }
+
         if (lab.existingLabId) {
-          // Update existing lab
+          // Update existing lab - also update orderItemId if it changed
           const response = await fetch(`/api/labs/${lab.existingLabId}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
+              orderItemId: lab.orderItemId, // Update the orderItemId to match new item ID
               labSendDate: lab.labSendDate,
               labSendNumber: lab.sampleNumber,
               labSendData: {
@@ -234,6 +267,7 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
 
   const hasExistingLabs = labData.some(lab => lab.existingLabId);
   const hasNewLabs = labData.some(lab => !lab.existingLabId);
+  const hasUnsavedOrder = labData.some(lab => lab.orderItemId.startsWith('item_'));
 
   return (
     <div className="fixed inset-0 backdrop-blur-md bg-black/60 bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -246,13 +280,14 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
         }`}>
           <div>
             <h2 className="text-xl font-bold">
-              {hasExistingLabs ? 'Edit Lab Data' : 'Add Lab Data'}
+              {hasUnsavedOrder ? 'Order Not Saved' : hasExistingLabs ? 'Edit Lab Data' : 'Add Lab Data'}
             </h2>
             <p className={`text-sm mt-1 ${
               isDarkMode ? 'text-gray-300' : 'text-gray-600'
             }`}>
               Order: {order.orderId} • {order.items.length} items
               {hasExistingLabs && hasNewLabs && ' • Some items have existing labs'}
+              {hasUnsavedOrder && ' • Please save the order first'}
             </p>
           </div>
           <button
@@ -289,52 +324,24 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           </div>
         )}
 
-        {/* Settings */}
-        <div className={`p-6 border-b ${
-          isDarkMode ? 'border-white/10' : 'border-gray-200'
-        }`}>
-          <h3 className="text-lg font-semibold mb-4">Sample Number Settings</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className={`block text-sm font-medium mb-2 ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-700'
-              }`}>
-                Sample Number Prefix
-              </label>
-              <input
-                type="text"
-                value={prefix}
-                onChange={(e) => setPrefix(e.target.value)}
-                className={`w-full px-3 py-2 rounded-lg border transition-colors ${
-                  isDarkMode
-                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                }`}
-                placeholder="SAMPLE-"
-              />
-            </div>
-            <div>
-              <label className={`block text-sm font-medium mb-2 ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-700'
-              }`}>
-                Default Lab Send Date
-              </label>
-              <input
-                type="date"
-                value={labData[0]?.labSendDate || ''}
-                onChange={(e) => {
-                  const newDate = e.target.value;
-                  setLabData(prev => prev.map(lab => ({ ...lab, labSendDate: newDate })));
-                }}
-                className={`w-full px-3 py-2 rounded-lg border transition-colors ${
-                  isDarkMode
-                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                }`}
-              />
+        {/* Warning for unsaved order */}
+        {hasUnsavedOrder && (
+          <div className={`mx-6 mt-4 p-4 rounded-lg border ${
+            isDarkMode
+              ? 'bg-yellow-900/20 border-yellow-500/30 text-yellow-400'
+              : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+          }`}>
+            <div className="flex items-center">
+              <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+              <div>
+                <p className="font-medium">Order not saved yet</p>
+                <p className="text-sm mt-1">Please save the order first before adding lab data. The order items need to be saved to the database before lab data can be associated with them.</p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+
 
                        {/* Lab Data Table */}
                <div className="p-6">
@@ -384,16 +391,17 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
                   }`}>
                     Approval Date
                   </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    Sample Number
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    Status
-                  </th>
+                                     <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                     isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                   }`}>
+                     Sample Number
+                   </th>
+                   
+                   <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                     isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                   }`}>
+                     Status
+                   </th>
                 </tr>
               </thead>
               <tbody className={`divide-y ${
@@ -430,6 +438,26 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
                             isDarkMode ? 'text-gray-300' : 'text-gray-500'
                           }`}>
                             {order.items[index]?.description}
+                          </div>
+                        )}
+                        {/* Item Images */}
+                        {order.items[index]?.imageUrls && order.items[index]?.imageUrls.length > 0 && (
+                          <div className="mt-2">
+                            <div className="text-xs font-medium mb-1">Item Images:</div>
+                            <div className="flex flex-wrap gap-1">
+                              {order.items[index]?.imageUrls.map((imageUrl, imageIndex) => (
+                                <div key={imageIndex} className="relative group">
+                                  <img 
+                                    src={imageUrl} 
+                                    alt={`Item ${index + 1} image ${imageIndex + 1}`}
+                                    className="w-6 h-6 object-cover rounded border"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -480,12 +508,22 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
                               ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
                               : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
                         }`}
-                        placeholder="SAMPLE-001"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
+                                                 placeholder="Enter sample number"
+                       />
+                     </td>
+                     
+                     <td className="px-4 py-3">
                       <div className="flex items-center">
-                        {lab.existingLabId ? (
+                        {lab.orderItemId.startsWith('item_') ? (
+                          <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
+                            isDarkMode
+                              ? 'bg-yellow-900/20 text-yellow-400'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
+                            Unsaved
+                          </span>
+                        ) : lab.existingLabId ? (
                           <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
                             isDarkMode
                               ? 'bg-green-900/20 text-green-400'
@@ -529,9 +567,9 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={loading || hasUnsavedOrder}
             className={`inline-flex items-center px-6 py-2 rounded-lg font-medium transition-all duration-300 ${
-              loading
+              loading || hasUnsavedOrder
                 ? 'opacity-50 cursor-not-allowed'
                 : 'hover:scale-105'
             } ${
@@ -545,6 +583,11 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                 Processing...
               </>
+            ) : hasUnsavedOrder ? (
+              <>
+                <ExclamationTriangleIcon className="h-4 w-4 mr-2" />
+                Save Order First
+              </>
             ) : (
               <>
                 {hasExistingLabs ? <PencilIcon className="h-4 w-4 mr-2" /> : <PlusIcon className="h-4 w-4 mr-2" />}
@@ -554,6 +597,8 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           </button>
         </div>
       </div>
+
+
     </div>
   );
 }

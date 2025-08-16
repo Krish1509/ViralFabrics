@@ -126,7 +126,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
   const labStats = {
     total: labs.length,
     withLabs: labs.length,
-    withoutLabs: order.items.length - labs.length,
+    withoutLabs: Math.max(0, order.items.length - labs.length),
     sent: labs.filter(lab => lab.status === 'sent').length,
     received: labs.filter(lab => lab.status === 'received').length,
     cancelled: labs.filter(lab => lab.status === 'cancelled').length
@@ -527,76 +527,122 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                 )}
 
                                  {/* Lab Summary Card */}
-                 <div className={`p-6 rounded-xl border ${
+                 <div className={`p-6 rounded-xl border-2 ${
                    isDarkMode 
-                     ? 'bg-white/5 border-white/10' 
-                     : 'bg-white border-gray-200 shadow-sm'
+                     ? 'bg-gradient-to-r from-purple-900/20 to-indigo-900/20 border-purple-500/30' 
+                     : 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200'
                  }`}>
-                   <div className="flex items-center mb-4">
-                     <BeakerIcon className={`h-5 w-5 mr-2 ${
-                       isDarkMode ? 'text-purple-400' : 'text-purple-600'
-                     }`} />
-                     <h3 className={`text-lg font-semibold ${
-                       isDarkMode ? 'text-white' : 'text-gray-900'
+                   <div className="flex items-center mb-6">
+                     <div className={`p-2 rounded-lg ${
+                       isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
                      }`}>
-                       Lab Summary
-                     </h3>
+                       <BeakerIcon className={`h-5 w-5 ${
+                         isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                       }`} />
+                     </div>
+                     <div className="ml-3">
+                       <h3 className={`text-lg font-semibold ${
+                         isDarkMode ? 'text-white' : 'text-gray-900'
+                       }`}>
+                         Lab Summary
+                       </h3>
+                       <p className={`text-sm ${
+                         isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                       }`}>
+                         Overview of lab data status
+                       </p>
+                     </div>
                      {loadingLabs && (
-                       <div className="ml-2">
-                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500"></div>
+                       <div className="ml-auto">
+                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-500"></div>
                        </div>
                      )}
                    </div>
+                   
                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                     <div className="text-center">
-                       <div className={`text-2xl font-bold ${
+                     <div className={`text-center p-4 rounded-lg ${
+                       isDarkMode ? 'bg-white/5' : 'bg-white'
+                     }`}>
+                       <div className={`text-3xl font-bold ${
                          isDarkMode ? 'text-purple-400' : 'text-purple-600'
                        }`}>
                          {labStats.withLabs}
                        </div>
-                       <div className={`text-xs ${
+                       <div className={`text-xs font-semibold uppercase tracking-wide ${
                          isDarkMode ? 'text-gray-300' : 'text-gray-600'
                        }`}>
                          With Labs
                        </div>
                      </div>
-                     <div className="text-center">
-                       <div className={`text-2xl font-bold ${
+                     <div className={`text-center p-4 rounded-lg ${
+                       isDarkMode ? 'bg-white/5' : 'bg-white'
+                     }`}>
+                       <div className={`text-3xl font-bold ${
                          isDarkMode ? 'text-blue-400' : 'text-blue-600'
                        }`}>
                          {labStats.sent}
                        </div>
-                       <div className={`text-xs ${
+                       <div className={`text-xs font-semibold uppercase tracking-wide ${
                          isDarkMode ? 'text-gray-300' : 'text-gray-600'
                        }`}>
                          Sent
                        </div>
                      </div>
-                     <div className="text-center">
-                       <div className={`text-2xl font-bold ${
+                     <div className={`text-center p-4 rounded-lg ${
+                       isDarkMode ? 'bg-white/5' : 'bg-white'
+                     }`}>
+                       <div className={`text-3xl font-bold ${
                          isDarkMode ? 'text-green-400' : 'text-green-600'
                        }`}>
                          {labStats.received}
                        </div>
-                       <div className={`text-xs ${
+                       <div className={`text-xs font-semibold uppercase tracking-wide ${
                          isDarkMode ? 'text-gray-300' : 'text-gray-600'
                        }`}>
                          Received
                        </div>
                      </div>
-                     <div className="text-center">
-                       <div className={`text-2xl font-bold ${
+                     <div className={`text-center p-4 rounded-lg ${
+                       isDarkMode ? 'bg-white/5' : 'bg-white'
+                     }`}>
+                       <div className={`text-3xl font-bold ${
                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
                        }`}>
                          {labStats.withoutLabs}
                        </div>
-                       <div className={`text-xs ${
+                       <div className={`text-xs font-semibold uppercase tracking-wide ${
                          isDarkMode ? 'text-gray-300' : 'text-gray-600'
                        }`}>
                          No Labs
                        </div>
                      </div>
                    </div>
+                   
+                   {/* Progress Bar */}
+                   {order.items && order.items.length > 0 && (
+                     <div className="mt-6">
+                                               <div className="flex justify-between items-center mb-2">
+                          <span className={`text-sm font-medium ${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                          }`}>
+                            Lab Completion
+                          </span>
+                          <span className={`text-sm font-bold ${
+                            isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                          }`}>
+                            {Math.min(100, Math.round((labStats.withLabs / order.items.length) * 100))}%
+                          </span>
+                        </div>
+                        <div className={`w-full h-2 rounded-full ${
+                          isDarkMode ? 'bg-white/10' : 'bg-gray-200'
+                        }`}>
+                          <div 
+                            className={`h-2 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-500`}
+                            style={{ width: `${Math.min(100, (labStats.withLabs / order.items.length) * 100)}%` }}
+                          ></div>
+                        </div>
+                     </div>
+                   )}
                  </div>
 
                  {/* Order Items Card */}
@@ -660,13 +706,79 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                             </p>
                           )}
                           
-                          {item.imageUrl && (
-                            <div className="mt-3">
-                              <img
-                                src={item.imageUrl}
-                                alt={`Item ${index + 1}`}
-                                className="w-24 h-24 object-cover rounded-lg border shadow-sm"
-                              />
+                          {/* Item Images */}
+                          {item.imageUrls && item.imageUrls.length > 0 && (
+                            <div className="mt-4">
+                              <div className="flex items-center mb-3">
+                                <PhotoIcon className={`h-4 w-4 mr-2 ${
+                                  isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                                }`} />
+                                <span className={`text-sm font-semibold ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                }`}>
+                                  Item Images ({item.imageUrls.length})
+                                </span>
+                              </div>
+                                                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                 {item.imageUrls.map((imageUrl, imageIndex) => (
+                                   <div key={imageIndex} className="relative group">
+                                     <img
+                                       src={imageUrl}
+                                       alt={`Item ${index + 1} image ${imageIndex + 1}`}
+                                       className="w-full h-32 md:h-28 object-cover rounded-xl border-2 border-gray-200 shadow-lg hover:border-blue-400 transition-all duration-300 hover:scale-110 hover:shadow-xl"
+                                       onError={(e) => {
+                                         e.currentTarget.style.display = 'none';
+                                       }}
+                                     />
+                                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                       <div className="bg-white/95 backdrop-blur-sm rounded-full p-2 shadow-xl border border-gray-200">
+                                         <PhotoIcon className="h-4 w-4 text-gray-700" />
+                                       </div>
+                                     </div>
+                                     <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                       <div className="bg-black/70 backdrop-blur-sm rounded-full px-2 py-1">
+                                         <span className="text-white text-xs font-medium">#{imageIndex + 1}</span>
+                                       </div>
+                                     </div>
+                                   </div>
+                                 ))}
+                               </div>
+                            </div>
+                          )}
+                          
+                          {/* Fallback for old imageUrl field */}
+                          {(!item.imageUrls || item.imageUrls.length === 0) && item.imageUrl && (
+                            <div className="mt-4">
+                              <div className="flex items-center mb-3">
+                                <PhotoIcon className={`h-4 w-4 mr-2 ${
+                                  isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                                }`} />
+                                <span className={`text-sm font-semibold ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                }`}>
+                                  Item Image
+                                </span>
+                              </div>
+                                                             <div className="relative group">
+                                 <img
+                                   src={item.imageUrl}
+                                   alt={`Item ${index + 1}`}
+                                   className="w-48 h-48 object-cover rounded-xl border-2 border-gray-200 shadow-lg hover:border-blue-400 transition-all duration-300 hover:scale-110 hover:shadow-xl"
+                                   onError={(e) => {
+                                     e.currentTarget.style.display = 'none';
+                                   }}
+                                 />
+                                 <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                   <div className="bg-white/95 backdrop-blur-sm rounded-full p-2 shadow-xl border border-gray-200">
+                                     <PhotoIcon className="h-4 w-4 text-gray-700" />
+                                   </div>
+                                 </div>
+                                 <div className="absolute bottom-3 left-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                   <div className="bg-black/70 backdrop-blur-sm rounded-full px-3 py-1">
+                                     <span className="text-white text-sm font-medium">Main Image</span>
+                                   </div>
+                                 </div>
+                               </div>
                             </div>
                           )}
 
@@ -674,86 +786,147 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                            {(() => {
                              const lab = getLabForItem((item as any)._id);
                              return lab ? (
-                               <div className={`mt-3 p-4 rounded-lg border ${
+                               <div className={`mt-4 p-5 rounded-xl border-2 ${
                                  isDarkMode 
-                                   ? 'bg-purple-900/10 border-purple-500/30' 
-                                   : 'bg-purple-50 border-purple-200'
+                                   ? 'bg-gradient-to-r from-purple-900/20 to-indigo-900/20 border-purple-500/30' 
+                                   : 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200'
                                }`}>
-                                 <div className="flex items-center justify-between mb-3">
+                                 <div className="flex items-center justify-between mb-4">
                                    <div className="flex items-center">
-                                     <BeakerIcon className={`h-5 w-5 mr-2 ${
-                                       isDarkMode ? 'text-purple-400' : 'text-purple-600'
-                                     }`} />
-                                     <span className={`text-sm font-semibold ${
-                                       isDarkMode ? 'text-purple-400' : 'text-purple-700'
+                                     <div className={`p-2 rounded-lg ${
+                                       isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
                                      }`}>
-                                       Lab Data
-                                     </span>
+                                       <BeakerIcon className={`h-5 w-5 ${
+                                         isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                                       }`} />
+                                     </div>
+                                     <div className="ml-3">
+                                       <span className={`text-sm font-bold ${
+                                         isDarkMode ? 'text-purple-400' : 'text-purple-700'
+                                       }`}>
+                                         Lab Data
+                                       </span>
+                                       <p className={`text-xs ${
+                                         isDarkMode ? 'text-purple-300' : 'text-purple-600'
+                                       }`}>
+                                         Sample: {lab.labSendNumber}
+                                       </p>
+                                     </div>
                                    </div>
-                                   <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
+                                   <span className={`inline-flex items-center px-3 py-1 text-xs font-bold rounded-full border-2 ${
                                      lab.status === 'sent' 
-                                       ? isDarkMode ? 'bg-blue-900/20 text-blue-400' : 'bg-blue-100 text-blue-800'
+                                       ? isDarkMode ? 'bg-blue-900/20 text-blue-400 border-blue-500/30' : 'bg-blue-100 text-blue-800 border-blue-300'
                                        : lab.status === 'received'
-                                       ? isDarkMode ? 'bg-green-900/20 text-green-400' : 'bg-green-100 text-green-800'
-                                       : isDarkMode ? 'bg-red-900/20 text-red-400' : 'bg-red-100 text-red-800'
+                                       ? isDarkMode ? 'bg-green-900/20 text-green-400 border-green-500/30' : 'bg-green-100 text-green-800 border-green-300'
+                                       : isDarkMode ? 'bg-red-900/20 text-red-400 border-red-500/30' : 'bg-red-100 text-red-800 border-red-300'
                                    }`}>
+                                     {lab.status === 'sent' && <ClockIcon className="h-3 w-3 mr-1" />}
+                                     {lab.status === 'received' && <CheckCircleIcon className="h-3 w-3 mr-1" />}
+                                     {lab.status === 'cancelled' && <ExclamationTriangleIcon className="h-3 w-3 mr-1" />}
                                      {lab.status.toUpperCase()}
                                    </span>
                                  </div>
-                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                                   <div>
-                                     <span className={`font-medium ${
-                                       isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                                     }`}>Sample Number:</span>
-                                     <p className={`font-mono ${
-                                       isDarkMode ? 'text-white' : 'text-gray-900'
-                                     }`}>{lab.labSendNumber}</p>
-                                   </div>
-                                   <div>
-                                     <span className={`font-medium ${
-                                       isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                                     }`}>Send Date:</span>
-                                     <p className={`${
-                                       isDarkMode ? 'text-white' : 'text-gray-900'
-                                     }`}>{new Date(lab.labSendDate).toLocaleDateString()}</p>
-                                   </div>
-                                   {lab.labSendData?.approvalDate && (
-                                     <div>
-                                       <span className={`font-medium ${
+                                 
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                   <div className={`p-3 rounded-lg ${
+                                     isDarkMode ? 'bg-white/5' : 'bg-white'
+                                   }`}>
+                                     <div className="flex items-center mb-2">
+                                       <CalendarIcon className={`h-4 w-4 mr-2 ${
+                                         isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                                       }`} />
+                                       <span className={`text-xs font-semibold uppercase tracking-wide ${
                                          isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                                       }`}>Approval Date:</span>
-                                       <p className={`${
-                                         isDarkMode ? 'text-white' : 'text-gray-900'
-                                       }`}>{new Date(lab.labSendData.approvalDate).toLocaleDateString()}</p>
+                                       }`}>
+                                         Send Date
+                                       </span>
                                      </div>
-                                   )}
-                                   {lab.remarks && (
-                                     <div>
-                                       <span className={`font-medium ${
-                                         isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                                       }`}>Remarks:</span>
-                                       <p className={`${
+                                     <p className={`font-medium ${
+                                       isDarkMode ? 'text-white' : 'text-gray-900'
+                                     }`}>
+                                       {new Date(lab.labSendDate).toLocaleDateString('en-US', {
+                                         year: 'numeric',
+                                         month: 'long',
+                                         day: 'numeric'
+                                       })}
+                                     </p>
+                                   </div>
+                                   
+                                   {lab.labSendData?.approvalDate && (
+                                     <div className={`p-3 rounded-lg ${
+                                       isDarkMode ? 'bg-white/5' : 'bg-white'
+                                     }`}>
+                                       <div className="flex items-center mb-2">
+                                         <CheckCircleIcon className={`h-4 w-4 mr-2 ${
+                                           isDarkMode ? 'text-green-400' : 'text-green-600'
+                                         }`} />
+                                         <span className={`text-xs font-semibold uppercase tracking-wide ${
+                                           isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                         }`}>
+                                           Approval Date
+                                         </span>
+                                       </div>
+                                       <p className={`font-medium ${
                                          isDarkMode ? 'text-white' : 'text-gray-900'
-                                       }`}>{lab.remarks}</p>
+                                       }`}>
+                                         {new Date(lab.labSendData.approvalDate).toLocaleDateString('en-US', {
+                                           year: 'numeric',
+                                           month: 'long',
+                                           day: 'numeric'
+                                         })}
+                                       </p>
                                      </div>
                                    )}
                                  </div>
+                                 
+                                 {lab.remarks && (
+                                   <div className={`mt-4 p-3 rounded-lg ${
+                                     isDarkMode ? 'bg-white/5' : 'bg-white'
+                                   }`}>
+                                     <div className="flex items-center mb-2">
+                                       <DocumentTextIcon className={`h-4 w-4 mr-2 ${
+                                         isDarkMode ? 'text-orange-400' : 'text-orange-600'
+                                       }`} />
+                                       <span className={`text-xs font-semibold uppercase tracking-wide ${
+                                         isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                       }`}>
+                                         Remarks
+                                       </span>
+                                     </div>
+                                     <p className={`text-sm ${
+                                       isDarkMode ? 'text-white' : 'text-gray-900'
+                                     }`}>
+                                       {lab.remarks}
+                                     </p>
+                                   </div>
+                                 )}
                                </div>
                             ) : (
-                              <div className={`mt-3 p-2 rounded-lg border ${
+                              <div className={`mt-4 p-4 rounded-xl border-2 border-dashed ${
                                 isDarkMode 
                                   ? 'bg-gray-900/10 border-gray-500/30' 
-                                  : 'bg-gray-50 border-gray-200'
+                                  : 'bg-gray-50 border-gray-300'
                               }`}>
-                                <div className="flex items-center">
-                                  <BeakerIcon className={`h-4 w-4 mr-2 ${
-                                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                  }`} />
-                                  <span className={`text-sm ${
-                                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                <div className="flex items-center justify-center">
+                                  <div className={`p-2 rounded-lg ${
+                                    isDarkMode ? 'bg-gray-500/20' : 'bg-gray-100'
                                   }`}>
-                                    No lab data available
-                                  </span>
+                                    <BeakerIcon className={`h-5 w-5 ${
+                                      isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                    }`} />
+                                  </div>
+                                  <div className="ml-3 text-center">
+                                    <span className={`text-sm font-medium ${
+                                      isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>
+                                      No lab data available
+                                    </span>
+                                    <p className={`text-xs ${
+                                      isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                                    }`}>
+                                      Lab data can be added after order is saved
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
                             );
@@ -765,39 +938,112 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                 )}
 
                 {/* Order Images Card */}
-                {order.items && order.items.some(item => item.imageUrl) && (
+                {order.items && order.items.some(item => (item.imageUrls && item.imageUrls.length > 0) || item.imageUrl) && (
                   <div className={`p-6 rounded-xl border ${
                     isDarkMode 
                       ? 'bg-white/5 border-white/10' 
                       : 'bg-white border-gray-200 shadow-sm'
                   }`}>
-                    <div className="flex items-center mb-4">
-                      <PhotoIcon className={`h-5 w-5 mr-2 ${
-                        isDarkMode ? 'text-pink-400' : 'text-pink-600'
-                      }`} />
-                      <h3 className={`text-lg font-semibold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
+                    <div className="flex items-center mb-6">
+                      <div className={`p-2 rounded-lg ${
+                        isDarkMode ? 'bg-pink-500/20' : 'bg-pink-100'
                       }`}>
-                        Order Images
-                      </h3>
+                        <PhotoIcon className={`h-5 w-5 ${
+                          isDarkMode ? 'text-pink-400' : 'text-pink-600'
+                        }`} />
+                      </div>
+                      <div className="ml-3">
+                        <h3 className={`text-lg font-semibold ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          Order Images
+                        </h3>
+                        <p className={`text-sm ${
+                          isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                        }`}>
+                          All item images in this order
+                        </p>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      {order.items.map((item, index) => (
-                        item.imageUrl && (
-                          <div key={index} className="text-center">
-                            <img
-                              src={item.imageUrl}
-                              alt={`Item ${index + 1}`}
-                              className="w-full h-32 object-cover rounded-lg border shadow-sm"
-                            />
-                            <p className={`text-sm mt-2 ${
-                              isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                            }`}>
-                              Item {index + 1}
-                            </p>
+                    
+                    <div className="space-y-6">
+                      {order.items.map((item, index) => {
+                        const hasImages = (item.imageUrls && item.imageUrls.length > 0) || item.imageUrl;
+                        if (!hasImages) return null;
+                        
+                        return (
+                          <div key={index} className={`p-4 rounded-lg border ${
+                            isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'
+                          }`}>
+                            <div className="flex items-center mb-3">
+                              <span className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                Item {index + 1}
+                              </span>
+                              {item.imageUrls && item.imageUrls.length > 0 && (
+                                <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${
+                                  isDarkMode ? 'bg-blue-900/20 text-blue-400' : 'bg-blue-100 text-blue-700'
+                                }`}>
+                                  {item.imageUrls.length} image{item.imageUrls.length !== 1 ? 's' : ''}
+                                </span>
+                              )}
+                            </div>
+                            
+                                                         {/* Multiple Images */}
+                             {item.imageUrls && item.imageUrls.length > 0 && (
+                               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                 {item.imageUrls.map((imageUrl, imageIndex) => (
+                                   <div key={imageIndex} className="relative group">
+                                     <img
+                                       src={imageUrl}
+                                       alt={`Item ${index + 1} image ${imageIndex + 1}`}
+                                       className="w-full h-36 md:h-32 object-cover rounded-xl border-2 border-gray-200 shadow-lg hover:border-blue-400 transition-all duration-300 hover:scale-110 hover:shadow-xl"
+                                       onError={(e) => {
+                                         e.currentTarget.style.display = 'none';
+                                       }}
+                                     />
+                                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                       <div className="bg-white/95 backdrop-blur-sm rounded-full p-2 shadow-xl border border-gray-200">
+                                         <PhotoIcon className="h-4 w-4 text-gray-700" />
+                                       </div>
+                                     </div>
+                                     <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                       <div className="bg-black/70 backdrop-blur-sm rounded-full px-2 py-1">
+                                         <span className="text-white text-xs font-medium">#{imageIndex + 1}</span>
+                                       </div>
+                                     </div>
+                                   </div>
+                                 ))}
+                               </div>
+                             )}
+                            
+                                                         {/* Single Image (fallback) */}
+                             {(!item.imageUrls || item.imageUrls.length === 0) && item.imageUrl && (
+                               <div className="relative group">
+                                 <img
+                                   src={item.imageUrl}
+                                   alt={`Item ${index + 1}`}
+                                   className="w-64 h-40 object-cover rounded-xl border-2 border-gray-200 shadow-lg hover:border-blue-400 transition-all duration-300 hover:scale-110 hover:shadow-xl"
+                                   onError={(e) => {
+                                     e.currentTarget.style.display = 'none';
+                                   }}
+                                 />
+                                 <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                   <div className="bg-white/95 backdrop-blur-sm rounded-full p-2 shadow-xl border border-gray-200">
+                                     <PhotoIcon className="h-4 w-4 text-gray-700" />
+                                   </div>
+                                 </div>
+                                 <div className="absolute bottom-3 left-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                   <div className="bg-black/70 backdrop-blur-sm rounded-full px-3 py-1">
+                                     <span className="text-white text-sm font-medium">Main Image</span>
+                                   </div>
+                                 </div>
+                               </div>
+                             )}
                           </div>
-                        )
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}

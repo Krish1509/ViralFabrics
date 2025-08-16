@@ -11,6 +11,7 @@ import {
   ShoppingBagIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
+import { BRAND_NAME, BRAND_COPYRIGHT, BRAND_TAGLINE } from '@/lib/config';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -37,19 +38,20 @@ const getNavItems = (userRole?: string): NavItem[] => {
       icon: HomeIcon
     },
     {
+      name: 'Users',
+      href: '/users',
+      icon: UsersIcon
+    },
+    {
       name: 'Orders',
       href: '/orders',
       icon: ShoppingBagIcon
     }
   ];
 
-  // Only show Users management for superadmin
-  if (userRole === 'superadmin') {
-    items.push({
-      name: 'Manage Users',
-      href: '/users',
-      icon: UsersIcon
-    });
+  // Only show Users for superadmin
+  if (userRole !== 'superadmin') {
+    items.splice(1, 1); // Remove Users item for non-superadmin
   }
 
   return items;
@@ -133,12 +135,12 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                   <h1 className={`text-lg font-bold transition-colors duration-300 ${
                     isDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
-                    CRM Admin
+                    {BRAND_NAME}
                   </h1>
                   <p className={`text-xs transition-colors duration-300 ${
                     isDarkMode ? 'text-gray-300' : 'text-gray-600'
                   }`}>
-                    Super Admin
+                    {BRAND_TAGLINE}
                   </p>
                 </div>
               )}
@@ -215,7 +217,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
               <div className={`text-xs text-center transition-colors duration-300 ${
                 isDarkMode ? 'text-gray-400' : 'text-gray-500'
               }`}>
-                © 2024 CRM Admin Panel
+                {BRAND_COPYRIGHT}
               </div>
             </div>
           )}
@@ -259,12 +261,12 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                 <h1 className={`text-lg font-bold transition-colors duration-300 ${
                   isDarkMode ? 'text-white' : 'text-gray-900'
                 }`}>
-                  CRM Admin
+                  {BRAND_NAME}
                 </h1>
                 <p className={`text-xs transition-colors duration-300 ${
                   isDarkMode ? 'text-gray-300' : 'text-gray-600'
                 }`}>
-                  Super Admin
+                  {BRAND_TAGLINE}
                 </p>
               </div>
             </Link>
@@ -334,7 +336,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
             <div className={`text-xs text-center transition-colors duration-300 ${
               isDarkMode ? 'text-gray-400' : 'text-gray-500'
             }`}>
-              © 2024 CRM Admin Panel
+              {BRAND_COPYRIGHT}
             </div>
           </div>
         </div>

@@ -39,6 +39,7 @@ export const createLabSchema = z.object({
 
 // Update Lab schema (all fields optional)
 export const updateLabSchema = z.object({
+  orderItemId: objectIdSchema.optional(), // Allow updating orderItemId for order updates
   labSendDate: z.string().transform(coerceISODate).optional(),
   labSendData: z.union([
     z.string(),

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { BRAND_NAME, BRAND_DESCRIPTION } from '@/lib/config';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CRM Admin Panel",
-  description: "CRM Admin Panel - Manage your customer relationships",
+  title: BRAND_NAME,
+  description: `${BRAND_NAME} - ${BRAND_DESCRIPTION}`,
 };
 
 export default function RootLayout({

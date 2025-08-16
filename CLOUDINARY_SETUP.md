@@ -25,15 +25,21 @@ CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
 ```
 
-## 4. Features
+## 4. Test Your Setup
+
+1. Start your development server: `npm run dev`
+2. Test the configuration: Visit `http://localhost:3000/api/test-cloudinary`
+3. You should see a success message if everything is configured correctly
+
+## 5. Features
 
 - **Automatic Image Optimization**: Images are automatically resized and optimized
 - **Secure URLs**: All uploaded images use HTTPS
 - **Folder Organization**: Images are stored in the `crm-orders` folder
-- **File Validation**: Only image files up to 5MB are accepted
+- **File Validation**: Only image files up to 10MB are accepted
 - **Real-time Upload**: Images upload immediately when selected
 
-## 5. Image Transformations
+## 6. Image Transformations
 
 Images are automatically processed with:
 - Max width: 800px
@@ -41,21 +47,21 @@ Images are automatically processed with:
 - Auto quality optimization
 - Maintains aspect ratio
 
-## 6. Supported Formats
+## 7. Supported Formats
 
 - JPEG (.jpg, .jpeg)
 - PNG (.png)
 - GIF (.gif)
 - WebP (.webp)
 
-## 7. Usage
+## 8. Usage
 
 1. Select an image in the order form
 2. Image will automatically upload to Cloudinary
 3. The Cloudinary URL will be saved with the order
 4. Images are displayed in the order details
 
-## 8. Security
+## 9. Security
 
 - Authentication required for uploads
 - File type validation

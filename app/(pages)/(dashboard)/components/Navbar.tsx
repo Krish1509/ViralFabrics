@@ -18,6 +18,7 @@ import {
   ArrowsPointingInIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
+import { BRAND_NAME } from '@/lib/config';
 
 interface User {
   _id: string;
@@ -449,7 +450,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
               <span className={`text-lg font-bold transition-colors duration-300 ${
                 isDarkMode ? 'text-white' : 'text-gray-900'
               }`}>
-                CRM Admin
+                {BRAND_NAME}
               </span>
             </div>
 

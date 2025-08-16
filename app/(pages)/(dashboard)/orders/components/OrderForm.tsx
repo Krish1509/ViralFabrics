@@ -36,7 +36,7 @@ interface ValidationErrors {
 export default function OrderForm({ order, parties, qualities, onClose, onSuccess, onAddParty, onRefreshParties, onAddQuality }: OrderFormProps) {
   const { isDarkMode } = useDarkMode();
   const [formData, setFormData] = useState<OrderFormData>({
-    orderType: 'Dying',
+    orderType: undefined,
     arrivalDate: '',
     party: '',
     contactName: '',
@@ -45,12 +45,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     styleNo: '',
     poDate: '',
     deliveryDate: '',
-    items: [{
-      quality: '',
-      quantity: undefined,
-      imageUrl: '',
-      description: ''
-    }]
+    items: []
   });
 
   const [loading, setLoading] = useState(false);
@@ -197,8 +192,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   // Initialize form data when editing
   useEffect(() => {
     if (order) {
-      const partyId = typeof order.party === 'string' ? order.party : order.party._id;
-      const partyName = typeof order.party === 'string' ? '' : order.party.name || '';
+      const partyId = typeof order.party === 'string' ? order.party : order.party?._id || '';
+      const partyName = typeof order.party === 'string' ? '' : order.party?.name || '';
       
       setFormData({
         orderType: order.orderType,
@@ -213,12 +208,12 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         items: order.items.length > 0 ? order.items.map(item => ({
           quality: typeof item.quality === 'string' ? item.quality : item.quality?._id || '',
           quantity: item.quantity !== undefined && item.quantity !== null ? item.quantity : undefined,
-          imageUrl: item.imageUrl || '',
+          imageUrls: item.imageUrls || [],
           description: item.description || ''
         })) : [{
           quality: '',
           quantity: undefined,
-          imageUrl: '',
+          imageUrls: [],
           description: ''
         }]
       });
@@ -239,23 +234,19 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       return newErrors;
     }
 
-    // Required fields validation
-    if (!formData.orderType.trim()) {
-      newErrors.orderType = 'Order type is required';
+    // Optional fields validation (only validate if provided)
+    if (formData.orderType && !formData.orderType.trim()) {
+      newErrors.orderType = 'Order type cannot be empty if provided';
     }
 
-    if (!formData.arrivalDate) {
-      newErrors.arrivalDate = 'Arrival date is required';
-    } else {
+    if (formData.arrivalDate) {
       const arrivalDate = new Date(formData.arrivalDate);
       if (isNaN(arrivalDate.getTime())) {
         newErrors.arrivalDate = 'Invalid arrival date format';
       }
     }
 
-    if (!formData.party) {
-      newErrors.party = 'Party is required';
-    }
+    // Party is optional - no validation needed
 
     // Contact validation
     if (formData.contactName && formData.contactName.length < 2) {
@@ -283,14 +274,10 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       newErrors.styleNo = 'Style number cannot exceed 50 characters';
     }
 
-    // Items validation
+    // Items validation - all fields are optional
     formData.items.forEach((item, index) => {
-      if (!item.quality) {
-        newErrors[`items.${index}.quality`] = 'Quality is required';
-      }
-      if (item.quantity === undefined || item.quantity === null || item.quantity <= 0) {
-        newErrors[`items.${index}.quantity`] = 'Quantity must be greater than 0';
-      }
+      // Quality is optional - no validation needed
+      // Quantity is optional - no validation needed
       if (item.quantity && item.quantity > 1000000) {
         newErrors[`items.${index}.quantity`] = 'Quantity cannot exceed 1,000,000';
       }
@@ -351,7 +338,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       items: [...prev.items, {
         quality: '',
         quantity: undefined,
-        imageUrl: '',
+        imageUrls: [], // Changed from imageUrl to imageUrls array
         description: ''
       }]
     }));
@@ -359,16 +346,17 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
 
   // Remove item
   const removeItem = (index: number) => {
-    if (formData.items.length > 1) {
-      setFormData(prev => ({
-        ...prev,
-        items: prev.items.filter((_, i) => i !== index)
-      }));
-    }
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index)
+    }));
   };
 
   // Handle image upload
   const handleImageUpload = async (file: File, itemIndex: number) => {
+    console.log('Image upload started for item:', itemIndex);
+    console.log('File details:', { name: file.name, size: file.size, type: file.type });
+    
     // Validate file size (10MB limit)
     if (file.size > 10 * 1024 * 1024) {
       setValidationMessage({ type: 'error', text: 'Image size must be less than 10MB' });
@@ -385,8 +373,10 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     setValidationMessage(null);
 
     try {
-      const formData = new FormData();
-      formData.append('image', file);
+      const uploadFormData = new FormData();
+      uploadFormData.append('image', file);
+
+      console.log('Uploading to /api/upload...');
 
       // For now, skip token validation to avoid authentication issues
       // const token = localStorage.getItem('token');
@@ -399,15 +389,27 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         // headers: {
         //   'Authorization': `Bearer ${token}`,
         // },
-        body: formData,
+        body: uploadFormData,
       });
 
+      console.log('Upload response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
-        handleItemChange(itemIndex, 'imageUrl', data.imageUrl);
+        console.log('Upload response data:', data);
+        
+        // Add the new image to the existing array
+        const currentImages = formData.items[itemIndex]?.imageUrls || [];
+        console.log('Current images for item', itemIndex, ':', currentImages);
+        
+        const updatedImages = [...currentImages, data.imageUrl];
+        console.log('Updated images for item', itemIndex, ':', updatedImages);
+        
+        handleItemChange(itemIndex, 'imageUrls', updatedImages);
         setValidationMessage({ type: 'success', text: 'Image uploaded successfully!' });
       } else {
         const errorData = await response.json();
+        console.error('Upload error response:', errorData);
         setValidationMessage({ type: 'error', text: errorData.message || 'Failed to upload image' });
       }
     } catch (error) {
@@ -448,6 +450,9 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('Form submission started...');
+    console.log('Form data:', formData);
+    
     const newErrors = validateForm();
     setErrors(newErrors);
     
@@ -470,6 +475,9 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       const url = order ? `/api/orders/${order._id}` : '/api/orders';
       const method = order ? 'PUT' : 'POST';
 
+      console.log('Submitting to:', url, 'with method:', method);
+      console.log('Request body:', JSON.stringify(formData, null, 2));
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -479,7 +487,12 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         body: JSON.stringify(formData),
       });
 
+      console.log('Form submission response status:', response.status);
+      
       if (response.ok) {
+        const responseData = await response.json();
+        console.log('Form submission success response:', responseData);
+        
         setValidationMessage({ 
           type: 'success', 
           text: order ? 'Order updated successfully!' : 'Order created successfully!' 
@@ -489,6 +502,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         }, 1500);
       } else {
         const errorData = await response.json();
+        console.error('Form submission error response:', errorData);
         setValidationMessage({ 
           type: 'error', 
           text: errorData.message || 'Failed to save order' 
@@ -745,11 +759,11 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
-                    Order Type <span className="text-red-500">*</span>
+                    Order Type
                   </label>
                   <select
-                    value={formData.orderType}
-                    onChange={(e) => handleFieldChange('orderType', e.target.value)}
+                    value={formData.orderType || ''}
+                    onChange={(e) => handleFieldChange('orderType', e.target.value || undefined)}
                     onBlur={() => handleBlur('orderType')}
                     className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
                       getFieldError('orderType')
@@ -759,6 +773,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                           : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400'
                     }`}
                   >
+                    <option value="" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Select Order Type</option>
                     <option value="Dying" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Dying</option>
                     <option value="Printing" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Printing</option>
                   </select>
@@ -772,7 +787,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
-                    Arrival Date <span className="text-red-500">*</span>
+                    Arrival Date
                   </label>
                   <div className="relative">
                     <input
@@ -862,7 +877,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
-                    Party <span className="text-red-500">*</span>
+                    Party
                   </label>
                   <div className="relative party-dropdown">
                     <div className="flex space-x-2">
@@ -1163,8 +1178,22 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                 </button>
               </div>
 
-              <div className="space-y-4">
-                {formData.items.map((item, index) => (
+                             <div className="space-y-4">
+                 {formData.items.length === 0 ? (
+                   <div className={`text-center py-8 rounded-lg border-2 ${
+                     isDarkMode 
+                       ? 'bg-white/5 border-white/10' 
+                       : 'bg-gray-50 border-gray-200'
+                   }`}>
+                     <p className={`text-lg ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                       No items added yet
+                     </p>
+                     <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                       Click "Add Item" to start adding order items
+                     </p>
+                   </div>
+                 ) : (
+                   formData.items.map((item, index) => (
                   <div key={index} className={`p-4 rounded-lg border-2 ${
                     isDarkMode 
                       ? 'bg-white/5 border-white/10 shadow-md' 
@@ -1176,19 +1205,17 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                       }`}>
                         Item {index + 1}
                       </h4>
-                      {formData.items.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeItem(index)}
-                          className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${
-                            isDarkMode
-                              ? 'text-red-400 hover:bg-red-500/20'
-                              : 'text-red-600 hover:bg-red-50'
-                          }`}
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </button>
-                      )}
+                                             <button
+                         type="button"
+                         onClick={() => removeItem(index)}
+                         className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${
+                           isDarkMode
+                             ? 'text-red-400 hover:bg-red-500/20'
+                             : 'text-red-600 hover:bg-red-50'
+                         }`}
+                       >
+                         <TrashIcon className="h-4 w-4" />
+                       </button>
                     </div>
 
                                       
@@ -1200,7 +1227,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                            <label className={`block text-sm font-semibold mb-2 ${
                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
                            }`}>
-                             Quality <span className="text-red-500">*</span>
+                             Quality
                            </label>
                            <div className="relative quality-dropdown">
                              <div className="flex space-x-2">
@@ -1360,11 +1387,11 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
 
                          {/* Quantity */}
                          <div>
-                           <label className={`block text-sm font-semibold mb-2 ${
-                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                           }`}>
-                             Quantity <span className="text-red-500">*</span>
-                           </label>
+                                                       <label className={`block text-sm font-semibold mb-2 ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                            }`}>
+                              Quantity
+                            </label>
                            <input
                              type="number"
                              min="1"
@@ -1491,57 +1518,92 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                            </div>
                          )}
 
-                         {/* Image Preview */}
-                         <div className={`w-full h-32 border-2 rounded-lg flex items-center justify-center overflow-hidden ${
-                           item.imageUrl 
+                         {/* Multiple Images Preview */}
+                         <div className={`w-full min-h-32 border-2 rounded-lg p-3 ${
+                           (item.imageUrls && item.imageUrls.length > 0)
                              ? 'border-green-300 bg-green-50 dark:bg-green-900/20' 
                              : isDarkMode 
                                ? 'border-gray-600 bg-gray-800/50' 
                                : 'border-gray-300 bg-gray-50'
                          }`}>
-                           {item.imageUrl ? (
-                             <div className="relative w-full h-full group">
-                               <img
-                                 src={item.imageUrl}
-                                 alt="Item preview"
-                                 className="w-full h-full object-contain rounded-lg"
-                               />
-                               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center space-x-2">
+                           {item.imageUrls && item.imageUrls.length > 0 ? (
+                             <div className="space-y-3">
+                               {/* Images Grid */}
+                               <div className="grid grid-cols-3 gap-2">
+                                 {item.imageUrls.map((imageUrl, imageIndex) => (
+                                   <div key={imageIndex} className="relative group">
+                                     <img
+                                       src={imageUrl}
+                                       alt={`Item ${index + 1} image ${imageIndex + 1}`}
+                                       className="w-full h-20 object-cover rounded-lg border"
+                                     />
+                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center space-x-1">
+                                       <button
+                                         type="button"
+                                         onClick={() => {
+                                           const updatedImages = item.imageUrls?.filter((_, i) => i !== imageIndex) || [];
+                                           handleItemChange(index, 'imageUrls', updatedImages);
+                                         }}
+                                         className="p-1 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all duration-300 hover:scale-110"
+                                         title="Remove image"
+                                       >
+                                         <XMarkIcon className="h-3 w-3" />
+                                       </button>
+                                       <button
+                                         type="button"
+                                         onClick={() => setShowImagePreview({ url: imageUrl, index })}
+                                         className="p-1 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-all duration-300 hover:scale-110"
+                                         title="Preview full image"
+                                       >
+                                         <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                         </svg>
+                                       </button>
+                                     </div>
+                                   </div>
+                                 ))}
+                               </div>
+                               {/* Add More Button */}
+                               <div className="text-center">
                                  <button
                                    type="button"
-                                   onClick={() => handleItemChange(index, 'imageUrl', '')}
-                                   className="p-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all duration-300 hover:scale-110"
-                                   title="Remove image"
+                                   onClick={() => {
+                                     const fileInput = document.createElement('input');
+                                     fileInput.type = 'file';
+                                     fileInput.accept = 'image/*';
+                                     fileInput.onchange = (e) => {
+                                       const file = (e.target as HTMLInputElement).files?.[0];
+                                       if (file) handleImageUpload(file, index);
+                                     };
+                                     fileInput.click();
+                                   }}
+                                   className={`inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-105 ${
+                                     isDarkMode
+                                       ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                       : 'bg-blue-600 text-white hover:bg-blue-700'
+                                   }`}
                                  >
-                                   <XMarkIcon className="h-3 w-3" />
-                                 </button>
-                                 <button
-                                   type="button"
-                                   onClick={() => setShowImagePreview({ url: item.imageUrl || '', index })}
-                                   className="p-1.5 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-all duration-300 hover:scale-110"
-                                   title="Preview full image"
-                                 >
-                                   <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                   </svg>
+                                   <PlusIcon className="h-4 w-4 mr-1" />
+                                   Add More Images
                                  </button>
                                </div>
                              </div>
                            ) : (
-                             <div className={`text-center ${
+                             <div className={`text-center py-8 ${
                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
                              }`}>
                                <PhotoIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                               <p className="text-sm">No image selected</p>
+                               <p className="text-sm">No images selected</p>
                                <p className="text-xs">Click icons above to upload</p>
                              </div>
                            )}
                          </div>
+                                                </div>
                        </div>
-                  </div>
-                ))}
-              </div>
+                     ))
+                   )}
+                 </div>
             </div>
           </div>
 

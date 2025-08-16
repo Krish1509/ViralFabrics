@@ -1,20 +1,20 @@
 import mongoose, { Document, Schema } from "mongoose";
+import Counter from "./Counter";
 
 // Order Item interface
 export interface IOrderItem {
   quality?: mongoose.Types.ObjectId;
   quantity?: number;
-  imageUrl?: string;
+  imageUrls?: string[];
   description?: string;
 }
 
 // TypeScript interface for better type safety
 export interface IOrder extends Document {
-  orderId: string;
-  orderNo?: string; // Optional for backward compatibility
-  orderType: "Dying" | "Printing";
-  arrivalDate: Date;
-  party: mongoose.Types.ObjectId;
+  orderId: string; // Simple sequential number like "001", "002", etc.
+  orderType?: "Dying" | "Printing";
+  arrivalDate?: Date;
+  party?: mongoose.Types.ObjectId;
   contactName?: string;
   contactPhone?: string;
   poNumber?: string;
@@ -22,6 +22,8 @@ export interface IOrder extends Document {
   poDate?: Date;
   deliveryDate?: Date;
   items: IOrderItem[]; // Multiple order items
+  status?: "pending" | "delivered";
+  labData?: any;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,30 +44,21 @@ const OrderSchema = new Schema<IOrder>({
   orderId: {
     type: String,
     unique: true,
-    required: true, // Ensure it's always present
-  },
-  // Add orderNo field for backward compatibility (auto-generated)
-  orderNo: {
-    type: String,
-    required: false, // Make it optional to avoid validation errors
-    default: undefined // Ensure it's not null by default
+    required: true,
   },
   orderType: {
     type: String,
     enum: {
       values: ["Dying", "Printing"],
       message: "Order type must be either 'Dying' or 'Printing'"
-    },
-    required: [true, "Order type is required"]
+    }
   },
   arrivalDate: {
-    type: Date,
-    required: [true, "Arrival date is required"]
+    type: Date
   },
   party: {
     type: Schema.Types.ObjectId,
-    ref: "Party",
-    required: [true, "Party is required"]
+    ref: "Party"
   },
   contactName: {
     type: String,
@@ -103,10 +96,15 @@ const OrderSchema = new Schema<IOrder>({
         type: Number,
         min: [0, "Quantity cannot be negative"]
       },
-      imageUrl: {
-        type: String,
-        trim: true,
-        maxlength: [500, "Image URL cannot exceed 500 characters"]
+      imageUrls: {
+        type: [String],
+        default: [],
+        validate: {
+          validator: function(v: string[]) {
+            return v.every(url => url.length <= 500);
+          },
+          message: "Each image URL cannot exceed 500 characters"
+        }
       },
       description: {
         type: String,
@@ -114,13 +112,19 @@ const OrderSchema = new Schema<IOrder>({
         maxlength: [200, "Description cannot exceed 200 characters"]
       }
     }],
-    default: [],
-    validate: {
-      validator: function(items: IOrderItem[]) {
-        return items && items.length > 0;
-      },
-      message: "Order must contain at least one item"
-    }
+    default: []
+  },
+  status: {
+    type: String,
+    enum: {
+      values: ["pending", "delivered"],
+      message: "Status must be one of: pending, delivered"
+    },
+    default: "pending"
+  },
+  labData: {
+    type: Schema.Types.Mixed,
+    default: null
   }
 }, {
   timestamps: true,
@@ -141,8 +145,6 @@ const OrderSchema = new Schema<IOrder>({
 
 // **CRITICAL INDEXES FOR PERFORMANCE**
 // Single field indexes
-OrderSchema.index({ orderId: 1 }); // Primary lookup
-OrderSchema.index({ orderNo: 1 }); // Order number lookup (non-unique)
 OrderSchema.index({ party: 1 }); // Party-based queries
 OrderSchema.index({ poNumber: 1 }); // PO-based searches
 OrderSchema.index({ styleNo: 1 }); // Style-based searches
@@ -155,10 +157,9 @@ OrderSchema.index({ deliveryDate: -1 }); // Delivery date sorting
 OrderSchema.index({ party: 1, createdAt: -1 }); // Party orders with date sorting
 OrderSchema.index({ orderType: 1, arrivalDate: -1 }); // Type and date filtering
 OrderSchema.index({ party: 1, orderType: 1 }); // Party and type filtering
-OrderSchema.index({ poNumber: 1, styleNo: 1 }); // PO and style combination
+// Removed PO + Style combination index to allow duplicates
 OrderSchema.index({ arrivalDate: 1, deliveryDate: 1 }); // Date range queries
-// Unique compound index to prevent duplicate PO + Style for same party
-OrderSchema.index({ party: 1, poNumber: 1, styleNo: 1 }, { unique: true, sparse: true });
+// Removed compound index for PO + Style combination to allow duplicates
 
 // Text index for search functionality
 OrderSchema.index({ 
@@ -171,38 +172,16 @@ OrderSchema.index({
   }
 });
 
-// Static method to create order with proper ID
+// Static method to create order with sequential ID
 OrderSchema.statics.createOrder = async function(orderData: any) {
   try {
-    // Generate a unique order ID with retry logic
-    let orderId: string;
-    let attempts = 0;
-    const maxAttempts = 10;
+    // Get next sequential order number
+    const nextNumber = await (Counter as any).getNextSequence('orderId');
     
-    do {
-      attempts++;
-      // Use timestamp + random number to ensure uniqueness
-      const timestamp = Date.now();
-      const random = Math.floor(Math.random() * 1000);
-      orderId = `ORD-${timestamp}-${random}`;
-      
-      // Check if this ID already exists
-      const existingOrder = await this.findOne({ orderId });
-      if (!existingOrder) {
-        break;
-      }
-      
-      // If we've tried too many times, throw an error
-      if (attempts >= maxAttempts) {
-        throw new Error('Failed to generate unique order ID after multiple attempts');
-      }
-      
-      // Small delay to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 1));
-      
-    } while (true);
+    // Format as 3-digit number (001, 002, 003, etc.)
+    const orderId = nextNumber.toString().padStart(3, '0');
     
-    console.log(`Creating order with ID: ${orderId} (attempt ${attempts})`);
+    console.log(`Creating order with ID: ${orderId}`);
     
     // Create the order with the generated ID
     const order = new this({
@@ -220,26 +199,23 @@ OrderSchema.statics.createOrder = async function(orderData: any) {
   }
 };
 
-// Pre-save middleware for auto-generating orderId and orderNo (fallback only)
+// Pre-save middleware for auto-generating orderId (fallback only)
 OrderSchema.pre('save', async function(next) {
   if (this.isNew && !this.orderId) {
     try {
-      // Simple fallback - use timestamp + random to ensure uniqueness
-      const timestamp = Date.now();
-      const random = Math.floor(Math.random() * 1000);
-      this.orderId = `ORD-${timestamp}-${random}`;
-      this.orderNo = this.orderId;
+      // Get next sequential order number
+      const nextNumber = await (Counter as any).getNextSequence('orderId');
+      const orderId = nextNumber.toString().padStart(3, '0');
       
+      this.orderId = orderId;
       console.log(`Fallback generated orderId: ${this.orderId}`);
       
       next();
     } catch (error) {
       console.error('Error in fallback orderId generation:', error);
-      // Final fallback
-      const fallbackNumber = Date.now();
-      const random = Math.floor(Math.random() * 1000);
-      this.orderId = `ORD-${fallbackNumber}-${random}`;
-      this.orderNo = this.orderId;
+      // Final fallback - use timestamp as last resort
+      const fallbackNumber = Date.now() % 1000; // Use last 3 digits
+      this.orderId = fallbackNumber.toString().padStart(3, '0');
       next();
     }
   } else {
@@ -303,17 +279,7 @@ OrderSchema.virtual('fullInfo').get(function() {
   };
 });
 
-// Virtual for order status based on dates
-OrderSchema.virtual('status').get(function() {
-  const now = new Date();
-  if (this.deliveryDate && now > this.deliveryDate) {
-    return 'Delivered';
-  } else if (this.arrivalDate && now > this.arrivalDate) {
-    return 'Arrived';
-  } else {
-    return 'Pending';
-  }
-});
+
 
 // Error handling middleware
 OrderSchema.post('save', function(error: any, doc: any, next: any) {
