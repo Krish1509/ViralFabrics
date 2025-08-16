@@ -59,7 +59,7 @@ const getNavItems = (userRole?: string): NavItem[] => {
 
 export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse, user }: SidebarProps) {
   const pathname = usePathname();
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   const [screenSize, setScreenSize] = useState<number>(0);
   const navItems = getNavItems(user?.role);
 
@@ -110,21 +110,21 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
     <>
       {/* Desktop Sidebar - Large and Medium Screens */}
       <aside className={`hidden min-[800px]:block fixed left-0 top-0 h-full z-40 transition-all duration-300 ${getSidebarWidth()} ${
-        isDarkMode 
+        mounted && isDarkMode 
           ? 'bg-slate-800 border-r border-slate-700' 
           : 'bg-white/80 backdrop-blur-sm border-r border-gray-200/50'
       }`}>
         <div className="flex flex-col h-full">
           {/* Logo Section */}
           <div className={`border-b transition-colors duration-300 ${
-            isDarkMode ? 'border-white/10' : 'border-gray-200'
+            mounted && isDarkMode ? 'border-white/10' : 'border-gray-200'
           } ${shouldShowText() ? 'p-6' : 'p-4'}`}>
             <Link 
               href="/dashboard/superadmin" 
               className={`group cursor-pointer ${shouldShowText() ? 'flex items-center space-x-3' : 'flex justify-center'}`}
             >
               <div className={`h-10 w-10 rounded-lg flex items-center justify-center shadow-lg transition-all duration-300 ${
-                isDarkMode 
+                mounted && isDarkMode 
                   ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/25' 
                   : 'bg-gradient-to-br from-blue-600 to-indigo-700 shadow-blue-500/25'
               } group-hover:scale-105`}>
@@ -133,12 +133,12 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
               {shouldShowText() && (
                 <div className="min-w-0">
                   <h1 className={`text-lg font-bold transition-colors duration-300 ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
+                    mounted && isDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
                     {BRAND_NAME}
                   </h1>
                   <p className={`text-xs transition-colors duration-300 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                    mounted && isDarkMode ? 'text-gray-300' : 'text-gray-600'
                   }`}>
                     {BRAND_TAGLINE}
                   </p>
@@ -149,7 +149,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
 
           {/* Navigation */}
           <nav className={`flex-1 overflow-y-auto max-h-[calc(100vh-140px)] ${
-            isDarkMode 
+            mounted && isDarkMode 
               ? 'scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-500 hover:scrollbar-thumb-slate-400' 
               : 'scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400'
           } ${shouldShowText() ? 'px-4 py-6 space-y-2' : 'px-3 py-4 space-y-1'}`}>
@@ -167,10 +167,10 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                       : 'justify-center p-3'
                   } ${
                     active
-                      ? isDarkMode
+                      ? mounted && isDarkMode
                         ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                         : 'bg-blue-50 text-blue-600 border border-blue-200'
-                      : isDarkMode
+                      : mounted && isDarkMode
                         ? 'text-gray-300 hover:bg-white/10 hover:text-white'
                         : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                   }`}
@@ -179,12 +179,12 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                   <div className="relative">
                     <Icon className={`h-6 w-6 transition-colors duration-300 ${
                       active
-                        ? isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                        : isDarkMode ? 'text-gray-400 group-hover:text-white' : 'text-gray-500 group-hover:text-gray-700'
+                        ? mounted && isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                        : mounted && isDarkMode ? 'text-gray-400 group-hover:text-white' : 'text-gray-500 group-hover:text-gray-700'
                     }`} />
                     {!shouldShowText() && item.badge && (
                       <span className={`absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium ${
-                        isDarkMode ? 'text-white' : 'text-white'
+                        mounted && isDarkMode ? 'text-white' : 'text-white'
                       }`}>
                         {item.badge === 'New' ? 'N' : item.badge}
                       </span>
@@ -195,7 +195,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                       <span className="font-medium">{item.name}</span>
                       {item.badge && (
                         <span className={`ml-auto px-2 py-1 text-xs font-medium rounded-full ${
-                          isDarkMode 
+                          mounted && isDarkMode 
                             ? 'bg-blue-500/20 text-blue-400' 
                             : 'bg-blue-100 text-blue-600'
                         }`}>
@@ -212,10 +212,10 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
           {/* Footer */}
           {shouldShowText() && (
             <div className={`p-4 border-t transition-colors duration-300 ${
-              isDarkMode ? 'border-white/10' : 'border-gray-200'
+              mounted && isDarkMode ? 'border-white/10' : 'border-gray-200'
             }`}>
               <div className={`text-xs text-center transition-colors duration-300 ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                mounted && isDarkMode ? 'text-gray-400' : 'text-gray-500'
               }`}>
                 {BRAND_COPYRIGHT}
               </div>
@@ -236,14 +236,14 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
       <aside className={`fixed left-0 top-0 h-full w-80 z-50 transition-transform duration-300 ${
         isSmallScreen ? (isOpen ? 'translate-x-0' : '-translate-x-full') : 'hidden'
       } ${
-        isDarkMode 
+        mounted && isDarkMode 
           ? 'bg-slate-800 border-r border-slate-700' 
           : 'bg-white/80 backdrop-blur-sm border-r border-gray-200/50'
       }`}>
         <div className="flex flex-col h-full">
           {/* Mobile Header */}
           <div className={`flex items-center justify-between p-6 border-b transition-colors duration-300 ${
-            isDarkMode ? 'border-white/10' : 'border-gray-200'
+            mounted && isDarkMode ? 'border-white/10' : 'border-gray-200'
           }`}>
             <Link 
               href="/dashboard/superadmin" 
@@ -251,7 +251,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
               onClick={onClose}
             >
               <div className={`h-10 w-10 rounded-lg flex items-center justify-center shadow-lg transition-all duration-300 ${
-                isDarkMode 
+                mounted && isDarkMode 
                   ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/25' 
                   : 'bg-gradient-to-br from-blue-600 to-indigo-700 shadow-blue-500/25'
               } group-hover:scale-105`}>
@@ -259,12 +259,12 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
               </div>
               <div>
                 <h1 className={`text-lg font-bold transition-colors duration-300 ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
+                  mounted && isDarkMode ? 'text-white' : 'text-gray-900'
                 }`}>
                   {BRAND_NAME}
                 </h1>
                 <p className={`text-xs transition-colors duration-300 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                  mounted && isDarkMode ? 'text-gray-300' : 'text-gray-600'
                 }`}>
                   {BRAND_TAGLINE}
                 </p>
@@ -274,7 +274,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
             <button
               onClick={onClose}
               className={`p-2 rounded-lg transition-all duration-300 cursor-pointer ${
-                isDarkMode 
+                mounted && isDarkMode 
                   ? 'bg-white/10 text-white hover:bg-white/20' 
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               } shadow-lg backdrop-blur-sm`}
@@ -286,7 +286,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
 
           {/* Mobile Navigation */}
           <nav className={`flex-1 px-4 py-6 space-y-2 overflow-y-auto max-h-[calc(100vh-140px)] ${
-            isDarkMode 
+            mounted && isDarkMode 
               ? 'scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-500 hover:scrollbar-thumb-slate-400' 
               : 'scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400'
           }`}>
@@ -301,23 +301,23 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                   onClick={onClose}
                   className={`group flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 cursor-pointer ${
                     active
-                      ? isDarkMode
+                      ? mounted && isDarkMode
                         ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                         : 'bg-blue-50 text-blue-600 border border-blue-200'
-                      : isDarkMode
+                      : mounted && isDarkMode
                         ? 'text-gray-300 hover:bg-white/10 hover:text-white'
                         : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
                   <Icon className={`h-5 w-5 transition-colors duration-300 ${
                     active
-                      ? isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                      : isDarkMode ? 'text-gray-400 group-hover:text-white' : 'text-gray-500 group-hover:text-gray-700'
+                      ? mounted && isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                      : mounted && isDarkMode ? 'text-gray-400 group-hover:text-white' : 'text-gray-500 group-hover:text-gray-700'
                   }`} />
                   <span className="font-medium">{item.name}</span>
                   {item.badge && (
                     <span className={`ml-auto px-2 py-1 text-xs font-medium rounded-full ${
-                      isDarkMode 
+                      mounted && isDarkMode 
                         ? 'bg-blue-500/20 text-blue-400' 
                         : 'bg-blue-100 text-blue-600'
                     }`}>
@@ -331,10 +331,10 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
 
           {/* Mobile Footer */}
           <div className={`p-4 border-t transition-colors duration-300 ${
-            isDarkMode ? 'border-white/10' : 'border-gray-200'
+            mounted && isDarkMode ? 'border-white/10' : 'border-gray-200'
           }`}>
             <div className={`text-xs text-center transition-colors duration-300 ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              mounted && isDarkMode ? 'text-gray-400' : 'text-gray-500'
             }`}>
               {BRAND_COPYRIGHT}
             </div>

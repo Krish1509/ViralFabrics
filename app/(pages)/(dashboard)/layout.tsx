@@ -26,7 +26,7 @@ export default function SuperAdminLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [screenSize, setScreenSize] = useState<number>(0);
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
 
   // Track screen size
   useEffect(() => {
@@ -119,7 +119,7 @@ export default function SuperAdminLayout({
   if (isLoading) {
     return (
       <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
-        isDarkMode 
+        mounted && isDarkMode 
           ? 'bg-slate-800' 
           : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
       }`}>
@@ -130,7 +130,7 @@ export default function SuperAdminLayout({
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${
-      isDarkMode 
+      mounted && isDarkMode 
         ? 'bg-slate-800' 
         : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
     }`}>
@@ -158,7 +158,7 @@ export default function SuperAdminLayout({
         {/* Main Content - Starts immediately below navbar */}
         <main className="pt-4">
           <div className={`${getContentPadding()} py-8 transition-colors duration-300 ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
+            mounted && isDarkMode ? 'text-white' : 'text-gray-900'
           }`}>
             {children}
           </div>

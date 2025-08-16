@@ -319,7 +319,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                       <span className={`text-sm ${
                         isDarkMode ? 'text-white' : 'text-gray-900'
                       }`}>
-                        {formatDate(order.arrivalDate)}
+                        {order.arrivalDate ? formatDate(order.arrivalDate) : 'Not specified'}
                       </span>
                     </div>
                     {order.poDate && (
@@ -332,7 +332,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                         <span className={`text-sm ${
                           isDarkMode ? 'text-white' : 'text-gray-900'
                         }`}>
-                          {formatDate(order.poDate)}
+                          {order.poDate ? formatDate(order.poDate) : 'Not specified'}
                         </span>
                       </div>
                     )}
@@ -346,7 +346,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                         <span className={`text-sm ${
                           isDarkMode ? 'text-white' : 'text-gray-900'
                         }`}>
-                          {formatDate(order.deliveryDate)}
+                          {order.deliveryDate ? formatDate(order.deliveryDate) : 'Not specified'}
                         </span>
                       </div>
                     )}
@@ -746,41 +746,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                             </div>
                           )}
                           
-                          {/* Fallback for old imageUrl field */}
-                          {(!item.imageUrls || item.imageUrls.length === 0) && item.imageUrl && (
-                            <div className="mt-4">
-                              <div className="flex items-center mb-3">
-                                <PhotoIcon className={`h-4 w-4 mr-2 ${
-                                  isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                                }`} />
-                                <span className={`text-sm font-semibold ${
-                                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                                }`}>
-                                  Item Image
-                                </span>
-                              </div>
-                                                             <div className="relative group">
-                                 <img
-                                   src={item.imageUrl}
-                                   alt={`Item ${index + 1}`}
-                                   className="w-48 h-48 object-cover rounded-xl border-2 border-gray-200 shadow-lg hover:border-blue-400 transition-all duration-300 hover:scale-110 hover:shadow-xl"
-                                   onError={(e) => {
-                                     e.currentTarget.style.display = 'none';
-                                   }}
-                                 />
-                                 <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                   <div className="bg-white/95 backdrop-blur-sm rounded-full p-2 shadow-xl border border-gray-200">
-                                     <PhotoIcon className="h-4 w-4 text-gray-700" />
-                                   </div>
-                                 </div>
-                                 <div className="absolute bottom-3 left-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                   <div className="bg-black/70 backdrop-blur-sm rounded-full px-3 py-1">
-                                     <span className="text-white text-sm font-medium">Main Image</span>
-                                   </div>
-                                 </div>
-                               </div>
-                            </div>
-                          )}
+
 
                                                      {/* Lab Information */}
                            {(() => {
@@ -938,7 +904,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                 )}
 
                 {/* Order Images Card */}
-                {order.items && order.items.some(item => (item.imageUrls && item.imageUrls.length > 0) || item.imageUrl) && (
+                {order.items && order.items.some(item => item.imageUrls && item.imageUrls.length > 0) && (
                   <div className={`p-6 rounded-xl border ${
                     isDarkMode 
                       ? 'bg-white/5 border-white/10' 
@@ -968,7 +934,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                     
                     <div className="space-y-6">
                       {order.items.map((item, index) => {
-                        const hasImages = (item.imageUrls && item.imageUrls.length > 0) || item.imageUrl;
+                        const hasImages = item.imageUrls && item.imageUrls.length > 0;
                         if (!hasImages) return null;
                         
                         return (
@@ -1015,30 +981,6 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                                      </div>
                                    </div>
                                  ))}
-                               </div>
-                             )}
-                            
-                                                         {/* Single Image (fallback) */}
-                             {(!item.imageUrls || item.imageUrls.length === 0) && item.imageUrl && (
-                               <div className="relative group">
-                                 <img
-                                   src={item.imageUrl}
-                                   alt={`Item ${index + 1}`}
-                                   className="w-64 h-40 object-cover rounded-xl border-2 border-gray-200 shadow-lg hover:border-blue-400 transition-all duration-300 hover:scale-110 hover:shadow-xl"
-                                   onError={(e) => {
-                                     e.currentTarget.style.display = 'none';
-                                   }}
-                                 />
-                                 <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                   <div className="bg-white/95 backdrop-blur-sm rounded-full p-2 shadow-xl border border-gray-200">
-                                     <PhotoIcon className="h-4 w-4 text-gray-700" />
-                                   </div>
-                                 </div>
-                                 <div className="absolute bottom-3 left-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                   <div className="bg-black/70 backdrop-blur-sm rounded-full px-3 py-1">
-                                     <span className="text-white text-sm font-medium">Main Image</span>
-                                   </div>
-                                 </div>
                                </div>
                              )}
                           </div>

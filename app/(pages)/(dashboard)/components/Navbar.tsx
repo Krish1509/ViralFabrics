@@ -39,7 +39,7 @@ interface NavbarProps {
 }
 
 export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollapse, isCollapsed, updateUser }: NavbarProps) {
-  const { isDarkMode, toggleDarkMode, setSystemTheme } = useDarkMode();
+  const { isDarkMode, toggleDarkMode, setSystemTheme, mounted } = useDarkMode();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState(3);

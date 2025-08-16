@@ -4,8 +4,11 @@ import { useState, useEffect } from 'react';
 
 export function useDarkMode() {
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    
     // Get initial state
     const savedMode = localStorage.getItem('darkMode');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -32,15 +35,15 @@ export function useDarkMode() {
       }
     };
 
-                    // Listen for system preference changes
-                const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-                const handleSystemChange = (event: MediaQueryListEvent) => {
-                  // Only update if user hasn't set a manual preference
-                  const savedMode = localStorage.getItem('darkMode');
-                  if (savedMode === null) {
-                    setIsDarkMode(event.matches);
-                  }
-                };
+    // Listen for system preference changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemChange = (event: MediaQueryListEvent) => {
+      // Only update if user hasn't set a manual preference
+      const savedMode = localStorage.getItem('darkMode');
+      if (savedMode === null) {
+        setIsDarkMode(event.matches);
+      }
+    };
 
     window.addEventListener('darkModeChange', handleDarkModeChange as EventListener);
     window.addEventListener('storage', handleStorageChange);
@@ -87,5 +90,18 @@ export function useDarkMode() {
     return savedMode === 'true' ? 'dark' : 'light';
   };
 
-  return { isDarkMode, toggleDarkMode, setSystemTheme, getThemeMode };
+  // Helper function to safely get dark mode state
+  const getDarkModeState = (defaultValue: boolean = false) => {
+    return mounted ? isDarkMode : defaultValue;
+  };
+
+  // Return mounted state to prevent hydration mismatches
+  return { 
+    isDarkMode, 
+    toggleDarkMode, 
+    setSystemTheme, 
+    getThemeMode, 
+    mounted,
+    getDarkModeState 
+  };
 }
