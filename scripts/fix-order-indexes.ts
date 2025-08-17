@@ -7,7 +7,7 @@ dotenv.config();
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/CRM_AdminPanel';
 
 interface IndexInfo {
-  name: string;
+  name?: string;
   key: Record<string, any>;
 }
 
@@ -18,6 +18,9 @@ async function fixOrderIndexes(): Promise<void> {
     console.log('Connected to MongoDB successfully');
 
     const db = mongoose.connection.db;
+    if (!db) {
+      throw new Error('Database connection failed - db is undefined');
+    }
     const collection = db.collection('orders');
 
     console.log('Dropping problematic indexes...');
@@ -43,7 +46,7 @@ async function fixOrderIndexes(): Promise<void> {
     console.log('\nRemaining indexes:');
     const indexes: IndexInfo[] = await collection.indexes();
     indexes.forEach(index => {
-      console.log(`- ${index.name}: ${JSON.stringify(index.key)}`);
+      console.log(`- ${index.name || 'unnamed'}: ${JSON.stringify(index.key)}`);
     });
 
     console.log('\n✅ Order indexes fixed successfully!');

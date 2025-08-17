@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 interface IndexInfo {
-  name: string;
+  name?: string;
   key: Record<string, any>;
 }
 
@@ -29,13 +29,16 @@ async function fixOrderSchema(): Promise<void> {
 
     // Get the database instance
     const db = mongoose.connection.db;
+    if (!db) {
+      throw new Error('Database connection failed - db is undefined');
+    }
     const ordersCollection = db.collection('orders');
 
     console.log('Checking existing indexes...');
     
     // Get all indexes
     const indexes: IndexInfo[] = await ordersCollection.indexes();
-    console.log('Current indexes:', indexes.map(idx => idx.name));
+    console.log('Current indexes:', indexes.map(idx => idx.name || 'unnamed'));
 
     // Remove problematic indexes
     const indexesToRemove: string[] = ['orderNo_1', 'orderId_1_orderNo_1'];

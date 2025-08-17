@@ -33,6 +33,9 @@ async function migrateUserSchema(): Promise<void> {
     console.log('✅ Connected to MongoDB');
     
     const db = mongoose.connection.db;
+    if (!db) {
+      throw new Error('Database connection failed - db is undefined');
+    }
     const usersCollection = db.collection('users');
     
     // Step 1: Add missing fields with defaults
@@ -55,7 +58,7 @@ async function migrateUserSchema(): Promise<void> {
     
     // Step 2: Normalize usernames to lowercase
     console.log('📝 Step 2: Normalizing usernames...');
-    const usersWithUpperCaseUsernames: User[] = await usersCollection.find({
+    const usersWithUpperCaseUsernames: any[] = await usersCollection.find({
       username: { $regex: /[A-Z]/ }
     }).toArray();
     
@@ -72,7 +75,7 @@ async function migrateUserSchema(): Promise<void> {
     const stringFields: (keyof User)[] = ['name', 'username', 'email', 'phoneNumber', 'address'];
     
     for (const field of stringFields) {
-      const usersWithWhitespace: User[] = await usersCollection.find({
+      const usersWithWhitespace: any[] = await usersCollection.find({
         [field]: { $regex: /^\s|\s$/ }
       }).toArray();
       
@@ -94,7 +97,7 @@ async function migrateUserSchema(): Promise<void> {
     // Drop existing indexes (except _id)
     const existingIndexes = await usersCollection.indexes();
     for (const index of existingIndexes) {
-      if (index.name !== '_id_') {
+      if (index.name && index.name !== '_id_') {
         await usersCollection.dropIndex(index.name);
       }
     }
