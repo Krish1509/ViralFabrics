@@ -10,7 +10,7 @@ import { useDarkMode } from '../hooks/useDarkMode';
 
 export default function AccessDeniedPage() {
   const router = useRouter();
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   const [user, setUser] = useState<{ name: string; role: string } | null>(null);
 
   useEffect(() => {
@@ -31,6 +31,15 @@ export default function AccessDeniedPage() {
   const handleGoHome = () => {
     router.push('/dashboard');
   };
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${

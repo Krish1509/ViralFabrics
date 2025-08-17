@@ -13,6 +13,17 @@ export async function GET(
     const session = await requireSuperAdmin(req);
     await dbConnect();
     const { id } = await params;
+    
+    // Validate ID
+    if (!id || id === 'undefined' || id === 'null') {
+      return new Response(
+        JSON.stringify({ 
+          message: "Invalid user ID provided" 
+        }), 
+        { status: 400 }
+      );
+    }
+    
     const user = await User.findById(id).select("-password");
     if (!user) return new Response("Not found", { status: 404 });
     return new Response(JSON.stringify(user), { status: 200 });
@@ -64,6 +75,16 @@ export async function PUT(
 
     await dbConnect();
     const { id } = await params;
+    
+    // Validate ID
+    if (!id || id === 'undefined' || id === 'null') {
+      return new Response(
+        JSON.stringify({ 
+          message: "Invalid user ID provided" 
+        }), 
+        { status: 400 }
+      );
+    }
     
     // Check if username already exists (excluding current user)
     if (typeof username === "string" && username.trim()) {
@@ -127,6 +148,16 @@ export async function DELETE(
     const session = await requireSuperAdmin(req);
     
     const { id } = await params;
+    
+    // Validate ID
+    if (!id || id === 'undefined' || id === 'null') {
+      return new Response(
+        JSON.stringify({ 
+          message: "Invalid user ID provided" 
+        }), 
+        { status: 400 }
+      );
+    }
     
     // Prevent self-deletion
     if (session.id === id) {

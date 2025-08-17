@@ -1,14 +1,50 @@
-const mongoose = require('mongoose');
-require('dotenv').config({ path: '.env.local' });
+import mongoose from 'mongoose';
+import dotenv from 'dotenv';
 
-async function resetOrderNumbers() {
+dotenv.config({ path: '.env.local' });
+
+interface Counter {
+  _id: string;
+  sequence: number;
+}
+
+interface OrderItem {
+  quality: mongoose.Types.ObjectId;
+  quantity: number;
+  imageUrl?: string;
+  description?: string;
+}
+
+interface Order {
+  _id: mongoose.Types.ObjectId;
+  orderId: string;
+  orderType: 'Dying' | 'Printing';
+  arrivalDate: Date;
+  party: mongoose.Types.ObjectId;
+  contactName?: string;
+  contactPhone?: string;
+  poNumber?: string;
+  styleNo?: string;
+  poDate?: Date;
+  deliveryDate?: Date;
+  items: OrderItem[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+async function resetOrderNumbers(): Promise<void> {
   try {
     console.log('Connecting to database...');
+    
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI environment variable is required');
+    }
+    
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('Connected to database');
 
     // Define schemas inline to avoid import issues
-    const CounterSchema = new mongoose.Schema({
+    const CounterSchema = new mongoose.Schema<Counter>({
       _id: {
         type: String,
         required: true
@@ -19,7 +55,7 @@ async function resetOrderNumbers() {
       }
     });
 
-    const OrderSchema = new mongoose.Schema({
+    const OrderSchema = new mongoose.Schema<Order>({
       orderId: {
         type: String,
         unique: true,
@@ -59,11 +95,11 @@ async function resetOrderNumbers() {
     });
 
     // Get models
-    const Order = mongoose.models.Order || mongoose.model('Order', OrderSchema);
-    const Counter = mongoose.models.Counter || mongoose.model('Counter', CounterSchema);
+    const Order = mongoose.models.Order || mongoose.model<Order>('Order', OrderSchema);
+    const Counter = mongoose.models.Counter || mongoose.model<Counter>('Counter', CounterSchema);
 
     // Get all orders sorted by creation date
-    const orders = await Order.find({}).sort({ createdAt: 1 });
+    const orders: Order[] = await Order.find({}).sort({ createdAt: 1 });
     console.log(`Found ${orders.length} orders to update`);
 
     if (orders.length === 0) {
@@ -97,6 +133,7 @@ async function resetOrderNumbers() {
 
   } catch (error) {
     console.error('Error resetting order numbers:', error);
+    throw error;
   } finally {
     await mongoose.disconnect();
     console.log('Disconnected from database');
@@ -104,4 +141,16 @@ async function resetOrderNumbers() {
 }
 
 // Run the script
-resetOrderNumbers();
+if (require.main === module) {
+  resetOrderNumbers()
+    .then(() => {
+      console.log('🎉 Order numbering reset completed successfully!');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('💥 Order numbering reset failed:', error);
+      process.exit(1);
+    });
+}
+
+export { resetOrderNumbers };

@@ -7,16 +7,20 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "create-admin": "node scripts/createSuperAdmin.js",
-    "migrate-users": "node scripts/migrate-user-schema.js",
-    "reset-orders": "node scripts/reset-order-numbers.js",
-    "fix-schema": "node scripts/fix-order-schema.js",
-    "fix-indexes": "node scripts/fix-order-indexes.js"
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format-check": "prettier --check .",
+    "migrate-users": "tsx scripts/migrate-user-schema.ts",
+    "reset-orders": "tsx scripts/reset-order-numbers.ts",
+    "fix-schema": "tsx scripts/fix-order-schema.ts",
+    "fix-indexes": "tsx scripts/fix-order-indexes.ts",
+    "migrate-all": "tsx scripts/migrate-schemas.ts",
+    "health-check": "curl -f http://localhost:3000/api/health || exit 1",
+    "test-api": "curl http://localhost:3000/api/health"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "autoprefixer": "^10.4.21",
-    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.7.0",
     "dotenv": "^17.2.1",
@@ -39,6 +43,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
+    "tsx": "^4.20.4",
     "typescript": "^5"
   }
 }

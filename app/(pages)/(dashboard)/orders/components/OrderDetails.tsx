@@ -28,7 +28,7 @@ interface OrderDetailsProps {
 }
 
 export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsProps) {
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   const [labs, setLabs] = useState<any[]>([]);
   const [loadingLabs, setLoadingLabs] = useState(false);
 
@@ -131,6 +131,20 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
     received: labs.filter(lab => lab.status === 'received').length,
     cancelled: labs.filter(lab => lab.status === 'cancelled').length
   };
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-6xl rounded-xl shadow-2xl bg-white border border-gray-200 max-h-[95vh] overflow-hidden flex items-center justify-center">
+          <div className="flex items-center space-x-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <span className="text-lg font-medium text-gray-900">Loading...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">

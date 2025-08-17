@@ -34,7 +34,7 @@ interface ValidationErrors {
 }
 
 export default function OrderForm({ order, parties, qualities, onClose, onSuccess, onAddParty, onRefreshParties, onAddQuality }: OrderFormProps) {
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   const [formData, setFormData] = useState<OrderFormData>({
     orderType: undefined,
     arrivalDate: '',
@@ -422,14 +422,18 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
 
   // Handle file input change
   const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>, itemIndex: number) => {
-    const file = event.target.files?.[0];
-    if (file) {
+    const files = event.target.files;
+    if (files) {
       // Check if it's a camera capture
       const isCameraCapture = event.target.getAttribute('capture') !== null;
       if (isCameraCapture) {
         console.log('Camera capture detected');
       }
-      handleImageUpload(file, itemIndex);
+      
+      // Handle multiple files
+      Array.from(files).forEach(file => {
+        handleImageUpload(file, itemIndex);
+      });
     }
   };
 
@@ -440,9 +444,13 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
 
   const handleDrop = (e: React.DragEvent, itemIndex: number) => {
     e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleImageUpload(file, itemIndex);
+    const files = e.dataTransfer.files;
+    if (files) {
+      Array.from(files).forEach(file => {
+        if (file.type.startsWith('image/')) {
+          handleImageUpload(file, itemIndex);
+        }
+      });
     }
   };
 
@@ -475,8 +483,29 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       const url = order ? `/api/orders/${order._id}` : '/api/orders';
       const method = order ? 'PUT' : 'POST';
 
+      // Clean up form data - convert empty strings to undefined for optional fields
+      const cleanedFormData = {
+        ...formData,
+        orderType: formData.orderType || undefined,
+        party: formData.party || undefined,
+        contactName: formData.contactName || undefined,
+        contactPhone: formData.contactPhone || undefined,
+        poNumber: formData.poNumber || undefined,
+        styleNo: formData.styleNo || undefined,
+        poDate: formData.poDate || undefined,
+        deliveryDate: formData.deliveryDate || undefined,
+        arrivalDate: formData.arrivalDate || undefined,
+        items: formData.items.map(item => ({
+          ...item,
+          quality: item.quality || undefined,
+          quantity: item.quantity || undefined,
+          description: item.description || undefined,
+          imageUrls: item.imageUrls || []
+        }))
+      };
+
       console.log('Submitting to:', url, 'with method:', method);
-      console.log('Request body:', JSON.stringify(formData, null, 2));
+      console.log('Request body:', JSON.stringify(cleanedFormData, null, 2));
 
       const response = await fetch(url, {
         method,
@@ -484,7 +513,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
           'Content-Type': 'application/json',
           // 'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(cleanedFormData),
       });
 
       console.log('Form submission response status:', response.status);
@@ -621,8 +650,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     return false;
   };
 
-  // Don't render until client-side and data is ready
-  if (!isClient || !parties || !qualities) {
+  // Don't render until client-side, mounted, and data is ready
+  if (!isClient || !mounted || !parties || !qualities) {
     const loadingDarkMode = getInitialDarkMode();
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-2">
@@ -1442,64 +1471,78 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                          </div>
                        </div>
 
-                       {/* Item Image Row */}
-                       <div className="mt-4">
-                         <label className={`block text-sm font-semibold mb-2 ${
+                       {/* Enhanced Item Image Section */}
+                       <div className="mt-6">
+                         <label className={`block text-sm font-semibold mb-3 ${
                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
                          }`}>
-                           Item Image
+                           Item Images
                          </label>
                          
-                         {/* Upload Options Row - Just Icons */}
-                         <div className="flex space-x-2 mb-3">
-                           {/* Gallery Upload Icon */}
+                         {/* Upload Options Row - Enhanced */}
+                         <div className="flex space-x-3 mb-4">
+                           {/* Gallery Upload Button */}
                            <label
                              htmlFor={`image-upload-${index}`}
-                             className={`flex items-center justify-center w-10 h-10 border-2 border-dashed rounded-lg cursor-pointer transition-all duration-300 hover:scale-110 ${
+                             className={`flex items-center justify-center px-4 py-2 border-2 border-dashed rounded-lg cursor-pointer transition-all duration-300 hover:scale-105 ${
+                               isDarkMode
+                                 ? 'border-blue-500 hover:border-blue-400 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300'
+                                 : 'border-blue-400 hover:border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700'
+                             }`}
+                             onDragOver={handleDragOver}
+                             onDrop={(e) => handleDrop(e, index)}
+                             title="Upload from gallery"
+                           >
+                             <PhotoIcon className="w-5 h-5 mr-2" />
+                             <span className="text-sm font-medium">Gallery</span>
+                             <input
+                               id={`image-upload-${index}`}
+                               type="file"
+                               className="hidden"
+                               accept="image/*"
+                               multiple
+                               onChange={(e) => handleFileInputChange(e, index)}
+                               disabled={imageUploading}
+                             />
+                           </label>
+                           
+                           {/* Camera Capture Button */}
+                           <button
+                             type="button"
+                             onClick={() => handleCameraPreview(index)}
+                             disabled={!cameraAvailable || imageUploading}
+                             className={`flex items-center justify-center px-4 py-2 border-2 border-dashed rounded-lg transition-all duration-300 hover:scale-105 ${
+                               !cameraAvailable || imageUploading
+                                 ? 'border-gray-400 bg-gray-100 cursor-not-allowed text-gray-400'
+                                 : isDarkMode
+                                   ? 'border-emerald-500 hover:border-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300'
+                                   : 'border-emerald-400 hover:border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-700'
+                             }`}
+                             title="Capture with camera"
+                           >
+                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                             </svg>
+                             <span className="text-sm font-medium">Camera</span>
+                           </button>
+                           
+                           {/* Drag & Drop Area */}
+                           <div
+                             className={`flex-1 flex items-center justify-center px-4 py-2 border-2 border-dashed rounded-lg transition-all duration-300 ${
                                isDarkMode
                                  ? 'border-gray-600 hover:border-gray-500 bg-white/5 hover:bg-white/10'
                                  : 'border-gray-300 hover:border-gray-400 bg-gray-50 hover:bg-gray-100'
                              }`}
                              onDragOver={handleDragOver}
                              onDrop={(e) => handleDrop(e, index)}
-                             title="Upload from gallery"
                            >
-                             <PhotoIcon className={`w-5 h-5 ${
+                             <span className={`text-sm ${
                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                             }`} />
-                             <input
-                               id={`image-upload-${index}`}
-                               type="file"
-                               className="hidden"
-                               accept="image/*"
-                               onChange={(e) => handleFileInputChange(e, index)}
-                               disabled={imageUploading}
-                             />
-                           </label>
-                           
-                           {/* Camera Capture Icon */}
-                           <button
-                             type="button"
-                             onClick={() => handleCameraPreview(index)}
-                             disabled={!cameraAvailable || imageUploading}
-                             className={`flex items-center justify-center w-10 h-10 border-2 border-dashed rounded-lg transition-all duration-300 hover:scale-110 ${
-                               !cameraAvailable || imageUploading
-                                 ? 'border-gray-400 bg-gray-100 cursor-not-allowed'
-                                 : isDarkMode
-                                   ? 'border-emerald-500 hover:border-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'
-                                   : 'border-emerald-400 hover:border-emerald-300 bg-emerald-50 hover:bg-emerald-100'
-                             }`}
-                             title="Capture with camera"
-                           >
-                             <svg className={`w-5 h-5 ${
-                               !cameraAvailable || imageUploading
-                                 ? 'text-gray-400'
-                                 : isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
-                             }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                             </svg>
-                           </button>
+                             }`}>
+                               Drag & drop images here
+                             </span>
+                           </div>
                          </div>
 
                          {/* Upload Progress */}
@@ -1518,8 +1561,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                            </div>
                          )}
 
-                         {/* Multiple Images Preview */}
-                         <div className={`w-full min-h-32 border-2 rounded-lg p-3 ${
+                         {/* Enhanced Multiple Images Preview */}
+                         <div className={`w-full min-h-40 border-2 rounded-xl p-4 ${
                            (item.imageUrls && item.imageUrls.length > 0)
                              ? 'border-green-300 bg-green-50 dark:bg-green-900/20' 
                              : isDarkMode 
@@ -1527,75 +1570,66 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                                : 'border-gray-300 bg-gray-50'
                          }`}>
                            {item.imageUrls && item.imageUrls.length > 0 ? (
-                             <div className="space-y-3">
-                               {/* Images Grid */}
-                               <div className="grid grid-cols-3 gap-2">
+                             <div className="space-y-4">
+                               {/* Images Grid - Enhanced */}
+                               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                                  {item.imageUrls.map((imageUrl, imageIndex) => (
                                    <div key={imageIndex} className="relative group">
-                                     <img
-                                       src={imageUrl}
-                                       alt={`Item ${index + 1} image ${imageIndex + 1}`}
-                                       className="w-full h-20 object-cover rounded-lg border"
-                                     />
-                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center space-x-1">
+                                     <div className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-600">
+                                       <img
+                                         src={imageUrl}
+                                         alt={`Item ${index + 1} image ${imageIndex + 1}`}
+                                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                       />
+                                     </div>
+                                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center space-x-2">
+                                       <button
+                                         type="button"
+                                         onClick={() => setShowImagePreview({ url: imageUrl, index })}
+                                         className="p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-all duration-300 hover:scale-110"
+                                         title="Preview full image"
+                                       >
+                                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                         </svg>
+                                       </button>
                                        <button
                                          type="button"
                                          onClick={() => {
                                            const updatedImages = item.imageUrls?.filter((_, i) => i !== imageIndex) || [];
                                            handleItemChange(index, 'imageUrls', updatedImages);
                                          }}
-                                         className="p-1 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all duration-300 hover:scale-110"
+                                         className="p-2 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all duration-300 hover:scale-110"
                                          title="Remove image"
                                        >
-                                         <XMarkIcon className="h-3 w-3" />
+                                         <XMarkIcon className="h-4 w-4" />
                                        </button>
-                                       <button
-                                         type="button"
-                                         onClick={() => setShowImagePreview({ url: imageUrl, index })}
-                                         className="p-1 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-all duration-300 hover:scale-110"
-                                         title="Preview full image"
-                                       >
-                                         <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                         </svg>
-                                       </button>
+                                     </div>
+                                     {/* Image Number Badge */}
+                                     <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
+                                       #{imageIndex + 1}
                                      </div>
                                    </div>
                                  ))}
                                </div>
-                               {/* Add More Button */}
-                               <div className="text-center">
-                                 <button
-                                   type="button"
-                                   onClick={() => {
-                                     const fileInput = document.createElement('input');
-                                     fileInput.type = 'file';
-                                     fileInput.accept = 'image/*';
-                                     fileInput.onchange = (e) => {
-                                       const file = (e.target as HTMLInputElement).files?.[0];
-                                       if (file) handleImageUpload(file, index);
-                                     };
-                                     fileInput.click();
-                                   }}
-                                   className={`inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-300 hover:scale-105 ${
-                                     isDarkMode
-                                       ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                       : 'bg-blue-600 text-white hover:bg-blue-700'
-                                   }`}
-                                 >
-                                   <PlusIcon className="h-4 w-4 mr-1" />
-                                   Add More Images
-                                 </button>
+                               
+                               
+                               
+                               {/* Image Count */}
+                               <div className={`text-center text-sm ${
+                                 isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                               }`}>
+                                 {item.imageUrls.length} image{item.imageUrls.length !== 1 ? 's' : ''} uploaded
                                </div>
                              </div>
                            ) : (
-                             <div className={`text-center py-8 ${
+                             <div className={`text-center py-12 ${
                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
                              }`}>
-                               <PhotoIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                               <p className="text-sm">No images selected</p>
-                               <p className="text-xs">Click icons above to upload</p>
+                               <PhotoIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                               <p className="text-base font-medium mb-1">No images selected</p>
+                               <p className="text-sm">Use the buttons above to upload images</p>
                              </div>
                            )}
                          </div>

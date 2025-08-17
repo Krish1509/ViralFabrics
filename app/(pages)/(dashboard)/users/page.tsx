@@ -36,7 +36,7 @@ interface UserFormData {
 
 export default function UsersPage() {
   const router = useRouter();
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -115,7 +115,9 @@ export default function UsersPage() {
       
       if (response.ok) {
         const data = await response.json();
-        setUsers(data);
+        // Validate that all users have _id
+        const validUsers = data.filter((user: any) => user._id);
+        setUsers(validUsers);
       } else {
         throw new Error('Failed to fetch users');
       }
@@ -294,7 +296,11 @@ export default function UsersPage() {
 
   // Delete user
   const handleDeleteUser = async () => {
-    if (!selectedUser) return;
+    if (!selectedUser || !selectedUser._id) {
+      setValidationAlert({ type: 'error', text: 'Invalid user selected for deletion' });
+      setTimeout(() => setValidationAlert(null), 5000);
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -361,6 +367,15 @@ export default function UsersPage() {
       day: 'numeric'
     });
   };
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -732,15 +747,18 @@ export default function UsersPage() {
                       </button>
                       <button
                         onClick={() => {
-                          if (canDeleteUser(user)) {
+                          if (canDeleteUser(user) && user._id) {
                             setSelectedUser(user);
                             setShowDeleteModal(true);
                             setValidationAlert(null);
+                          } else if (!user._id) {
+                            setValidationAlert({ type: 'error', text: 'Invalid user data - cannot delete' });
+                            setTimeout(() => setValidationAlert(null), 5000);
                           }
                         }}
-                        disabled={!canDeleteUser(user)}
+                        disabled={!canDeleteUser(user) || !user._id}
                         className={`p-2 rounded-lg transition-all duration-300 ${
-                          canDeleteUser(user)
+                          canDeleteUser(user) && user._id
                             ? isDarkMode
                               ? 'text-red-400 hover:bg-red-500/20 hover:text-red-300 active:bg-red-500/30'
                               : 'text-red-600 hover:bg-red-50 hover:text-red-700 active:bg-red-100'
@@ -748,7 +766,7 @@ export default function UsersPage() {
                               ? 'text-gray-500 cursor-not-allowed opacity-50 hover:bg-gray-500/10 hover:text-gray-400'
                               : 'text-gray-400 cursor-not-allowed opacity-50 hover:bg-gray-100 hover:text-gray-500'
                         }`}
-                        title={canDeleteUser(user) ? "Delete user" : "Cannot delete yourself - This would lock you out of the system"}
+                        title={canDeleteUser(user) && user._id ? "Delete user" : "Cannot delete yourself - This would lock you out of the system"}
                       >
                         <TrashIcon className={`h-4 w-4 transition-all duration-300 ${
                           !canDeleteUser(user) 

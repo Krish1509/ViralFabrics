@@ -1,9 +1,0 @@
-# Copy this file to .env.local and replace the values with your actual credentials
-
-# Cloudinary Configuration
-CLOUDINARY_CLOUD_NAME=your_cloud_name_here
-CLOUDINARY_API_KEY=your_api_key_here
-CLOUDINARY_API_SECRET=your_api_secret_here
-
-# Database Configuration (if you have other env vars)
-# MONGODB_URI=your_mongodb_connection_string

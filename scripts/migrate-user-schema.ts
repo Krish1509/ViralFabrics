@@ -1,11 +1,34 @@
-const mongoose = require('mongoose');
-require('dotenv').config();
+import mongoose from 'mongoose';
+import dotenv from 'dotenv';
 
-async function migrateUserSchema() {
+dotenv.config();
+
+interface User {
+  _id: mongoose.Types.ObjectId;
+  username: string;
+  name?: string;
+  email?: string;
+  phoneNumber?: string;
+  address?: string;
+  isActive?: boolean;
+  role?: string;
+  createdAt?: Date;
+  lastLogin?: Date;
+}
+
+interface UpdateResult {
+  modifiedCount: number;
+}
+
+async function migrateUserSchema(): Promise<void> {
   try {
     console.log('🔄 Starting User schema migration...');
     
     // Connect to MongoDB
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI environment variable is required');
+    }
+    
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('✅ Connected to MongoDB');
     
@@ -14,7 +37,7 @@ async function migrateUserSchema() {
     
     // Step 1: Add missing fields with defaults
     console.log('📝 Step 1: Adding missing fields...');
-    const updateResult = await usersCollection.updateMany(
+    const updateResult: UpdateResult = await usersCollection.updateMany(
       { 
         $or: [
           { isActive: { $exists: false } },
@@ -32,7 +55,7 @@ async function migrateUserSchema() {
     
     // Step 2: Normalize usernames to lowercase
     console.log('📝 Step 2: Normalizing usernames...');
-    const usersWithUpperCaseUsernames = await usersCollection.find({
+    const usersWithUpperCaseUsernames: User[] = await usersCollection.find({
       username: { $regex: /[A-Z]/ }
     }).toArray();
     
@@ -46,18 +69,19 @@ async function migrateUserSchema() {
     
     // Step 3: Trim string fields
     console.log('📝 Step 3: Trimming string fields...');
-    const stringFields = ['name', 'username', 'email', 'phoneNumber', 'address'];
+    const stringFields: (keyof User)[] = ['name', 'username', 'email', 'phoneNumber', 'address'];
     
     for (const field of stringFields) {
-      const usersWithWhitespace = await usersCollection.find({
+      const usersWithWhitespace: User[] = await usersCollection.find({
         [field]: { $regex: /^\s|\s$/ }
       }).toArray();
       
       for (const user of usersWithWhitespace) {
-        if (user[field]) {
+        const fieldValue = user[field];
+        if (fieldValue && typeof fieldValue === 'string') {
           await usersCollection.updateOne(
             { _id: user._id },
-            { $set: { [field]: user[field].trim() } }
+            { $set: { [field]: fieldValue.trim() } }
           );
         }
       }
@@ -145,4 +169,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { migrateUserSchema };
+export { migrateUserSchema };

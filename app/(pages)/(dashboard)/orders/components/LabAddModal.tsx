@@ -28,7 +28,7 @@ interface LabData {
 }
 
 export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalProps) {
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   const [labData, setLabData] = useState<LabData[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -78,13 +78,13 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
             }
           }
           
-          return {
-            orderItemId: itemId,
-            labSendDate: existingLab ? new Date(existingLab.labSendDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            approvalDate: existingLab?.labSendData?.approvalDate || '',
-            sampleNumber: existingLab ? existingLab.labSendNumber : '',
-            existingLabId: existingLab?._id
-          };
+                     return {
+             orderItemId: itemId,
+             labSendDate: existingLab ? new Date(existingLab.labSendDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+             approvalDate: existingLab?.labSendData?.approvalDate || '',
+             sampleNumber: existingLab?.labSendNumber || '',
+             existingLabId: existingLab?._id
+           };
         });
         
         console.log('Lab detection results:', {
@@ -154,6 +154,24 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
   const handleSubmit = async () => {
     if (!order) return;
 
+    // Validate required fields before submitting
+    const validationErrors = [];
+    for (let i = 0; i < labData.length; i++) {
+      const lab = labData[i];
+      // Only validate sample number if it's provided (make it optional)
+      if (lab.sampleNumber && lab.sampleNumber.trim() !== '' && lab.sampleNumber.trim().length < 3) {
+        validationErrors.push(`Item ${i + 1}: Sample number must be at least 3 characters if provided`);
+      }
+      if (!lab.labSendDate) {
+        validationErrors.push(`Item ${i + 1}: Lab send date is required`);
+      }
+    }
+
+    if (validationErrors.length > 0) {
+      showMessage('error', `Please fix the following errors:\n${validationErrors.join('\n')}`);
+      return;
+    }
+
     setLoading(true);
     try {
       const createdLabs = [];
@@ -166,6 +184,11 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           return;
         }
 
+        // Skip if sample number is provided but too short
+        if (lab.sampleNumber && lab.sampleNumber.trim() !== '' && lab.sampleNumber.trim().length < 3) {
+          continue;
+        }
+
         if (lab.existingLabId) {
           // Update existing lab - also update orderItemId if it changed
           const response = await fetch(`/api/labs/${lab.existingLabId}`, {
@@ -173,16 +196,16 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              orderItemId: lab.orderItemId, // Update the orderItemId to match new item ID
-              labSendDate: lab.labSendDate,
-              labSendNumber: lab.sampleNumber,
-              labSendData: {
-                approvalDate: lab.approvalDate,
-                sampleNumber: lab.sampleNumber
-              },
-              remarks: `Sample: ${lab.sampleNumber}`
-            }),
+                         body: JSON.stringify({
+               orderItemId: lab.orderItemId, // Update the orderItemId to match new item ID
+               labSendDate: lab.labSendDate,
+               labSendNumber: lab.sampleNumber.trim() || undefined,
+               labSendData: {
+                 approvalDate: lab.approvalDate,
+                 sampleNumber: lab.sampleNumber.trim() || undefined
+               },
+               remarks: lab.sampleNumber.trim() ? `Sample: ${lab.sampleNumber.trim()}` : 'Lab record updated'
+             }),
           });
 
           const data = await response.json();
@@ -198,18 +221,18 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              orderId: order._id,
-              orderItemId: lab.orderItemId,
-              labSendDate: lab.labSendDate,
-              labSendNumber: lab.sampleNumber,
-              labSendData: {
-                approvalDate: lab.approvalDate,
-                sampleNumber: lab.sampleNumber
-              },
-              status: 'sent',
-              remarks: `Sample: ${lab.sampleNumber}`
-            }),
+                         body: JSON.stringify({
+               orderId: order._id,
+               orderItemId: lab.orderItemId,
+               labSendDate: lab.labSendDate,
+               labSendNumber: lab.sampleNumber.trim() || undefined,
+               labSendData: {
+                 approvalDate: lab.approvalDate,
+                 sampleNumber: lab.sampleNumber.trim() || undefined
+               },
+               status: 'sent',
+               remarks: lab.sampleNumber.trim() ? `Sample: ${lab.sampleNumber.trim()}` : 'Lab record created'
+             }),
           });
 
           const data = await response.json();
@@ -250,6 +273,17 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
 
   if (!order) return null;
 
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="fixed inset-0 backdrop-blur-md bg-black/60 bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl bg-white text-gray-900 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        </div>
+      </div>
+    );
+  }
+
   if (checkingExisting) {
     return (
       <div className="fixed inset-0  backdrop-blur-sm bg-opacity-50 bg-black/30 flex items-center justify-center z-50 p-4">
@@ -268,6 +302,10 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
   const hasExistingLabs = labData.some(lab => lab.existingLabId);
   const hasNewLabs = labData.some(lab => !lab.existingLabId);
   const hasUnsavedOrder = labData.some(lab => lab.orderItemId.startsWith('item_'));
+  const hasValidationErrors = labData.some(lab => 
+    (lab.sampleNumber && lab.sampleNumber.trim() !== '' && lab.sampleNumber.trim().length < 3) || 
+    !lab.labSendDate
+  );
 
   return (
     <div className="fixed inset-0 backdrop-blur-md bg-black/60 bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -498,19 +536,37 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
                       <input
                         type="text"
                         value={lab.sampleNumber}
-                        onChange={(e) => handleLabDataChange(index, 'sampleNumber', e.target.value)}
-                        className={`w-full px-3 py-2 rounded-lg border text-sm transition-colors ${
-                          lab.existingLabId
-                            ? isDarkMode
-                              ? 'bg-green-900/10 border-green-500/30 text-white focus:border-green-500'
-                              : 'bg-green-50 border-green-200 text-gray-900 focus:border-green-500'
-                            : isDarkMode
-                              ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                              : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                        }`}
-                                                 placeholder="Enter sample number"
-                       />
-                     </td>
+                        onChange={(e) => {
+                          // Convert to uppercase and only allow valid characters
+                          const value = e.target.value.toUpperCase().replace(/[^A-Z0-9\-_]/g, '');
+                          handleLabDataChange(index, 'sampleNumber', value);
+                        }}
+                                                 className={`w-full px-3 py-2 rounded-lg border text-sm transition-colors ${
+                           lab.sampleNumber && lab.sampleNumber.trim() !== '' && lab.sampleNumber.length < 3
+                             ? isDarkMode
+                               ? 'bg-yellow-900/10 border-yellow-500/30 text-white focus:border-yellow-500'
+                               : 'bg-yellow-50 border-yellow-200 text-gray-900 focus:border-yellow-500'
+                             : lab.existingLabId
+                               ? isDarkMode
+                                 ? 'bg-green-900/10 border-green-500/30 text-white focus:border-green-500'
+                                 : 'bg-green-50 border-green-200 text-gray-900 focus:border-green-500'
+                               : isDarkMode
+                                 ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                                 : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                         }`}
+                         placeholder="Enter sample number (optional, e.g., LAB-001)"
+                         maxLength={50}
+                      />
+                                             {lab.sampleNumber && lab.sampleNumber.trim() !== '' && lab.sampleNumber.length < 3 && (
+                         <p className="text-xs text-yellow-600 mt-1">Sample number must be at least 3 characters if provided</p>
+                       )}
+                       {lab.sampleNumber && lab.sampleNumber.trim() !== '' && lab.sampleNumber.length >= 3 && (
+                         <p className="text-xs text-green-600 mt-1">✓ Valid format</p>
+                       )}
+                       {(!lab.sampleNumber || lab.sampleNumber.trim() === '') && (
+                         <p className="text-xs text-gray-500 mt-1">Sample number is optional</p>
+                       )}
+                    </td>
                      
                      <td className="px-4 py-3">
                       <div className="flex items-center">
@@ -567,9 +623,9 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || hasUnsavedOrder}
+            disabled={loading || hasUnsavedOrder || hasValidationErrors}
             className={`inline-flex items-center px-6 py-2 rounded-lg font-medium transition-all duration-300 ${
-              loading || hasUnsavedOrder
+              loading || hasUnsavedOrder || hasValidationErrors
                 ? 'opacity-50 cursor-not-allowed'
                 : 'hover:scale-105'
             } ${
@@ -587,6 +643,11 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
               <>
                 <ExclamationTriangleIcon className="h-4 w-4 mr-2" />
                 Save Order First
+              </>
+            ) : hasValidationErrors ? (
+              <>
+                <ExclamationTriangleIcon className="h-4 w-4 mr-2" />
+                Fix Required Fields
               </>
             ) : (
               <>

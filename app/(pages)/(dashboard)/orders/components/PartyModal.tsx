@@ -29,7 +29,7 @@ interface ValidationErrors {
 }
 
 export default function PartyModal({ onClose, onSuccess }: PartyModalProps) {
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   const [formData, setFormData] = useState<PartyFormData>({
     name: '',
     contactName: '',
@@ -132,6 +132,17 @@ export default function PartyModal({ onClose, onSuccess }: PartyModalProps) {
   const getFieldError = (field: string) => {
     return errors[field] || '';
   };
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl rounded-2xl shadow-2xl bg-white border border-gray-200 max-h-[98vh] overflow-hidden flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">

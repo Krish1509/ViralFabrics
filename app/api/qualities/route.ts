@@ -1,167 +1,119 @@
-import dbConnect from "@/lib/dbConnect";
-import Quality from "@/models/Quality";
-import { requireAuth } from "@/lib/session";
-import { type NextRequest } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
+import dbConnect from '@/lib/dbConnect';
+import Quality from '@/models/Quality';
+import { 
+  validateRequest, 
+  createQualitySchema, 
+  searchSchema,
+  CreateQualityRequest,
+  SearchRequest 
+} from '@/lib/validation';
+import { 
+  ValidationError, 
+  NotFoundError 
+} from '@/lib/errors';
+import { 
+  sendSuccess, 
+  sendCreated, 
+  sendValidationError, 
+  sendServerError,
+  paginatedResponse,
+  calculatePagination,
+  buildQuery,
+  buildSort
+} from '@/lib/response';
 
-export async function GET(req: NextRequest) {
+// GET /api/qualities - List qualities with pagination and search
+export async function GET(request: NextRequest) {
   try {
-    // Remove authentication requirement for now
-    // await requireAuth(req);
-
+    // Connect to database
     await dbConnect();
     
-    const { searchParams } = new URL(req.url);
-    const search = searchParams.get('search');
-
-    let query = {};
+    // Parse and validate query parameters
+    const url = new URL(request.url);
+    const queryParams = Object.fromEntries(url.searchParams.entries());
     
-    // If search parameter is provided, search by name with case-insensitive partial match
-    if (search && search.trim()) {
-      query = {
-        name: { $regex: search.trim(), $options: 'i' }
-      };
+    const validatedQuery = validateRequest(searchSchema, queryParams);
+    const { page, limit, search, sortBy, sortOrder } = validatedQuery;
+
+    // Build query
+    const query = buildQuery({ search });
+    if (search) {
+      query.isActive = true; // Only search active qualities
     }
 
-    // Get qualities with search filter, limit to 20 results, sorted by name
-    const qualities = await Quality.find(query)
-      .sort({ name: 1 })
-      .limit(20)
-      .select('_id name description createdAt updatedAt');
+    // Build sort
+    const sort = buildSort(sortBy, sortOrder);
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      data: qualities 
-    }), { status: 200 });
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      if (error.message.includes("Unauthorized")) {
-        return new Response(JSON.stringify({ 
-          success: false, 
-          message: "Unauthorized" 
-        }), { status: 401 });
-      }
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+
+    // Execute queries in parallel for better performance
+    const [qualities, total] = await Promise.all([
+      Quality.find(query)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Quality.countDocuments(query)
+    ]);
+
+    // Calculate pagination info
+    const pagination = calculatePagination(page, limit, total);
+
+    // Return paginated response
+    const response = paginatedResponse(qualities, pagination, 'Qualities retrieved successfully');
+    
+    return NextResponse.json(response);
+
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return sendValidationError(NextResponse, error.message);
     }
-    const message = error instanceof Error ? error.message : "Internal Server Error";
-    return new Response(JSON.stringify({ 
-      success: false, 
-      message 
-    }), { status: 500 });
+    console.error('GET /api/qualities error:', error);
+    return sendServerError(NextResponse, 'Failed to retrieve qualities');
   }
 }
 
-export async function POST(req: NextRequest) {
+// POST /api/qualities - Create new quality
+export async function POST(request: NextRequest) {
   try {
-    // Remove authentication requirement for now
-    // await requireAuth(req);
-
-    const { name, description } = await req.json();
-
-    // Validation
-    const errors: string[] = [];
-    
-    if (!name || !name.trim()) {
-      errors.push("Quality name is required");
-    } else if (name.trim().length < 2) {
-      errors.push("Quality name must be at least 2 characters long");
-    } else if (name.trim().length > 100) {
-      errors.push("Quality name cannot exceed 100 characters");
-    }
-    
-    if (description && description.trim().length > 500) {
-      errors.push("Description cannot exceed 500 characters");
-    }
-    
-    if (errors.length > 0) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: errors.join(", ") 
-        }), 
-        { status: 400 }
-      );
-    }
-
+    // Connect to database
     await dbConnect();
-
-    // Check if quality with same name already exists (case-insensitive)
-    const existingQuality = await Quality.findOne({ 
-      name: { $regex: `^${name.trim()}$`, $options: 'i' } 
-    });
     
+    // Parse and validate request body
+    const body = await request.json();
+    const validatedData = validateRequest(createQualitySchema, body);
+
+    // Check if quality with same name already exists
+    const existingQuality = await Quality.findOne({ name: { $regex: validatedData.name, $options: 'i' } });
     if (existingQuality) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: "A quality with this name already exists" 
-        }), 
-        { status: 400 }
-      );
+      return NextResponse.json({
+        success: false,
+        message: 'Quality with this name already exists',
+        timestamp: new Date().toISOString()
+      }, { status: 409 });
     }
 
-    // Create quality data object
-    const qualityData = {
-      name: name.trim(),
-      description: description ? description.trim() : undefined,
-    };
-    
-    const createdQuality = await Quality.create(qualityData);
+    // Create new quality
+    const quality = new Quality(validatedData);
+    const savedQuality = await quality.save();
 
-    // Return the created quality without sensitive fields
-    const qualitySafe = {
-      _id: createdQuality._id,
-      name: createdQuality.name,
-      description: createdQuality.description,
-      createdAt: createdQuality.createdAt,
-      updatedAt: createdQuality.updatedAt,
+    // Return success response
+    const response = {
+      success: true,
+      data: savedQuality,
+      message: 'Quality created successfully',
+      timestamp: new Date().toISOString()
     };
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "Quality created successfully", 
-        data: qualitySafe 
-      }), 
-      { status: 201 }
-    );
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      if (error.message.includes("Unauthorized")) {
-        return new Response(JSON.stringify({ 
-          success: false, 
-          message: "Unauthorized" 
-        }), { status: 401 });
-      }
-      
-      // Handle MongoDB duplicate key errors
-      if (error.message.includes('E11000')) {
-        if (error.message.includes('name')) {
-          return new Response(
-            JSON.stringify({ 
-              success: false, 
-              message: "A quality with this name already exists" 
-            }), 
-            { status: 400 }
-          );
-        }
-      }
-      
-      // Handle validation errors
-      if (error.name === 'ValidationError') {
-        const validationErrors = Object.values((error as any).errors).map((err: any) => err.message);
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            message: validationErrors.join(", ") 
-          }), 
-          { status: 400 }
-        );
-      }
+    return NextResponse.json(response, { status: 201 });
+
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return sendValidationError(NextResponse, error.message);
     }
-    
-    const message = error instanceof Error ? error.message : "Internal Server Error";
-    return new Response(JSON.stringify({ 
-      success: false, 
-      message 
-    }), { status: 500 });
+    console.error('POST /api/qualities error:', error);
+    return sendServerError(NextResponse, 'Failed to create quality');
   }
 }

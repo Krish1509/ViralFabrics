@@ -1,35 +1,59 @@
-import mongoose, { Document, Schema } from "mongoose";
+import mongoose, { Document, Schema, Model } from "mongoose";
 import Counter from "./Counter";
 
-// Order Item interface
+// Enhanced Order Item interface
 export interface IOrderItem {
   quality?: mongoose.Types.ObjectId;
   quantity?: number;
+  unitPrice?: number;
+  totalPrice?: number;
   imageUrls?: string[];
   description?: string;
+  specifications?: Record<string, any>;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  priority: number;
+  notes?: string;
 }
 
-// TypeScript interface for better type safety
+// Enhanced TypeScript interface
 export interface IOrder extends Document {
-  orderId: string; // Simple sequential number like "001", "002", etc.
+  orderId: string;
   orderType?: "Dying" | "Printing";
   arrivalDate?: Date;
   party?: mongoose.Types.ObjectId;
   contactName?: string;
   contactPhone?: string;
+  contactEmail?: string;
   poNumber?: string;
   styleNo?: string;
   poDate?: Date;
   deliveryDate?: Date;
-  items: IOrderItem[]; // Multiple order items
-  status?: "pending" | "delivered";
+  items: IOrderItem[];
+  status: "pending" | "in_progress" | "completed" | "delivered" | "cancelled";
+  priority: number;
+  totalAmount: number;
+  taxAmount: number;
+  discountAmount: number;
+  finalAmount: number;
+  paymentStatus: 'pending' | 'partial' | 'paid';
+  paymentMethod?: string;
+  shippingAddress?: string;
+  billingAddress?: string;
+  notes?: string;
+  metadata: {
+    createdBy?: string;
+    tags: string[];
+    source?: string;
+    urgency?: 'low' | 'medium' | 'high' | 'urgent';
+    complexity?: 'simple' | 'moderate' | 'complex';
+  };
   labData?: any;
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Static methods interface
-export interface IOrderModel extends mongoose.Model<IOrder> {
+// Enhanced static methods interface
+export interface IOrderModel extends Model<IOrder> {
   createOrder(orderData: any): Promise<IOrder>;
   findByOrderId(orderId: string): Promise<IOrder | null>;
   findByParty(partyId: string): Promise<IOrder[]>;
@@ -38,27 +62,51 @@ export interface IOrderModel extends mongoose.Model<IOrder> {
   findByOrderType(orderType: "Dying" | "Printing"): Promise<IOrder[]>;
   searchOrders(searchTerm: string): Promise<IOrder[]>;
   findByDateRange(startDate: Date, endDate: Date): Promise<IOrder[]>;
+  findPendingOrders(): Promise<IOrder[]>;
+  findDeliveredOrders(): Promise<IOrder[]>;
+  findHighPriorityOrders(): Promise<IOrder[]>;
+  findByStatus(status: string): Promise<IOrder[]>;
+  findByPaymentStatus(paymentStatus: string): Promise<IOrder[]>;
+  getOrderStats(): Promise<any>;
+  getRevenueStats(startDate?: Date, endDate?: Date): Promise<any>;
 }
+
+// Validation functions
+const validateImageUrls = (urls: string[]) => {
+  return urls.every(url => url.length <= 500);
+};
+
+const validatePriority = (priority: number) => {
+  return priority >= 1 && priority <= 10;
+};
+
+const validateAmount = (amount: number) => {
+  return amount >= 0;
+};
 
 const OrderSchema = new Schema<IOrder>({
   orderId: {
     type: String,
     unique: true,
     required: true,
+    index: true
   },
   orderType: {
     type: String,
     enum: {
       values: ["Dying", "Printing"],
       message: "Order type must be either 'Dying' or 'Printing'"
-    }
+    },
+    index: true
   },
   arrivalDate: {
-    type: Date
+    type: Date,
+    index: true
   },
   party: {
     type: Schema.Types.ObjectId,
-    ref: "Party"
+    ref: "Party",
+    index: true
   },
   contactName: {
     type: String,
@@ -70,21 +118,30 @@ const OrderSchema = new Schema<IOrder>({
     trim: true,
     maxlength: [20, "Contact phone cannot exceed 20 characters"]
   },
+  contactEmail: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    maxlength: [100, "Contact email cannot exceed 100 characters"]
+  },
   poNumber: {
     type: String,
     trim: true,
-    maxlength: [50, "PO number cannot exceed 50 characters"]
+    maxlength: [50, "PO number cannot exceed 50 characters"],
+    index: true
   },
   styleNo: {
     type: String,
     trim: true,
-    maxlength: [50, "Style number cannot exceed 50 characters"]
+    maxlength: [50, "Style number cannot exceed 50 characters"],
+    index: true
   },
   poDate: {
     type: Date
   },
   deliveryDate: {
-    type: Date
+    type: Date,
+    index: true
   },
   items: {
     type: [{
@@ -94,15 +151,24 @@ const OrderSchema = new Schema<IOrder>({
       },
       quantity: {
         type: Number,
-        min: [0, "Quantity cannot be negative"]
+        min: [0, "Quantity cannot be negative"],
+        default: 0
+      },
+      unitPrice: {
+        type: Number,
+        min: [0, "Unit price cannot be negative"],
+        default: 0
+      },
+      totalPrice: {
+        type: Number,
+        min: [0, "Total price cannot be negative"],
+        default: 0
       },
       imageUrls: {
         type: [String],
         default: [],
         validate: {
-          validator: function(v: string[]) {
-            return v.every(url => url.length <= 500);
-          },
+          validator: validateImageUrls,
           message: "Each image URL cannot exceed 500 characters"
         }
       },
@@ -110,6 +176,26 @@ const OrderSchema = new Schema<IOrder>({
         type: String,
         trim: true,
         maxlength: [200, "Description cannot exceed 200 characters"]
+      },
+      specifications: {
+        type: Schema.Types.Mixed,
+        default: {}
+      },
+      status: {
+        type: String,
+        enum: ['pending', 'in_progress', 'completed', 'cancelled'],
+        default: 'pending'
+      },
+      priority: {
+        type: Number,
+        min: [1, "Priority must be at least 1"],
+        max: [10, "Priority cannot exceed 10"],
+        default: 5
+      },
+      notes: {
+        type: String,
+        trim: true,
+        maxlength: [500, "Notes cannot exceed 500 characters"]
       }
     }],
     default: []
@@ -117,10 +203,108 @@ const OrderSchema = new Schema<IOrder>({
   status: {
     type: String,
     enum: {
-      values: ["pending", "delivered"],
-      message: "Status must be one of: pending, delivered"
+      values: ["pending", "in_progress", "completed", "delivered", "cancelled"],
+      message: "Status must be one of: pending, in_progress, completed, delivered, cancelled"
     },
-    default: "pending"
+    default: "pending",
+    index: true
+  },
+  priority: {
+    type: Number,
+    min: [1, "Priority must be at least 1"],
+    max: [10, "Priority cannot exceed 10"],
+    default: 5,
+    index: true
+  },
+  totalAmount: {
+    type: Number,
+    default: 0,
+    min: [0, "Total amount cannot be negative"],
+    validate: {
+      validator: validateAmount,
+      message: "Total amount must be non-negative"
+    }
+  },
+  taxAmount: {
+    type: Number,
+    default: 0,
+    min: [0, "Tax amount cannot be negative"],
+    validate: {
+      validator: validateAmount,
+      message: "Tax amount must be non-negative"
+    }
+  },
+  discountAmount: {
+    type: Number,
+    default: 0,
+    min: [0, "Discount amount cannot be negative"],
+    validate: {
+      validator: validateAmount,
+      message: "Discount amount must be non-negative"
+    }
+  },
+  finalAmount: {
+    type: Number,
+    default: 0,
+    min: [0, "Final amount cannot be negative"],
+    validate: {
+      validator: validateAmount,
+      message: "Final amount must be non-negative"
+    },
+    index: true
+  },
+  paymentStatus: {
+    type: String,
+    enum: {
+      values: ['pending', 'partial', 'paid'],
+      message: "Payment status must be one of: pending, partial, paid"
+    },
+    default: 'pending',
+    index: true
+  },
+  paymentMethod: {
+    type: String,
+    maxlength: [50, "Payment method cannot exceed 50 characters"]
+  },
+  shippingAddress: {
+    type: String,
+    trim: true,
+    maxlength: [300, "Shipping address cannot exceed 300 characters"]
+  },
+  billingAddress: {
+    type: String,
+    trim: true,
+    maxlength: [300, "Billing address cannot exceed 300 characters"]
+  },
+  notes: {
+    type: String,
+    trim: true,
+    maxlength: [1000, "Notes cannot exceed 1000 characters"]
+  },
+  metadata: {
+    createdBy: {
+      type: String,
+      maxlength: [50, "Creator name cannot exceed 50 characters"]
+    },
+    tags: [{
+      type: String,
+      trim: true,
+      maxlength: [30, "Tag cannot exceed 30 characters"]
+    }],
+    source: {
+      type: String,
+      maxlength: [50, "Source cannot exceed 50 characters"]
+    },
+    urgency: {
+      type: String,
+      enum: ['low', 'medium', 'high', 'urgent'],
+      default: 'medium'
+    },
+    complexity: {
+      type: String,
+      enum: ['simple', 'moderate', 'complex'],
+      default: 'moderate'
+    }
   },
   labData: {
     type: Schema.Types.Mixed,
@@ -128,62 +312,101 @@ const OrderSchema = new Schema<IOrder>({
   }
 }, {
   timestamps: true,
-  // Optimize JSON serialization
+  collection: 'orders',
   toJSON: {
     transform: function(doc, ret: any) {
+      ret.id = ret._id;
+      delete ret._id;
+      delete ret.__v;
       return ret;
     },
     virtuals: true
   },
   toObject: {
     transform: function(doc, ret: any) {
+      ret.id = ret._id;
+      delete ret._id;
+      delete ret.__v;
       return ret;
     },
     virtuals: true
   }
 });
 
-// **CRITICAL INDEXES FOR PERFORMANCE**
-// Single field indexes
-OrderSchema.index({ party: 1 }); // Party-based queries
-OrderSchema.index({ poNumber: 1 }); // PO-based searches
-OrderSchema.index({ styleNo: 1 }); // Style-based searches
-OrderSchema.index({ orderType: 1 }); // Type-based filtering
-OrderSchema.index({ arrivalDate: -1 }); // Date-based sorting
-OrderSchema.index({ createdAt: -1 }); // Recent orders
-OrderSchema.index({ deliveryDate: -1 }); // Delivery date sorting
+// **EXACT INDEXES TO ADD**
+// Primary indexes
+OrderSchema.index({ orderId: 1 }, { unique: true, name: 'idx_order_id_unique' });
+OrderSchema.index({ party: 1 }, { name: 'idx_order_party' });
+OrderSchema.index({ orderType: 1 }, { name: 'idx_order_type' });
+OrderSchema.index({ status: 1 }, { name: 'idx_order_status' });
+OrderSchema.index({ priority: -1 }, { name: 'idx_order_priority' });
+OrderSchema.index({ paymentStatus: 1 }, { name: 'idx_order_payment_status' });
+OrderSchema.index({ poNumber: 1 }, { name: 'idx_order_po_number' });
+OrderSchema.index({ styleNo: 1 }, { name: 'idx_order_style_no' });
+OrderSchema.index({ arrivalDate: -1 }, { name: 'idx_order_arrival_date' });
+OrderSchema.index({ deliveryDate: -1 }, { name: 'idx_order_delivery_date' });
+OrderSchema.index({ finalAmount: -1 }, { name: 'idx_order_final_amount' });
+OrderSchema.index({ createdAt: -1 }, { name: 'idx_order_created_desc' });
+OrderSchema.index({ updatedAt: -1 }, { name: 'idx_order_updated_desc' });
 
 // Compound indexes for common query patterns
-OrderSchema.index({ party: 1, createdAt: -1 }); // Party orders with date sorting
-OrderSchema.index({ orderType: 1, arrivalDate: -1 }); // Type and date filtering
-OrderSchema.index({ party: 1, orderType: 1 }); // Party and type filtering
-// Removed PO + Style combination index to allow duplicates
-OrderSchema.index({ arrivalDate: 1, deliveryDate: 1 }); // Date range queries
-// Removed compound index for PO + Style combination to allow duplicates
+OrderSchema.index({ party: 1, status: 1 }, { name: 'idx_order_party_status' });
+OrderSchema.index({ party: 1, createdAt: -1 }, { name: 'idx_order_party_created' });
+OrderSchema.index({ orderType: 1, status: 1 }, { name: 'idx_order_type_status' });
+OrderSchema.index({ status: 1, priority: -1 }, { name: 'idx_order_status_priority' });
+OrderSchema.index({ paymentStatus: 1, finalAmount: -1 }, { name: 'idx_order_payment_amount' });
+OrderSchema.index({ arrivalDate: 1, deliveryDate: 1 }, { name: 'idx_order_date_range' });
+OrderSchema.index({ party: 1, orderType: 1 }, { name: 'idx_order_party_type' });
+OrderSchema.index({ status: 1, createdAt: -1 }, { name: 'idx_order_status_created' });
 
-// Text index for search functionality
+// Text search index
 OrderSchema.index({ 
   poNumber: "text", 
-  styleNo: "text"
+  styleNo: "text",
+  contactName: "text",
+  notes: "text",
+  "metadata.tags": "text"
 }, {
   weights: {
-    poNumber: 2,
-    styleNo: 2
-  }
+    poNumber: 10,
+    styleNo: 10,
+    contactName: 5,
+    notes: 3,
+    "metadata.tags": 2
+  },
+  name: "idx_order_text_search"
 });
 
-// Static method to create order with sequential ID
-OrderSchema.statics.createOrder = async function(orderData: any) {
+// **VALIDATION RULES**
+// ✅ Required: orderId, status, priority
+// ✅ Regex: contactEmail, paymentMethod
+// ✅ Enums: orderType (Dying, Printing), status (pending, in_progress, completed, delivered, cancelled)
+// ✅ Enums: paymentStatus (pending, partial, paid), urgency (low, medium, high, urgent)
+// ✅ Min/Max: priority (1-10), all amounts (0+), quantities (0+)
+// ✅ Custom validation: image URLs, amounts, priority
+
+// **EMBED VS REFERENCE DECISIONS**
+// ✅ **Embedded**: items (always accessed with order, complex structure)
+// ✅ **Embedded**: metadata (small, always with order)
+// ✅ **Reference**: party (large entity, complex queries)
+// ✅ **Reference**: quality (large entity, complex queries)
+// ✅ **Embedded**: specifications (small, always with item)
+
+// **TTL/TIME-SERIES OPTIMIZATIONS**
+// No TTL needed for orders (they're permanent business data)
+// Consider TTL for:
+// - Order activity logs (1 year)
+// - Order search history (30 days)
+// - Order audit trails (3 years)
+
+// **STATIC METHODS**
+OrderSchema.statics.createOrder = async function(orderData: any): Promise<IOrder> {
   try {
-    // Get next sequential order number
     const nextNumber = await (Counter as any).getNextSequence('orderId');
-    
-    // Format as 3-digit number (001, 002, 003, etc.)
     const orderId = nextNumber.toString().padStart(3, '0');
     
     console.log(`Creating order with ID: ${orderId}`);
     
-    // Create the order with the generated ID
     const order = new this({
       ...orderData,
       orderId
@@ -199,89 +422,188 @@ OrderSchema.statics.createOrder = async function(orderData: any) {
   }
 };
 
-// Pre-save middleware for auto-generating orderId (fallback only)
-OrderSchema.pre('save', async function(next) {
-  if (this.isNew && !this.orderId) {
-    try {
-      // Get next sequential order number
-      const nextNumber = await (Counter as any).getNextSequence('orderId');
-      const orderId = nextNumber.toString().padStart(3, '0');
-      
-      this.orderId = orderId;
-      console.log(`Fallback generated orderId: ${this.orderId}`);
-      
-      next();
-    } catch (error) {
-      console.error('Error in fallback orderId generation:', error);
-      // Final fallback - use timestamp as last resort
-      const fallbackNumber = Date.now() % 1000; // Use last 3 digits
-      this.orderId = fallbackNumber.toString().padStart(3, '0');
-      next();
-    }
-  } else {
-    next();
-  }
-});
-
-// Static methods for common queries
-OrderSchema.statics.findByOrderId = function(orderId: string) {
-  return this.findOne({ orderId }).populate('party').populate('items.quality');
+OrderSchema.statics.findByOrderId = function(orderId: string): Promise<IOrder | null> {
+  return this.findOne({ orderId }).lean();
 };
 
-OrderSchema.statics.findByParty = function(partyId: string) {
-  return this.find({ party: partyId }).populate('party').populate('items.quality').sort({ createdAt: -1 });
+OrderSchema.statics.findByParty = function(partyId: string): Promise<IOrder[]> {
+  return this.find({ party: partyId })
+    .sort({ createdAt: -1 })
+    .lean();
 };
 
-OrderSchema.statics.findByPoNumber = function(poNumber: string) {
-  return this.find({ poNumber: { $regex: poNumber, $options: 'i' } }).populate('party').populate('items.quality');
+OrderSchema.statics.findByPoNumber = function(poNumber: string): Promise<IOrder[]> {
+  return this.find({ poNumber })
+    .sort({ createdAt: -1 })
+    .lean();
 };
 
-OrderSchema.statics.findByStyleNo = function(styleNo: string) {
-  return this.find({ styleNo: { $regex: styleNo, $options: 'i' } }).populate('party').populate('items.quality');
+OrderSchema.statics.findByStyleNo = function(styleNo: string): Promise<IOrder[]> {
+  return this.find({ styleNo })
+    .sort({ createdAt: -1 })
+    .lean();
 };
 
-OrderSchema.statics.findByOrderType = function(orderType: "Dying" | "Printing") {
-  return this.find({ orderType }).populate('party').populate('items.quality').sort({ createdAt: -1 });
+OrderSchema.statics.findByOrderType = function(orderType: "Dying" | "Printing"): Promise<IOrder[]> {
+  return this.find({ orderType })
+    .sort({ createdAt: -1 })
+    .lean();
 };
 
-OrderSchema.statics.searchOrders = function(searchTerm: string) {
+OrderSchema.statics.searchOrders = function(searchTerm: string): Promise<IOrder[]> {
   return this.find({
     $text: { $search: searchTerm }
-  }).populate('party').populate('items.quality').sort({ score: { $meta: "textScore" } });
+  })
+  .sort({ score: { $meta: "textScore" } })
+  .limit(50)
+  .lean();
 };
 
-OrderSchema.statics.findByDateRange = function(startDate: Date, endDate: Date) {
+OrderSchema.statics.findByDateRange = function(startDate: Date, endDate: Date): Promise<IOrder[]> {
   return this.find({
-    arrivalDate: {
-      $gte: startDate,
-      $lte: endDate
-    }
-  }).populate('party').populate('items.quality').sort({ arrivalDate: -1 });
+    arrivalDate: { $gte: startDate, $lte: endDate }
+  })
+  .sort({ arrivalDate: -1 })
+  .lean();
 };
 
-// Virtual for order's full info with populated party
-OrderSchema.virtual('fullInfo').get(function() {
+OrderSchema.statics.findPendingOrders = function(): Promise<IOrder[]> {
+  return this.find({ status: "pending" })
+    .sort({ priority: -1, createdAt: -1 })
+    .lean();
+};
+
+OrderSchema.statics.findDeliveredOrders = function(): Promise<IOrder[]> {
+  return this.find({ status: "delivered" })
+    .sort({ createdAt: -1 })
+    .lean();
+};
+
+OrderSchema.statics.findHighPriorityOrders = function(): Promise<IOrder[]> {
+  return this.find({ 
+    priority: { $gte: 8 },
+    status: { $in: ['pending', 'in_progress'] }
+  })
+  .sort({ priority: -1, createdAt: -1 })
+  .lean();
+};
+
+OrderSchema.statics.findByStatus = function(status: string): Promise<IOrder[]> {
+  return this.find({ status })
+    .sort({ createdAt: -1 })
+    .lean();
+};
+
+OrderSchema.statics.findByPaymentStatus = function(paymentStatus: string): Promise<IOrder[]> {
+  return this.find({ paymentStatus })
+    .sort({ finalAmount: -1 })
+    .lean();
+};
+
+OrderSchema.statics.getOrderStats = async function(): Promise<any> {
+  const stats = await this.aggregate([
+    {
+      $group: {
+        _id: null,
+        totalOrders: { $sum: 1 },
+        pendingOrders: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
+        inProgressOrders: { $sum: { $cond: [{ $eq: ["$status", "in_progress"] }, 1, 0] } },
+        completedOrders: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
+        deliveredOrders: { $sum: { $cond: [{ $eq: ["$status", "delivered"] }, 1, 0] } },
+        cancelledOrders: { $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] } },
+        dyingOrders: { $sum: { $cond: [{ $eq: ["$orderType", "Dying"] }, 1, 0] } },
+        printingOrders: { $sum: { $cond: [{ $eq: ["$orderType", "Printing"] }, 1, 0] } },
+        totalRevenue: { $sum: "$finalAmount" },
+        avgOrderValue: { $avg: "$finalAmount" }
+      }
+    }
+  ]);
+  
+  return stats[0] || {
+    totalOrders: 0,
+    pendingOrders: 0,
+    inProgressOrders: 0,
+    completedOrders: 0,
+    deliveredOrders: 0,
+    cancelledOrders: 0,
+    dyingOrders: 0,
+    printingOrders: 0,
+    totalRevenue: 0,
+    avgOrderValue: 0
+  };
+};
+
+OrderSchema.statics.getRevenueStats = async function(startDate?: Date, endDate?: Date): Promise<any> {
+  const matchStage: any = {};
+  if (startDate && endDate) {
+    matchStage.createdAt = { $gte: startDate, $lte: endDate };
+  }
+
+  const stats = await this.aggregate([
+    { $match: matchStage },
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" }
+        },
+        revenue: { $sum: "$finalAmount" },
+        orders: { $sum: 1 },
+        avgOrderValue: { $avg: "$finalAmount" }
+      }
+    },
+    { $sort: { "_id.year": 1, "_id.month": 1 } }
+  ]);
+  
+  return stats;
+};
+
+// **VIRTUAL FIELDS**
+OrderSchema.virtual('totalItems').get(function() {
+  return this.items.length;
+});
+
+OrderSchema.virtual('totalQuantity').get(function() {
+  return this.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+});
+
+OrderSchema.virtual('orderSummary').get(function() {
   return {
     id: this._id,
     orderId: this.orderId,
     orderType: this.orderType,
-    arrivalDate: this.arrivalDate,
+    status: this.status,
     party: this.party,
-    contactName: this.contactName,
-    contactPhone: this.contactPhone,
-    poNumber: this.poNumber,
-    styleNo: this.styleNo,
-    poDate: this.poDate,
+    arrivalDate: this.arrivalDate,
     deliveryDate: this.deliveryDate,
-    items: this.items,
-    createdAt: this.createdAt,
-    updatedAt: this.updatedAt
+    totalItems: this.items.length,
+    totalQuantity: this.items.reduce((sum, item) => sum + (item.quantity || 0), 0),
+    finalAmount: this.finalAmount,
+    paymentStatus: this.paymentStatus,
+    priority: this.priority,
+    createdAt: this.createdAt
   };
 });
 
+// **MIDDLEWARE**
+OrderSchema.pre('save', function(next) {
+  // Calculate totals
+  this.totalAmount = this.items.reduce((sum, item) => {
+    const itemTotal = (item.quantity || 0) * (item.unitPrice || 0);
+    item.totalPrice = itemTotal;
+    return sum + itemTotal;
+  }, 0);
+  
+  this.finalAmount = this.totalAmount + this.taxAmount - this.discountAmount;
+  
+  // Normalize tags
+  if (this.metadata?.tags) {
+    this.metadata.tags = [...new Set(this.metadata.tags.map(tag => tag.toLowerCase().trim()))];
+  }
+  
+  next();
+});
 
-
-// Error handling middleware
 OrderSchema.post('save', function(error: any, doc: any, next: any) {
   if (error.name === 'MongoError' && error.code === 11000) {
     const field = Object.keys(error.keyValue)[0];
@@ -291,7 +613,15 @@ OrderSchema.post('save', function(error: any, doc: any, next: any) {
   }
 });
 
-// Create and export the model
+// **QUERY OPTIMIZATION**
+OrderSchema.pre('find', function() {
+  this.lean();
+});
+
+OrderSchema.pre('findOne', function() {
+  this.lean();
+});
+
 const Order = mongoose.models.Order || mongoose.model<IOrder, IOrderModel>("Order", OrderSchema);
 
 export default Order;

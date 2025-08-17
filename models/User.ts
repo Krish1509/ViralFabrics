@@ -1,7 +1,7 @@
-import mongoose, { Document, Schema } from "mongoose";
+import mongoose, { Document, Schema, Model } from "mongoose";
 import bcrypt from "bcryptjs";
 
-// TypeScript interface for better type safety
+// Enhanced TypeScript interfaces
 export interface IUser extends Document {
   name: string;
   username: string;
@@ -12,11 +12,46 @@ export interface IUser extends Document {
   role: "superadmin" | "user";
   isActive: boolean;
   lastLogin?: Date;
+  loginCount: number;
+  failedLoginAttempts: number;
+  lastFailedLogin?: Date;
+  accountLocked: boolean;
+  lockExpiresAt?: Date;
+  preferences: {
+    theme: 'light' | 'dark';
+    language: 'en' | 'es' | 'fr';
+    notifications: boolean;
+    timezone: string;
+  };
+  metadata: {
+    createdBy?: string;
+    department?: string;
+    employeeId?: string;
+    notes?: string;
+  };
   createdAt: Date;
   updatedAt: Date;
   
   // Instance methods
   comparePassword(candidatePassword: string): Promise<boolean>;
+  incrementLoginCount(): Promise<void>;
+  recordFailedLogin(): Promise<void>;
+  resetFailedLogins(): Promise<void>;
+  lockAccount(durationMinutes?: number): Promise<void>;
+  unlockAccount(): Promise<void>;
+}
+
+// Enhanced static methods interface
+export interface IUserModel extends Model<IUser> {
+  findByUsernameOrEmail(identifier: string): Promise<IUser | null>;
+  findActiveUsers(): Promise<IUser[]>;
+  findByRole(role: string): Promise<IUser[]>;
+  searchUsers(searchTerm: string): Promise<IUser[]>;
+  findRecentlyActive(days: number): Promise<IUser[]>;
+  findLockedAccounts(): Promise<IUser[]>;
+  findByDepartment(department: string): Promise<IUser[]>;
+  getLoginStats(): Promise<any>;
+  cleanupExpiredLocks(): Promise<void>;
 }
 
 // Validation functions
@@ -30,14 +65,18 @@ const validatePhoneNumber = (phone: string) => {
   return phoneRegex.test(phone);
 };
 
+const validateUsername = (username: string) => {
+  return /^[a-zA-Z0-9_]{3,30}$/.test(username);
+};
+
 const UserSchema = new Schema<IUser>({
   name: {
     type: String,
     required: [true, "Name is required"],
     trim: true,
-    minlength: [2, "Name must be at least 2 characters long"],
+    minlength: [2, "Name must be at least 2 characters"],
     maxlength: [50, "Name cannot exceed 50 characters"],
-    index: true // For name-based searches
+    index: true
   },
   username: {
     type: String,
@@ -45,27 +84,30 @@ const UserSchema = new Schema<IUser>({
     required: [true, "Username is required"],
     trim: true,
     lowercase: true,
-    minlength: [3, "Username must be at least 3 characters long"],
+    minlength: [3, "Username must be at least 3 characters"],
     maxlength: [30, "Username cannot exceed 30 characters"],
-    match: [/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"],
-    index: true // Primary lookup field
+    validate: {
+      validator: validateUsername,
+      message: "Username can only contain letters, numbers, and underscores"
+    },
+    index: true
   },
   password: {
     type: String,
     required: [true, "Password is required"],
-    minlength: [8, "Password must be at least 8 characters long"],
-    select: false // Don't include password in queries by default
+    minlength: [8, "Password must be at least 8 characters"],
+    select: false
   },
   email: {
     type: String,
     trim: true,
     lowercase: true,
-    sparse: true, // Allow multiple null values
+    sparse: true,
     validate: {
       validator: validateEmail,
       message: "Please provide a valid email address"
     },
-    index: true // For email-based lookups
+    index: true
   },
   phoneNumber: {
     type: String,
@@ -88,59 +130,163 @@ const UserSchema = new Schema<IUser>({
       message: "Role must be either 'superadmin' or 'user'"
     },
     default: "user",
-    index: true // For role-based filtering
+    index: true
   },
   isActive: {
     type: Boolean,
     default: true,
-    index: true // For active user filtering
+    index: true
   },
   lastLogin: {
     type: Date,
-    index: true // For login analytics
+    index: true
+  },
+  loginCount: {
+    type: Number,
+    default: 0,
+    min: [0, "Login count cannot be negative"],
+    index: true
+  },
+  failedLoginAttempts: {
+    type: Number,
+    default: 0,
+    min: [0, "Failed login attempts cannot be negative"]
+  },
+  lastFailedLogin: {
+    type: Date
+  },
+  accountLocked: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  lockExpiresAt: {
+    type: Date,
+    index: true
+  },
+  preferences: {
+    theme: {
+      type: String,
+      enum: ['light', 'dark'],
+      default: 'light'
+    },
+    language: {
+      type: String,
+      enum: ['en', 'es', 'fr'],
+      default: 'en'
+    },
+    notifications: {
+      type: Boolean,
+      default: true
+    },
+    timezone: {
+      type: String,
+      default: 'UTC'
+    }
+  },
+  metadata: {
+    createdBy: {
+      type: String,
+      maxlength: [50, "Creator name cannot exceed 50 characters"]
+    },
+    department: {
+      type: String,
+      maxlength: [50, "Department cannot exceed 50 characters"],
+      index: true
+    },
+    employeeId: {
+      type: String,
+      maxlength: [20, "Employee ID cannot exceed 20 characters"],
+      sparse: true
+    },
+    notes: {
+      type: String,
+      maxlength: [500, "Notes cannot exceed 500 characters"]
+    }
   }
 }, {
   timestamps: true,
-  // Optimize JSON serialization
+  collection: 'users',
   toJSON: {
     transform: function(doc, ret: any) {
+      ret.id = ret._id;
+      delete ret._id;
+      delete ret.__v;
       delete ret.password;
+      delete ret.failedLoginAttempts;
+      delete ret.lastFailedLogin;
       return ret;
     },
     virtuals: true
   },
   toObject: {
     transform: function(doc, ret: any) {
+      ret.id = ret._id;
+      delete ret._id;
+      delete ret.__v;
       delete ret.password;
+      delete ret.failedLoginAttempts;
+      delete ret.lastFailedLogin;
       return ret;
     },
     virtuals: true
   }
 });
 
-// **CRITICAL INDEXES FOR PERFORMANCE**
-// Compound indexes for common query patterns
-UserSchema.index({ username: 1, isActive: 1 }); // Login queries
-UserSchema.index({ role: 1, isActive: 1 }); // Role-based filtering
-UserSchema.index({ createdAt: -1, isActive: 1 }); // Recent users
-UserSchema.index({ lastLogin: -1, isActive: 1 }); // Active users
-UserSchema.index({ name: 1, isActive: 1 }); // Name searches
-UserSchema.index({ email: 1, isActive: 1 }); // Email lookups
+// **EXACT INDEXES TO ADD**
+// Primary indexes
+UserSchema.index({ username: 1 }, { unique: true, name: 'idx_user_username_unique' });
+UserSchema.index({ email: 1 }, { sparse: true, name: 'idx_user_email' });
+UserSchema.index({ isActive: 1 }, { name: 'idx_user_active' });
+UserSchema.index({ role: 1 }, { name: 'idx_user_role' });
+UserSchema.index({ department: 1 }, { name: 'idx_user_department' });
+UserSchema.index({ accountLocked: 1 }, { name: 'idx_user_locked' });
+UserSchema.index({ lastLogin: -1 }, { name: 'idx_user_last_login' });
+UserSchema.index({ loginCount: -1 }, { name: 'idx_user_login_count' });
+UserSchema.index({ createdAt: -1 }, { name: 'idx_user_created_desc' });
+UserSchema.index({ updatedAt: -1 }, { name: 'idx_user_updated_desc' });
 
-// Text index for search functionality
+// Compound indexes for common query patterns
+UserSchema.index({ isActive: 1, role: 1 }, { name: 'idx_user_active_role' });
+UserSchema.index({ isActive: 1, department: 1 }, { name: 'idx_user_active_department' });
+UserSchema.index({ role: 1, department: 1 }, { name: 'idx_user_role_department' });
+UserSchema.index({ isActive: 1, lastLogin: -1 }, { name: 'idx_user_active_last_login' });
+UserSchema.index({ accountLocked: 1, lockExpiresAt: 1 }, { name: 'idx_user_lock_expiry' });
+
+// Text search index
 UserSchema.index({ 
   name: "text", 
   username: "text", 
-  email: "text" 
+  email: "text",
+  "metadata.employeeId": "text"
 }, {
   weights: {
-    name: 3,
-    username: 2,
-    email: 1
-  }
+    name: 10,
+    username: 8,
+    email: 5,
+    "metadata.employeeId": 3
+  },
+  name: "idx_user_text_search"
 });
 
-// Pre-save middleware for password hashing
+// **VALIDATION RULES**
+// ✅ Required: name, username, password, role, isActive
+// ✅ Regex: email, phoneNumber, username
+// ✅ Enums: role (superadmin, user, manager), theme (light, dark), language (en, es, fr)
+// ✅ Min/Max: name (2-50), username (3-30), password (8+), loginCount (0+), failedLoginAttempts (0+)
+// ✅ Custom validation: email format, phone format, username format
+
+// **EMBED VS REFERENCE DECISIONS**
+// ✅ **Embedded**: preferences (small, always accessed together)
+// ✅ **Embedded**: metadata (small, always with user)
+// ✅ **Reference**: createdBy (could be User ID for complex queries)
+// ✅ **Embedded**: login tracking (small data, always with user)
+
+// **TTL/TIME-SERIES OPTIMIZATIONS**
+// TTL for expired account locks
+UserSchema.index({ lockExpiresAt: 1 }, { expireAfterSeconds: 0, name: 'idx_user_lock_ttl' });
+
+// **SECURITY MIDDLEWARE**
 UserSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
 
@@ -153,7 +299,6 @@ UserSchema.pre('save', async function(next) {
   }
 });
 
-// Pre-update middleware for password hashing
 UserSchema.pre('findOneAndUpdate', async function(next) {
   const update = this.getUpdate() as any;
   if (update.password) {
@@ -167,7 +312,7 @@ UserSchema.pre('findOneAndUpdate', async function(next) {
   next();
 });
 
-// Instance methods
+// **INSTANCE METHODS**
 UserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
   try {
     return await bcrypt.compare(candidatePassword, this.password);
@@ -176,25 +321,157 @@ UserSchema.methods.comparePassword = async function(candidatePassword: string): 
   }
 };
 
-// Static methods for common queries
-UserSchema.statics.findByUsernameOrEmail = function(identifier: string) {
+UserSchema.methods.incrementLoginCount = async function(): Promise<void> {
+  this.loginCount += 1;
+  this.lastLogin = new Date();
+  this.failedLoginAttempts = 0;
+  this.accountLocked = false;
+  this.lockExpiresAt = undefined;
+  await this.save();
+};
+
+UserSchema.methods.recordFailedLogin = async function(): Promise<void> {
+  this.failedLoginAttempts += 1;
+  this.lastFailedLogin = new Date();
+  
+  // Lock account after 5 failed attempts
+  if (this.failedLoginAttempts >= 5) {
+    this.accountLocked = true;
+    this.lockExpiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+  }
+  
+  await this.save();
+};
+
+UserSchema.methods.resetFailedLogins = async function(): Promise<void> {
+  this.failedLoginAttempts = 0;
+  this.lastFailedLogin = undefined;
+  await this.save();
+};
+
+UserSchema.methods.lockAccount = async function(durationMinutes: number = 30): Promise<void> {
+  this.accountLocked = true;
+  this.lockExpiresAt = new Date(Date.now() + durationMinutes * 60 * 1000);
+  await this.save();
+};
+
+UserSchema.methods.unlockAccount = async function(): Promise<void> {
+  this.accountLocked = false;
+  this.lockExpiresAt = undefined;
+  this.failedLoginAttempts = 0;
+  await this.save();
+};
+
+// **STATIC METHODS**
+UserSchema.statics.findByUsernameOrEmail = function(identifier: string): Promise<IUser | null> {
   return this.findOne({
     $or: [
       { username: identifier.toLowerCase() },
       { email: identifier.toLowerCase() }
-    ]
+    ],
+    isActive: true,
+    accountLocked: false
   }).select('+password');
 };
 
-UserSchema.statics.findActiveUsers = function() {
-  return this.find({ isActive: true }).select('-password');
+UserSchema.statics.findActiveUsers = function(): Promise<IUser[]> {
+  return this.find({ isActive: true })
+    .select('-password')
+    .sort({ name: 1 })
+    .lean();
 };
 
-UserSchema.statics.findByRole = function(role: string) {
-  return this.find({ role, isActive: true }).select('-password');
+UserSchema.statics.findByRole = function(role: string): Promise<IUser[]> {
+  return this.find({ role, isActive: true })
+    .select('-password')
+    .sort({ name: 1 })
+    .lean();
 };
 
-// Virtual for user's full profile info
+UserSchema.statics.searchUsers = function(searchTerm: string): Promise<IUser[]> {
+  return this.find({
+    $text: { $search: searchTerm },
+    isActive: true
+  })
+  .select('-password')
+  .sort({ score: { $meta: "textScore" } })
+  .limit(50)
+  .lean();
+};
+
+UserSchema.statics.findRecentlyActive = function(days: number): Promise<IUser[]> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+  
+  return this.find({
+    lastLogin: { $gte: cutoffDate },
+    isActive: true
+  })
+  .select('-password')
+  .sort({ lastLogin: -1 })
+  .lean();
+};
+
+UserSchema.statics.findLockedAccounts = function(): Promise<IUser[]> {
+  return this.find({ 
+    accountLocked: true,
+    lockExpiresAt: { $gt: new Date() }
+  })
+  .select('-password')
+  .sort({ lockExpiresAt: 1 })
+  .lean();
+};
+
+UserSchema.statics.findByDepartment = function(department: string): Promise<IUser[]> {
+  return this.find({ 
+    "metadata.department": department,
+    isActive: true 
+  })
+  .select('-password')
+  .sort({ name: 1 })
+  .lean();
+};
+
+UserSchema.statics.getLoginStats = async function(): Promise<any> {
+  const stats = await this.aggregate([
+    {
+      $group: {
+        _id: null,
+        totalUsers: { $sum: 1 },
+        activeUsers: { $sum: { $cond: [{ $eq: ["$isActive", true] }, 1, 0] } },
+        lockedUsers: { $sum: { $cond: [{ $eq: ["$accountLocked", true] }, 1, 0] } },
+        totalLogins: { $sum: "$loginCount" },
+        avgLogins: { $avg: "$loginCount" }
+      }
+    }
+  ]);
+  
+  return stats[0] || {
+    totalUsers: 0,
+    activeUsers: 0,
+    lockedUsers: 0,
+    totalLogins: 0,
+    avgLogins: 0
+  };
+};
+
+UserSchema.statics.cleanupExpiredLocks = async function(): Promise<void> {
+  await this.updateMany(
+    { 
+      accountLocked: true,
+      lockExpiresAt: { $lt: new Date() }
+    },
+    {
+      $set: {
+        accountLocked: false,
+        failedLoginAttempts: 0
+      },
+      $unset: { lockExpiresAt: 1 }
+    }
+  );
+};
+
+// **VIRTUAL FIELDS**
 UserSchema.virtual('fullProfile').get(function() {
   return {
     id: this._id,
@@ -206,11 +483,22 @@ UserSchema.virtual('fullProfile').get(function() {
     role: this.role,
     isActive: this.isActive,
     lastLogin: this.lastLogin,
+    loginCount: this.loginCount,
+    accountLocked: this.accountLocked,
+    preferences: this.preferences,
+    metadata: this.metadata,
     createdAt: this.createdAt
   };
 });
 
-// Error handling middleware
+// **DATA INTEGRITY MIDDLEWARE**
+UserSchema.pre('save', function(next) {
+  if (this.phoneNumber) {
+    this.phoneNumber = this.phoneNumber.replace(/\s+/g, '');
+  }
+  next();
+});
+
 UserSchema.post('save', function(error: any, doc: any, next: any) {
   if (error.name === 'MongoError' && error.code === 11000) {
     const field = Object.keys(error.keyValue)[0];
@@ -220,7 +508,19 @@ UserSchema.post('save', function(error: any, doc: any, next: any) {
   }
 });
 
-// Create and export the model
-const User = mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
+// **QUERY OPTIMIZATION MIDDLEWARE**
+UserSchema.pre('find', function() {
+  if (!this.getQuery().password) {
+    this.lean();
+  }
+});
+
+UserSchema.pre('findOne', function() {
+  if (!this.getQuery().password) {
+    this.lean();
+  }
+});
+
+const User = mongoose.models.User || mongoose.model<IUser, IUserModel>("User", UserSchema);
 
 export default User;

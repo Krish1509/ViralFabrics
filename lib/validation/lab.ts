@@ -30,7 +30,7 @@ export const createLabSchema = z.object({
     z.string(),
     z.record(z.string(), z.any())
   ]).optional(),
-  labSendNumber: z.string().min(1, 'Lab send number is required').trim(),
+  labSendNumber: z.string().optional().default(''),
   status: z.enum(['sent', 'received', 'cancelled']).optional().default('sent'),
   receivedDate: z.string().transform(coerceISODate).optional(),
   attachments: z.array(attachmentSchema).optional(),
@@ -45,7 +45,7 @@ export const updateLabSchema = z.object({
     z.string(),
     z.record(z.string(), z.any())
   ]).optional(),
-  labSendNumber: z.string().min(1, 'Lab send number is required').trim().optional(),
+  labSendNumber: z.string().optional(),
   status: z.enum(['sent', 'received', 'cancelled']).optional(),
   receivedDate: z.string().transform(coerceISODate).optional(),
   attachments: z.array(attachmentSchema).optional(),

@@ -10,7 +10,7 @@ interface QualityModalProps {
 }
 
 export default function QualityModal({ onClose, onSuccess }: QualityModalProps) {
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   const [formData, setFormData] = useState({
     name: ''
   });
@@ -74,6 +74,17 @@ export default function QualityModal({ onClose, onSuccess }: QualityModalProps) 
       setLoading(false);
     }
   };
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50">
+        <div className="relative w-full max-w-md mx-4 rounded-lg shadow-2xl transition-colors duration-300 bg-white border border-gray-200 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50">

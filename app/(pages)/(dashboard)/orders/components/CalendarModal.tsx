@@ -17,7 +17,7 @@ interface CalendarModalProps {
 }
 
 export default function CalendarModal({ onClose, onDateSelect, selectedDate, field }: CalendarModalProps) {
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   const [currentDate, setCurrentDate] = useState(() => {
     if (selectedDate) {
       return new Date(selectedDate);
@@ -87,6 +87,17 @@ export default function CalendarModal({ onClose, onDateSelect, selectedDate, fie
 
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const days = getDaysInMonth(currentDate);
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-sm rounded-xl shadow-2xl bg-white border border-gray-200 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">

@@ -2,9 +2,18 @@
 
 import { useState, useEffect } from 'react';
 
-export function useDarkMode() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [mounted, setMounted] = useState(false);
+interface DarkModeReturn {
+  isDarkMode: boolean;
+  toggleDarkMode: () => void;
+  setSystemTheme: () => void;
+  getThemeMode: () => 'system' | 'dark' | 'light';
+  mounted: boolean;
+  getDarkModeState: (defaultValue?: boolean) => boolean;
+}
+
+export function useDarkMode(): DarkModeReturn {
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [mounted, setMounted] = useState<boolean>(false);
 
   useEffect(() => {
     setMounted(true);

@@ -20,11 +20,11 @@ export async function GET(
       return badRequest('Invalid lab ID');
     }
     
-    // Find lab with order details
+    // Find lab without populate to avoid the error
     const lab = await Lab.findOne({ 
       _id: id, 
       softDeleted: false 
-    }).populate('order');
+    });
     
     if (!lab) {
       return notFound('Lab not found');
@@ -82,13 +82,16 @@ export async function PUT(
     Object.assign(lab, updateData);
     await lab.save();
     
-    // Populate order details for response
-    await lab.populate('order');
-    
+    // Return the updated lab without populate to avoid the error
     return ok(lab);
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating lab:', error);
+    console.error('Error details:', {
+      message: error?.message || 'Unknown error',
+      stack: error?.stack,
+      name: error?.name
+    });
     return serverError(error);
   }
 }

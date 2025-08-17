@@ -29,7 +29,7 @@ import { Order, Party, Quality } from '@/types';
 import { useDarkMode } from '../hooks/useDarkMode';
 
 export default function OrdersPage() {
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   const [orders, setOrders] = useState<Order[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [qualities, setQualities] = useState<Quality[]>([]);
@@ -437,6 +437,15 @@ export default function OrdersPage() {
   const getTotalQuantity = (order: Order) => {
     return order.items.reduce((total, item) => total + (item.quantity || 0), 0);
   };
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

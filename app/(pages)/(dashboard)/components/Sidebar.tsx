@@ -42,11 +42,11 @@ const getNavItems = (userRole?: string): NavItem[] => {
       href: '/users',
       icon: UsersIcon
     },
-    // {
-    //   name: 'Orders',
-    //   href: '/orders',
-    //   icon: ShoppingBagIcon
-    // }
+    {
+      name: 'Orders',
+      href: '/orders',
+      icon: ShoppingBagIcon
+    }
   ];
 
   // Only show Users for superadmin

@@ -26,11 +26,11 @@ export async function GET(
       return notFound('Order not found');
     }
     
-    // Get all labs for this order with order details
-    const labs = await Lab.find({ 
-      order: orderId, 
-      softDeleted: false 
-    }).populate('order').sort({ createdAt: -1 });
+        // Get all labs for this order with order details
+    const labs = await Lab.find({
+      order: orderId,
+      softDeleted: false
+    }).populate('order').sort({ createdAt: -1 }).lean();
     
     // Create a map of order items for easy lookup
     const orderItemsMap = new Map();
@@ -42,7 +42,7 @@ export async function GET(
     const enhancedLabs = labs.map(lab => {
       const orderItem = orderItemsMap.get(lab.orderItemId.toString());
       return {
-        ...lab.toObject(),
+        ...lab,
         orderItem: orderItem || null
       };
     });

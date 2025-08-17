@@ -1,9 +1,29 @@
-const mongoose = require('mongoose');
-require('dotenv').config({ path: '.env.local' });
+import mongoose from 'mongoose';
+import dotenv from 'dotenv';
 
-async function fixOrderSchema() {
+dotenv.config({ path: '.env.local' });
+
+interface IndexInfo {
+  name: string;
+  key: Record<string, any>;
+}
+
+interface UpdateResult {
+  modifiedCount: number;
+}
+
+interface IndexSpec {
+  [key: string]: number;
+}
+
+async function fixOrderSchema(): Promise<void> {
   try {
     console.log('Connecting to database...');
+    
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI environment variable is required');
+    }
+    
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('Connected to database');
 
@@ -14,11 +34,11 @@ async function fixOrderSchema() {
     console.log('Checking existing indexes...');
     
     // Get all indexes
-    const indexes = await ordersCollection.indexes();
+    const indexes: IndexInfo[] = await ordersCollection.indexes();
     console.log('Current indexes:', indexes.map(idx => idx.name));
 
     // Remove problematic indexes
-    const indexesToRemove = ['orderNo_1', 'orderId_1_orderNo_1'];
+    const indexesToRemove: string[] = ['orderNo_1', 'orderId_1_orderNo_1'];
     
     for (const indexName of indexesToRemove) {
       try {
@@ -31,13 +51,14 @@ async function fixOrderSchema() {
           console.log(`Index ${indexName} does not exist, skipping...`);
         }
       } catch (error) {
-        console.log(`Error removing index ${indexName}:`, error.message);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.log(`Error removing index ${indexName}:`, errorMessage);
       }
     }
 
     // Update all existing orders to remove orderNo field
     console.log('Updating existing orders to remove orderNo field...');
-    const updateResult = await ordersCollection.updateMany(
+    const updateResult: UpdateResult = await ordersCollection.updateMany(
       {}, // Update all documents
       { $unset: { orderNo: "" } } // Remove orderNo field
     );
@@ -51,11 +72,12 @@ async function fixOrderSchema() {
       await ordersCollection.createIndex({ orderId: 1 }, { unique: true });
       console.log('Created orderId index');
     } catch (error) {
-      console.log('Error creating orderId index:', error.message);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.log('Error creating orderId index:', errorMessage);
     }
 
     // Create other necessary indexes
-    const newIndexes = [
+    const newIndexes: IndexSpec[] = [
       { party: 1 },
       { poNumber: 1 },
       { styleNo: 1 },
@@ -77,7 +99,8 @@ async function fixOrderSchema() {
         await ordersCollection.createIndex(indexSpec);
         console.log(`Created index: ${indexName}`);
       } catch (error) {
-        console.log(`Error creating index ${JSON.stringify(indexSpec)}:`, error.message);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.log(`Error creating index ${JSON.stringify(indexSpec)}:`, errorMessage);
       }
     }
 
@@ -94,7 +117,8 @@ async function fixOrderSchema() {
       );
       console.log('Created text index');
     } catch (error) {
-      console.log('Error creating text index:', error.message);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.log('Error creating text index:', errorMessage);
     }
 
     console.log('Order schema fix completed successfully!');
@@ -102,6 +126,7 @@ async function fixOrderSchema() {
 
   } catch (error) {
     console.error('Error fixing order schema:', error);
+    throw error;
   } finally {
     await mongoose.disconnect();
     console.log('Disconnected from database');
@@ -109,4 +134,16 @@ async function fixOrderSchema() {
 }
 
 // Run the script
-fixOrderSchema();
+if (require.main === module) {
+  fixOrderSchema()
+    .then(() => {
+      console.log('🎉 Order schema fix completed successfully!');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('💥 Order schema fix failed:', error);
+      process.exit(1);
+    });
+}
+
+export { fixOrderSchema };

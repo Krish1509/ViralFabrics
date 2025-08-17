@@ -17,7 +17,7 @@ import { useDarkMode } from '../hooks/useDarkMode';
 import { BRAND_NAME, BRAND_SHORT_NAME } from '@/lib/config';
 
 export default function DashboardPage() {
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   const [orders, setOrders] = useState<Order[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,6 +129,15 @@ export default function DashboardPage() {
   const monthlyStats = getMonthlyStats();
   const orderTypeStats = getOrderTypeStats();
   const recentActivity = getRecentActivity();
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
