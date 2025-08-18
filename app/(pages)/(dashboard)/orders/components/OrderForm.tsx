@@ -57,9 +57,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   const [showQualityDropdown, setShowQualityDropdown] = useState(false);
   const [activeQualityDropdown, setActiveQualityDropdown] = useState<number | null>(null);
   const [selectedPartyName, setSelectedPartyName] = useState('');
-  const [showQualityModal, setShowQualityModal] = useState(false);
-  const [newlyCreatedQuality, setNewlyCreatedQuality] = useState<any>(null);
-  const [showPartyModal, setShowPartyModal] = useState(false);
+     const [showQualityModal, setShowQualityModal] = useState(false);
+   const [showPartyModal, setShowPartyModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [validationMessage, setValidationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -181,13 +180,11 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     }
   }, [showPartyDropdown]);
 
-  useEffect(() => {
-    if (!showQualityDropdown) {
-      setQualitySearch('');
-      // Clear the newly created quality highlight when dropdown is closed
-      setNewlyCreatedQuality(null);
-    }
-  }, [showQualityDropdown]);
+     useEffect(() => {
+     if (!showQualityDropdown) {
+       setQualitySearch('');
+     }
+   }, [showQualityDropdown]);
 
   // Initialize form data when editing
   useEffect(() => {
@@ -560,13 +557,10 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     (qualitySearch === '' || quality.name.toLowerCase().includes(qualitySearch.toLowerCase()))
   ) || [];
 
-  // Sort qualities to show newly created quality at the top
-  const sortedQualities = [...filteredQualities].sort((a, b) => {
-    // If there's a newly created quality, show it first
-    if (newlyCreatedQuality && a._id === newlyCreatedQuality._id) return -1;
-    if (newlyCreatedQuality && b._id === newlyCreatedQuality._id) return 1;
-    return 0;
-  });
+     // Sort qualities alphabetically
+   const sortedQualities = [...filteredQualities].sort((a, b) => {
+     return (a.name || '').localeCompare(b.name || '');
+   });
 
   // Get error for a specific field
   const getFieldError = (field: string) => {
@@ -1264,19 +1258,13 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                                  <input
                                    type="text"
                                    placeholder="Search qualities..."
-                                   value={(() => {
-                                     // If we have a newly created quality and this is the active dropdown, show it immediately
-                                     if (newlyCreatedQuality && activeQualityDropdown === index && item.quality === newlyCreatedQuality._id) {
-                                       return newlyCreatedQuality.name;
-                                     }
-                                     // Get the selected quality name for this specific item
-                                     const selectedQuality = qualities?.find(q => q._id === item.quality);
-                                     return selectedQuality?.name || qualitySearch;
-                                   })()}
+                                                                        value={(() => {
+                                       // Get the selected quality name for this specific item
+                                       const selectedQuality = qualities?.find(q => q._id === item.quality);
+                                       return selectedQuality?.name || qualitySearch;
+                                     })()}
                                    onChange={(e) => {
                                      setQualitySearch(e.target.value);
-                                     // Clear the newly created quality highlight when user types
-                                     setNewlyCreatedQuality(null);
                                      // Clear selected quality if user starts typing
                                      const selectedQuality = qualities?.find(q => q._id === item.quality);
                                      if (e.target.value !== selectedQuality?.name) {
@@ -1325,10 +1313,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                                    sortedQualities.map((quality) => (
                                      <div key={quality?._id || Math.random()} className={`flex items-center justify-between p-4 hover:bg-gray-50 border-b transition-all duration-200 ${
                                        isDarkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-gray-100'
-                                     } ${newlyCreatedQuality && quality._id === newlyCreatedQuality._id ? 
-                                       isDarkMode ? 'bg-blue-900/30 border-blue-500/50' : 'bg-blue-50 border-blue-200' 
-                                       : ''
-                                     }`}>
+                                                                            }`}>
                                        <button
                                          type="button"
                                          onClick={() => {
@@ -1338,8 +1323,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                                              setQualitySearch(quality.name);
                                              setShowQualityDropdown(false);
                                              setActiveQualityDropdown(null);
-                                             // Clear the newly created quality highlight
-                                             setNewlyCreatedQuality(null);
                                              // Clear any quality-related errors for this item
                                              setErrors(prev => {
                                                const newErrors = { ...prev };
@@ -1365,28 +1348,27 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                                              return;
                                            }
                                            
-                                           if (confirm(`Are you sure you want to delete quality "${quality.name}"?`)) {
-                                             try {
-                                               const response = await fetch(`/api/qualities/${quality._id}`, {
-                                                 method: 'DELETE',
-                                                 headers: {
-                                                   'Content-Type': 'application/json',
-                                                 },
-                                               });
-                                               
-                                               const data = await response.json();
-                                               
-                                               if (response.ok) {
-                                                 onAddQuality(); // Refresh qualities
-                                                 setValidationMessage({ type: 'success', text: 'Quality deleted successfully!' });
-                                               } else {
-                                                 setValidationMessage({ type: 'error', text: data.message || 'Failed to delete quality' });
-                                               }
-                                             } catch (error) {
-                                               console.error('Error deleting quality:', error);
-                                               setValidationMessage({ type: 'error', text: 'Failed to delete quality. Please try again.' });
-                                             }
-                                           }
+                                                                                       // Direct delete without confirmation
+                                            try {
+                                              const response = await fetch(`/api/qualities/${quality._id}`, {
+                                                method: 'DELETE',
+                                                headers: {
+                                                  'Content-Type': 'application/json',
+                                                },
+                                              });
+                                              
+                                              const data = await response.json();
+                                              
+                                              if (response.ok) {
+                                                onAddQuality(); // Refresh qualities
+                                                setValidationMessage({ type: 'success', text: 'Quality deleted successfully!' });
+                                              } else {
+                                                setValidationMessage({ type: 'error', text: data.message || 'Failed to delete quality' });
+                                              }
+                                            } catch (error) {
+                                              console.error('Error deleting quality:', error);
+                                              setValidationMessage({ type: 'error', text: 'Failed to delete quality. Please try again.' });
+                                            }
                                          }}
                                          className={`p-2 rounded-lg hover:bg-red-50 flex items-center justify-center transition-all duration-300 ${
                                            isDarkMode 
@@ -1687,22 +1669,26 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         {showQualityModal && (
           <QualityModal
             onClose={() => setShowQualityModal(false)}
-            onSuccess={(newQualityName?: string, newQualityData?: any) => {
-              setShowQualityModal(false);
-              if (newQualityData && newQualityData._id && newQualityData.name) {
-                onAddQuality(newQualityData);
-                // Set the newly created quality for highlighting
-                setNewlyCreatedQuality(newQualityData);
-                // Auto-select the newly created quality for the active item
-                if (activeQualityDropdown !== null) {
-                  handleItemChange(activeQualityDropdown, 'quality', newQualityData._id);
-                  setQualitySearch(newQualityData.name);
-                  setValidationMessage({ type: 'success', text: 'Quality created and selected successfully!' });
-                }
-              } else {
-                setValidationMessage({ type: 'error', text: 'Failed to create quality - invalid data received' });
-              }
-            }}
+                         onSuccess={(newQualityName?: string, newQualityData?: any) => {
+               setShowQualityModal(false);
+               if (newQualityData && (newQualityData._id || newQualityData.id) && newQualityData.name) {
+                 onAddQuality(newQualityData);
+                 // Auto-select the newly created quality for the active item (like party creation)
+                 if (activeQualityDropdown !== null) {
+                   const qualityId = newQualityData._id || newQualityData.id;
+                   handleItemChange(activeQualityDropdown, 'quality', qualityId);
+                   setQualitySearch(newQualityData.name);
+                   setShowQualityDropdown(false);
+                   setActiveQualityDropdown(null);
+                   setValidationMessage({ type: 'success', text: 'Quality created and selected successfully!' });
+                 } else {
+                   // If no dropdown is active, just show success message
+                   setValidationMessage({ type: 'success', text: `Quality "${newQualityData.name}" created successfully!` });
+                 }
+               } else {
+                 setValidationMessage({ type: 'error', text: 'Failed to create quality - invalid data received' });
+               }
+             }}
           />
         )}
 

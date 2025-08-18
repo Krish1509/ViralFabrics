@@ -83,7 +83,10 @@ export async function POST(request: NextRequest) {
     
     // Parse and validate request body
     const body = await request.json();
+    console.log('Received quality data:', body); // Debug log
+    
     const validatedData = validateRequest(createQualitySchema, body);
+    console.log('Validated quality data:', validatedData); // Debug log
 
     // Check if quality with same name already exists
     const existingQuality = await Quality.findOne({ name: { $regex: validatedData.name, $options: 'i' } });
@@ -98,6 +101,7 @@ export async function POST(request: NextRequest) {
     // Create new quality
     const quality = new Quality(validatedData);
     const savedQuality = await quality.save();
+    console.log('Quality created successfully:', savedQuality); // Debug log
 
     // Return success response
     const response = {
@@ -107,13 +111,25 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString()
     };
 
+    console.log('Sending success response:', response); // Debug log
     return NextResponse.json(response, { status: 201 });
 
   } catch (error) {
-    if (error instanceof ValidationError) {
-      return sendValidationError(NextResponse, error.message);
-    }
     console.error('POST /api/qualities error:', error);
-    return sendServerError(NextResponse, 'Failed to create quality');
+    
+    if (error instanceof ValidationError) {
+      console.error('Validation error details:', error.message);
+      return NextResponse.json({
+        success: false,
+        message: `Validation error: ${error.message}`,
+        timestamp: new Date().toISOString()
+      }, { status: 400 });
+    }
+    
+    return NextResponse.json({
+      success: false,
+      message: 'Failed to create quality - invalid data received',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
   }
 }

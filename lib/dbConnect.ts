@@ -27,15 +27,43 @@ const cached: MongooseCache =
   (globalWithCache.mongooseCache = { conn: null, promise: null });
 
 export default async function dbConnect(): Promise<Mongoose> {
+  // If we have a cached connection, check if it's still valid
   if (cached.conn) {
-    return cached.conn;
+    try {
+      // Test the connection
+      if (cached.conn.connection.db) {
+        await cached.conn.connection.db.admin().ping();
+        return cached.conn;
+      }
+    } catch (error) {
+      console.log('Cached connection is invalid, creating new connection...');
+      cached.conn = null;
+      cached.promise = null;
+    }
   }
+
+  // If we don't have a connection promise, create one
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI, {
+    const opts = {
       bufferCommands: false,
-    });
+      maxPoolSize: 10, // Maintain up to 10 socket connections
+      serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+      socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+      family: 4, // Use IPv4, skip trying IPv6
+      retryWrites: true,
+      retryReads: true,
+    };
+
+    cached.promise = mongoose.connect(MONGODB_URI, opts);
   }
-  cached.conn = await cached.promise;
-  return cached.conn;
+
+  try {
+    cached.conn = await cached.promise;
+    return cached.conn;
+  } catch (error) {
+    // Reset the promise if connection fails
+    cached.promise = null;
+    throw error;
+  }
 }
 

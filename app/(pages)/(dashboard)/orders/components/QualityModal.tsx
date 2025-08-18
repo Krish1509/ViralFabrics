@@ -33,9 +33,9 @@ export default function QualityModal({ onClose, onSuccess }: QualityModalProps) 
       newErrors.name = 'Quality name must be at least 2 characters long';
     } else if (formData.name.trim().length > 100) {
       newErrors.name = 'Quality name cannot exceed 100 characters';
+    } else if (!/^[a-zA-Z0-9\s\-_\.\(\)\/]+$/.test(formData.name.trim())) {
+      newErrors.name = 'Quality name can only contain letters, numbers, spaces, hyphens, underscores, dots, parentheses, and forward slashes';
     }
-
-
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -49,7 +49,11 @@ export default function QualityModal({ onClose, onSuccess }: QualityModalProps) 
     }
 
     setLoading(true);
+    setErrors({}); // Clear previous errors
+    
     try {
+      console.log('Submitting quality data:', { name: formData.name.trim() }); // Debug log
+      
       const response = await fetch('/api/qualities', {
         method: 'POST',
         headers: {
@@ -61,10 +65,14 @@ export default function QualityModal({ onClose, onSuccess }: QualityModalProps) 
       });
 
       const data = await response.json();
+      console.log('Quality creation response:', data); // Debug log
 
       if (data.success) {
+        console.log('Quality created successfully, calling onSuccess with:', { name: formData.name.trim(), data: data.data }); // Debug log
+        // Call onSuccess immediately
         onSuccess(formData.name.trim(), data.data);
       } else {
+        console.log('Quality creation failed:', data.message); // Debug log
         setErrors({ submit: data.message || 'Failed to create quality' });
       }
     } catch (error) {

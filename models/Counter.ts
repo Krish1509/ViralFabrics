@@ -216,19 +216,24 @@ CounterSchema.methods.getFormattedNumber = function(): string {
 
 // **STATIC METHODS**
 CounterSchema.statics.getNextSequence = async function(name: string, prefix?: string, suffix?: string): Promise<number> {
-  const counter = await this.findByIdAndUpdate(
-    name,
-    { 
-      $inc: { sequence: 1 },
-      $setOnInsert: { 
-        prefix, 
-        suffix,
-        metadata: { isActive: true }
-      }
-    },
-    { new: true, upsert: true }
-  );
-  return counter.sequence;
+  try {
+    const counter = await this.findByIdAndUpdate(
+      name,
+      { 
+        $inc: { sequence: 1 },
+        $setOnInsert: { 
+          prefix, 
+          suffix,
+          metadata: { isActive: true }
+        }
+      },
+      { new: true, upsert: true, maxTimeMS: 5000 }
+    );
+    return counter.sequence;
+  } catch (error) {
+    console.error(`Error getting next sequence for ${name}:`, error);
+    throw new Error(`Failed to generate sequence for ${name}`);
+  }
 };
 
 CounterSchema.statics.getNextFormattedSequence = async function(name: string, format?: string): Promise<string> {

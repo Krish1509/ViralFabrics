@@ -1,16 +1,46 @@
 import dbConnect from "@/lib/dbConnect";
-import Order, { IOrderModel } from "@/models/Order";
+import Order, { IOrderModel, IOrder } from "@/models/Order";
 import Party from "@/models/Party";
+import Quality from "@/models/Quality";
 import Counter from "@/models/Counter";
 import { requireAuth } from "@/lib/session";
 import { type NextRequest } from "next/server";
+
+// Ensure all models are registered
+const models = { Order, Party, Quality, Counter };
 
 export async function GET(req: NextRequest) {
   try {
     // Remove authentication requirement for now
     // await requireAuth(req);
 
-    await dbConnect();
+    // Improved database connection with retry logic
+    let connectionAttempts = 0;
+    const maxAttempts = 3;
+    let dbConnection = null;
+
+    while (connectionAttempts < maxAttempts) {
+      try {
+        dbConnection = await dbConnect();
+        break;
+      } catch (dbError) {
+        connectionAttempts++;
+        console.error(`Database connection attempt ${connectionAttempts} failed:`, dbError);
+        
+        if (connectionAttempts >= maxAttempts) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              message: "Database connection failed after multiple attempts" 
+            }), 
+            { status: 503 }
+          );
+        }
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000 * connectionAttempts));
+      }
+    }
     
     const { searchParams } = new URL(req.url);
     
@@ -87,16 +117,24 @@ export async function GET(req: NextRequest) {
       query[sortBy] = { [cursorOperator]: cursor };
     }
     
-    // Execute query with pagination and population
-    const [orders, totalCount] = await Promise.all([
+    // Execute query with pagination and population with timeout
+    const queryPromise = Promise.all([
       Order.find(query)
         .populate('party', '_id name contactName contactPhone address')
         .populate('items.quality', '_id name description')
         .sort(sortObject)
         .limit(limit)
-        .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt'),
-      Order.countDocuments(query)
+        .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt')
+        .maxTimeMS(10000), // 10 second timeout
+      Order.countDocuments(query).maxTimeMS(5000) // 5 second timeout
     ]);
+
+    const [orders, totalCount] = await Promise.race([
+      queryPromise,
+      new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Database query timeout')), 15000)
+      )
+    ]) as [any[], number];
 
     // Calculate pagination info
     const totalPages = Math.ceil(totalCount / limit);
@@ -124,12 +162,28 @@ export async function GET(req: NextRequest) {
       }
     }), { status: 200 });
   } catch (error: unknown) {
+    console.error('Orders GET error:', error);
+    
     if (error instanceof Error) {
       if (error.message.includes("Unauthorized")) {
         return new Response(JSON.stringify({ 
           success: false, 
           message: "Unauthorized" 
         }), { status: 401 });
+      }
+      
+      if (error.message.includes("Database connection failed")) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          message: "Database connection failed. Please try again." 
+        }), { status: 503 });
+      }
+      
+      if (error.message.includes("Database query timeout")) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          message: "Request timeout. Please try again." 
+        }), { status: 408 });
       }
     }
     
@@ -239,11 +293,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await dbConnect();
+    // Improved database connection with retry logic
+    let connectionAttempts = 0;
+    const maxAttempts = 3;
+    let dbConnection = null;
+
+    while (connectionAttempts < maxAttempts) {
+      try {
+        dbConnection = await dbConnect();
+        break;
+      } catch (dbError) {
+        connectionAttempts++;
+        console.error(`Database connection attempt ${connectionAttempts} failed:`, dbError);
+        
+        if (connectionAttempts >= maxAttempts) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              message: "Database connection failed after multiple attempts" 
+            }), 
+            { status: 503 }
+          );
+        }
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000 * connectionAttempts));
+      }
+    }
 
     // Verify party exists only if provided
     if (party) {
-      const partyExists = await Party.findById(party);
+      const partyExists = await Party.findById(party).maxTimeMS(5000);
       if (!partyExists) {
         return new Response(
           JSON.stringify({ message: "Party not found" }), 
@@ -254,10 +334,9 @@ export async function POST(req: NextRequest) {
 
     // Verify qualities exist if provided
     if (items && items.length > 0) {
-      const Quality = (await import('@/models/Quality')).default;
       for (const item of items) {
         if (item.quality) {
-          const qualityExists = await Quality.findById(item.quality);
+          const qualityExists = await Quality.findById(item.quality).maxTimeMS(5000);
           if (!qualityExists) {
             return new Response(
               JSON.stringify({ message: `Quality not found for item` }), 
@@ -297,14 +376,21 @@ export async function POST(req: NextRequest) {
       orderData.party = party;
     }
     
-    // Use the new sequential order creation method
-    const order = await (Order as IOrderModel).createOrder(orderData);
+    // Use the new sequential order creation method with timeout
+    const orderPromise = (Order as IOrderModel).createOrder(orderData);
+    const order = await Promise.race([
+      orderPromise,
+      new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Order creation timeout')), 15000)
+      )
+    ]) as IOrder;
     
     // Populate the order with party and quality details
     const populatedOrder = await Order.findById(order._id)
       .populate('party', '_id name contactName contactPhone address')
       .populate('items.quality', '_id name description')
-      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
+      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt')
+      .maxTimeMS(5000);
 
     return new Response(
       JSON.stringify({ 
@@ -315,9 +401,25 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error: unknown) {
+    console.error('Orders POST error:', error);
+    
     if (error instanceof Error) {
       if (error.message.includes("Unauthorized")) {
         return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
+      }
+      
+      if (error.message.includes("Database connection failed")) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          message: "Database connection failed. Please try again." 
+        }), { status: 503 });
+      }
+      
+      if (error.message.includes("Order creation timeout")) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          message: "Order creation timeout. Please try again." 
+        }), { status: 408 });
       }
       
       // Handle MongoDB duplicate key errors

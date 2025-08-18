@@ -52,7 +52,7 @@ export const updatePartySchema = createPartySchema.partial().extend({
 // Quality validation schemas
 export const createQualitySchema = z.object({
   name: z.string().min(2, 'Quality name must be at least 2 characters').max(100, 'Quality name cannot exceed 100 characters')
-    .regex(/^[a-zA-Z0-9\s\-_]+$/, 'Quality name can only contain letters, numbers, spaces, hyphens, and underscores'),
+    .regex(/^[a-zA-Z0-9\s\-_\.\(\)\/]+$/, 'Quality name can only contain letters, numbers, spaces, hyphens, underscores, dots, parentheses, and forward slashes'),
   description: z.string().max(500, 'Description cannot exceed 500 characters').optional()
 });
 

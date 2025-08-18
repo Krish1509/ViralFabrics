@@ -416,8 +416,30 @@ OrderSchema.statics.createOrder = async function(orderData: any): Promise<IOrder
     console.log(`Order created successfully with ID: ${savedOrder.orderId}`);
     return savedOrder;
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating order:', error);
+    
+    // If it's a duplicate key error, try again with a new sequence
+    if (error.code === 11000 && error.keyPattern?.orderId) {
+      console.log('Duplicate orderId detected, retrying with new sequence...');
+      try {
+        const nextNumber = await (Counter as any).getNextSequence('orderId');
+        const orderId = nextNumber.toString().padStart(3, '0');
+        
+        const order = new this({
+          ...orderData,
+          orderId
+        });
+        
+        const savedOrder = await order.save();
+        console.log(`Order created successfully with ID: ${savedOrder.orderId} (retry)`);
+        return savedOrder;
+      } catch (retryError: any) {
+        console.error('Error creating order on retry:', retryError);
+        throw retryError;
+      }
+    }
+    
     throw error;
   }
 };
