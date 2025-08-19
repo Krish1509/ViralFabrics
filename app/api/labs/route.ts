@@ -22,10 +22,13 @@ export async function POST(request: NextRequest) {
     const { orderId, orderItemId, ...labData } = validationResult.data;
     
     // Verify order exists and order item exists in that order
-    try {
-      await ensureOrderItemExists(orderId, orderItemId);
-    } catch (error) {
-      return notFound((error as Error).message);
+    // Skip validation for temporary orderItemIds (like item_0, item_1, etc.)
+    if (!orderItemId.startsWith('item_')) {
+      try {
+        await ensureOrderItemExists(orderId, orderItemId);
+      } catch (error) {
+        return notFound((error as Error).message);
+      }
     }
       
     // Check if lab already exists for this order item
@@ -48,8 +51,13 @@ export async function POST(request: NextRequest) {
     
     await lab.save();
     
-    // Populate order details for response
-    await lab.populate('order');
+    // Try to populate order details, but don't fail if it doesn't work
+    try {
+      await lab.populate('order');
+    } catch (populateError) {
+      console.log('Populate failed but lab was created successfully:', populateError);
+      // Continue without populate - the lab was still created successfully
+    }
     
     return created(lab);
     

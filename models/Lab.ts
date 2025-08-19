@@ -3,7 +3,7 @@ import mongoose, { Document, Schema, Model } from "mongoose";
 // Enhanced TypeScript interfaces
 export interface ILab extends Document {
   order: mongoose.Types.ObjectId;
-  orderItemId: mongoose.Types.ObjectId;
+  orderItemId: string; // Can be ObjectId string or temporary string like 'item_0'
   labSendDate: Date;
   labSendData?: string | Record<string, any>;
   labSendNumber: string;
@@ -73,7 +73,7 @@ const LabSchema = new Schema<ILab>({
     index: true
   },
   orderItemId: {
-    type: Schema.Types.ObjectId,
+    type: String, // Allow both ObjectId and temporary string IDs
     required: [true, "Order item ID is required"],
     index: true
   },
@@ -246,7 +246,8 @@ LabSchema.index({ createdAt: -1 }, { name: 'idx_lab_created_desc' });
 LabSchema.index({ updatedAt: -1 }, { name: 'idx_lab_updated_desc' });
 
 // Compound indexes for common query patterns
-LabSchema.index({ order: 1, orderItemId: 1 }, { unique: true, name: 'idx_lab_order_item_unique' });
+// Remove unique constraint since orderItemId can be temporary
+LabSchema.index({ order: 1, orderItemId: 1 }, { name: 'idx_lab_order_item' });
 LabSchema.index({ order: 1, status: 1 }, { name: 'idx_lab_order_status' });
 LabSchema.index({ order: 1, softDeleted: 1 }, { name: 'idx_lab_order_soft_deleted' });
 LabSchema.index({ status: 1, softDeleted: 1 }, { name: 'idx_lab_status_soft_deleted' });

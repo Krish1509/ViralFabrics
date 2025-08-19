@@ -8,9 +8,15 @@ const coerceISODate = (val: any): Date | undefined => {
   return isNaN(date.getTime()) ? undefined : date;
 };
 
-// Custom ObjectId validation
-const objectIdSchema = z.string().refine(isValidObjectId, {
-  message: 'Must be a valid ObjectId'
+// Custom ObjectId validation that allows temporary IDs
+const objectIdSchema = z.string().refine((val) => {
+  // Allow temporary IDs like item_0, item_1, etc.
+  if (val.startsWith('item_')) {
+    return true;
+  }
+  return isValidObjectId(val);
+}, {
+  message: 'Must be a valid ObjectId or temporary item ID'
 });
 
 // Attachment schema

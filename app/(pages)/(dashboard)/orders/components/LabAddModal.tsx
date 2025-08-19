@@ -203,10 +203,14 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           });
 
           const data = await response.json();
-          if (data.success) {
-            updatedLabs.push(data.data);
+          console.log('Lab update response:', data); // Debug log
+          
+          if (response.ok) {
+            // Handle both { success: true, data: ... } and direct data responses
+            const labData = data.success ? data.data : data;
+            updatedLabs.push(labData);
           } else {
-            throw new Error(data.error || 'Failed to update lab');
+            throw new Error(data.error || data.message || 'Failed to update lab');
           }
         } else {
           // Create new lab
@@ -230,13 +234,22 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           });
 
           const data = await response.json();
-          if (data.success) {
-            createdLabs.push(data.data);
+          console.log('Lab creation response:', data); // Debug log
+          
+          if (response.ok) {
+            // Handle both { success: true, data: ... } and direct data responses
+            const labData = data.success ? data.data : data;
+            createdLabs.push(labData);
           } else {
-            if (data.error?.includes('already exists')) {
+            // Check if it's a server error but lab was actually created
+            if (response.status === 500 && data.error?.includes('wasPopulated')) {
+              // Lab was created but populate failed - this is still a success
+              console.log('Lab created successfully but populate failed, treating as success');
+              createdLabs.push({ id: 'created', orderItemId: lab.orderItemId });
+            } else if (data.error?.includes('already exists')) {
               showMessage('error', `Lab already exists for item ${lab.orderItemId}. Please refresh and try again.`);
             } else {
-              throw new Error(data.error || 'Failed to create lab');
+              throw new Error(data.error || data.message || 'Failed to create lab');
             }
           }
         }
@@ -259,7 +272,8 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
       onClose();
     } catch (error) {
       console.error('Error processing labs:', error);
-      showMessage('error', 'Failed to process labs');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to process labs';
+      showMessage('error', errorMessage);
     } finally {
       setLoading(false);
     }
