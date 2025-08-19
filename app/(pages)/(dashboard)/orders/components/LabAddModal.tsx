@@ -158,10 +158,7 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
     const validationErrors = [];
     for (let i = 0; i < labData.length; i++) {
       const lab = labData[i];
-      // Only validate sample number if it's provided (make it optional)
-      if (lab.sampleNumber && lab.sampleNumber.trim() !== '' && lab.sampleNumber.trim().length < 3) {
-        validationErrors.push(`Item ${i + 1}: Sample number must be at least 3 characters if provided`);
-      }
+      // Only validate lab send date (sample number is completely optional)
       if (!lab.labSendDate) {
         validationErrors.push(`Item ${i + 1}: Lab send date is required`);
       }
@@ -184,10 +181,7 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           return;
         }
 
-        // Skip if sample number is provided but too short
-        if (lab.sampleNumber && lab.sampleNumber.trim() !== '' && lab.sampleNumber.trim().length < 3) {
-          continue;
-        }
+
 
         if (lab.existingLabId) {
           // Update existing lab - also update orderItemId if it changed
@@ -303,7 +297,6 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
   const hasNewLabs = labData.some(lab => !lab.existingLabId);
   const hasUnsavedOrder = labData.some(lab => lab.orderItemId.startsWith('item_'));
   const hasValidationErrors = labData.some(lab => 
-    (lab.sampleNumber && lab.sampleNumber.trim() !== '' && lab.sampleNumber.trim().length < 3) || 
     !lab.labSendDate
   );
 
@@ -537,35 +530,22 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
                         type="text"
                         value={lab.sampleNumber}
                         onChange={(e) => {
-                          // Convert to uppercase and only allow valid characters
-                          const value = e.target.value.toUpperCase().replace(/[^A-Z0-9\-_]/g, '');
-                          handleLabDataChange(index, 'sampleNumber', value);
+                          // Allow any input without restrictions
+                          handleLabDataChange(index, 'sampleNumber', e.target.value);
                         }}
-                                                 className={`w-full px-3 py-2 rounded-lg border text-sm transition-colors ${
-                           lab.sampleNumber && lab.sampleNumber.trim() !== '' && lab.sampleNumber.length < 3
-                             ? isDarkMode
-                               ? 'bg-yellow-900/10 border-yellow-500/30 text-white focus:border-yellow-500'
-                               : 'bg-yellow-50 border-yellow-200 text-gray-900 focus:border-yellow-500'
-                             : lab.existingLabId
-                               ? isDarkMode
-                                 ? 'bg-green-900/10 border-green-500/30 text-white focus:border-green-500'
-                                 : 'bg-green-50 border-green-200 text-gray-900 focus:border-green-500'
-                               : isDarkMode
-                                 ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                                 : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                         }`}
-                         placeholder="Enter sample number (optional, e.g., LAB-001)"
-                         maxLength={50}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm transition-colors ${
+                          lab.existingLabId
+                            ? isDarkMode
+                              ? 'bg-green-900/10 border-green-500/30 text-white focus:border-green-500'
+                              : 'bg-green-50 border-green-200 text-gray-900 focus:border-green-500'
+                            : isDarkMode
+                              ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
+                              : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                        }`}
+                        placeholder="Enter sample number (optional)"
+                        maxLength={100}
                       />
-                                             {lab.sampleNumber && lab.sampleNumber.trim() !== '' && lab.sampleNumber.length < 3 && (
-                         <p className="text-xs text-yellow-600 mt-1">Sample number must be at least 3 characters if provided</p>
-                       )}
-                       {lab.sampleNumber && lab.sampleNumber.trim() !== '' && lab.sampleNumber.length >= 3 && (
-                         <p className="text-xs text-green-600 mt-1">✓ Valid format</p>
-                       )}
-                       {(!lab.sampleNumber || lab.sampleNumber.trim() === '') && (
-                         <p className="text-xs text-gray-500 mt-1">Sample number is optional</p>
-                       )}
+
                     </td>
                      
                      <td className="px-4 py-3">

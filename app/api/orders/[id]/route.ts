@@ -186,10 +186,10 @@ export async function PUT(
     }
 
     // Verify qualities exist if being updated
-    if (items && items.length > 0) {
+    if (items && Array.isArray(items) && items.length > 0) {
       const Quality = (await import('@/models/Quality')).default;
       for (const item of items) {
-        if (item.quality) {
+        if (item && item.quality && typeof item.quality === 'string') {
           const qualityExists = await Quality.findById(item.quality);
           if (!qualityExists) {
             return new Response(
@@ -242,14 +242,50 @@ export async function PUT(
       }));
     }
 
+    // First update the order without populate to avoid wasPopulated issues
     const updatedOrder = await Order.findByIdAndUpdate(
       id,
       updateData,
       { new: true, runValidators: true }
-    )
-    .populate('party', '_id name contactName contactPhone address')
-    .populate('items.quality', '_id name description')
-    .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
+    );
+
+    if (!updatedOrder) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: "Failed to update order" 
+        }), 
+        { status: 500 }
+      );
+    }
+
+    // Then populate the fields separately with proper error handling
+    try {
+      const populatedOrder = await Order.findById(updatedOrder._id)
+        .populate('party', '_id name contactName contactPhone address')
+        .populate('items.quality', '_id name description')
+        .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Order updated successfully", 
+          data: populatedOrder 
+        }), 
+        { status: 200 }
+      );
+    } catch (populateError) {
+      console.error('Populate error:', populateError);
+      // Return the order without populate if populate fails
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Order updated successfully (some data may not be fully populated)", 
+          data: updatedOrder 
+        }), 
+        { status: 200 }
+      );
+    }
 
     return new Response(
       JSON.stringify({ 
@@ -326,15 +362,50 @@ export async function PATCH(
       );
     }
 
-    // Update only the status - temporarily disable validators to handle old status values
+    // First update the order without populate to avoid wasPopulated issues
     const updatedOrder = await Order.findByIdAndUpdate(
       id,
       { status },
       { new: true, runValidators: false }
-    )
-    .populate('party', '_id name contactName contactPhone address')
-    .populate('items.quality', '_id name description')
-    .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
+    );
+
+    if (!updatedOrder) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: "Failed to update order status" 
+        }), 
+        { status: 500 }
+      );
+    }
+
+    // Then populate the fields separately with proper error handling
+    try {
+      const populatedOrder = await Order.findById(updatedOrder._id)
+        .populate('party', '_id name contactName contactPhone address')
+        .populate('items.quality', '_id name description')
+        .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Order status updated successfully", 
+          data: populatedOrder 
+        }), 
+        { status: 200 }
+      );
+    } catch (populateError) {
+      console.error('Populate error:', populateError);
+      // Return the order without populate if populate fails
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Order status updated successfully (some data may not be fully populated)", 
+          data: updatedOrder 
+        }), 
+        { status: 200 }
+      );
+    }
 
     return new Response(
       JSON.stringify({ 

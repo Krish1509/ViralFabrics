@@ -61,7 +61,8 @@ export default function OrdersPage() {
 
   // Filters
   const [filters, setFilters] = useState({
-    orderFilter: 'all' // all, latest_first, oldest_first
+    orderFilter: 'all', // all, latest_first, oldest_first
+    typeFilter: 'all' // all, Dying, Finishing
   });
 
   // Track screen size
@@ -300,7 +301,9 @@ export default function OrdersPage() {
           order.styleNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (order.party as any)?.name?.toLowerCase().includes(searchTerm.toLowerCase());
 
-        return matchesSearch;
+        const matchesType = filters.typeFilter === 'all' || order.orderType === filters.typeFilter;
+
+        return matchesSearch && matchesType;
       });
 
     // Apply order filter
@@ -324,6 +327,7 @@ export default function OrdersPage() {
       totalOrders: orders.length,
       searchTerm,
       orderFilter: filters.orderFilter,
+      typeFilter: filters.typeFilter,
       filteredCount: filtered.length,
       filteredOrders: filtered.map(o => ({ id: o.orderId, party: (o.party as any)?.name, type: o.orderType }))
     });
@@ -405,7 +409,7 @@ export default function OrdersPage() {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filters.orderFilter]);
+  }, [searchTerm, filters.orderFilter, filters.typeFilter]);
 
   // Page navigation functions
   const goToPage = (pageNumber: number) => {
@@ -705,13 +709,13 @@ export default function OrdersPage() {
             </div>
           </div>
 
-          {/* Bottom Row - Latest Order Filter */}
+          {/* Bottom Row - Filters */}
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Order Filter Dropdown */}
             <div className="sm:w-48">
               <select
                 value={filters.orderFilter}
-                onChange={(e) => setFilters({ orderFilter: e.target.value })}
+                onChange={(e) => setFilters({ ...filters, orderFilter: e.target.value })}
                 className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 appearance-none cursor-pointer ${
                   isDarkMode
                     ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:border-white/30'
@@ -725,9 +729,33 @@ export default function OrdersPage() {
                   paddingRight: '2.5rem'
                 }}
               >
-                                 <option value="all" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>All Orders</option>
-                 <option value="latest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Latest First</option>
-                 <option value="oldest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Oldest First</option>
+                <option value="all" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>All Orders</option>
+                <option value="latest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Latest First</option>
+                <option value="oldest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Oldest First</option>
+              </select>
+            </div>
+
+            {/* Order Type Filter Dropdown */}
+            <div className="sm:w-48">
+              <select
+                value={filters.typeFilter}
+                onChange={(e) => setFilters({ ...filters, typeFilter: e.target.value })}
+                className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 appearance-none cursor-pointer ${
+                  isDarkMode
+                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:border-white/30'
+                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                }`}
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='${isDarkMode ? 'rgb(156 163 175)' : 'rgb(107 114 128)'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+                  backgroundPosition: 'right 0.5rem center',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '1.5em 1.5em',
+                  paddingRight: '2.5rem'
+                }}
+              >
+                <option value="all" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>All Types</option>
+                <option value="Dying" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Dying</option>
+                <option value="Printing" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Printing</option>
               </select>
             </div>
           </div>
@@ -861,31 +889,24 @@ export default function OrdersPage() {
                                        {/* Dates Column */}
                     <td className="px-6 py-4">
                       <div className="space-y-1">
-                        {order.arrivalDate && (
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3" />
-                            <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                              Arrival: {formatDate(order.arrivalDate)}
-                            </span>
-                          </div>
-                        )}
-                        {order.poDate && (
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3" />
-                            <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                              PO Date: {formatDate(order.poDate)}
-                            </span>
-                          </div>
-                        )}
-                        {order.deliveryDate && (
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3" />
-                            <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                              Delivery: {formatDate(order.deliveryDate)}
-                            </span>
-                          </div>
-                        )}
-                        
+                        <div className="flex items-center gap-1">
+                          <CalendarIcon className="h-3 w-3" />
+                          <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                            Arrival: {order.arrivalDate ? formatDate(order.arrivalDate) : 'Not selected'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <CalendarIcon className="h-3 w-3" />
+                          <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                            PO Date: {order.poDate ? formatDate(order.poDate) : 'Not selected'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <CalendarIcon className="h-3 w-3" />
+                          <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                            Delivery: {order.deliveryDate ? formatDate(order.deliveryDate) : 'Not selected'}
+                          </span>
+                        </div>
                       </div>
                     </td>
 

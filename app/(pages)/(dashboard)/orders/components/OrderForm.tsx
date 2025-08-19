@@ -45,7 +45,12 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     styleNo: '',
     poDate: '',
     deliveryDate: '',
-    items: []
+    items: [{
+      quality: '',
+      quantity: undefined,
+      imageUrls: [],
+      description: ''
+    }]
   });
 
   const [loading, setLoading] = useState(false);
@@ -231,9 +236,9 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       return newErrors;
     }
 
-    // Optional fields validation (only validate if provided)
-    if (formData.orderType && !formData.orderType.trim()) {
-      newErrors.orderType = 'Order type cannot be empty if provided';
+    // Required fields validation
+    if (!formData.orderType || !formData.orderType.trim()) {
+      newErrors.orderType = 'Order type is required';
     }
 
     if (formData.arrivalDate) {
@@ -310,12 +315,28 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
 
   // Handle item field change
   const handleItemChange = (index: number, field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.map((item, i) => 
-        i === index ? { ...item, [field]: value } : item
-      )
-    }));
+    setFormData(prev => {
+      // Ensure items array exists and has the required item
+      const updatedItems = [...(prev.items || [])];
+      
+      // If the item doesn't exist at this index, create it
+      if (!updatedItems[index]) {
+        updatedItems[index] = {
+          quality: '',
+          quantity: undefined,
+          imageUrls: [],
+          description: ''
+        };
+      }
+      
+      // Update the specific field
+      updatedItems[index] = { ...updatedItems[index], [field]: value };
+      
+      return {
+        ...prev,
+        items: updatedItems
+      };
+    });
 
     // Clear error when user starts typing
     const errorKey = `items.${index}.${field}`;
@@ -396,7 +417,14 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         console.log('Upload response data:', data);
         
         // Add the new image to the existing array
-        const currentImages = formData.items[itemIndex]?.imageUrls || [];
+        const currentItem = formData.items[itemIndex];
+        if (!currentItem) {
+          console.error('Item not found at index:', itemIndex);
+          setValidationMessage({ type: 'error', text: 'Item not found. Please try again.' });
+          return;
+        }
+        
+        const currentImages = currentItem.imageUrls || [];
         console.log('Current images for item', itemIndex, ':', currentImages);
         
         const updatedImages = [...currentImages, data.imageUrl];
@@ -458,12 +486,27 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     console.log('Form submission started...');
     console.log('Form data:', formData);
     
+    // Mark all fields as touched to show validation errors
+    const allFields = ['orderType', 'arrivalDate', 'party', 'contactName', 'contactPhone', 'poNumber', 'styleNo', 'poDate', 'deliveryDate'];
+    const newTouched = new Set(allFields);
+    
+    // Add item fields to touched
+    formData.items.forEach((_, index) => {
+      newTouched.add(`items.${index}.quality`);
+      newTouched.add(`items.${index}.quantity`);
+      newTouched.add(`items.${index}.description`);
+    });
+    
+    setTouched(newTouched);
+    
     const newErrors = validateForm();
     setErrors(newErrors);
     
     if (Object.keys(newErrors).length > 0) {
       console.log('Validation errors:', newErrors); // Debug log
-      setValidationMessage({ type: 'error', text: 'Please fix the errors below' });
+      // Show the first specific error message instead of generic message
+      const firstError = Object.values(newErrors)[0];
+      setValidationMessage({ type: 'error', text: firstError });
       return;
     }
 
@@ -564,6 +607,10 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
 
   // Get error for a specific field
   const getFieldError = (field: string) => {
+    // Show errors for required fields even if not touched when there are validation errors
+    if (field === 'orderType' && errors[field]) {
+      return errors[field];
+    }
     return touched.has(field) ? errors[field] : '';
   };
 
@@ -782,7 +829,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
-                    Order Type
+                    Order Type <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={formData.orderType || ''}
@@ -790,13 +837,13 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                     onBlur={() => handleBlur('orderType')}
                     className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
                       getFieldError('orderType')
-                        ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                        ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-900 dark:text-red-200'
                         : isDarkMode
                           ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-white/30'
                           : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400'
                     }`}
                   >
-                    <option value="" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Select Order Type</option>
+                    <option value="" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Select Order Type *</option>
                     <option value="Dying" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Dying</option>
                     <option value="Printing" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Printing</option>
                   </select>
@@ -805,15 +852,14 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                   )}
                 </div>
 
-                {/* Arrival Date */}
-                <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Arrival Date
-                  </label>
-                  <div className="relative">
-                    <input
+                                 {/* Arrival Date */}
+                 <div>
+                   <label className={`block text-sm font-semibold mb-2 ${
+                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                   }`}>
+                     Arrival Date
+                   </label>
+                                       <input
                       type="date"
                       value={formData.arrivalDate}
                       onChange={(e) => handleFieldChange('arrivalDate', e.target.value)}
@@ -826,21 +872,19 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                             : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400'
                       }`}
                     />
-                  </div>
-                  {getFieldError('arrivalDate') && (
-                    <p className="mt-1 text-xs text-red-500">{getFieldError('arrivalDate')}</p>
-                  )}
-                </div>
+                   {getFieldError('arrivalDate') && (
+                     <p className="mt-1 text-xs text-red-500">{getFieldError('arrivalDate')}</p>
+                   )}
+                 </div>
 
-                {/* PO Date */}
-                <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    PO Date
-                  </label>
-                  <div className="relative">
-                    <input
+                                 {/* PO Date */}
+                 <div>
+                   <label className={`block text-sm font-semibold mb-2 ${
+                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                   }`}>
+                     PO Date
+                   </label>
+                                       <input
                       type="date"
                       value={formData.poDate}
                       onChange={(e) => handleFieldChange('poDate', e.target.value)}
@@ -850,18 +894,16 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                           : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
                       }`}
                     />
-                  </div>
-                </div>
+                 </div>
 
-                {/* Delivery Date */}
-                <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Delivery Date
-                  </label>
-                  <div className="relative">
-                    <input
+                                 {/* Delivery Date */}
+                 <div>
+                   <label className={`block text-sm font-semibold mb-2 ${
+                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                   }`}>
+                     Delivery Date
+                   </label>
+                                       <input
                       type="date"
                       value={formData.deliveryDate}
                       onChange={(e) => handleFieldChange('deliveryDate', e.target.value)}
@@ -874,11 +916,10 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                             : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
                       }`}
                     />
-                  </div>
-                  {getFieldError('deliveryDate') && (
-                    <p className="mt-1 text-xs text-red-500">{getFieldError('deliveryDate')}</p>
-                  )}
-                </div>
+                   {getFieldError('deliveryDate') && (
+                     <p className="mt-1 text-xs text-red-500">{getFieldError('deliveryDate')}</p>
+                   )}
+                 </div>
               </div>
             </div>
 
@@ -1551,11 +1592,11 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                                ? 'border-gray-600 bg-gray-800/50' 
                                : 'border-gray-300 bg-gray-50'
                          }`}>
-                           {item.imageUrls && item.imageUrls.length > 0 ? (
+                           {(item.imageUrls || []).length > 0 ? (
                              <div className="space-y-4">
                                {/* Images Grid - Enhanced */}
                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                                 {item.imageUrls.map((imageUrl, imageIndex) => (
+                                 {(item.imageUrls || []).map((imageUrl, imageIndex) => (
                                    <div key={imageIndex} className="relative group">
                                      <div className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-600">
                                        <img
@@ -1602,7 +1643,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                                <div className={`text-center text-sm ${
                                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
                                }`}>
-                                 {item.imageUrls.length} image{item.imageUrls.length !== 1 ? 's' : ''} uploaded
+                                 {(item.imageUrls || []).length} image{(item.imageUrls || []).length !== 1 ? 's' : ''} uploaded
                                </div>
                              </div>
                            ) : (
