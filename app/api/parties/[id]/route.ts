@@ -3,6 +3,7 @@ import Party from "@/models/Party";
 import Order from "@/models/Order";
 import { requireAuth } from "@/lib/session";
 import { type NextRequest } from "next/server";
+import { logUpdate, logDelete } from "@/lib/logger";
 
 export async function GET(
   req: NextRequest,
@@ -141,6 +142,9 @@ export async function PUT(
       { new: true, runValidators: true }
     ).select('_id name contactName contactPhone address createdAt updatedAt');
 
+    // Log the party update
+    await logUpdate('party', id, updateData, updatedParty.toObject(), req);
+
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -227,6 +231,9 @@ export async function DELETE(
 
     // Delete the party
     await Party.findByIdAndDelete(id);
+
+    // Log the party deletion
+    await logDelete('party', id, { name: existingParty.name }, req);
 
     return new Response(
       JSON.stringify({ 

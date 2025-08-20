@@ -22,6 +22,7 @@ import {
   buildQuery,
   buildSort
 } from '@/lib/response';
+import { logCreate } from '@/lib/logger';
 
 // GET /api/qualities - List qualities with pagination and search
 export async function GET(request: NextRequest) {
@@ -102,6 +103,12 @@ export async function POST(request: NextRequest) {
     const quality = new Quality(validatedData);
     const savedQuality = await quality.save();
     console.log('Quality created successfully:', savedQuality); // Debug log
+
+    // Log the quality creation
+    await logCreate('quality', (savedQuality as any)._id.toString(), { 
+      name: savedQuality.name,
+      description: savedQuality.description
+    }, request);
 
     // Return success response
     const response = {

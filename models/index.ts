@@ -5,6 +5,7 @@ export { default as Order } from './Order';
 export { default as Quality } from './Quality';
 export { default as Lab } from './Lab';
 export { default as Counter } from './Counter';
+export { default as Log } from './Log';
 
 // Export TypeScript interfaces for all models
 export type { 
@@ -37,6 +38,11 @@ export type {
   ICounter, 
   ICounterModel 
 } from './Counter';
+
+export type { 
+  ILog, 
+  ILogModel 
+} from './Log';
 
 // Export common types and utilities
 export type { Document, Model, Schema } from 'mongoose';

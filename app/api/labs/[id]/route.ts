@@ -4,6 +4,7 @@ import Lab from '@/models/Lab';
 import { updateLabSchema } from '@/lib/validation/lab';
 import { ok, badRequest, notFound, serverError } from '@/lib/http';
 import { isValidObjectId } from '@/lib/ids';
+import { logView, logUpdate, logDelete, logError } from '@/lib/logger';
 
 // GET /api/labs/[id] - Get a specific lab
 export async function GET(
@@ -30,10 +31,14 @@ export async function GET(
       return notFound('Lab not found');
     }
     
+    // Log the lab view
+    await logView('lab', id, request);
+    
     return ok(lab);
     
   } catch (error) {
     console.error('Error fetching lab:', error);
+    await logError('lab_view', 'lab', error instanceof Error ? error.message : 'Unknown error', request);
     return serverError(error);
   }
 }
@@ -79,8 +84,14 @@ export async function PUT(
     
     // Allow orderItemId updates for order updates
     
+    // Store old values for logging
+    const oldValues = lab.toObject();
+    
     Object.assign(lab, updateData);
     await lab.save();
+    
+    // Log the lab update
+    await logUpdate('lab', id, oldValues, lab.toObject(), request);
     
     // Return the updated lab without populate to avoid the error
     return ok(lab);
@@ -92,6 +103,7 @@ export async function PUT(
       stack: error?.stack,
       name: error?.name
     });
+    await logError('lab_update', 'lab', error?.message || 'Unknown error', request);
     return serverError(error);
   }
 }
@@ -124,10 +136,14 @@ export async function DELETE(
     lab.softDeleted = true;
     await lab.save();
     
+    // Log the lab deletion
+    await logDelete('lab', id, { softDeleted: true }, request);
+    
     return ok({ message: 'Lab deleted successfully' });
     
   } catch (error) {
     console.error('Error deleting lab:', error);
+    await logError('lab_delete', 'lab', error instanceof Error ? error.message : 'Unknown error', request);
     return serverError(error);
   }
 }

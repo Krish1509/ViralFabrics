@@ -5,6 +5,7 @@ import Quality from "@/models/Quality";
 import Counter from "@/models/Counter";
 import { requireAuth } from "@/lib/session";
 import { type NextRequest } from "next/server";
+import { logView, logCreate, logError } from "@/lib/logger";
 
 // Ensure all models are registered
 const models = { Order, Party, Quality, Counter };
@@ -383,7 +384,7 @@ export async function POST(req: NextRequest) {
       new Promise<never>((_, reject) => 
         setTimeout(() => reject(new Error('Order creation timeout')), 15000)
       )
-    ]) as IOrder;
+    ]) as IOrder & { _id: string };
     
     // Populate the order with party and quality details
     const populatedOrder = await Order.findById(order._id)
@@ -391,6 +392,15 @@ export async function POST(req: NextRequest) {
       .populate('items.quality', '_id name description')
       .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt')
       .maxTimeMS(5000);
+
+    // Log the order creation
+    await logCreate('order', (order as any)._id.toString(), { 
+      orderId: order.orderId,
+      orderType: order.orderType,
+      poNumber: order.poNumber,
+      styleNo: order.styleNo,
+      party: order.party
+    }, req);
 
     return new Response(
       JSON.stringify({ 

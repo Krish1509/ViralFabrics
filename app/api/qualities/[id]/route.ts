@@ -3,6 +3,7 @@ import Quality from "@/models/Quality";
 import Order from "@/models/Order";
 import { requireAuth } from "@/lib/session";
 import { type NextRequest } from "next/server";
+import { logUpdate, logDelete } from "@/lib/logger";
 
 // GET /api/qualities/[id] - Get quality by ID
 export async function GET(
@@ -115,6 +116,9 @@ export async function PUT(
       { new: true, runValidators: true }
     ).select('_id name description createdAt updatedAt');
 
+    // Log the quality update
+    await logUpdate('quality', id, updateData, updatedQuality.toObject(), request);
+
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -192,6 +196,9 @@ export async function DELETE(
 
     // Delete the quality
     await Quality.findByIdAndDelete(id);
+
+    // Log the quality deletion
+    await logDelete('quality', id, { name: existingQuality.name }, req);
 
     return new Response(
       JSON.stringify({ 

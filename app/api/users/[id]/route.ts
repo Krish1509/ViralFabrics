@@ -3,6 +3,7 @@ import User from "@/models/User";
 import { requireSuperAdmin } from "@/lib/session";
 import bcrypt from "bcryptjs";
 import { type NextRequest } from "next/server";
+import { logUpdate, logDelete } from "@/lib/logger";
 
 export async function GET(
   req: NextRequest,
@@ -114,6 +115,10 @@ export async function PUT(
     const updated = await User.findByIdAndUpdate(id, update, { new: true })
       .select("-password");
     if (!updated) return new Response("Not found", { status: 404 });
+    
+    // Log the user update
+    await logUpdate('user', id, update, updated.toObject(), req);
+    
     return new Response(JSON.stringify({ message: "User updated", user: updated }), { status: 200 });
   } catch (error: unknown) {
     if (error instanceof Error) {
@@ -172,6 +177,10 @@ export async function DELETE(
     await dbConnect();
     const deleted = await User.findByIdAndDelete(id);
     if (!deleted) return new Response("Not found", { status: 404 });
+    
+    // Log the user deletion
+    await logDelete('user', id, { username: deleted.username, role: deleted.role }, req);
+    
     return new Response(JSON.stringify({ message: "User deleted" }), { status: 200 });
   } catch (error: unknown) {
     if (error instanceof Error) {

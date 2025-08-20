@@ -3,6 +3,7 @@ import Order from "@/models/Order";
 import Party from "@/models/Party";
 import { requireAuth } from "@/lib/session";
 import { type NextRequest } from "next/server";
+import { logUpdate, logDelete } from "@/lib/logger";
 
 export async function GET(
   req: NextRequest,
@@ -266,6 +267,20 @@ export async function PUT(
         .populate('items.quality', '_id name description')
         .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
 
+      // Log the order update
+      await logUpdate('order', id, { 
+        orderId: updatedOrder.orderId,
+        oldStatus: existingOrder?.status,
+        newStatus: updatedOrder.status,
+        poNumber: updatedOrder.poNumber,
+        styleNo: updatedOrder.styleNo
+      }, { 
+        orderId: updatedOrder.orderId,
+        status: updatedOrder.status,
+        poNumber: updatedOrder.poNumber,
+        styleNo: updatedOrder.styleNo
+      }, req);
+
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -473,6 +488,14 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    // Log the order deletion
+    await logDelete('order', id, { 
+      orderId: order.orderId,
+      poNumber: order.poNumber,
+      styleNo: order.styleNo,
+      orderType: order.orderType
+    }, req);
 
     return new Response(
       JSON.stringify({ 

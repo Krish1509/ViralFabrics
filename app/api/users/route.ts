@@ -3,6 +3,7 @@ import User from "@/models/User";
 import { requireSuperAdmin } from "@/lib/session";
 import bcrypt from "bcryptjs";
 import { type NextRequest } from "next/server";
+import { logCreate } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   try {
@@ -97,6 +98,9 @@ export async function POST(req: NextRequest) {
       createdAt: created.createdAt,
       updatedAt: created.updatedAt,
     };
+
+    // Log user creation
+    await logCreate('user', created._id.toString(), { username: created.username, role: created.role }, req);
 
     return new Response(JSON.stringify({ message: "User created", user: userSafe }), { status: 201 });
   } catch (error: unknown) {

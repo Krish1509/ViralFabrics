@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
+import Log, { ILogModel } from "@/models/Log";
+import { logLogin } from "@/lib/logger";
 
 export async function POST(req: Request) {
   try {
@@ -14,11 +16,13 @@ export async function POST(req: Request) {
     }
     const user = await User.findOne({ $or: [{ username }, { name: username }] }).select('+password');
     if (!user) {
+      await logLogin(username, false, req as any, 'User not found');
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      await logLogin(username, false, req as any, 'Invalid password');
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
@@ -29,7 +33,12 @@ export async function POST(req: Request) {
     }
 
     const secretKey = new TextEncoder().encode(JWT_SECRET);
-    const token = await new SignJWT({ id: user._id.toString(), role: user.role })
+    const token = await new SignJWT({ 
+      id: user._id.toString(), 
+      role: user.role,
+      username: user.username || user.name,
+      name: user.name
+    })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
       .setExpirationTime("7d")
@@ -47,6 +56,27 @@ export async function POST(req: Request) {
       updatedAt: user.updatedAt,
     };
 
+    // Log successful login with user info
+    try {
+      await (Log as ILogModel).logUserAction({
+        userId: user._id.toString(),
+        username: user.username || user.name,
+        userRole: user.role,
+        action: 'login',
+        resource: 'auth',
+        details: {
+          username: user.username || user.name,
+          userId: user._id.toString()
+        },
+        success: true,
+        severity: 'info',
+        ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown',
+        userAgent: req.headers.get('user-agent') || 'unknown'
+      });
+    } catch (error) {
+      console.error('Error logging successful login:', error);
+    }
+    
     return NextResponse.json({ token, user: userSafe }, { status: 200 });
   } catch (err) {
     console.error("Login error:", err);

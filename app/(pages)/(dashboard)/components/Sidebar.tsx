@@ -8,7 +8,8 @@ import {
   UsersIcon,
   BuildingOfficeIcon,
   XMarkIcon,
-  ShoppingBagIcon
+  ShoppingBagIcon,
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { BRAND_NAME, BRAND_COPYRIGHT, BRAND_TAGLINE } from '@/lib/config';
@@ -53,6 +54,13 @@ const getNavItems = (userRole?: string): NavItem[] => {
   if (userRole !== 'superadmin') {
     items.splice(1, 1); // Remove Users item for non-superadmin
   }
+  
+  // Add Logs for both users and superadmins
+  items.push({
+    name: 'Logs',
+    href: '/logs',
+    icon: DocumentTextIcon
+  });
 
   return items;
 };

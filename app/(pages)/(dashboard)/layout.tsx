@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
+import PageVisitLogger from './components/PageVisitLogger';
 import { useDarkMode } from './hooks/useDarkMode';
 
 interface User {
@@ -70,10 +71,27 @@ export default function SuperAdminLayout({
     }
   }, [router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/login');
+  const handleLogout = async () => {
+    try {
+      // Call logout API to log the action
+      const token = localStorage.getItem('token');
+      if (token) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error logging logout:', error);
+    } finally {
+      // Always clear local storage and redirect
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      router.push('/login');
+    }
   };
 
   const updateUser = (updatedUser: User) => {
@@ -134,6 +152,9 @@ export default function SuperAdminLayout({
         ? 'bg-slate-800' 
         : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
     }`}>
+      {/* Page Visit Logger - Logs all page visits */}
+      <PageVisitLogger />
+      
       {/* Sidebar - Fixed on left */}
       <Sidebar 
         isOpen={isSidebarOpen} 

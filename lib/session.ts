@@ -23,6 +23,8 @@ export async function getSession(req: NextRequest): Promise<SessionUser | null> 
     const secretKey = new TextEncoder().encode(JWT_SECRET);
     const { payload } = await jwtVerify(token, secretKey);
     
+    console.log('Raw JWT payload:', payload);
+    
     if (!payload || typeof payload !== "object") return null;
 
     const sessionUser: SessionUser = {
@@ -34,6 +36,7 @@ export async function getSession(req: NextRequest): Promise<SessionUser | null> 
       address: (payload as any).address,
     };
 
+    console.log('Session user created:', sessionUser);
     return sessionUser;
   } catch (error) {
     console.error("Session verification error:", error);

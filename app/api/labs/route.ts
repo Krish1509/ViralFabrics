@@ -5,6 +5,7 @@ import Order from '@/models/Order';
 import { createLabSchema, queryLabsSchema } from '@/lib/validation/lab';
 import { ok, created, badRequest, notFound, conflict, serverError } from '@/lib/http';
 import { ensureOrderItemExists } from '@/lib/ids';
+import { logCreate, logView, logError } from '@/lib/logger';
 
 // POST /api/labs - Create a new lab
 export async function POST(request: NextRequest) {
@@ -51,6 +52,9 @@ export async function POST(request: NextRequest) {
     
     await lab.save();
     
+    // Log the lab creation
+    await logCreate('lab', lab._id.toString(), { orderId, orderItemId, ...labData }, request);
+    
     // Try to populate order details, but don't fail if it doesn't work
     try {
       await lab.populate('order');
@@ -63,6 +67,7 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error('Error creating lab:', error);
+    await logError('lab_create', 'lab', error instanceof Error ? error.message : 'Unknown error', request);
     return serverError(error);
   }
 }
@@ -142,6 +147,9 @@ export async function GET(request: NextRequest) {
     
     const total = totalResult[0]?.total || 0;
     
+    // Log the labs view
+    await logView('lab', undefined, request);
+    
     return ok({
       items: labs,
       pagination: {
@@ -154,6 +162,7 @@ export async function GET(request: NextRequest) {
     
   } catch (error) {
     console.error('Error fetching labs:', error);
+    await logError('lab_view', 'lab', error instanceof Error ? error.message : 'Unknown error', request);
     return serverError(error);
   }
 }

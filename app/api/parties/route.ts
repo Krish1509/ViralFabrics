@@ -2,6 +2,7 @@ import dbConnect from "@/lib/dbConnect";
 import Party from "@/models/Party";
 import { requireAuth } from "@/lib/session";
 import { type NextRequest } from "next/server";
+import { logCreate } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   try {
@@ -115,6 +116,13 @@ export async function POST(req: NextRequest) {
     };
     
     const createdParty = await Party.create(partyData);
+
+    // Log the party creation
+    await logCreate('party', (createdParty as any)._id.toString(), { 
+      name: createdParty.name,
+      contactName: createdParty.contactName,
+      contactPhone: createdParty.contactPhone
+    }, req);
 
     // Return the created party without sensitive fields
     const partySafe = {
