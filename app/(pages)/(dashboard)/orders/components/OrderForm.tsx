@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   XMarkIcon,
   PhotoIcon,
@@ -11,7 +11,10 @@ import {
   ChevronDownIcon,
   ExclamationTriangleIcon,
   CheckIcon,
-  InformationCircleIcon
+  InformationCircleIcon,
+  CalendarIcon,
+  EyeIcon,
+  CloudArrowUpIcon
 } from '@heroicons/react/24/outline';
 import { Order, Party, Quality, OrderFormData, OrderItem } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
@@ -33,6 +36,1028 @@ interface ValidationErrors {
   [key: string]: string;
 }
 
+// Helper function to parse dates from various formats
+const parseDateFromInput = (displayValue: string) => {
+  if (!displayValue) return '';
+  
+  // Handle dd/mm/yyyy format specifically (most common)
+  const ddMmYyyyMatch = displayValue.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (ddMmYyyyMatch) {
+    const [, dayStr, monthStr, yearStr] = ddMmYyyyMatch;
+    const day = parseInt(dayStr, 10);
+    const month = parseInt(monthStr, 10);
+    const year = parseInt(yearStr, 10);
+    
+    // Validate date components properly
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
+      try {
+        const date = new Date(year, month - 1, day);
+        // Check if the date is valid (handles leap years, etc.)
+        if (date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === year) {
+          return date.toISOString().split('T')[0];
+        }
+      } catch (e) {
+        // Invalid date
+      }
+    }
+  }
+  
+  // Handle yyyy-mm-dd format
+  const yyyyMmDdMatch = displayValue.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (yyyyMmDdMatch) {
+    const [, yearStr, monthStr, dayStr] = yyyyMmDdMatch;
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+    const day = parseInt(dayStr, 10);
+    
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
+      try {
+        const date = new Date(year, month - 1, day);
+        if (date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === year) {
+          return date.toISOString().split('T')[0];
+        }
+      } catch (e) {
+        // Invalid date
+      }
+    }
+  }
+  
+  // Handle partial dd/mm/yyyy (for typing)
+  const partialMatch = displayValue.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{1,4})$/);
+  if (partialMatch) {
+    const [, dayStr, monthStr, yearStr] = partialMatch;
+    const day = parseInt(dayStr, 10);
+    const month = parseInt(monthStr, 10);
+    const year = parseInt(yearStr, 10);
+    
+    // Allow partial years (2 digits) and convert to 4 digits
+    let fullYear = year;
+    if (year < 100) {
+      fullYear = year < 50 ? 2000 + year : 1900 + year;
+    }
+    
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && fullYear >= 1900 && fullYear <= 2100) {
+      try {
+        const date = new Date(fullYear, month - 1, day);
+        if (date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === fullYear) {
+          return date.toISOString().split('T')[0];
+        }
+      } catch (e) {
+        // Invalid date
+      }
+    }
+  }
+  
+  // If no valid format found, return empty string to avoid validation errors
+  return '';
+};
+
+// Custom Date Picker Component
+function CustomDatePicker({ 
+  value, 
+  onChange, 
+  placeholder, 
+  isDarkMode 
+}: { 
+  value: string; 
+  onChange: (value: string) => void; 
+  placeholder: string; 
+  isDarkMode: boolean; 
+}) {
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [inputValue, setInputValue] = useState('');
+  const [showYearPicker, setShowYearPicker] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  // Format date for display (dd/mm/yyyy)
+  const formatDateForDisplay = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return date.toLocaleDateString('en-GB'); // dd/mm/yyyy format
+  };
+
+  // Use the shared date parsing function
+  const parseDateFromDisplay = parseDateFromInput;
+
+  const handleDateSelect = (date: Date) => {
+    const formattedDate = date.toISOString().split('T')[0];
+    onChange(formattedDate);
+    setInputValue(formatDateForDisplay(formattedDate));
+    setShowCalendar(false);
+    setShowMonthPicker(false);
+    setShowYearPicker(false);
+  };
+
+  const clearDate = () => {
+    onChange('');
+    setInputValue('');
+    setShowCalendar(false);
+  };
+
+  // Update input value when value prop changes
+  useEffect(() => {
+    setInputValue(formatDateForDisplay(value));
+  }, [value]);
+
+  // Close calendar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (calendarRef.current && !calendarRef.current.contains(event.target as Node) &&
+          dateInputRef.current && !dateInputRef.current.contains(event.target as Node)) {
+        setShowCalendar(false);
+      }
+    };
+
+    if (showCalendar) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showCalendar]);
+
+  // Handle keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && showCalendar) {
+      setShowCalendar(false);
+    } else if (e.key === 'Escape') {
+      setShowCalendar(false);
+    } else if (e.key === 'Tab') {
+      setShowCalendar(false);
+    }
+  };
+
+  // Prevent form validation when interacting with calendar
+  const handleCalendarClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay();
+    
+    const days = [];
+    for (let i = 0; i < startingDay; i++) {
+      days.push(null);
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(new Date(year, month, i));
+    }
+    return days;
+  };
+
+  const days = getDaysInMonth(currentDate);
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  return (
+    <div className="relative">
+      <div className="relative">
+                 <input
+           ref={dateInputRef}
+           type="text"
+           value={inputValue}
+                       onChange={(e) => {
+              const value = e.target.value;
+              
+              // Allow any characters for free typing
+              setInputValue(value);
+              
+              // Only try to parse if it looks like a complete date
+              if (value.length >= 8) {
+              const parsedDate = parseDateFromDisplay(value);
+              onChange(parsedDate);
+              } else {
+                // Don't trigger validation for incomplete dates
+                onChange('');
+              }
+            }}
+                       onKeyDown={handleKeyDown}
+           placeholder="dd/mm/yyyy"
+           onFocus={() => setShowCalendar(true)}
+           className={`w-full p-3 pr-12 rounded-lg border ${
+             isDarkMode 
+               ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+               : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+           } focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+         />
+        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+          {value && (
+            <button
+              type="button"
+              onClick={clearDate}
+              className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                isDarkMode ? 'text-gray-400 hover:text-red-400' : 'text-gray-500 hover:text-red-500'
+              }`}
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowCalendar(!showCalendar)}
+            className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+              isDarkMode ? 'text-gray-400 hover:text-blue-400' : 'text-gray-500 hover:text-blue-500'
+            }`}
+          >
+            <CalendarIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+             {showCalendar && (
+         <div 
+           ref={calendarRef}
+           onClick={handleCalendarClick}
+           className={`absolute z-50 mt-1 p-4 rounded-lg border shadow-xl calendar-container date-picker ${
+           isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+           }`}
+         >
+          <div className="flex items-center justify-between mb-4">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+              }}
+              className={`p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}
+            >
+              <ChevronDownIcon className="h-4 w-4 transform rotate-90" />
+            </button>
+            
+            <div className="flex items-center space-x-2">
+                          <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowMonthPicker(!showMonthPicker);
+              }}
+              className={`px-3 py-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}
+            >
+                {monthNames[currentDate.getMonth()]}
+              </button>
+            <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowYearPicker(!showYearPicker);
+                }}
+                className={`px-3 py-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                {currentDate.getFullYear()}
+              </button>
+            </div>
+            
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+              }}
+              className={`p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}
+            >
+              <ChevronDownIcon className="h-4 w-4 transform -rotate-90" />
+            </button>
+          </div>
+
+          {/* Month Picker */}
+          {showMonthPicker && (
+            <div className="mb-4 p-2 rounded-lg bg-gray-100 dark:bg-gray-700">
+              <div className="grid grid-cols-3 gap-1">
+                {monthNames.map((month, index) => (
+                  <button
+                    key={month}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentDate(new Date(currentDate.getFullYear(), index));
+                      setShowMonthPicker(false);
+                      setShowYearPicker(false);
+                    }}
+                    className={`p-2 text-sm rounded-lg transition-colors ${
+                      index === currentDate.getMonth()
+                        ? 'bg-blue-500 text-white'
+                        : 'hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {month.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Year Picker */}
+          {showYearPicker && (
+            <div className="mb-4 p-2 rounded-lg bg-gray-100 dark:bg-gray-700">
+              <div className="grid grid-cols-3 gap-1">
+                {Array.from({ length: 12 }, (_, i) => currentDate.getFullYear() - 5 + i).map((year) => (
+                  <button
+                    key={year}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentDate(new Date(year, currentDate.getMonth()));
+                      setShowYearPicker(false);
+                      setShowMonthPicker(false);
+                    }}
+                    className={`p-2 text-sm rounded-lg transition-colors ${
+                      year === currentDate.getFullYear()
+                        ? 'bg-blue-500 text-white'
+                        : 'hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+              <div key={day} className={`text-center text-sm font-medium p-2 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {days.map((day, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  day && handleDateSelect(day);
+                }}
+                disabled={!day}
+                className={`p-2 text-sm rounded-lg transition-colors ${
+                  !day ? 'invisible' :
+                  day.toDateString() === new Date().toDateString() 
+                    ? 'bg-blue-500 text-white' :
+                  value === day.toISOString().split('T')[0]
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                  `hover:bg-gray-200 dark:hover:bg-gray-700 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`
+                }`}
+              >
+                {day?.getDate()}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Enhanced Dropdown Component
+function EnhancedDropdown({
+  options,
+  value,
+  onChange,
+  placeholder,
+  searchValue,
+  onSearchChange,
+  showDropdown,
+  onToggleDropdown,
+  onSelect,
+  isDarkMode,
+  error,
+  onAddNew,
+  onDelete,
+  itemIndex,
+  recentlyAddedId
+}: {
+  options: any[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+  showDropdown: boolean;
+  onToggleDropdown: () => void;
+  onSelect: (item: any) => void;
+  isDarkMode: boolean;
+  error?: string;
+  onAddNew?: () => void;
+  onDelete?: (item: any) => void;
+  itemIndex?: number;
+  recentlyAddedId?: string | null;
+}) {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        // Don't auto-close if clicking on calendar or other important elements
+        const target = event.target as HTMLElement;
+        if (target.closest('.calendar-container') || target.closest('.date-picker')) {
+          return;
+        }
+        onToggleDropdown();
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdown, onToggleDropdown]);
+
+  // Get selected item name for display
+  const selectedItem = options.find(option => (option._id || (option as any).id) === value);
+  const displayValue = selectedItem ? selectedItem.name : searchValue;
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div className="flex space-x-2">
+        <div className="flex-1 relative">
+          <input
+            type="text"
+            placeholder={placeholder}
+            value={displayValue}
+            onChange={(e) => {
+              const newValue = e.target.value;
+              onSearchChange(newValue);
+              // Clear selection if user is typing something different
+              if (selectedItem && newValue !== selectedItem.name) {
+                onChange('');
+              }
+            }}
+            onFocus={() => onToggleDropdown()}
+            className={`w-full p-3 rounded-lg border ${
+              isDarkMode 
+                ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+            } ${error ? 'border-red-500' : ''} focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+          />
+          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+            {searchValue && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onSearchChange('');
+                  onChange('');
+                }}
+                className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                  isDarkMode ? 'text-gray-400 hover:text-red-400' : 'text-gray-500 hover:text-red-500'
+                }`}
+                title="Clear"
+              >
+                <XMarkIcon className="h-3 w-3" />
+              </button>
+            )}
+            <ChevronDownIcon className={`h-4 w-4 transition-transform duration-200 ${
+              showDropdown ? 'rotate-180' : ''
+            } ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+          </div>
+        </div>
+        {onAddNew && (
+          <button
+            type="button"
+            onClick={onAddNew}
+            className={`px-3 py-3 rounded-lg border-2 border-dashed transition-all duration-200 hover:scale-105 ${
+              isDarkMode 
+                ? 'border-gray-600 hover:border-blue-500 text-gray-300 hover:text-blue-400' 
+                : 'border-gray-300 hover:border-blue-400 text-gray-600 hover:text-blue-600'
+            }`}
+            title="Add New"
+          >
+            <PlusIcon className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {showDropdown && (
+        <div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-xl max-h-60 overflow-y-auto ${
+          isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+        }`}>
+          {options.length > 0 ? (
+            // Sort options: recently added items last (at bottom), then alphabetically
+            [...options].sort((a, b) => {
+              const aIsRecent = recentlyAddedId === (a._id || (a as any).id);
+              const bIsRecent = recentlyAddedId === (b._id || (b as any).id);
+              if (aIsRecent && !bIsRecent) return 1;
+              if (!aIsRecent && bIsRecent) return -1;
+              return a.name.localeCompare(b.name);
+            }).map((option, index) => (
+              <button
+                key={option._id || (option as any).id || `quality-${index}-${option.name}`}
+                type="button"
+                onClick={() => onSelect(option)}
+                className={`w-full p-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                } ${value === (option._id || (option as any).id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${
+                  recentlyAddedId === (option._id || (option as any).id) ? 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium">{option.name}</span>
+                      {recentlyAddedId === (option._id || (option as any).id) && (
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          isDarkMode 
+                            ? 'bg-green-600 text-white' 
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          New
+                        </span>
+                      )}
+                    </div>
+                    {(option.contactName || option.contactPhone) && (
+                      <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {option.contactName && <span>{option.contactName}</span>}
+                        {option.contactName && option.contactPhone && <span> • </span>}
+                        {option.contactPhone && <span>{option.contactPhone}</span>}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {value === (option._id || (option as any).id) && (
+                    <CheckIcon className="h-4 w-4 text-blue-500" />
+                  )}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(option);
+                        }}
+                        className={`p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors ${
+                          isDarkMode 
+                            ? 'text-gray-400 hover:text-red-400' 
+                            : 'text-gray-500 hover:text-red-600'
+                        }`}
+                        title="Delete"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </button>
+            ))
+          ) : (
+            <div className={`p-4 text-center ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-500'
+            }`}>
+              <div className="flex flex-col items-center space-y-2">
+                <MagnifyingGlassIcon className="h-8 w-8 opacity-50" />
+                <p className="font-medium">No options found</p>
+                <p className="text-sm">Try adjusting your search or add a new one</p>
+                {onAddNew && (
+                  <button
+                    type="button"
+                    onClick={onAddNew}
+                    className={`mt-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
+                      isDarkMode 
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                        : 'bg-blue-500 hover:bg-blue-600 text-white'
+                    }`}
+                  >
+                    <PlusIcon className="h-3 w-3 inline mr-1" />
+                    Add New
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
+    </div>
+  );
+}
+
+// Image Upload Component
+function ImageUploadSection({
+  itemIndex,
+  imageUrls,
+  onImageUpload,
+  onRemoveImage,
+  onPreviewImage,
+  isDarkMode,
+  imageUploading
+}: {
+  itemIndex: number;
+  imageUrls: string[];
+  onImageUpload: (file: File, index: number) => void;
+  onRemoveImage: (itemIndex: number, imageIndex: number) => void;
+  onPreviewImage: (url: string, index: number) => void;
+  isDarkMode: boolean;
+  imageUploading: { [key: number]: boolean };
+}) {
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+  const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Ensure video plays when camera modal opens
+  useEffect(() => {
+    if (showCamera && videoRef.current && cameraStream) {
+      const video = videoRef.current;
+      video.srcObject = cameraStream;
+      video.onloadedmetadata = () => {
+        video.play().catch(e => {
+          console.log('Video play error:', e);
+          // Retry after a short delay
+          setTimeout(() => {
+            video.play().catch(e2 => console.log('Retry video play error:', e2));
+          }, 200);
+        });
+      };
+    }
+  }, [showCamera, cameraStream]);
+
+  const getAvailableCameras = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cameras = devices.filter(device => device.kind === 'videoinput');
+      setAvailableCameras(cameras);
+      return cameras;
+    } catch (error) {
+      console.error('Error getting cameras:', error);
+      return [];
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      setCameraError(null);
+      
+      // Get available cameras first
+      const cameras = await getAvailableCameras();
+      if (cameras.length === 0) {
+        setCameraError('No cameras found');
+        return;
+      }
+
+      // Get current camera device
+      const currentCamera = cameras[currentCameraIndex];
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          deviceId: currentCamera ? { exact: currentCamera.deviceId } : undefined,
+          facingMode: currentCameraIndex === 0 ? 'environment' : 'user',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        } 
+      });
+      
+      setCameraStream(stream);
+      setShowCamera(true);
+      
+      // Wait for the modal to render before setting up video
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(e => {
+              console.log('Video play error:', e);
+              // Try to play again after a short delay
+              setTimeout(() => {
+                videoRef.current?.play().catch(e2 => console.log('Retry video play error:', e2));
+              }, 100);
+            });
+          };
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Camera access denied:', error);
+      setCameraError('Camera access denied. Please allow camera access.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setShowCamera(false);
+    setCameraError(null);
+  };
+
+  const switchCamera = async () => {
+    if (availableCameras.length <= 1) return;
+    
+    // Stop current stream
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+    
+    // Switch to next camera
+    const nextIndex = (currentCameraIndex + 1) % availableCameras.length;
+    setCurrentCameraIndex(nextIndex);
+    
+    // Start new stream
+    try {
+      const nextCamera = availableCameras[nextIndex];
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          deviceId: { exact: nextCamera.deviceId },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        } 
+      });
+      
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (error) {
+      console.error('Error switching camera:', error);
+      setCameraError('Failed to switch camera');
+    }
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+      
+      if (context) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Flip the image back to normal orientation
+        context.scale(-1, 1);
+        context.drawImage(video, -canvas.width, 0);
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], `camera-photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+            onImageUpload(file, itemIndex);
+            stopCamera();
+          }
+        }, 'image/jpeg', 0.8);
+      }
+    }
+  };
+
+  return (
+    <div className="mt-4">
+      <label className="block text-sm font-medium mb-3">Images</label>
+      
+      {/* Upload Area */}
+      <div className="flex items-center space-x-4 mb-4">
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onImageUpload(file, itemIndex);
+          }}
+          className="hidden"
+          id={`image-upload-${itemIndex}`}
+        />
+        <label
+          htmlFor={`image-upload-${itemIndex}`}
+          className={`px-6 py-3 rounded-lg border-2 border-dashed cursor-pointer transition-all duration-200 hover:scale-105 ${
+            isDarkMode 
+              ? 'border-gray-600 hover:border-blue-500 text-gray-300 hover:text-blue-400' 
+              : 'border-gray-300 hover:border-blue-400 text-gray-600 hover:text-blue-600'
+          }`}
+        >
+          <CloudArrowUpIcon className="h-5 w-5 inline mr-2" />
+          Upload Image
+        </label>
+        
+        {/* Camera Button */}
+        <button
+          type="button"
+          onClick={startCamera}
+          className={`px-6 py-3 rounded-lg border-2 border-dashed transition-all duration-200 hover:scale-105 ${
+            isDarkMode 
+              ? 'border-gray-600 hover:border-green-500 text-gray-300 hover:text-green-400' 
+              : 'border-gray-300 hover:border-green-400 text-gray-600 hover:text-green-600'
+          }`}
+        >
+          <PhotoIcon className="h-5 w-5 inline mr-2" />
+          Camera
+        </button>
+        
+        {imageUploading[itemIndex] && (
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+            <span className={`text-sm ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-500'
+            }`}>Uploading...</span>
+          </div>
+        )}
+      </div>
+      
+      
+                           {/* Image Previews */}
+        {imageUrls && imageUrls.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {imageUrls.map((url, imgIndex) => {
+              console.log('🔍 Rendering image:', { itemIndex, imgIndex, url });
+              return (
+              <div key={`${itemIndex}-${imgIndex}-${url}`} className="relative group">
+                  <div className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-lg transition-all duration-200 bg-gray-100 dark:bg-gray-700">
+                  <img
+                    src={url}
+                    alt={`Item ${itemIndex + 1} image ${imgIndex + 1}`}
+                       className="w-full h-full object-cover"
+                    onError={(e) => {
+                         console.error('🔍 Image load error:', { url, error: e });
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                         // Show error placeholder
+                         const parent = target.parentElement;
+                         if (parent) {
+                           parent.innerHTML = `
+                             <div class="flex items-center justify-center h-full">
+                               <div class="text-center">
+                                 <svg class="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                 </svg>
+                                 <p class="text-xs text-gray-500">Image Error</p>
+                                 <p class="text-xs text-gray-400">${url}</p>
+                               </div>
+                             </div>
+                           `;
+                         }
+                       }}
+                       onLoad={(e) => {
+                         console.log('🔍 Image loaded successfully:', { url });
+                         const target = e.target as HTMLImageElement;
+                         if (target) {
+                           target.style.opacity = '1';
+                         }
+                       }}
+                       style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
+                     />
+                     
+                     {/* Preview Button - Shows on Hover */}
+                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200">
+                       <button
+                         type="button"
+                         onClick={() => onPreviewImage(url, imgIndex)}
+                         className="bg-white/90 hover:bg-white text-gray-800 rounded-full p-3 shadow-lg hover:scale-110 transition-all duration-200"
+                         title="Preview Image"
+                       >
+                         <EyeIcon className="h-5 w-5" />
+                       </button>
+                  </div>
+                </div>
+                
+                {/* Remove Button */}
+                <button
+                  type="button"
+                  onClick={() => onRemoveImage(itemIndex, imgIndex)}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 transition-all duration-200 opacity-0 group-hover:opacity-100 z-10 hover:scale-110"
+                  title="Remove Image"
+                >
+                  <XMarkIcon className="h-3 w-3" />
+                </button>
+              </div>
+              );
+            })}
+          </div>
+        )}
+
+             {/* Camera Modal */}
+       {showCamera && (
+         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-60 p-4">
+           <div className={`relative max-w-4xl w-full rounded-xl overflow-hidden ${
+             isDarkMode ? 'bg-gray-800' : 'bg-white'
+           }`}>
+             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+               <h3 className={`text-lg font-semibold ${
+                 isDarkMode ? 'text-white' : 'text-gray-900'
+               }`}>📸 Camera</h3>
+               <div className="flex items-center space-x-2">
+                 {availableCameras.length > 1 && (
+                   <button
+                     type="button"
+                     onClick={switchCamera}
+                     className={`p-2 rounded-lg transition-colors ${
+                       isDarkMode 
+                         ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                         : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                     }`}
+                     title="Switch Camera"
+                   >
+                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                     </svg>
+                   </button>
+                 )}
+                 <button
+                   type="button"
+                   onClick={stopCamera}
+                   className={`p-2 rounded-lg transition-colors ${
+                     isDarkMode 
+                       ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                       : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                   }`}
+                 >
+                   <XMarkIcon className="w-5 h-5" />
+                 </button>
+               </div>
+             </div>
+             
+             <div className="p-4">
+               {cameraError ? (
+                 <div className="flex items-center justify-center h-64 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                   <div className="text-center">
+                     <svg className="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                     </svg>
+                     <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>{cameraError}</p>
+                   </div>
+                 </div>
+               ) : (
+                 <div className="relative">
+               <video
+                 ref={videoRef}
+                 autoPlay
+                 playsInline
+                 muted
+                     className="w-full h-96 object-cover rounded-lg bg-black"
+                 style={{ transform: 'scaleX(-1)' }}
+               />
+               <canvas ref={canvasRef} className="hidden" />
+                   
+                   {/* Camera Info */}
+                   <div className="absolute top-4 left-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                     {availableCameras[currentCameraIndex]?.label || `Camera ${currentCameraIndex + 1}`}
+             </div>
+             
+                   {/* Camera Controls */}
+                   <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+                     {/* Photo Button */}
+               <button
+                 type="button"
+                 onClick={capturePhoto}
+                       className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                     >
+                       <div className="w-12 h-12 bg-blue-500 rounded-full border-4 border-white flex items-center justify-center">
+                         <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                         </svg>
+                       </div>
+               </button>
+                   </div>
+                 </div>
+               )}
+             </div>
+             
+             <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
+               <div className="flex items-center justify-between text-sm">
+                 <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                   {availableCameras.length > 0 ? `${currentCameraIndex + 1} of ${availableCameras.length} cameras` : 'No cameras available'}
+                 </span>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
+    </div>
+  );
+}
+
 export default function OrderForm({ order, parties, qualities, onClose, onSuccess, onAddParty, onRefreshParties, onAddQuality }: OrderFormProps) {
   const { isDarkMode, mounted } = useDarkMode();
   const [formData, setFormData] = useState<OrderFormData>({
@@ -47,7 +1072,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     deliveryDate: '',
     items: [{
       quality: '',
-      quantity: undefined,
+      quantity: '', // Always initialize as empty string, never null
       imageUrls: [],
       description: ''
     }]
@@ -62,136 +1087,161 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   const [showQualityDropdown, setShowQualityDropdown] = useState(false);
   const [activeQualityDropdown, setActiveQualityDropdown] = useState<number | null>(null);
   const [selectedPartyName, setSelectedPartyName] = useState('');
-     const [showQualityModal, setShowQualityModal] = useState(false);
-   const [showPartyModal, setShowPartyModal] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [imageUploading, setImageUploading] = useState(false);
+  const [showQualityModal, setShowQualityModal] = useState(false);
+  const [showPartyModal, setShowPartyModal] = useState(false);
+  const [imageUploading, setImageUploading] = useState<{ [key: number]: boolean }>({});
   const [validationMessage, setValidationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [formInitialized, setFormInitialized] = useState(false);
-  const [cameraAvailable, setCameraAvailable] = useState(false);
-  const [isClient, setIsClient] = useState(false);
-  const [validationTimeout, setValidationTimeout] = useState<NodeJS.Timeout | null>(null);
-  const [validationProgress, setValidationProgress] = useState(100);
-  const [showCameraPreview, setShowCameraPreview] = useState(false);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [activeCameraItem, setActiveCameraItem] = useState<number | null>(null);
   const [showImagePreview, setShowImagePreview] = useState<{ url: string; index: number } | null>(null);
+  const [pendingNewParty, setPendingNewParty] = useState<Party | null>(null);
+  const [qualitySearchStates, setQualitySearchStates] = useState<{ [key: number]: string }>({});
+  const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
+  const [recentlyAddedParty, setRecentlyAddedParty] = useState<string | null>(null);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [currentQualitySearch, setCurrentQualitySearch] = useState('');
+  const formRef = useRef<HTMLFormElement>(null);
 
-  // Set client-side flag to prevent hydration issues
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
+  // Helper function to get quality ID (handles both _id and id from API)
+  const getQualityId = (quality: any) => {
+    return quality._id || quality.id || '';
+  };
 
+  // Helper function to get party ID (handles both _id and id from API)
+  const getPartyId = (party: any) => {
+    return party._id || party.id || '';
+  };
 
+  // Delete functions
+  const handleDeleteParty = async (party: Party) => {
+    try {
+      const partyId = getPartyId(party);
+      if (!partyId) {
+        setValidationMessage({ type: 'error', text: 'Invalid party ID' });
+        return;
+      }
 
-  // Clear validation message after 3 seconds with progress bar
+      const response = await fetch(`/api/parties/${partyId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Refresh parties list
+        onRefreshParties();
+        setValidationMessage({ type: 'success', text: 'Party deleted successfully!' });
+      } else {
+        setValidationMessage({ type: 'error', text: data.message || 'Failed to delete party' });
+      }
+    } catch (error) {
+      setValidationMessage({ type: 'error', text: 'Failed to delete party' });
+    }
+  };
+
+  const handleDeleteQuality = async (quality: Quality) => {
+    try {
+      const qualityId = getQualityId(quality);
+      if (!qualityId) {
+        setValidationMessage({ type: 'error', text: 'Invalid quality ID' });
+        return;
+      }
+
+      const response = await fetch(`/api/qualities/${qualityId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Refresh qualities list
+        onAddQuality(null); // This will trigger a refresh
+        setValidationMessage({ type: 'success', text: 'Quality deleted successfully!' });
+      } else {
+        setValidationMessage({ type: 'error', text: data.message || 'Failed to delete quality' });
+      }
+    } catch (error) {
+      setValidationMessage({ type: 'error', text: 'Failed to delete quality' });
+    }
+  };
+
+  // Auto-dismiss validation message after 3 seconds
   useEffect(() => {
     if (validationMessage) {
-      // Clear any existing timeout
-      if (validationTimeout) {
-        clearTimeout(validationTimeout);
-      }
-      
-      // Reset progress to 100%
-      setValidationProgress(100);
-      
-      // Start progress animation
-      const progressInterval = setInterval(() => {
-        setValidationProgress(prev => {
-          if (prev <= 0) {
-            clearInterval(progressInterval);
-            return 0;
-          }
-          return prev - 3.33; // Decrease by 3.33% every 100ms (3 seconds total)
-        });
-      }, 100);
-      
-      const timeout = setTimeout(() => {
+      const timer = setTimeout(() => {
         setValidationMessage(null);
-        setValidationProgress(100);
       }, 3000);
-      
-      setValidationTimeout(timeout);
-      
-      return () => {
-        clearInterval(progressInterval);
-        clearTimeout(timeout);
-      };
+      return () => clearTimeout(timer);
     }
-    return () => {
-      if (validationTimeout) {
-        clearTimeout(validationTimeout);
-      }
-    };
   }, [validationMessage]);
 
-  // Check camera availability
+  // Keyboard shortcuts
   useEffect(() => {
-    if (!isClient) return;
-    
-    const checkCamera = async () => {
-      try {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { 
-              facingMode: 'environment',
-              width: { ideal: 1920 },
-              height: { ideal: 1080 }
-            } 
-          });
-          stream.getTracks().forEach(track => track.stop());
-          setCameraAvailable(true);
-        }
-      } catch (error) {
-        console.log('Camera not available:', error);
-        setCameraAvailable(false);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + Enter to submit
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleSubmit(e as any);
       }
-    };
-    checkCamera();
-  }, [isClient]);
-
-  // Cleanup camera stream when component unmounts
-  useEffect(() => {
-    return () => {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
+      // Alt + N to add new item (avoid browser conflicts)
+      if (e.altKey && e.key === 'n') {
+        e.preventDefault();
+        addItem();
       }
-    };
-  }, [cameraStream]);
-
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
-      if (!target.closest('.party-dropdown')) {
-        setShowPartyDropdown(false);
+      // Escape to close
+      if (e.key === 'Escape') {
+        onClose();
       }
-      if (!target.closest('.quality-dropdown')) {
-        setShowQualityDropdown(false);
-        setActiveQualityDropdown(null);
+      // F1 to show keyboard shortcuts
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setShowKeyboardShortcuts(!showKeyboardShortcuts);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showKeyboardShortcuts]);
 
-  // Reset search when dropdown is closed
+  // Auto-select newly added party
   useEffect(() => {
-    if (!showPartyDropdown) {
-      setPartySearch('');
+    if (pendingNewParty) {
+      handleFieldChange('party', pendingNewParty._id || '');
+      setSelectedPartyName(pendingNewParty.name);
+      setPartySearch(pendingNewParty.name);
+      setRecentlyAddedParty(pendingNewParty._id || '');
+      setPendingNewParty(null);
+      
+      // Clear the "recently added" indicator after 3 seconds
+      setTimeout(() => {
+        setRecentlyAddedParty(null);
+      }, 3000);
     }
-  }, [showPartyDropdown]);
+  }, [pendingNewParty]);
 
-     useEffect(() => {
-     if (!showQualityDropdown) {
-       setQualitySearch('');
-     }
-   }, [showQualityDropdown]);
 
-  // Initialize form data when editing
+
+  // Update quality search states when qualities change
+  useEffect(() => {
+    formData.items.forEach((item, index) => {
+      if (item.quality) {
+        const selectedQuality = qualities.find(q => q._id === item.quality);
+        if (selectedQuality) {
+          setQualitySearchStates(prev => ({
+            ...prev,
+            [index]: selectedQuality.name
+          }));
+        }
+      }
+    });
+  }, [formData.items, qualities]);
+
+
+
+  // Initialize form data from existing order
   useEffect(() => {
     if (order) {
       const partyId = typeof order.party === 'string' ? order.party : order.party?._id || '';
@@ -207,17 +1257,17 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         styleNo: order.styleNo || '',
         poDate: order.poDate ? new Date(order.poDate).toISOString().split('T')[0] : '',
         deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toISOString().split('T')[0] : '',
-        items: order.items.length > 0 ? order.items.map(item => ({
-          quality: typeof item.quality === 'string' ? item.quality : item.quality?._id || '',
-          quantity: item.quantity !== undefined && item.quantity !== null ? item.quantity : undefined,
-          imageUrls: item.imageUrls || [],
-          description: item.description || ''
-        })) : [{
-          quality: '',
-          quantity: undefined,
-          imageUrls: [],
-          description: ''
-        }]
+                 items: order.items.length > 0 ? order.items.map(item => ({
+           quality: typeof item.quality === 'string' ? item.quality : item.quality?._id || '',
+           quantity: item.quantity !== undefined && item.quantity !== null && item.quantity !== '' ? String(item.quantity) : '',
+           imageUrls: item.imageUrls || [],
+           description: item.description || ''
+         })) : [{
+           quality: '',
+           quantity: '', // Always empty string, never null
+           imageUrls: [],
+           description: ''
+         }]
       });
       
       setSelectedPartyName(partyName);
@@ -225,144 +1275,87 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     } else {
       setFormInitialized(true);
     }
+    
+
   }, [order]);
 
-  // Custom validation function
+  // Validation function
   const validateForm = useCallback((): ValidationErrors => {
     const newErrors: ValidationErrors = {};
+    if (!formInitialized) return newErrors;
 
-    // Don't validate until form is initialized
-    if (!formInitialized) {
-      return newErrors;
+    if (!formData.orderType) {
+      newErrors.orderType = 'Please fill required fields';
     }
 
-    // Required fields validation
-    if (!formData.orderType || !formData.orderType.trim()) {
-      newErrors.orderType = 'Order type is required';
-    }
-
-    if (formData.arrivalDate) {
-      const arrivalDate = new Date(formData.arrivalDate);
-      if (isNaN(arrivalDate.getTime())) {
-        newErrors.arrivalDate = 'Invalid arrival date format';
-      }
-    }
-
-    // Party is optional - no validation needed
-
-    // Contact validation
-    if (formData.contactName && formData.contactName.length < 2) {
-      newErrors.contactName = 'Contact name must be at least 2 characters';
-    }
-
-    if (formData.contactName && formData.contactName.length > 50) {
-      newErrors.contactName = 'Contact name cannot exceed 50 characters';
-    }
-
-    // Phone number validation
-    if (formData.contactPhone && formData.contactPhone.trim()) {
-      const phoneRegex = /^[\+]?[1-9][\d\s\-\(\)]{0,15}$/;
-      if (!phoneRegex.test(formData.contactPhone.replace(/\s/g, ''))) {
-        newErrors.contactPhone = 'Please enter a valid phone number';
-      }
-    }
-
-    // Reference number validation
-    if (formData.poNumber && formData.poNumber.length > 50) {
-      newErrors.poNumber = 'PO number cannot exceed 50 characters';
-    }
-
-    if (formData.styleNo && formData.styleNo.length > 50) {
-      newErrors.styleNo = 'Style number cannot exceed 50 characters';
-    }
-
-    // Items validation - all fields are optional
     formData.items.forEach((item, index) => {
-      // Quality is optional - no validation needed
-      // Quantity is optional - no validation needed
-      if (item.quantity && item.quantity > 1000000) {
-        newErrors[`items.${index}.quantity`] = 'Quantity cannot exceed 1,000,000';
+      if (!item.quality) {
+        newErrors[`items.${index}.quality`] = 'Please fill required fields';
       }
-      if (item.description && item.description.length > 500) {
-        newErrors[`items.${index}.description`] = 'Description cannot exceed 500 characters';
+      
+      // Better quantity validation - handle null, undefined, and empty values safely
+      const quantityValue = item.quantity;
+      if (quantityValue === null || quantityValue === undefined || quantityValue === '') {
+        newErrors[`items.${index}.quantity`] = 'Please fill required fields';
+      } else {
+        const quantityStr = String(quantityValue).trim();
+        if (!quantityStr) {
+          newErrors[`items.${index}.quantity`] = 'Please fill required fields';
+        } else {
+          const quantityNum = parseFloat(quantityStr);
+          if (isNaN(quantityNum) || quantityNum <= 0 || !Number.isInteger(quantityNum)) {
+            newErrors[`items.${index}.quantity`] = 'Must be a positive whole number';
+          }
+        }
       }
     });
 
     return newErrors;
   }, [formData, formInitialized]);
 
-  // Handle field blur for real-time validation
-  const handleBlur = (field: string) => {
-    setTouched(prev => new Set(prev).add(field));
-    // Only validate if the field has been touched
-    const newErrors = validateForm();
-    setErrors(newErrors);
-  };
-
-  // Handle field change
+  // Handle field changes
   const handleFieldChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    
-    // Clear error when user starts typing
     if (errors[field]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
+      setErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
-  // Handle item field change
   const handleItemChange = (index: number, field: string, value: any) => {
+    console.log('🔍 handleItemChange called:', { index, field, value });
+    
     setFormData(prev => {
-      // Ensure items array exists and has the required item
-      const updatedItems = [...(prev.items || [])];
-      
-      // If the item doesn't exist at this index, create it
+      const updatedItems = [...prev.items];
       if (!updatedItems[index]) {
-        updatedItems[index] = {
-          quality: '',
-          quantity: undefined,
-          imageUrls: [],
-          description: ''
-        };
+        updatedItems[index] = { quality: '', quantity: '', imageUrls: [], description: '' };
       }
-      
-      // Update the specific field
       updatedItems[index] = { ...updatedItems[index], [field]: value };
-      
-      return {
-        ...prev,
-        items: updatedItems
-      };
+      console.log('🔍 Updated form data:', { ...prev, items: updatedItems });
+      return { ...prev, items: updatedItems };
     });
 
-    // Clear error when user starts typing
     const errorKey = `items.${index}.${field}`;
     if (errors[errorKey]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[errorKey];
-        return newErrors;
-      });
+      setErrors(prev => ({ ...prev, [errorKey]: '' }));
     }
   };
 
-  // Add new item
+  // Add/Remove items
   const addItem = () => {
     setFormData(prev => ({
       ...prev,
-      items: [...prev.items, {
-        quality: '',
-        quantity: undefined,
-        imageUrls: [], // Changed from imageUrl to imageUrls array
-        description: ''
-      }]
+      items: [...prev.items, { quality: '', quantity: '', imageUrls: [], description: '' }] // Always empty string for quantity
     }));
+    
+    // Scroll to bottom after adding item with smooth animation
+    setTimeout(() => {
+      if (formRef.current) {
+        // Smooth scroll to the very bottom
+        formRef.current.scrollTo({ top: formRef.current.scrollHeight, behavior: 'smooth' });
+      }
+    }, 300);
   };
 
-  // Remove item
   const removeItem = (index: number) => {
     setFormData(prev => ({
       ...prev,
@@ -370,1568 +1363,927 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     }));
   };
 
-  // Handle image upload
+  // Image upload
   const handleImageUpload = async (file: File, itemIndex: number) => {
-    console.log('Image upload started for item:', itemIndex);
-    console.log('File details:', { name: file.name, size: file.size, type: file.type });
-    
-    // Validate file size (10MB limit)
-    if (file.size > 10 * 1024 * 1024) {
-      setValidationMessage({ type: 'error', text: 'Image size must be less than 10MB' });
-      return;
-    }
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setValidationMessage({ type: 'error', text: 'Please select a valid image file' });
-      return;
-    }
-
-    setImageUploading(true);
-    setValidationMessage(null);
-
+    setImageUploading(prev => ({ ...prev, [itemIndex]: true }));
     try {
-      const uploadFormData = new FormData();
-      uploadFormData.append('image', file);
+      const formData = new FormData();
+      formData.append('image', file);
 
-      console.log('Uploading to /api/upload...');
-
-      // For now, skip token validation to avoid authentication issues
-      // const token = localStorage.getItem('token');
-      // if (!token) {
-      //   throw new Error('Authentication token not found');
-      // }
-
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/upload', {
         method: 'POST',
-        // headers: {
-        //   'Authorization': `Bearer ${token}`,
-        // },
-        body: uploadFormData,
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
       });
 
-      console.log('Upload response status:', response.status);
+      const data = await response.json();
+      console.log('🔍 Upload response:', data);
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Upload response data:', data);
+      if (data.success) {
+        // Use the correct field name from API response
+        const imageUrl = data.imageUrl || data.url;
+        console.log('🔍 Using image URL:', imageUrl);
         
-        // Add the new image to the existing array
-        const currentItem = formData.items[itemIndex];
-        if (!currentItem) {
-          console.error('Item not found at index:', itemIndex);
-          setValidationMessage({ type: 'error', text: 'Item not found. Please try again.' });
+        if (!imageUrl) {
+          console.error('No image URL in response');
+          setValidationMessage({ type: 'error', text: 'Image upload failed: No URL received' });
           return;
         }
         
-        const currentImages = currentItem.imageUrls || [];
-        console.log('Current images for item', itemIndex, ':', currentImages);
+        setFormData(prev => {
+          const updatedItems = [...prev.items];
+          if (!updatedItems[itemIndex]) {
+            updatedItems[itemIndex] = { quality: '', quantity: '', imageUrls: [], description: '' };
+          }
+          updatedItems[itemIndex] = {
+            ...updatedItems[itemIndex],
+            imageUrls: [...(updatedItems[itemIndex].imageUrls || []), imageUrl]
+          };
+          console.log('🔍 Updated form data with image:', updatedItems[itemIndex]);
+          return { ...prev, items: updatedItems };
+        });
         
-        const updatedImages = [...currentImages, data.imageUrl];
-        console.log('Updated images for item', itemIndex, ':', updatedImages);
-        
-        handleItemChange(itemIndex, 'imageUrls', updatedImages);
+        // Show success message
         setValidationMessage({ type: 'success', text: 'Image uploaded successfully!' });
+        
+        // Force re-render to show the image immediately
+        setTimeout(() => {
+          setFormData(prev => ({ ...prev }));
+        }, 50);
+        
+        // Additional re-render to ensure image displays
+        setTimeout(() => {
+          setFormData(prev => ({ ...prev }));
+        }, 200);
       } else {
-        const errorData = await response.json();
-        console.error('Upload error response:', errorData);
-        setValidationMessage({ type: 'error', text: errorData.message || 'Failed to upload image' });
+        console.error('Upload failed:', data.message);
+        setValidationMessage({ type: 'error', text: data.message || 'Image upload failed. Please try again.' });
       }
     } catch (error) {
-      console.error('Error uploading image:', error);
-      setValidationMessage({ type: 'error', text: 'An error occurred while uploading the image' });
+      console.error('Upload error:', error);
+      setValidationMessage({ type: 'error', text: 'Image upload failed. Please try again.' });
     } finally {
-      setImageUploading(false);
+      setImageUploading(prev => ({ ...prev, [itemIndex]: false }));
     }
   };
 
-  // Handle file input change
-  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>, itemIndex: number) => {
-    const files = event.target.files;
-    if (files) {
-      // Check if it's a camera capture
-      const isCameraCapture = event.target.getAttribute('capture') !== null;
-      if (isCameraCapture) {
-        console.log('Camera capture detected');
-      }
-      
-      // Handle multiple files
-      Array.from(files).forEach(file => {
-        handleImageUpload(file, itemIndex);
-      });
-    }
+  // Remove image
+  const removeImage = (itemIndex: number, imageIndex: number) => {
+    setFormData(prev => {
+      const updatedItems = [...prev.items];
+      updatedItems[itemIndex] = {
+        ...updatedItems[itemIndex],
+        imageUrls: updatedItems[itemIndex].imageUrls?.filter((_, i) => i !== imageIndex) || []
+      };
+      return { ...prev, items: updatedItems };
+    });
   };
 
-  // Handle drag and drop
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent, itemIndex: number) => {
-    e.preventDefault();
-    const files = e.dataTransfer.files;
-    if (files) {
-      Array.from(files).forEach(file => {
-        if (file.type.startsWith('image/')) {
-          handleImageUpload(file, itemIndex);
-        }
-      });
-    }
-  };
-
-  // Handle form submission
+  // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    console.log('Form submission started...');
-    console.log('Form data:', formData);
-    
-    // Mark all fields as touched to show validation errors
-    const allFields = ['orderType', 'arrivalDate', 'party', 'contactName', 'contactPhone', 'poNumber', 'styleNo', 'poDate', 'deliveryDate'];
-    const newTouched = new Set(allFields);
-    
-    // Add item fields to touched
-    formData.items.forEach((_, index) => {
-      newTouched.add(`items.${index}.quality`);
-      newTouched.add(`items.${index}.quantity`);
-      newTouched.add(`items.${index}.description`);
-    });
-    
-    setTouched(newTouched);
-    
     const newErrors = validateForm();
     setErrors(newErrors);
-    
+
     if (Object.keys(newErrors).length > 0) {
-      console.log('Validation errors:', newErrors); // Debug log
-      // Show the first specific error message instead of generic message
-      const firstError = Object.values(newErrors)[0];
-      setValidationMessage({ type: 'error', text: firstError });
+      setValidationMessage({ type: 'error', text: 'Please fill all required fields' });
       return;
     }
 
     setLoading(true);
-    setValidationMessage(null);
-
     try {
-      // For now, skip token validation to avoid authentication issues
-      // const token = localStorage.getItem('token');
-      // if (!token) {
-      //   throw new Error('Authentication token not found');
-      // }
+      // Clean and validate dates before submission
+      const cleanDate = (dateStr: string | undefined) => {
+        if (!dateStr) return undefined;
+        // Try to parse any date format and convert to ISO
+        const parsed = parseDateFromInput(dateStr);
+        return parsed && parsed !== dateStr ? parsed : undefined;
+      };
 
-      const url = order ? `/api/orders/${order._id}` : '/api/orders';
-      const method = order ? 'PUT' : 'POST';
-
-      // Clean up form data - convert empty strings to undefined for optional fields
       const cleanedFormData = {
         ...formData,
-        orderType: formData.orderType || undefined,
-        party: formData.party || undefined,
-        contactName: formData.contactName || undefined,
-        contactPhone: formData.contactPhone || undefined,
-        poNumber: formData.poNumber || undefined,
-        styleNo: formData.styleNo || undefined,
-        poDate: formData.poDate || undefined,
-        deliveryDate: formData.deliveryDate || undefined,
-        arrivalDate: formData.arrivalDate || undefined,
+        arrivalDate: cleanDate(formData.arrivalDate),
+        poDate: cleanDate(formData.poDate),
+        deliveryDate: cleanDate(formData.deliveryDate),
         items: formData.items.map(item => ({
           ...item,
           quality: item.quality || undefined,
-          quantity: item.quantity || undefined,
-          description: item.description || undefined,
+          quantity: item.quantity === '' || item.quantity === null || item.quantity === undefined ? 1 : Number(item.quantity),
+          description: item.description !== undefined ? item.description : undefined,
           imageUrls: item.imageUrls || []
         }))
       };
 
-      console.log('Submitting to:', url, 'with method:', method);
-      console.log('Request body:', JSON.stringify(cleanedFormData, null, 2));
+      const token = localStorage.getItem('token');
+      const url = order ? `/api/orders/${order._id}` : '/api/orders';
+      const method = order ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(cleanedFormData),
+        body: JSON.stringify(cleanedFormData)
       });
 
-      console.log('Form submission response status:', response.status);
-      
-      if (response.ok) {
-        const responseData = await response.json();
-        console.log('Form submission success response:', responseData);
-        
-        setValidationMessage({ 
-          type: 'success', 
-          text: order ? 'Order updated successfully!' : 'Order created successfully!' 
-        });
+      const data = await response.json();
+      if (data.success) {
+        setValidationMessage({ type: 'success', text: order ? 'Order updated successfully!' : 'Order created successfully!' });
         setTimeout(() => {
           onSuccess();
+          onClose();
         }, 1500);
       } else {
-        const errorData = await response.json();
-        console.error('Form submission error response:', errorData);
-        setValidationMessage({ 
-          type: 'error', 
-          text: errorData.message || 'Failed to save order' 
-        });
+        setValidationMessage({ type: 'error', text: data.message || 'Operation failed' });
       }
     } catch (error) {
-      console.error('Error saving order:', error);
-      setValidationMessage({ 
-        type: 'error', 
-        text: 'An error occurred while saving the order' 
-      });
+      setValidationMessage({ type: 'error', text: 'An error occurred' });
     } finally {
       setLoading(false);
     }
   };
 
-  // Filter parties based on search
-  const filteredParties = parties?.filter(party =>
-    party && party.name && typeof party.name === 'string' && 
-    (partySearch === '' || party.name.toLowerCase().includes(partySearch.toLowerCase()))
-  ) || [];
+  // Filtered parties and qualities with safe filtering
+  const filteredParties = parties.filter(party =>
+    party?.name?.toLowerCase().includes(partySearch.toLowerCase())
+  ).sort((a, b) => {
+    // Sort by createdAt in descending order (newest first)
+    const dateA = new Date(a.createdAt || 0);
+    const dateB = new Date(b.createdAt || 0);
+    return dateB.getTime() - dateA.getTime(); // Newest first
+  });
 
-  // Filter qualities based on search
-  const filteredQualities = qualities?.filter(quality =>
-    quality && quality.name && typeof quality.name === 'string' && 
-    (qualitySearch === '' || quality.name.toLowerCase().includes(qualitySearch.toLowerCase()))
-  ) || [];
-
-     // Sort qualities alphabetically
-   const sortedQualities = [...filteredQualities].sort((a, b) => {
-     return (a.name || '').localeCompare(b.name || '');
-   });
-
-  // Get error for a specific field
-  const getFieldError = (field: string) => {
-    // Show errors for required fields even if not touched when there are validation errors
-    if (field === 'orderType' && errors[field]) {
-      return errors[field];
-    }
-    return touched.has(field) ? errors[field] : '';
-  };
-
-  // Get error for an item field
-  const getItemFieldError = (index: number, field: string) => {
-    const errorKey = `items.${index}.${field}`;
-    return touched.has(errorKey) ? errors[errorKey] : '';
-  };
-
-  // Handle camera preview
-  const handleCameraPreview = async (itemIndex: number) => {
-    try {
-      setActiveCameraItem(itemIndex);
-      setShowCameraPreview(true);
-      
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        } 
-      });
-      
-      setCameraStream(stream);
-    } catch (error) {
-      console.error('Error accessing camera:', error);
-      setValidationMessage({ 
-        type: 'error', 
-        text: 'Unable to access camera. Please check camera permissions.' 
-      });
-      setShowCameraPreview(false);
-      setActiveCameraItem(null);
-    }
-  };
-
-  // Capture photo from camera preview
-  const capturePhoto = () => {
-    if (!cameraStream || activeCameraItem === null) return;
+  const getFilteredQualities = (itemIndex: number) => {
+    // Use the current quality search for the active dropdown, otherwise use the stored search state
+    const searchTerm = activeQualityDropdown === itemIndex ? currentQualitySearch : (qualitySearchStates[itemIndex] || '');
     
-    const video = document.getElementById('camera-video') as HTMLVideoElement;
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    
-    if (video && context) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0);
-      
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const file = new File([blob], `camera-capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
-          handleImageUpload(file, activeCameraItem);
-          closeCameraPreview();
-        }
-      }, 'image/jpeg', 0.8);
-    }
-  };
-
-  // Close camera preview
-  const closeCameraPreview = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
-    }
-    setShowCameraPreview(false);
-    setActiveCameraItem(null);
-  };
-
-  // Get initial dark mode state
-  const getInitialDarkMode = () => {
-    if (typeof window !== 'undefined') {
-      const savedMode = localStorage.getItem('darkMode');
-      if (savedMode !== null) {
-        return savedMode === 'true';
-      }
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    return false;
-  };
-
-  // Don't render until client-side, mounted, and data is ready
-  if (!isClient || !mounted || !parties || !qualities) {
-    const loadingDarkMode = getInitialDarkMode();
-    return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-2">
-        <div className={`w-full max-w-7xl rounded-2xl shadow-2xl ${
-          loadingDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
-        } max-h-[98vh] overflow-hidden flex items-center justify-center`}>
-          <div className="flex items-center space-x-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            <span className={`text-lg font-medium ${
-              loadingDarkMode ? 'text-white' : 'text-gray-900'
-            }`}>
-              Loading...
-            </span>
-          </div>
-        </div>
-      </div>
+    const filtered = qualities.filter(quality =>
+      quality?.name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }
+    
+    // Sort by createdAt in ascending order (oldest first)
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.createdAt || 0);
+      const dateB = new Date(b.createdAt || 0);
+      return dateA.getTime() - dateB.getTime(); // Oldest first
+    });
+  };
 
-     return (
-     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-       <div className={`w-full max-w-8xl rounded-2xl shadow-2xl mx-4 ${
-         isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
-       } max-h-[98vh] overflow-hidden`}>
-                 {/* Enhanced Header */}
-         <div className={`flex justify-between items-center p-6 border-b ${
-           isDarkMode ? 'border-slate-700' : 'border-gray-200'
-         }`}>
-           <div className="flex items-center space-x-4">
-             <div className={`h-12 w-12 rounded-xl flex items-center justify-center shadow-lg ${
-               isDarkMode 
-                 ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
-                 : 'bg-gradient-to-br from-blue-600 to-indigo-700'
-             }`}>
-               <PencilIcon className="h-6 w-6 text-white" />
-             </div>
-             <div>
-               <h2 className={`text-2xl font-bold mb-1 mx-2 ${
-                 isDarkMode ? 'text-white' : 'text-gray-900'
-               }`}>
-                 {order ? 'Edit Order' : 'Create New Order'}
-               </h2>
-               <p className={`text-sm ${
-                 isDarkMode ? 'text-gray-300' : 'text-gray-500'
-               }`}>
-                 {order ? `Order ID: ${order.orderId}` : 'Complete order details with enhanced features'}
-               </p>
-             </div>
-           </div>
-          <button
-            onClick={onClose}
-            className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${
-              isDarkMode
-                ? 'text-gray-400 hover:bg-white/10 hover:text-gray-300'
-                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+  if (!mounted) return null;
+
+  return (
+    <>
+      {/* Custom Scrollbar Styles */}
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: ${isDarkMode ? '#374151' : '#f3f4f6'};
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: ${isDarkMode ? '#3b82f6' : '#60a5fa'};
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: ${isDarkMode ? '#2563eb' : '#3b82f6'};
+        }
+      `}</style>
+      
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className={`relative w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
+        isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
+      }`}>
+        {/* Header */}
+        <div className={`flex items-center justify-between p-6 border-b ${
+          isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+        }`}>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
+              {order ? (
+                <PencilIcon className="h-8 w-8 text-blue-500" />
+              ) : (
+                <PlusIcon className="h-8 w-8 text-green-500" />
+              )}
+              <h2 className="text-2xl font-bold">{order ? 'Edit Order' : 'Create New Order'}</h2>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className={`text-sm px-2 py-1 rounded-full ${
+                isDarkMode 
+                  ? 'bg-blue-900/30 text-blue-300 border border-blue-700' 
+                  : 'bg-blue-100 text-blue-700 border border-blue-200'
+              }`}>
+                {formData.items.length} Item{formData.items.length !== 1 ? 's' : ''}
+              </span>
+              <button
+                onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
+                className={`px-3 py-1 text-xs rounded-full border transition-all duration-200 hover:scale-105 ${
+                  isDarkMode 
+                    ? 'border-gray-600 text-gray-300 hover:border-blue-500 hover:text-blue-400' 
+                    : 'border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600'
+                }`}
+                title="Keyboard Shortcuts (F1)"
+              >
+                ⌨️ Shortcuts
+              </button>
+            </div>
+          </div>
+          <button 
+            onClick={onClose} 
+            className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+              isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
             }`}
+            title="Close (Esc)"
           >
             <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
 
-                 {/* Validation Message */}
-         {validationMessage && (
-           <div className={`mx-8 mt-6 p-6 rounded-xl border-2 ${
-             validationMessage.type === 'success'
-               ? isDarkMode
-                 ? 'bg-green-900/20 border-green-500/50 text-green-400'
-                 : 'bg-green-50 border-green-300 text-green-800'
-               : isDarkMode
-                 ? 'bg-red-900/20 border-red-500/50 text-red-400'
-                 : 'bg-red-50 border-red-300 text-red-800'
-           }`}>
-             <div className="flex items-start">
-               {validationMessage.type === 'success' ? (
-                 <CheckIcon className="h-6 w-6 mr-3 mt-0.5 flex-shrink-0" />
-               ) : (
-                 <ExclamationTriangleIcon className="h-6 w-6 mr-3 mt-0.5 flex-shrink-0" />
-               )}
-               <div className="flex-1">
-                 <div className="flex items-center justify-between">
-                   <span className="text-lg font-medium leading-relaxed">{validationMessage.text}</span>
-                   <button
-                     onClick={() => {
-                       setValidationMessage(null);
-                       setValidationProgress(100);
-                       if (validationTimeout) {
-                         clearTimeout(validationTimeout);
-                       }
-                     }}
-                     className={`ml-4 p-1 rounded-full hover:bg-opacity-20 transition-colors ${
-                       validationMessage.type === 'success'
-                         ? 'hover:bg-green-500'
-                         : 'hover:bg-red-500'
-                     }`}
-                   >
-                     <XMarkIcon className="h-4 w-4" />
-                   </button>
-                 </div>
-                 <div className="mt-2 flex items-center space-x-2">
-                   <div className="flex-1 bg-gray-300 dark:bg-gray-600 rounded-full h-1">
-                     <div className={`h-1 rounded-full transition-all duration-100 ${
-                       validationMessage.type === 'success' 
-                         ? 'bg-green-500' 
-                         : 'bg-red-500'
-                     }`} style={{ width: `${validationProgress}%` }}></div>
-                   </div>
-                   <span className="text-sm text-gray-500 dark:text-gray-400">
-                     Auto-hide in {Math.ceil(validationProgress / 33.33)}s
-                   </span>
-                 </div>
-               </div>
-             </div>
-           </div>
-         )}
-
-                 {/* Enhanced Form Content */}
-         <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(98vh-200px)] custom-scrollbar">
-          <div className="p-6 space-y-6">
-            {/* Basic Information - Compact Layout */}
-            <div className={`p-6 rounded-xl border-2 ${
-              isDarkMode 
-                ? 'bg-white/5 border-white/10 shadow-lg' 
-                : 'bg-white border-gray-200 shadow-lg'
-            }`}>
-              <h3 className={`text-xl font-bold mb-4 flex items-center ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                <InformationCircleIcon className="h-5 w-5 mr-2 text-blue-500" />
-                Basic Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Order Type */}
-                <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Order Type <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.orderType || ''}
-                    onChange={(e) => handleFieldChange('orderType', e.target.value || undefined)}
-                    onBlur={() => handleBlur('orderType')}
-                    className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                      getFieldError('orderType')
-                        ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-900 dark:text-red-200'
-                        : isDarkMode
-                          ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-white/30'
-                          : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400'
-                    }`}
-                  >
-                    <option value="" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Select Order Type *</option>
-                    <option value="Dying" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Dying</option>
-                    <option value="Printing" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Printing</option>
-                  </select>
-                  {getFieldError('orderType') && (
-                    <p className="mt-1 text-xs text-red-500">{getFieldError('orderType')}</p>
-                  )}
-                </div>
-
-                                 {/* Arrival Date */}
-                 <div>
-                   <label className={`block text-sm font-semibold mb-2 ${
-                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                   }`}>
-                     Arrival Date
-                   </label>
-                                       <input
-                      type="date"
-                      value={formData.arrivalDate}
-                      onChange={(e) => handleFieldChange('arrivalDate', e.target.value)}
-                      onBlur={() => handleBlur('arrivalDate')}
-                      className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                        getFieldError('arrivalDate')
-                          ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                          : isDarkMode
-                            ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-white/30'
-                            : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400'
-                      }`}
-                    />
-                   {getFieldError('arrivalDate') && (
-                     <p className="mt-1 text-xs text-red-500">{getFieldError('arrivalDate')}</p>
-                   )}
-                 </div>
-
-                                 {/* PO Date */}
-                 <div>
-                   <label className={`block text-sm font-semibold mb-2 ${
-                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                   }`}>
-                     PO Date
-                   </label>
-                                       <input
-                      type="date"
-                      value={formData.poDate}
-                      onChange={(e) => handleFieldChange('poDate', e.target.value)}
-                      className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                        isDarkMode
-                          ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                          : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                      }`}
-                    />
-                 </div>
-
-                                 {/* Delivery Date */}
-                 <div>
-                   <label className={`block text-sm font-semibold mb-2 ${
-                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                   }`}>
-                     Delivery Date
-                   </label>
-                                       <input
-                      type="date"
-                      value={formData.deliveryDate}
-                      onChange={(e) => handleFieldChange('deliveryDate', e.target.value)}
-                      onBlur={() => handleBlur('deliveryDate')}
-                      className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                        getFieldError('deliveryDate')
-                          ? 'border-red-500 bg-red-50'
-                          : isDarkMode
-                            ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                            : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                      }`}
-                    />
-                   {getFieldError('deliveryDate') && (
-                     <p className="mt-1 text-xs text-red-500">{getFieldError('deliveryDate')}</p>
-                   )}
-                 </div>
-              </div>
-            </div>
-
-            {/* Party and Contact Information - Compact */}
-            <div className={`p-6 rounded-xl border-2 ${
-              isDarkMode 
-                ? 'bg-white/5 border-white/10 shadow-lg' 
-                : 'bg-white border-gray-200 shadow-lg'
-            }`}>
-              <h3 className={`text-xl font-bold mb-4 flex items-center ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                <InformationCircleIcon className="h-5 w-5 mr-2 text-green-500" />
-                Party & Contact Information
-              </h3>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* Party Selection */}
-                <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Party
-                  </label>
-                  <div className="relative party-dropdown">
-                    <div className="flex space-x-2">
-                      <div className="flex-1 relative">
-                        <input
-                          type="text"
-                          placeholder="Search parties..."
-                          value={selectedPartyName || partySearch}
-                          onChange={(e) => {
-                            setPartySearch(e.target.value);
-                            // Clear selected party if user starts typing
-                            if (e.target.value !== selectedPartyName) {
-                              setSelectedPartyName('');
-                              handleFieldChange('party', '');
-                            }
-                          }}
-                          onFocus={() => {
-                            setShowPartyDropdown(true);
-                          }}
-                          onClick={() => {
-                            setShowPartyDropdown(true);
-                          }}
-                          className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                            getFieldError('party')
-                              ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                              : isDarkMode
-                                ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-white/30'
-                                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400'
-                          }`}
-                        />
-                        <MagnifyingGlassIcon className={`absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
-                          isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                        }`} />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowPartyModal(true)}
-                        className={`px-3 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center hover:scale-105 ${
-                          isDarkMode
-                            ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg'
-                            : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg'
-                        }`}
-                        title="Add New Party"
-                      >
-                        <PlusIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                    {showPartyDropdown && (
-                      <div className={`absolute z-50 w-full mt-2 rounded-xl border-2 shadow-2xl ${
-                        isDarkMode 
-                          ? 'bg-slate-800 border-slate-600 shadow-2xl' 
-                          : 'bg-white border-gray-200 shadow-2xl'
-                      } max-h-80 overflow-y-auto custom-scrollbar`}>
-                        {filteredParties.length > 0 ? (
-                          filteredParties.map((party) => (
-                            <div key={party?._id || Math.random()} className={`flex items-center justify-between p-3 hover:bg-gray-50 border-b transition-all duration-200 ${
-                              isDarkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-gray-100'
-                            }`}>
-                              <div className="flex-1 min-w-0">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (party && party._id && party.name) {
-                                      console.log('Party selected:', party.name, 'ID:', party._id);
-                                      handleFieldChange('party', party._id);
-                                      setSelectedPartyName(party.name);
-                                      setPartySearch(party.name);
-                                      setShowPartyDropdown(false);
-                                      // Clear any party-related errors
-                                      setErrors(prev => {
-                                        const newErrors = { ...prev };
-                                        delete newErrors['party'];
-                                        return newErrors;
-                                      });
-                                    }
-                                  }}
-                                  className={`w-full text-left px-2 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-900 text-sm font-medium transition-all duration-200 ${
-                                    isDarkMode 
-                                      ? 'text-white hover:bg-slate-600 hover:text-blue-300' 
-                                      : 'text-gray-900'
-                                  }`}
-                                >
-                                  <div className="font-semibold truncate">{party?.name || 'Unknown Party'}</div>
-                                  {party?.contactName && (
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                      👤 {party.contactName}
-                                    </div>
-                                  )}
-                                  {party?.contactPhone && (
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                      📞 {party.contactPhone}
-                                    </div>
-                                  )}
-                                </button>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  // Check if party is being used in any orders
-                                  if (!party || !party._id || !party.name) {
-                                    setValidationMessage({ type: 'error', text: 'Invalid party data' });
-                                    return;
-                                  }
-                                  
-                                  // Direct delete without confirmation
-                                  try {
-                                    const response = await fetch(`/api/parties/${party._id}`, {
-                                      method: 'DELETE',
-                                      headers: {
-                                        'Content-Type': 'application/json',
-                                      },
-                                    });
-                                    
-                                    const data = await response.json();
-                                    
-                                    if (response.ok) {
-                                      onRefreshParties();
-                                      setValidationMessage({ type: 'success', text: 'Party deleted successfully!' });
-                                    } else {
-                                      setValidationMessage({ type: 'error', text: data.message || 'Failed to delete party' });
-                                    }
-                                  } catch (error) {
-                                    console.error('Error deleting party:', error);
-                                    setValidationMessage({ type: 'error', text: 'Failed to delete party. Please try again.' });
-                                  }
-                                }}
-                                className={`p-2 rounded-lg hover:bg-red-50 flex items-center justify-center transition-all duration-300 ${
-                                  isDarkMode 
-                                    ? 'text-red-400 hover:bg-red-500/20 hover:scale-110' 
-                                    : 'text-red-600 hover:bg-red-50 hover:scale-110'
-                                }`}
-                                title="Delete Party"
-                              >
-                                <TrashIcon className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ))
-                        ) : (
-                          <div className={`px-6 py-4 text-lg ${
-                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                          }`}>
-                            No parties found
-                          </div>
-                        )}
-                      </div>
-                    )}
+        {/* Form */}
+        <form ref={formRef} onSubmit={handleSubmit} className={`overflow-y-auto max-h-[calc(95vh-140px)] custom-scrollbar ${
+          isDarkMode 
+            ? 'scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-800' 
+            : 'scrollbar-thin scrollbar-thumb-blue-400 scrollbar-track-gray-100'
+        }`}>
+          <div className="p-6 space-y-8 pb-24">
+            {/* Basic Information - Enhanced Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {/* Order Type */}
+              <div>
+                <label className="block text-sm font-medium mb-3">
+                  Order Type <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                <select
+                  value={formData.orderType || ''}
+                  onChange={(e) => handleFieldChange('orderType', e.target.value)}
+                    className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${
+                    isDarkMode 
+                      ? 'bg-gray-800 border-gray-600 text-white' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                  } ${errors.orderType ? 'border-red-500' : ''}`}
+                >
+                  <option value="">Select Type</option>
+                  <option value="Dying">Dying</option>
+                  <option value="Printing">Printing</option>
+                </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg className={`h-5 w-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                   </div>
-                  {getFieldError('party') && (
-                    <p className="mt-1 text-sm text-red-500">{getFieldError('party')}</p>
-                  )}
                 </div>
+                {errors.orderType && <p className="text-red-500 text-sm mt-2">{errors.orderType}</p>}
+              </div>
 
-                {/* Contact Name */}
-                <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Contact Name
-                  </label>
+              {/* Arrival Date */}
+              <div>
+                <label className="block text-sm font-medium mb-3">Arrival Date</label>
+                <CustomDatePicker
+                  value={formData.arrivalDate || ''}
+                  onChange={(value) => handleFieldChange('arrivalDate', value)}
+                  placeholder="Select arrival date"
+                  isDarkMode={isDarkMode}
+                />
+              </div>
+
+              {/* PO Date */}
+              <div>
+                <label className="block text-sm font-medium mb-3">PO Date</label>
+                <CustomDatePicker
+                  value={formData.poDate || ''}
+                  onChange={(value) => handleFieldChange('poDate', value)}
+                  placeholder="Select PO date"
+                  isDarkMode={isDarkMode}
+                />
+              </div>
+
+              {/* Delivery Date */}
+              <div>
+                <label className="block text-sm font-medium mb-3">Delivery Date</label>
+                <CustomDatePicker
+                  value={formData.deliveryDate || ''}
+                  onChange={(value) => handleFieldChange('deliveryDate', value)}
+                  placeholder="Select delivery date"
+                  isDarkMode={isDarkMode}
+                />
+              </div>
+
+              {/* Party */}
+              <div>
+                <label className="block text-sm font-medium mb-3">Party</label>
+                <EnhancedDropdown
+                  options={filteredParties}
+                  value={formData.party || ''}
+                  onChange={(value) => handleFieldChange('party', value)}
+                  placeholder="Search parties..."
+                  searchValue={partySearch}
+                  onSearchChange={setPartySearch}
+                  showDropdown={showPartyDropdown}
+                  onToggleDropdown={() => setShowPartyDropdown(!showPartyDropdown)}
+                                     onSelect={(party) => {
+                     handleFieldChange('party', party._id || '');
+                     setSelectedPartyName(party.name);
+                     setPartySearch(party.name);
+                     setShowPartyDropdown(false);
+                   }}
+                  isDarkMode={isDarkMode}
+                  onAddNew={() => setShowPartyModal(true)}
+                  onDelete={(party) => handleDeleteParty(party)}
+                  recentlyAddedId={recentlyAddedParty}
+                />
+              </div>
+
+              {/* Contact Name */}
+              <div>
+                <label className="block text-sm font-medium mb-3">Contact Name</label>
+                <div className="relative">
                   <input
                     type="text"
                     value={formData.contactName}
                     onChange={(e) => handleFieldChange('contactName', e.target.value)}
-                    onBlur={() => handleBlur('contactName')}
-                    className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                      getFieldError('contactName')
-                        ? 'border-red-500 bg-red-50'
-                        : isDarkMode
-                          ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                          : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                    }`}
                     placeholder="Enter contact name"
+                    className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      isDarkMode 
+                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
                   />
-                  {getFieldError('contactName') && (
-                    <p className="mt-1 text-xs text-red-500">{getFieldError('contactName')}</p>
+                  {formData.contactName && (
+                    <button
+                      type="button"
+                      onClick={() => handleFieldChange('contactName', '')}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
+                        isDarkMode 
+                          ? 'text-gray-400 hover:text-white hover:bg-gray-700' 
+                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
+                      }`}
+                      title="Clear contact name"
+                    >
+                      <XMarkIcon className="h-4 w-4" />
+                    </button>
                   )}
                 </div>
+              </div>
 
-                {/* Contact Phone */}
-                <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Contact Phone
-                  </label>
+              {/* Contact Phone */}
+              <div>
+                <label className="block text-sm font-medium mb-3">Contact Phone</label>
+                <div className="relative">
                   <input
                     type="tel"
                     value={formData.contactPhone}
                     onChange={(e) => handleFieldChange('contactPhone', e.target.value)}
-                    onBlur={() => handleBlur('contactPhone')}
-                    className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                      getFieldError('contactPhone')
-                        ? 'border-red-500 bg-red-50'
-                        : isDarkMode
-                          ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                          : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                    }`}
                     placeholder="Enter phone number"
+                    className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      isDarkMode 
+                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
                   />
-                  {getFieldError('contactPhone') && (
-                    <p className="mt-1 text-xs text-red-500">{getFieldError('contactPhone')}</p>
+                  {formData.contactPhone && (
+                    <button
+                      type="button"
+                      onClick={() => handleFieldChange('contactPhone', '')}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
+                        isDarkMode 
+                          ? 'text-gray-400 hover:text-white hover:bg-gray-700' 
+                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
+                      }`}
+                      title="Clear contact phone"
+                    >
+                      <XMarkIcon className="h-4 w-4" />
+                    </button>
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* Reference Numbers - Compact */}
-            <div className={`p-6 rounded-xl border-2 ${
-              isDarkMode 
-                ? 'bg-white/5 border-white/10 shadow-lg' 
-                : 'bg-white border-gray-200 shadow-lg'
-            }`}>
-              <h3 className={`text-xl font-bold mb-4 flex items-center ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                <InformationCircleIcon className="h-5 w-5 mr-2 text-purple-500" />
-                Reference Numbers
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* PO Number */}
-                <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    PO Number
-                  </label>
+              {/* PO Number */}
+              <div>
+                <label className="block text-sm font-medium mb-3">PO Number</label>
+                <div className="relative">
                   <input
                     type="text"
                     value={formData.poNumber}
                     onChange={(e) => handleFieldChange('poNumber', e.target.value)}
-                    onBlur={() => handleBlur('poNumber')}
-                    className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                      getFieldError('poNumber')
-                        ? 'border-red-500 bg-red-50'
-                        : isDarkMode
-                          ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                          : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                    }`}
                     placeholder="Enter PO number"
+                    className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      isDarkMode 
+                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
                   />
-                  {getFieldError('poNumber') && (
-                    <p className="mt-1 text-xs text-red-500">{getFieldError('poNumber')}</p>
+                  {formData.poNumber && (
+                    <button
+                      type="button"
+                      onClick={() => handleFieldChange('poNumber', '')}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
+                        isDarkMode 
+                          ? 'text-gray-400 hover:text-white hover:bg-gray-700' 
+                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
+                      }`}
+                      title="Clear PO number"
+                    >
+                      <XMarkIcon className="h-4 w-4" />
+                    </button>
                   )}
                 </div>
+              </div>
 
-                {/* Style Number */}
-                <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Style Number
-                  </label>
+              {/* Style Number */}
+              <div>
+                <label className="block text-sm font-medium mb-3">Style Number</label>
+                <div className="relative">
                   <input
                     type="text"
                     value={formData.styleNo}
                     onChange={(e) => handleFieldChange('styleNo', e.target.value)}
-                    onBlur={() => handleBlur('styleNo')}
-                    className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                      getFieldError('styleNo')
-                        ? 'border-red-500 bg-red-50'
-                        : isDarkMode
-                          ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                          : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                    }`}
                     placeholder="Enter style number"
+                    className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      isDarkMode 
+                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
                   />
-                  {getFieldError('styleNo') && (
-                    <p className="mt-1 text-xs text-red-500">{getFieldError('styleNo')}</p>
+                  {formData.styleNo && (
+                    <button
+                      type="button"
+                      onClick={() => handleFieldChange('styleNo', '')}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
+                        isDarkMode 
+                          ? 'text-gray-400 hover:text-white hover:bg-gray-700' 
+                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
+                      }`}
+                      title="Clear style number"
+                    >
+                      <XMarkIcon className="h-4 w-4" />
+                    </button>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Order Items - Enhanced */}
-            <div className={`p-6 rounded-xl border-2 ${
-              isDarkMode 
-                ? 'bg-white/5 border-white/10 shadow-lg' 
-                : 'bg-white border-gray-200 shadow-lg'
-            }`}>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className={`text-xl font-bold flex items-center ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
-                }`}>
-                  <InformationCircleIcon className="h-5 w-5 mr-2 text-orange-500" />
-                  Order Items
-                </h3>
-                <button
-                  type="button"
-                  onClick={addItem}
-                  className={`inline-flex items-center px-4 py-2 rounded-lg font-semibold transition-all duration-300 hover:scale-105 ${
-                    isDarkMode
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg'
-                      : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg'
-                  }`}
-                >
-                  <PlusIcon className="h-4 w-4 mr-2" />
-                  Add Item
-                </button>
+
+
+            {/* Order Items */}
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-semibold">Order Items</h3>
               </div>
 
-                             <div className="space-y-4">
-                 {formData.items.length === 0 ? (
-                   <div className={`text-center py-8 rounded-lg border-2 ${
-                     isDarkMode 
-                       ? 'bg-white/5 border-white/10' 
-                       : 'bg-gray-50 border-gray-200'
-                   }`}>
-                     <p className={`text-lg ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                       No items added yet
-                     </p>
-                     <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                       Click "Add Item" to start adding order items
-                     </p>
-                   </div>
-                 ) : (
-                   formData.items.map((item, index) => (
-                  <div key={index} className={`p-4 rounded-lg border-2 ${
-                    isDarkMode 
-                      ? 'bg-white/5 border-white/10 shadow-md' 
-                      : 'bg-gray-50 border-gray-200 shadow-md'
+              <div className="space-y-6">
+                {formData.items.map((item, index) => (
+                  <div key={index} className={`p-6 rounded-xl border transition-all duration-200 hover:shadow-lg ${
+                    isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
                   }`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <h4 className={`text-lg font-bold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        Item {index + 1}
-                      </h4>
-                                             <button
-                         type="button"
-                         onClick={() => removeItem(index)}
-                         className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${
-                           isDarkMode
-                             ? 'text-red-400 hover:bg-red-500/20'
-                             : 'text-red-600 hover:bg-red-50'
-                         }`}
-                       >
-                         <TrashIcon className="h-4 w-4" />
-                       </button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                      {/* Quality */}
+                      <div>
+                        <label className="block text-sm font-medium mb-3">
+                          Quality <span className="text-red-500">*</span>
+                        </label>
+                                                 <EnhancedDropdown
+                          options={getFilteredQualities(index)}
+                           value={item.quality as string}
+                           onChange={(value) => handleItemChange(index, 'quality', value)}
+                           placeholder="Search quality..."
+                          searchValue={activeQualityDropdown === index ? currentQualitySearch : (qualitySearchStates[index] || '')}
+                          onSearchChange={(value) => {
+                            if (activeQualityDropdown === index) {
+                              setCurrentQualitySearch(value);
+                            } else {
+                              setQualitySearchStates(prev => ({ ...prev, [index]: value }));
+                            }
+                          }}
+                           showDropdown={activeQualityDropdown === index}
+                          onToggleDropdown={() => {
+                            if (activeQualityDropdown === index) {
+                              setActiveQualityDropdown(null);
+                              setCurrentQualitySearch('');
+                            } else {
+                              setActiveQualityDropdown(index);
+                              setCurrentQualitySearch(qualitySearchStates[index] || '');
+                            }
+                          }}
+                                                       onSelect={(quality) => {
+                            console.log('🔍 Quality selected manually:', { quality, index });
+                            handleItemChange(index, 'quality', getQualityId(quality));
+                            setQualitySearchStates(prev => ({ ...prev, [index]: quality.name }));
+                            setCurrentQualitySearch(quality.name);
+                              setActiveQualityDropdown(null);
+                            }}
+                           isDarkMode={isDarkMode}
+                           error={errors[`items.${index}.quality`]}
+                           onAddNew={() => {
+                             setActiveQualityDropdown(index);
+                             setShowQualityModal(true);
+                           }}
+                          onDelete={(quality) => handleDeleteQuality(quality)}
+                          itemIndex={index}
+                          recentlyAddedId={recentlyAddedQuality}
+                         />
+                      </div>
+
+                      {/* Quantity */}
+                      <div>
+                        <label className="block text-sm font-medium mb-3">
+                          Quantity <span className="text-red-500">*</span>
+                        </label>
+                                                 <input
+                           type="number"
+                           value={item.quantity || ''}
+                                                       onChange={(e) => {
+                              const value = e.target.value;
+                              // Allow empty string and positive whole numbers only
+                              if (value === '' || (parseFloat(value) > 0 && Number.isInteger(parseFloat(value)) && !isNaN(parseFloat(value)))) {
+                                handleItemChange(index, 'quantity', value);
+                              }
+                            }}
+                           onKeyPress={(e) => {
+                             // Prevent non-numeric input except backspace, delete, arrow keys
+                             if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+                               e.preventDefault();
+                             }
+                           }}
+                           placeholder="Enter quantity"
+                           min="1"
+                           step="1"
+                           className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                             isDarkMode 
+                               ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                               : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                           } ${errors[`items.${index}.quantity`] ? 'border-red-500' : ''}`}
+                         />
+                        {errors[`items.${index}.quantity`] && (
+                          <p className="text-red-500 text-sm mt-2">{errors[`items.${index}.quantity`]}</p>
+                        )}
+                      </div>
+
+                      {/* Description */}
+                      <div>
+                        <label className="block text-sm font-medium mb-3">Description</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={item.description || ''}
+                            onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                            placeholder="Enter description"
+                            className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                              isDarkMode 
+                                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                            }`}
+                          />
+                          {item.description && (
+                            <button
+                              type="button"
+                              onClick={() => handleItemChange(index, 'description', '')}
+                              className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
+                                isDarkMode 
+                                  ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
+                                  : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
+                              }`}
+                              title="Clear description"
+                            >
+                              <XMarkIcon className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-end justify-end">
+                        <button
+                          type="button"
+                          onClick={() => removeItem(index)}
+                          className={`p-3 rounded-lg border-2 transition-all duration-200 hover:scale-110 ${
+                            isDarkMode 
+                              ? 'border-red-500 text-red-400 hover:bg-red-500 hover:text-white' 
+                              : 'border-red-300 text-red-600 hover:bg-red-500 hover:text-white'
+                          }`}
+                          title="Remove Item"
+                        >
+                          <TrashIcon className="h-5 w-5" />
+                        </button>
+                      </div>
                     </div>
 
-                                      
-
-                                                                                       {/* Quality, Quantity, and Description in One Row */}
-                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                         {/* Quality */}
-                         <div>
-                           <label className={`block text-sm font-semibold mb-2 ${
-                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                           }`}>
-                             Quality
-                           </label>
-                           <div className="relative quality-dropdown">
-                             <div className="flex space-x-2">
-                               <div className="flex-1 relative">
-                                 <input
-                                   type="text"
-                                   placeholder="Search qualities..."
-                                                                        value={(() => {
-                                       // Get the selected quality name for this specific item
-                                       const selectedQuality = qualities?.find(q => q._id === item.quality);
-                                       return selectedQuality?.name || qualitySearch;
-                                     })()}
-                                   onChange={(e) => {
-                                     setQualitySearch(e.target.value);
-                                     // Clear selected quality if user starts typing
-                                     const selectedQuality = qualities?.find(q => q._id === item.quality);
-                                     if (e.target.value !== selectedQuality?.name) {
-                                       handleItemChange(index, 'quality', '');
-                                     }
-                                   }}
-                                   onFocus={() => {
-                                     setShowQualityDropdown(true);
-                                     setActiveQualityDropdown(index);
-                                   }}
-                                   onClick={() => {
-                                     setShowQualityDropdown(true);
-                                     setActiveQualityDropdown(index);
-                                   }}
-                                   className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                                     getItemFieldError(index, 'quality')
-                                       ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                                       : isDarkMode
-                                         ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-white/30'
-                                         : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400'
-                                   }`}
-                                 />
-                                 <MagnifyingGlassIcon className={`absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
-                                   isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                 }`} />
-                               </div>
-                               <button
-                                 type="button"
-                                 onClick={() => setShowQualityModal(true)}
-                                 className={`px-3 py-2 rounded-lg font-semibold transition-all duration-300 hover:scale-105 ${
-                                   isDarkMode
-                                     ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg'
-                                     : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg'
-                                 }`}
-                               >
-                                 <PlusIcon className="h-4 w-4" />
-                               </button>
-                             </div>
-                             {showQualityDropdown && activeQualityDropdown === index && (
-                               <div className={`absolute z-50 w-full mt-2 rounded-xl border-2 shadow-2xl ${
-                                 isDarkMode 
-                                   ? 'bg-slate-800 border-slate-600 shadow-2xl' 
-                                   : 'bg-white border-gray-200 shadow-2xl'
-                               } max-h-80 overflow-y-auto custom-scrollbar`}>
-                                 {sortedQualities.length > 0 ? (
-                                   sortedQualities.map((quality) => (
-                                     <div key={quality?._id || Math.random()} className={`flex items-center justify-between p-4 hover:bg-gray-50 border-b transition-all duration-200 ${
-                                       isDarkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-gray-100'
-                                                                            }`}>
-                                       <button
-                                         type="button"
-                                         onClick={() => {
-                                           if (quality && quality._id && quality.name) {
-                                             console.log('Quality selected:', quality.name, 'ID:', quality._id, 'for item:', index);
-                                             handleItemChange(index, 'quality', quality._id);
-                                             setQualitySearch(quality.name);
-                                             setShowQualityDropdown(false);
-                                             setActiveQualityDropdown(null);
-                                             // Clear any quality-related errors for this item
-                                             setErrors(prev => {
-                                               const newErrors = { ...prev };
-                                               delete newErrors[`items.${index}.quality`];
-                                               return newErrors;
-                                             });
-                                           }
-                                         }}
-                                         className={`flex-1 text-left px-3 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-900 text-lg font-medium transition-all duration-200 ${
-                                           isDarkMode 
-                                             ? 'text-white hover:bg-slate-600 hover:text-white font-bold' 
-                                             : 'text-gray-900 hover:text-gray-900'
-                                         }`}
-                                       >
-                                         {quality?.name || 'Unknown Quality'}
-                                       </button>
-                                       <button
-                                         type="button"
-                                         onClick={async () => {
-                                           // Check if quality is being used in any orders
-                                           if (!quality || !quality._id || !quality.name) {
-                                             setValidationMessage({ type: 'error', text: 'Invalid quality data' });
-                                             return;
-                                           }
-                                           
-                                                                                       // Direct delete without confirmation
-                                            try {
-                                              const response = await fetch(`/api/qualities/${quality._id}`, {
-                                                method: 'DELETE',
-                                                headers: {
-                                                  'Content-Type': 'application/json',
-                                                },
-                                              });
-                                              
-                                              const data = await response.json();
-                                              
-                                              if (response.ok) {
-                                                onAddQuality(); // Refresh qualities
-                                                setValidationMessage({ type: 'success', text: 'Quality deleted successfully!' });
-                                              } else {
-                                                setValidationMessage({ type: 'error', text: data.message || 'Failed to delete quality' });
-                                              }
-                                            } catch (error) {
-                                              console.error('Error deleting quality:', error);
-                                              setValidationMessage({ type: 'error', text: 'Failed to delete quality. Please try again.' });
-                                            }
-                                         }}
-                                         className={`p-2 rounded-lg hover:bg-red-50 flex items-center justify-center transition-all duration-300 ${
-                                           isDarkMode 
-                                             ? 'text-red-400 hover:bg-red-500/20 hover:scale-110' 
-                                             : 'text-red-600 hover:bg-red-50 hover:scale-110'
-                                         }`}
-                                         title="Delete Quality"
-                                       >
-                                         <TrashIcon className="h-5 w-5" />
-                                       </button>
-                                     </div>
-                                   ))
-                                 ) : (
-                                   <div className={`px-6 py-4 text-lg ${
-                                     isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                   }`}>
-                                     No qualities found
-                                   </div>
-                                 )}
-                               </div>
-                             )}
-                           </div>
-                           {getItemFieldError(index, 'quality') && (
-                             <p className="mt-1 text-sm text-red-500">{getItemFieldError(index, 'quality')}</p>
-                           )}
-                         </div>
-
-                         {/* Quantity */}
-                         <div>
-                                                       <label className={`block text-sm font-semibold mb-2 ${
-                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                            }`}>
-                              Quantity
-                            </label>
-                           <input
-                             type="number"
-                             min="1"
-                             value={item.quantity || ''}
-                             onChange={(e) => {
-                               const value = e.target.value;
-                               handleItemChange(index, 'quantity', value === '' ? undefined : parseInt(value) || undefined);
-                             }}
-                             onBlur={() => handleBlur(`items.${index}.quantity`)}
-                             className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                               getItemFieldError(index, 'quantity')
-                                 ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                                 : isDarkMode
-                                   ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-white/30'
-                                   : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400'
-                             }`}
-                             placeholder="Enter quantity"
-                           />
-                           {getItemFieldError(index, 'quantity') && (
-                             <p className="mt-1 text-xs text-red-500">{getItemFieldError(index, 'quantity')}</p>
-                           )}
-                         </div>
-
-                         {/* Description */}
-                         <div>
-                           <label className={`block text-sm font-semibold mb-2 ${
-                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                           }`}>
-                             Description
-                           </label>
-                           <input
-                             type="text"
-                             value={item.description}
-                             onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                             onBlur={() => handleBlur(`items.${index}.description`)}
-                             className={`w-full px-3 py-2 rounded-lg border-2 transition-all duration-300 text-sm ${
-                               getItemFieldError(index, 'description')
-                                 ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                                 : isDarkMode
-                                   ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                                   : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-                             }`}
-                             placeholder="Enter item description..."
-                           />
-                           {getItemFieldError(index, 'description') && (
-                             <p className="mt-1 text-xs text-red-500">{getItemFieldError(index, 'description')}</p>
-                           )}
-                         </div>
-                       </div>
-
-                       {/* Enhanced Item Image Section */}
-                       <div className="mt-6">
-                         <label className={`block text-sm font-semibold mb-3 ${
-                           isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                         }`}>
-                           Item Images
-                         </label>
-                         
-                         {/* Upload Options Row - Enhanced */}
-                         <div className="flex space-x-3 mb-4">
-                           {/* Gallery Upload Button */}
-                           <label
-                             htmlFor={`image-upload-${index}`}
-                             className={`flex items-center justify-center px-4 py-2 border-2 border-dashed rounded-lg cursor-pointer transition-all duration-300 hover:scale-105 ${
-                               isDarkMode
-                                 ? 'border-blue-500 hover:border-blue-400 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300'
-                                 : 'border-blue-400 hover:border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700'
-                             }`}
-                             onDragOver={handleDragOver}
-                             onDrop={(e) => handleDrop(e, index)}
-                             title="Upload from gallery"
-                           >
-                             <PhotoIcon className="w-5 h-5 mr-2" />
-                             <span className="text-sm font-medium">Gallery</span>
-                             <input
-                               id={`image-upload-${index}`}
-                               type="file"
-                               className="hidden"
-                               accept="image/*"
-                               multiple
-                               onChange={(e) => handleFileInputChange(e, index)}
-                               disabled={imageUploading}
-                             />
-                           </label>
-                           
-                           {/* Camera Capture Button */}
-                           <button
-                             type="button"
-                             onClick={() => handleCameraPreview(index)}
-                             disabled={!cameraAvailable || imageUploading}
-                             className={`flex items-center justify-center px-4 py-2 border-2 border-dashed rounded-lg transition-all duration-300 hover:scale-105 ${
-                               !cameraAvailable || imageUploading
-                                 ? 'border-gray-400 bg-gray-100 cursor-not-allowed text-gray-400'
-                                 : isDarkMode
-                                   ? 'border-emerald-500 hover:border-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300'
-                                   : 'border-emerald-400 hover:border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-700'
-                             }`}
-                             title="Capture with camera"
-                           >
-                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                             </svg>
-                             <span className="text-sm font-medium">Camera</span>
-                           </button>
-                           
-                           {/* Drag & Drop Area */}
-                           <div
-                             className={`flex-1 flex items-center justify-center px-4 py-2 border-2 border-dashed rounded-lg transition-all duration-300 ${
-                               isDarkMode
-                                 ? 'border-gray-600 hover:border-gray-500 bg-white/5 hover:bg-white/10'
-                                 : 'border-gray-300 hover:border-gray-400 bg-gray-50 hover:bg-gray-100'
-                             }`}
-                             onDragOver={handleDragOver}
-                             onDrop={(e) => handleDrop(e, index)}
-                           >
-                             <span className={`text-sm ${
-                               isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                             }`}>
-                               Drag & drop images here
-                             </span>
-                           </div>
-                         </div>
-
-                         {/* Upload Progress */}
-                         {imageUploading && (
-                           <div className={`flex items-center justify-center space-x-2 p-2 rounded-lg border-2 mb-3 ${
-                             isDarkMode 
-                               ? 'bg-blue-900/20 border-blue-500/30' 
-                               : 'bg-blue-50 border-blue-200'
-                           }`}>
-                             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
-                             <span className={`text-xs font-medium ${
-                               isDarkMode ? 'text-blue-300' : 'text-blue-700'
-                             }`}>
-                               Uploading...
-                             </span>
-                           </div>
-                         )}
-
-                         {/* Enhanced Multiple Images Preview */}
-                         <div className={`w-full min-h-40 border-2 rounded-xl p-4 ${
-                           (item.imageUrls && item.imageUrls.length > 0)
-                             ? 'border-green-300 bg-green-50 dark:bg-green-900/20' 
-                             : isDarkMode 
-                               ? 'border-gray-600 bg-gray-800/50' 
-                               : 'border-gray-300 bg-gray-50'
-                         }`}>
-                           {(item.imageUrls || []).length > 0 ? (
-                             <div className="space-y-4">
-                               {/* Images Grid - Enhanced */}
-                               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                                 {(item.imageUrls || []).map((imageUrl, imageIndex) => (
-                                   <div key={imageIndex} className="relative group">
-                                     <div className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-600">
-                                       <img
-                                         src={imageUrl}
-                                         alt={`Item ${index + 1} image ${imageIndex + 1}`}
-                                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                                       />
-                                     </div>
-                                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center space-x-2">
-                                       <button
-                                         type="button"
-                                         onClick={() => setShowImagePreview({ url: imageUrl, index })}
-                                         className="p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-all duration-300 hover:scale-110"
-                                         title="Preview full image"
-                                       >
-                                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                         </svg>
-                                       </button>
-                                       <button
-                                         type="button"
-                                         onClick={() => {
-                                           const updatedImages = item.imageUrls?.filter((_, i) => i !== imageIndex) || [];
-                                           handleItemChange(index, 'imageUrls', updatedImages);
-                                         }}
-                                         className="p-2 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all duration-300 hover:scale-110"
-                                         title="Remove image"
-                                       >
-                                         <XMarkIcon className="h-4 w-4" />
-                                       </button>
-                                     </div>
-                                     {/* Image Number Badge */}
-                                     <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
-                                       #{imageIndex + 1}
-                                     </div>
-                                   </div>
-                                 ))}
-                               </div>
-                               
-                               
-                               
-                               {/* Image Count */}
-                               <div className={`text-center text-sm ${
-                                 isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                               }`}>
-                                 {(item.imageUrls || []).length} image{(item.imageUrls || []).length !== 1 ? 's' : ''} uploaded
-                               </div>
-                             </div>
-                           ) : (
-                             <div className={`text-center py-12 ${
-                               isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                             }`}>
-                               <PhotoIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                               <p className="text-base font-medium mb-1">No images selected</p>
-                               <p className="text-sm">Use the buttons above to upload images</p>
-                             </div>
-                           )}
-                         </div>
-                                                </div>
-                       </div>
-                     ))
-                   )}
-                 </div>
+                    {/* Images */}
+                    <ImageUploadSection
+                      itemIndex={index}
+                      imageUrls={item.imageUrls || []}
+                      onImageUpload={handleImageUpload}
+                      onRemoveImage={removeImage}
+                      onPreviewImage={(url, imgIndex) => setShowImagePreview({ url, index: imgIndex })}
+                      isDarkMode={isDarkMode}
+                      imageUploading={imageUploading}
+                    />
+                  </div>
+                ))}
+                
+                {/* Add Item Card */}
+                <div className={`p-4 rounded-xl border-2 border-dashed transition-all duration-200 hover:shadow-lg cursor-pointer ${
+                  isDarkMode 
+                    ? 'border-gray-600 bg-gray-800/50 hover:border-blue-500 hover:bg-gray-800' 
+                    : 'border-gray-300 bg-gray-50/50 hover:border-blue-400 hover:bg-gray-50'
+                }`} onClick={addItem}>
+                  <div className="flex items-center justify-center space-x-3 py-4">
+                    <div className={`p-2 rounded-full ${
+                      isDarkMode 
+                        ? 'bg-blue-600/20 text-blue-400' 
+                        : 'bg-blue-100 text-blue-600'
+                    }`}>
+                      <PlusIcon className="h-5 w-5" />
+                    </div>
+                    <div className="text-center">
+                      <h4 className={`font-semibold ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        Add New Item
+                      </h4>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Footer */}
-          <div className={`flex justify-end space-x-4 p-6 border-t-2 ${
-            isDarkMode ? 'border-slate-700' : 'border-gray-200'
-          }`}>
+            {/* Validation Message */}
+            {validationMessage && (
+              <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg border shadow-lg max-w-md transform transition-all duration-300 ${
+                validationMessage.type === 'success' 
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300 border-green-200 dark:border-green-800' 
+                  : 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300 border-red-200 dark:border-red-800'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    {validationMessage.type === 'success' ? (
+                      <CheckIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    ) : (
+                      <ExclamationTriangleIcon className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    )}
+                    <span className="font-medium">{validationMessage.text}</span>
+                  </div>
+                  <button
+                    onClick={() => setValidationMessage(null)}
+                    className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                      validationMessage.type === 'success' 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : 'text-red-600 dark:text-red-400'
+                    }`}
+                  >
+                    <XMarkIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </form>
+
+        {/* Sticky Submit Button */}
+        <div className={`sticky bottom-0 left-0 right-0 p-6 border-t shadow-lg ${
+          isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'
+        }`}>
+          <div className="flex justify-end space-x-4">
             <button
               type="button"
               onClick={onClose}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 text-base hover:scale-105 ${
-                isDarkMode
-                  ? 'text-gray-300 hover:bg-white/10'
-                  : 'text-gray-700 hover:bg-gray-100'
+              className={`px-8 py-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
+                isDarkMode 
+                  ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
               }`}
-              disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className={`px-8 py-3 rounded-lg font-bold transition-all duration-300 text-base ${
-                loading
-                  ? 'opacity-50 cursor-not-allowed'
-                  : 'hover:scale-105 active:scale-95'
-              } ${
-                isDarkMode
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-xl'
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-xl'
+              onClick={handleSubmit}
+              className={`px-10 py-3 rounded-lg text-white font-medium transition-all duration-200 hover:scale-105 ${
+                loading 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : isDarkMode 
+                    ? 'bg-blue-600 hover:bg-blue-700 shadow-lg' 
+                    : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
               }`}
             >
-              {loading ? (
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  <span className="text-base">{order ? 'Updating...' : 'Creating...'}</span>
-                </div>
-              ) : (
-                <span className="text-base">{order ? 'Update Order' : 'Create Order'}</span>
-              )}
+              {loading ? 'Saving...' : (order ? 'Update Order' : 'Create Order')}
             </button>
           </div>
-        </form>
-      </div>
+        </div>
 
-                     {/* Quality Modal */}
+        {/* Image Preview Modal */}
+        {showImagePreview && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-60 p-4">
+            <div className="relative max-w-6xl max-h-[90vh]">
+              <img
+                src={showImagePreview.url}
+                alt="Preview"
+                className="max-w-full max-h-full object-contain rounded-lg"
+              />
+              
+              {/* Action Buttons */}
+              <div className="absolute top-4 right-4 flex items-center space-x-2">
+                {/* Download Button */}
+                <button
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = showImagePreview.url;
+                    link.download = `image-${showImagePreview.index + 1}.jpg`;
+                    link.target = '_blank';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                  className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
+                  title="Download Image"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </button>
+                
+                {/* Open in New Tab Button */}
+                <button
+                  onClick={() => {
+                    window.open(showImagePreview.url, '_blank');
+                  }}
+                  className="p-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
+                  title="Open in New Tab"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </button>
+                
+                {/* Close Button */}
+              <button
+                onClick={() => setShowImagePreview(null)}
+                  className="p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+                  title="Close"
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+              </div>
+              
+              {/* Image Info */}
+              <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-2 rounded-lg text-sm">
+                <p>Image {showImagePreview.index + 1}</p>
+                <p className="text-xs text-gray-300 truncate max-w-xs">{showImagePreview.url}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modals */}
         {showQualityModal && (
           <QualityModal
             onClose={() => setShowQualityModal(false)}
-                         onSuccess={(newQualityName?: string, newQualityData?: any) => {
-               setShowQualityModal(false);
-               if (newQualityData && (newQualityData._id || newQualityData.id) && newQualityData.name) {
-                 onAddQuality(newQualityData);
-                 // Auto-select the newly created quality for the active item (like party creation)
-                 if (activeQualityDropdown !== null) {
-                   const qualityId = newQualityData._id || newQualityData.id;
-                   handleItemChange(activeQualityDropdown, 'quality', qualityId);
-                   setQualitySearch(newQualityData.name);
-                   setShowQualityDropdown(false);
-                   setActiveQualityDropdown(null);
-                   setValidationMessage({ type: 'success', text: 'Quality created and selected successfully!' });
-                 } else {
-                   // If no dropdown is active, just show success message
-                   setValidationMessage({ type: 'success', text: `Quality "${newQualityData.name}" created successfully!` });
-                 }
-               } else {
-                 setValidationMessage({ type: 'error', text: 'Failed to create quality - invalid data received' });
-               }
-             }}
+            onSuccess={(newQualityName, newQualityData) => {
+              console.log('🔍 QualityModal onSuccess called:', { newQualityName, newQualityData, activeQualityDropdown });
+              
+              // Call the parent's onAddQuality function
+              onAddQuality(newQualityData);
+              
+              // Immediately select the new quality for the active dropdown
+              if (newQualityData && activeQualityDropdown !== null) {
+                console.log('🔍 Immediately selecting new quality:', newQualityData);
+                console.log('🔍 Active dropdown index:', activeQualityDropdown);
+                console.log('🔍 Quality ID:', getQualityId(newQualityData));
+                
+                // Set the quality for the active dropdown
+                handleItemChange(activeQualityDropdown, 'quality', getQualityId(newQualityData));
+                
+                // Update the search state for this specific dropdown
+                setQualitySearchStates(prev => ({
+                  ...prev,
+                  [activeQualityDropdown]: newQualityData.name
+                }));
+                
+                // Update the current quality search
+                setCurrentQualitySearch(newQualityData.name);
+                
+                // Set the recently added indicator
+                setRecentlyAddedQuality(getQualityId(newQualityData));
+                
+                // Close the dropdown immediately
+                setActiveQualityDropdown(null);
+                
+                // Clear the "recently added" indicator after 3 seconds
+                setTimeout(() => {
+                  setRecentlyAddedQuality(null);
+                }, 3000);
+                
+                // Force a re-render to ensure the selection is displayed
+                setTimeout(() => {
+                  setFormData(prev => {
+                    console.log('🔍 Form data after auto-selection:', prev);
+                    return { ...prev };
+                  });
+                }, 100);
+                
+                console.log('🔍 Auto-selection completed');
+                
+                // Show success message
+                setValidationMessage({ type: 'success', text: 'New quality added and selected successfully!' });
+              } else {
+                console.log('🔍 Cannot auto-select - missing data:', { newQualityData, activeQualityDropdown });
+              }
+              
+              setShowQualityModal(false);
+            }}
           />
         )}
-
-                     {/* Party Modal */}
         {showPartyModal && (
           <PartyModal
             onClose={() => setShowPartyModal(false)}
-            onSuccess={(newPartyData?: any) => {
-              setShowPartyModal(false);
-              if (newPartyData && newPartyData._id && newPartyData.name) {
-                onRefreshParties();
-                // Auto-select the newly created party
-                handleFieldChange('party', newPartyData._id);
-                setSelectedPartyName(newPartyData.name);
-                setPartySearch(newPartyData.name);
-                setValidationMessage({ type: 'success', text: 'Party created and selected successfully!' });
-              } else {
-                setValidationMessage({ type: 'error', text: 'Failed to create party - invalid data received' });
+            onSuccess={(newPartyData) => {
+              onRefreshParties();
+              if (newPartyData) {
+                setPendingNewParty(newPartyData);
+                // Show success message
+                setValidationMessage({ type: 'success', text: 'New party added and selected successfully!' });
               }
+              setShowPartyModal(false);
             }}
           />
         )}
 
-        {/* Camera Preview Modal */}
-        {showCameraPreview && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[60] flex items-center justify-center p-4">
-            <div className={`w-full max-w-2xl rounded-2xl shadow-2xl ${
-              isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
-            } overflow-hidden`}>
-              {/* Header */}
-              <div className={`flex justify-between items-center p-6 border-b ${
-                isDarkMode ? 'border-slate-700' : 'border-gray-200'
+
+
+        {/* Keyboard Shortcuts Modal */}
+        {showKeyboardShortcuts && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-60 p-4">
+            <div className={`relative max-w-md w-full rounded-xl shadow-2xl ${
+              isDarkMode ? 'bg-gray-800 border border-gray-600' : 'bg-white border border-gray-200'
+            }`}>
+              <div className={`flex items-center justify-between p-4 border-b ${
+                isDarkMode ? 'border-gray-600' : 'border-gray-200'
               }`}>
-                <h3 className={`text-2xl font-bold ${
+                <h3 className={`text-lg font-semibold ${
                   isDarkMode ? 'text-white' : 'text-gray-900'
                 }`}>
-                  📸 Camera Preview
+                  ⌨️ Keyboard Shortcuts
                 </h3>
                 <button
-                  onClick={closeCameraPreview}
-                  className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 ${
-                    isDarkMode
-                      ? 'text-gray-400 hover:bg-white/10 hover:text-gray-300'
-                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                  onClick={() => setShowKeyboardShortcuts(false)}
+                  className={`p-1 rounded-full transition-colors ${
+                    isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
                   }`}
                 >
-                  <XMarkIcon className="h-6 w-6" />
+                  <XMarkIcon className="h-5 w-5" />
                 </button>
-              </div>
-
-              {/* Camera Content */}
-              <div className="p-6">
-                {cameraStream ? (
-                  <div className="space-y-6">
-                    {/* Video Preview */}
-                    <div className="relative">
-                      <video
-                        id="camera-video"
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full h-64 object-cover rounded-xl border-2 border-gray-300"
-                        ref={(video) => {
-                          if (video && cameraStream) {
-                            video.srcObject = cameraStream;
-                          }
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-black/20 rounded-xl pointer-events-none"></div>
-                    </div>
-
-                    {/* Instructions */}
-                    <div className={`text-center p-4 rounded-xl ${
-                      isDarkMode ? 'bg-blue-900/20 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
-                    }`}>
-                      <p className={`text-lg font-medium ${
-                        isDarkMode ? 'text-blue-300' : 'text-blue-800'
-                      }`}>
-                        Position your item in the camera view
-                      </p>
-                      <p className={`text-sm mt-1 ${
-                        isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                      }`}>
-                        Make sure the item is clearly visible and well-lit
-                      </p>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex justify-center space-x-4">
-                      <button
-                        onClick={closeCameraPreview}
-                        className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                          isDarkMode
-                            ? 'text-gray-300 hover:bg-white/10'
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={capturePhoto}
-                        className={`px-8 py-3 rounded-xl font-semibold transition-all duration-300 hover:scale-105 ${
-                          isDarkMode
-                            ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-700 hover:to-green-700'
-                            : 'bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-700 hover:to-green-700'
-                        }`}
-                      >
-                        📸 Capture Photo
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-64">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                      <p className={`text-lg ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        Accessing camera...
-                      </p>
-                    </div>
-                  </div>
-                )}
+      </div>
+              <div className="p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    Submit Form
+                  </span>
+                  <kbd className={`px-2 py-1 text-xs rounded ${
+                    isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    Ctrl + Enter
+                  </kbd>
+    </div>
+                <div className="flex justify-between items-center">
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    Add New Item
+                  </span>
+                  <kbd className={`px-2 py-1 text-xs rounded ${
+                    isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    Alt + N
+                  </kbd>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    Close Form
+                  </span>
+                  <kbd className={`px-2 py-1 text-xs rounded ${
+                    isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    Esc
+                  </kbd>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    Show Shortcuts
+                  </span>
+                  <kbd className={`px-2 py-1 text-xs rounded ${
+                    isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    F1
+                  </kbd>
+                </div>
               </div>
             </div>
           </div>
-                 )}
-
-         {/* Image Preview Modal */}
-         {showImagePreview && (
-           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[70] flex items-center justify-center p-4">
-             <div className={`w-full max-w-4xl rounded-2xl shadow-2xl ${
-               isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
-             } overflow-hidden`}>
-               {/* Header */}
-               <div className={`flex justify-between items-center p-6 border-b ${
-                 isDarkMode ? 'border-slate-700' : 'border-gray-200'
-               }`}>
-                 <h3 className={`text-2xl font-bold ${
-                   isDarkMode ? 'text-white' : 'text-gray-900'
-                 }`}>
-                   📸 Image Preview - Item {showImagePreview.index + 1}
-                 </h3>
-                 <button
-                   onClick={() => setShowImagePreview(null)}
-                   className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 ${
-                     isDarkMode
-                       ? 'text-gray-400 hover:bg-white/10 hover:text-gray-300'
-                       : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                   }`}
-                 >
-                   <XMarkIcon className="h-6 w-6" />
-                 </button>
-               </div>
-
-               {/* Image Content */}
-               <div className="p-6">
-                 <div className="relative">
-                   <img
-                     src={showImagePreview.url}
-                     alt="Full size preview"
-                     className="w-full h-auto max-h-[70vh] object-contain rounded-xl border-2 border-gray-300"
-                   />
-                   <div className="absolute top-4 right-4 flex space-x-2">
-                     <button
-                       onClick={() => window.open(showImagePreview.url, '_blank')}
-                       className={`p-3 rounded-full transition-all duration-300 hover:scale-110 ${
-                         isDarkMode
-                           ? 'bg-black/50 text-white hover:bg-black/70'
-                           : 'bg-white/80 text-gray-700 hover:bg-white'
-                       }`}
-                       title="Open in new tab"
-                     >
-                       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                       </svg>
-                     </button>
-                     <button
-                       onClick={() => {
-                         const link = document.createElement('a');
-                         link.href = showImagePreview.url;
-                         link.download = `item-${showImagePreview.index + 1}-image.jpg`;
-                         link.click();
-                       }}
-                       className={`p-3 rounded-full transition-all duration-300 hover:scale-110 ${
-                         isDarkMode
-                           ? 'bg-black/50 text-white hover:bg-black/70'
-                           : 'bg-white/80 text-gray-700 hover:bg-white'
-                       }`}
-                       title="Download image"
-                     >
-                       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                       </svg>
-                     </button>
-                   </div> 
-                 </div>
-               </div>
-             </div>
-           </div>
-         )}
-       
-     </div>
-   );
- }
+        )}
+      </div>
+    </div>
+    </>
+  );
+}

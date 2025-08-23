@@ -5,7 +5,7 @@ import Quality from "@/models/Quality";
 import Counter from "@/models/Counter";
 import { requireAuth } from "@/lib/session";
 import { type NextRequest } from "next/server";
-import { logView, logCreate, logError } from "@/lib/logger";
+import { logView, logOrderChange, logError } from "@/lib/logger";
 
 // Ensure all models are registered
 const models = { Order, Party, Quality, Counter };
@@ -263,16 +263,19 @@ export async function POST(req: NextRequest) {
       }
     }
     
-    // Validate items (all fields are optional)
+    // Validate items - quality is optional, quantity is required
     if (items && Array.isArray(items)) {
       items.forEach((item, index) => {
+        // Quality is optional for each item
         if (item.quality && !item.quality.match(/^[0-9a-fA-F]{24}$/)) {
           errors.push(`Invalid quality ID format in item ${index + 1}`);
         }
-        if (item.quantity !== undefined && item.quantity !== null) {
-          if (typeof item.quantity !== 'number' || item.quantity < 0) {
-            errors.push(`Quantity must be a non-negative number in item ${index + 1}`);
-          }
+        
+        // Quantity is required for each item
+        if (item.quantity === undefined || item.quantity === null) {
+          errors.push(`Quantity is required for item ${index + 1}`);
+        } else if (typeof item.quantity !== 'number' || item.quantity <= 0) {
+          errors.push(`Quantity must be a positive number in item ${index + 1}`);
         }
         if (item.imageUrls && Array.isArray(item.imageUrls)) {
           item.imageUrls.forEach((url: string, urlIndex: number) => {
@@ -393,13 +396,27 @@ export async function POST(req: NextRequest) {
       .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt')
       .maxTimeMS(5000);
 
-    // Log the order creation
-    await logCreate('order', (order as any)._id.toString(), { 
-      orderId: order.orderId,
-      orderType: order.orderType,
-      poNumber: order.poNumber,
-      styleNo: order.styleNo,
-      party: order.party
+    // Log the order creation with complete details
+    console.log('🔍 DEBUG: Order creation logging - populated order:', JSON.stringify(populatedOrder, null, 2));
+    
+    await logOrderChange('create', (order as any)._id.toString(), {}, { 
+      orderId: populatedOrder.orderId,
+      orderType: populatedOrder.orderType,
+      arrivalDate: populatedOrder.arrivalDate,
+      party: populatedOrder.party,
+      contactName: populatedOrder.contactName,
+      contactPhone: populatedOrder.contactPhone,
+      poNumber: populatedOrder.poNumber,
+      styleNo: populatedOrder.styleNo,
+      poDate: populatedOrder.poDate,
+      deliveryDate: populatedOrder.deliveryDate,
+      status: populatedOrder.status,
+      items: populatedOrder.items.map((item: any) => ({
+        quality: item.quality,
+        quantity: item.quantity,
+        imageUrls: item.imageUrls || [],
+        description: item.description
+      }))
     }, req);
 
     return new Response(

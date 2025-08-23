@@ -18,13 +18,15 @@ import {
   BuildingOfficeIcon,
   ChartBarIcon,
   BeakerIcon,
-  PhotoIcon
+  PhotoIcon,
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
 import OrderForm from './components/OrderForm';
 import OrderDetails from './components/OrderDetails';
 import PartyModal from './components/PartyModal';
 import QualityModal from './components/QualityModal';
 import LabAddModal from './components/LabAddModal';
+import OrderLogsModal from './components/OrderLogsModal';
 import { Order, Party, Quality } from '@/types';
 import { useDarkMode } from '../hooks/useDarkMode';
 
@@ -57,6 +59,8 @@ export default function OrdersPage() {
   const [deletingAll, setDeletingAll] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
+  const [showLogsModal, setShowLogsModal] = useState(false);
+  const [selectedOrderForLogs, setSelectedOrderForLogs] = useState<Order | null>(null);
   const ordersPerPage = 12; // Increased for better UX
 
   // Filters
@@ -92,10 +96,12 @@ export default function OrdersPage() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
       
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/orders', {
         signal: controller.signal,
         headers: {
           'Cache-Control': 'no-cache',
+          ...(token && { 'Authorization': `Bearer ${token}` })
         }
       });
       
@@ -123,9 +129,11 @@ export default function OrdersPage() {
 
   const fetchParties = useCallback(async () => {
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/parties', {
         headers: {
           'Cache-Control': 'max-age=300', // Cache for 5 minutes
+          ...(token && { 'Authorization': `Bearer ${token}` })
         }
       });
       const data = await response.json();
@@ -141,9 +149,11 @@ export default function OrdersPage() {
 
   const fetchQualities = useCallback(async () => {
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/qualities', {
         headers: {
           'Cache-Control': 'max-age=300', // Cache for 5 minutes
+          ...(token && { 'Authorization': `Bearer ${token}` })
         }
       });
       const data = await response.json();
@@ -193,10 +203,12 @@ export default function OrdersPage() {
 
     setResettingCounter(true);
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/orders/reset-counter', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
       });
 
@@ -220,10 +232,12 @@ export default function OrdersPage() {
   const handleDeleteAllOrders = useCallback(async () => {
     setDeletingAll(true);
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/orders/delete-all', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
       });
 
@@ -246,10 +260,12 @@ export default function OrdersPage() {
   // Handle status change
   const handleStatusChange = useCallback(async (orderId: string, newStatus: "pending" | "delivered") => {
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch(`/api/orders/${orderId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
         body: JSON.stringify({ status: newStatus }),
       });
@@ -395,6 +411,11 @@ export default function OrdersPage() {
     setShowLabAddModal(true);
   };
 
+  const handleViewLogs = (order: Order) => {
+    setSelectedOrderForLogs(order);
+    setShowLogsModal(true);
+  };
+
   const handleImagePreview = (url: string, alt: string) => {
     setPreviewImage({ url, alt });
     setShowImagePreview(true);
@@ -439,7 +460,7 @@ export default function OrdersPage() {
 
   // Get total quantity for an order
   const getTotalQuantity = (order: Order) => {
-    return order.items.reduce((total, item) => total + (item.quantity || 0), 0);
+    return order.items.reduce((total: number, item: any) => total + (item.quantity || 0), 0);
   };
 
   // Prevent hydration mismatch by not rendering until mounted
@@ -1077,6 +1098,17 @@ export default function OrdersPage() {
                           <BeakerIcon className="h-4 w-4" />
                         </button>
                         <button
+                          onClick={() => handleViewLogs(order)}
+                          className={`p-1.5 rounded transition-all duration-300 ${
+                            isDarkMode
+                              ? 'text-indigo-400 hover:bg-indigo-500/20'
+                              : 'text-indigo-600 hover:bg-indigo-50'
+                          }`}
+                          title="View order logs"
+                        >
+                          <ChartBarIcon className="h-4 w-4" />
+                        </button>
+                        <button
                           onClick={() => handleDeleteClick(order)}
                           className={`p-1.5 rounded transition-all duration-300 ${
                             isDarkMode
@@ -1494,6 +1526,18 @@ export default function OrdersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Order Logs Modal */}
+      {showLogsModal && selectedOrderForLogs && (
+        <OrderLogsModal
+          orderId={selectedOrderForLogs._id}
+          orderNumber={selectedOrderForLogs.orderId}
+          onClose={() => {
+            setShowLogsModal(false);
+            setSelectedOrderForLogs(null);
+          }}
+        />
       )}
     </div>
   );

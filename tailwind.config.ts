@@ -9,6 +9,7 @@ module.exports = {
   theme: {
     extend: {
       screens: {
+        'xs': '475px', // Extra small screens (under 500px)
         'sidebar': '900px', // Custom breakpoint for sidebar
       },
       colors: {

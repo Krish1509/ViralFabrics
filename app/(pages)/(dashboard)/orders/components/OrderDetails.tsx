@@ -20,6 +20,8 @@ import {
 import { Order } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { useState, useEffect } from 'react';
+import OrderLogsModal from './OrderLogsModal';
+import LabAddModal from './LabAddModal';
 
 interface OrderDetailsProps {
   order: Order;
@@ -31,6 +33,10 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
   const { isDarkMode, mounted } = useDarkMode();
   const [labs, setLabs] = useState<any[]>([]);
   const [loadingLabs, setLoadingLabs] = useState(false);
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
+  const [showOrderLogs, setShowOrderLogs] = useState(false);
+  const [showLabModal, setShowLabModal] = useState(false);
 
   const getOrderStatus = (order: Order) => {
     const now = new Date();
@@ -90,15 +96,50 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
   };
 
   const getTotalQuantity = (order: Order) => {
-    return order.items.reduce((total, item) => total + (item.quantity || 0), 0);
+    return order.items.reduce((total: number, item: any) => total + (item.quantity || 0), 0);
   };
+
+  const handleImageClick = (imageUrl: string, alt: string) => {
+    setPreviewImage({ url: imageUrl, alt });
+    setShowImagePreview(true);
+  };
+
+  // Handle ESC key to close image preview
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && showImagePreview) {
+        setShowImagePreview(false);
+      }
+    };
+
+    if (showImagePreview) {
+      document.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'unset'; // Restore scrolling
+    };
+  }, [showImagePreview]);
 
   // Fetch labs for this order
   useEffect(() => {
     const fetchLabs = async () => {
       setLoadingLabs(true);
       try {
-        const response = await fetch(`/api/labs/by-order/${order._id}`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
+        const response = await fetch(`/api/labs/by-order/${order._id}`, {
+          signal: controller.signal,
+          headers: {
+            'Cache-Control': 'max-age=30' // Cache for 30 seconds
+          }
+        });
+        
+        clearTimeout(timeoutId);
+        
         const data = await response.json();
         if (data.success && Array.isArray(data.data)) {
           setLabs(data.data);
@@ -106,9 +147,14 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
           console.warn('Labs data is not an array:', data);
           setLabs([]);
         }
-      } catch (error) {
-        console.error('Error fetching labs:', error);
-        setLabs([]);
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+          console.warn('Lab fetch timeout - using empty labs');
+          setLabs([]);
+        } else {
+          console.error('Error fetching labs:', error);
+          setLabs([]);
+        }
       } finally {
         setLoadingLabs(false);
       }
@@ -132,532 +178,601 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
     cancelled: labs.filter(lab => lab.status === 'cancelled').length
   };
 
-  // Prevent hydration mismatch by not rendering until mounted
-  if (!mounted) {
-    return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-6xl rounded-xl shadow-2xl bg-white border border-gray-200 max-h-[95vh] overflow-hidden flex items-center justify-center">
-          <div className="flex items-center space-x-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            <span className="text-lg font-medium text-gray-900">Loading...</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
+
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className={`w-full max-w-6xl rounded-xl shadow-2xl ${
-        isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
-      } max-h-[95vh] overflow-hidden`}>
-        {/* Header */}
-        <div className={`flex justify-between items-center p-6 border-b ${
-          isDarkMode ? 'border-slate-700' : 'border-gray-200'
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div className={`w-full max-w-7xl rounded-2xl shadow-2xl ${
+        isDarkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'
+      } max-h-[98vh] overflow-hidden`}>
+        {/* Enhanced Header */}
+        <div className={`relative p-8 border-b ${
+          isDarkMode ? 'border-gray-700 bg-gradient-to-r from-gray-900 to-gray-800' : 'border-gray-200 bg-gradient-to-r from-white to-gray-50'
         }`}>
-          <div className="flex items-center space-x-4">
-            <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
-              isDarkMode 
-                ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
-                : 'bg-gradient-to-br from-blue-600 to-indigo-700'
-            }`}>
-              <CubeIcon className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h2 className={`text-2xl font-bold ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-6">
+              <div className={`h-16 w-16 rounded-2xl flex items-center justify-center shadow-lg ${
+                isDarkMode 
+                  ? 'bg-gradient-to-br from-blue-600 to-indigo-700' 
+                  : 'bg-gradient-to-br from-blue-500 to-indigo-600'
               }`}>
-                Order Details
-              </h2>
-              <p className={`text-sm ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-500'
-              }`}>
-                Order ID: {order.orderId}
-              </p>
+                <CubeIcon className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h1 className={`text-3xl font-bold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                  Order Details
+                </h1>
+                <div className="flex items-center space-x-4 mt-2">
+                  <p className={`text-lg font-mono ${
+                    isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                  }`}>
+                    #{order.orderId}
+                  </p>
+                                     <span className={`inline-flex items-center px-3 py-1 text-sm font-semibold rounded-full ${
+                     order.status === 'delivered'
+                       ? isDarkMode ? 'bg-green-900/30 text-green-400 border border-green-500/50' : 'bg-green-100 text-green-800 border border-green-200'
+                       : order.status === 'pending'
+                       ? isDarkMode ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-500/50' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                       : isDarkMode ? 'bg-blue-900/30 text-blue-400 border border-blue-500/50' : 'bg-blue-100 text-blue-800 border border-blue-200'
+                   }`}>
+                     {order.status === 'delivered' ? <CheckCircleIcon className="h-4 w-4" /> : <ClockIcon className="h-4 w-4" />}
+                     <span className="ml-1">{order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Pending'}</span>
+                   </span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={onEdit}
-              className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
-                isDarkMode
-                  ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
-                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
-              }`}
-            >
-              <PencilIcon className="h-4 w-4 mr-2" />
-              Edit Order
-            </button>
-            <button
-              onClick={onClose}
-              className={`p-2 rounded-lg transition-all duration-300 ${
-                isDarkMode
-                  ? 'text-gray-400 hover:bg-white/10 hover:text-gray-300'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-              }`}
-            >
-              <XMarkIcon className="h-6 w-6" />
-            </button>
+                                                   <div className="flex items-center space-x-0.5 xs:space-x-1 sm:space-x-2 lg:space-x-3">
+                               <button
+                  onClick={() => setShowOrderLogs(true)}
+                   className={`inline-flex items-center px-1.5 py-1.5 xs:px-2 sm:px-3 lg:px-4 xs:py-2 sm:py-2.5 rounded-lg font-medium transition-all duration-300 shadow-md hover:shadow-lg text-xs ${
+                    isDarkMode
+                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700'
+                      : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600'
+                  }`}
+                >
+                   <DocumentTextIcon className="h-3 w-3 xs:h-3.5 xs:w-3.5 sm:h-4 sm:w-4 mr-0.5 xs:mr-1 sm:mr-1.5 lg:mr-2" />
+                   <span className="hidden lg:inline">View Activity Log</span>
+                   <span className="hidden sm:inline lg:hidden">Activity Log</span>
+                   <span className="hidden xs:inline sm:hidden">Logs</span>
+                   <span className="xs:hidden">Log</span>
+                </button>
+               <button
+                 onClick={onEdit}
+                  className={`inline-flex items-center px-1.5 py-1.5 xs:px-2 sm:px-3 lg:px-4 xs:py-2 sm:py-2.5 rounded-lg font-medium transition-all duration-300 shadow-md hover:shadow-lg text-xs ${
+                   isDarkMode
+                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
+                     : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600'
+                 }`}
+               >
+                  <PencilIcon className="h-3 w-3 xs:h-3.5 xs:w-3.5 sm:h-4 sm:w-4 mr-0.5 xs:mr-1 sm:mr-1.5 lg:mr-2" />
+                  <span className="hidden lg:inline">Edit Order</span>
+                  <span className="hidden sm:inline lg:hidden">Edit</span>
+                  <span className="hidden xs:inline sm:hidden">Edit</span>
+                  <span className="xs:hidden">Edit</span>
+                </button>
+                <button
+                  onClick={() => setShowLabModal(true)}
+                  className={`inline-flex items-center px-1.5 py-1.5 xs:px-2 sm:px-3 lg:px-4 xs:py-2 sm:py-2.5 rounded-lg font-medium transition-all duration-300 shadow-md hover:shadow-lg text-xs ${
+                    labs.length > 0
+                      ? isDarkMode
+                        ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
+                        : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600'
+                      : isDarkMode
+                        ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white hover:from-orange-700 hover:to-red-700'
+                        : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
+                  }`}
+                >
+                  <BeakerIcon className="h-3 w-3 xs:h-3.5 xs:w-3.5 sm:h-4 sm:w-4 mr-0.5 xs:mr-1 sm:mr-1.5 lg:mr-2" />
+                  <span className="hidden lg:inline">{labs.length > 0 ? 'Edit Lab' : 'Add Lab'}</span>
+                  <span className="hidden sm:inline lg:hidden">{labs.length > 0 ? 'Edit Lab' : 'Add Lab'}</span>
+                  <span className="hidden xs:inline sm:hidden">{labs.length > 0 ? 'Edit' : 'Add'}</span>
+                  <span className="xs:hidden">{labs.length > 0 ? 'E' : 'A'}</span>
+               </button>
+               <button
+                 onClick={onClose}
+                  className={`p-1 xs:p-1.5 sm:p-2 lg:p-3 rounded-lg transition-all duration-300 ${
+                   isDarkMode
+                     ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
+                     : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                 }`}
+               >
+                  <XMarkIcon className="h-3.5 w-3.5 xs:h-4 xs:w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
+               </button>
+             </div>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="overflow-y-auto max-h-[calc(95vh-120px)]">
-          <div className="p-6">
-            {/* Status Banner */}
-            <div className={`mb-6 p-4 rounded-lg border ${
-              getStatusColor(getOrderStatus(order))
-            }`}>
-              <div className="flex items-center">
-                {getStatusIcon(getOrderStatus(order))}
-                <span className="ml-2 font-medium">
-                  Status: {getOrderStatus(order)}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-              {/* Left Column */}
-              <div className="space-y-6">
-                {/* Order Information Card */}
-                <div className={`p-6 rounded-xl border ${
-                  isDarkMode 
-                    ? 'bg-white/5 border-white/10' 
-                    : 'bg-white border-gray-200 shadow-sm'
-                }`}>
-                  <div className="flex items-center mb-4">
-                    <CubeIcon className={`h-5 w-5 mr-2 ${
-                      isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                    }`} />
-                    <h3 className={`text-lg font-semibold ${
-                      isDarkMode ? 'text-white' : 'text-gray-900'
-                    }`}>
-                      Order Information
-                    </h3>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className={`text-sm font-medium ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                 {/* Enhanced Content */}
+         <div className="overflow-y-auto max-h-[calc(98vh-200px)]" style={{
+           scrollbarWidth: 'thin',
+           scrollbarColor: isDarkMode ? '#4B5563 #1F2937' : '#D1D5DB #F9FAFB'
+         }}>
+           <style jsx>{`
+             div::-webkit-scrollbar {
+               width: 8px;
+             }
+             div::-webkit-scrollbar-track {
+               background: ${isDarkMode ? '#1F2937' : '#F9FAFB'};
+               border-radius: 4px;
+             }
+             div::-webkit-scrollbar-thumb {
+               background: ${isDarkMode ? '#4B5563' : '#D1D5DB'};
+               border-radius: 4px;
+             }
+             div::-webkit-scrollbar-thumb:hover {
+               background: ${isDarkMode ? '#6B7280' : '#9CA3AF'};
+             }
+           `}</style>
+          <div className="p-8">
+                                      {/* Quick Stats Row */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                {/* Order Type */}
+                <div className={`p-6 rounded-2xl border ${
+                  isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+                } shadow-lg`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={`text-sm font-medium ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
                       }`}>
-                        Order ID:
-                      </span>
-                      <span className={`text-sm font-mono ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {order.orderId}
-                      </span>
-                    </div>
-                    {order.orderNo && (
-                      <div className="flex justify-between items-center">
-                        <span className={`text-sm font-medium ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                        }`}>
-                          Order No:
-                        </span>
-                        <span className={`text-sm ${
-                          isDarkMode ? 'text-white' : 'text-gray-900'
-                        }`}>
-                          {order.orderNo}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between items-center">
-                      <span className={`text-sm font-medium ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                      }`}>
-                        Type:
-                      </span>
-                      <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
+                        Order Type
+                      </p>
+                      <p className={`text-xl font-bold ${
                         order.orderType === 'Dying'
-                          ? isDarkMode
-                            ? 'bg-red-900/20 text-red-400 border border-red-500/30'
-                            : 'bg-red-100 text-red-800 border border-red-200'
-                          : isDarkMode
-                            ? 'bg-blue-900/20 text-blue-400 border border-blue-500/30'
-                            : 'bg-blue-100 text-blue-800 border border-blue-200'
+                          ? isDarkMode ? 'text-red-400' : 'text-red-600'
+                          : isDarkMode ? 'text-blue-400' : 'text-blue-600'
                       }`}>
                         {order.orderType}
-                      </span>
+                      </p>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className={`text-sm font-medium ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                    <div className={`p-3 rounded-xl ${
+                      order.orderType === 'Dying'
+                        ? isDarkMode ? 'bg-red-500/20' : 'bg-red-100'
+                        : isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
+                    }`}>
+                      <svg className={`h-6 w-6 ${
+                        order.orderType === 'Dying'
+                          ? isDarkMode ? 'text-red-400' : 'text-red-600'
+                          : isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                      }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order Status */}
+                <div className={`p-6 rounded-2xl border ${
+                  isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+                } shadow-lg`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={`text-sm font-medium ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
                       }`}>
-                        Total Items:
-                      </span>
-                      <span className={`text-sm font-semibold ${
+                        Order Status
+                      </p>
+                      <p className={`text-xl font-bold ${
+                        order.status === 'delivered'
+                          ? isDarkMode ? 'text-green-400' : 'text-green-600'
+                          : order.status === 'pending'
+                          ? isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
+                          : isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                      }`}>
+                        {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Pending'}
+                      </p>
+                    </div>
+                    <div className={`p-3 rounded-xl ${
+                      order.status === 'delivered'
+                        ? isDarkMode ? 'bg-green-500/20' : 'bg-green-100'
+                        : order.status === 'pending'
+                        ? isDarkMode ? 'bg-yellow-500/20' : 'bg-yellow-100'
+                        : isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
+                    }`}>
+                      {order.status === 'delivered' ? <CheckCircleIcon className="h-6 w-6" /> :
+                       <ClockIcon className="h-6 w-6" />}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Items */}
+                <div className={`p-6 rounded-2xl border ${
+                  isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+                } shadow-lg`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={`text-sm font-medium ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        Total Items
+                      </p>
+                      <p className={`text-3xl font-bold ${
                         isDarkMode ? 'text-white' : 'text-gray-900'
                       }`}>
                         {order.items?.length || 0}
-                      </span>
+                      </p>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className={`text-sm font-medium ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                      }`}>
-                        Total Quantity:
-                      </span>
-                      <span className={`text-sm font-semibold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {getTotalQuantity(order).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Dates Card */}
-                <div className={`p-6 rounded-xl border ${
-                  isDarkMode 
-                    ? 'bg-white/5 border-white/10' 
-                    : 'bg-white border-gray-200 shadow-sm'
-                }`}>
-                  <div className="flex items-center mb-4">
-                    <CalendarIcon className={`h-5 w-5 mr-2 ${
-                      isDarkMode ? 'text-green-400' : 'text-green-600'
-                    }`} />
-                    <h3 className={`text-lg font-semibold ${
-                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    <div className={`p-3 rounded-xl ${
+                      isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
                     }`}>
-                      Important Dates
-                    </h3>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className={`text-sm font-medium ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                      }`}>
-                        Arrival Date:
-                      </span>
-                      <span className={`text-sm ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {order.arrivalDate ? formatDate(order.arrivalDate) : 'Not specified'}
-                      </span>
+                      <CubeIcon className={`h-6 w-6 ${
+                        isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                      }`} />
                     </div>
-                    {order.poDate && (
-                      <div className="flex justify-between items-center">
-                        <span className={`text-sm font-medium ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                        }`}>
-                          PO Date:
-                        </span>
-                        <span className={`text-sm ${
-                          isDarkMode ? 'text-white' : 'text-gray-900'
-                        }`}>
-                          {order.poDate ? formatDate(order.poDate) : 'Not specified'}
-                        </span>
-                      </div>
-                    )}
-                    {order.deliveryDate && (
-                      <div className="flex justify-between items-center">
-                        <span className={`text-sm font-medium ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                        }`}>
-                          Delivery Date:
-                        </span>
-                        <span className={`text-sm ${
-                          isDarkMode ? 'text-white' : 'text-gray-900'
-                        }`}>
-                          {order.deliveryDate ? formatDate(order.deliveryDate) : 'Not specified'}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </div>
 
-                {/* Reference Numbers Card */}
-                {(order.poNumber || order.styleNo) && (
-                  <div className={`p-6 rounded-xl border ${
-                    isDarkMode 
-                      ? 'bg-white/5 border-white/10' 
-                      : 'bg-white border-gray-200 shadow-sm'
-                  }`}>
-                    <div className="flex items-center mb-4">
-                      <DocumentTextIcon className={`h-5 w-5 mr-2 ${
+                {/* Lab Records */}
+                <div className={`p-6 rounded-2xl border ${
+                  isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+                } shadow-lg`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={`text-sm font-medium ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        Lab Records
+                      </p>
+                      <p className={`text-3xl font-bold ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        {labStats.withLabs}
+                      </p>
+                    </div>
+                    <div className={`p-3 rounded-xl ${
+                      isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                    }`}>
+                      <BeakerIcon className={`h-6 w-6 ${
                         isDarkMode ? 'text-purple-400' : 'text-purple-600'
                       }`} />
-                      <h3 className={`text-lg font-semibold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        Reference Numbers
-                      </h3>
-                    </div>
-                    <div className="space-y-4">
-                      {order.poNumber && (
-                        <div className="flex justify-between items-center">
-                          <span className={`text-sm font-medium ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                          }`}>
-                            PO Number:
-                          </span>
-                          <span className={`text-sm font-mono ${
-                            isDarkMode ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {order.poNumber}
-                          </span>
-                        </div>
-                      )}
-                      {order.styleNo && (
-                        <div className="flex justify-between items-center">
-                          <span className={`text-sm font-medium ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                          }`}>
-                            Style Number:
-                          </span>
-                          <span className={`text-sm font-mono ${
-                            isDarkMode ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {order.styleNo}
-                          </span>
-                        </div>
-                      )}
                     </div>
                   </div>
-                )}
+                </div>
               </div>
 
-              {/* Right Column */}
-              <div className="space-y-6">
-                {/* Party Information Card */}
-                {party && (
-                  <div className={`p-6 rounded-xl border ${
-                    isDarkMode 
-                      ? 'bg-white/5 border-white/10' 
-                      : 'bg-white border-gray-200 shadow-sm'
-                  }`}>
-                    <div className="flex items-center mb-4">
-                      <BuildingOfficeIcon className={`h-5 w-5 mr-2 ${
-                        isDarkMode ? 'text-indigo-400' : 'text-indigo-600'
-                      }`} />
-                      <h3 className={`text-lg font-semibold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        Party Information
-                      </h3>
-                    </div>
-                    <div className="space-y-4">
-                      <div>
-                        <span className={`text-sm font-medium ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                        }`}>
-                          Name:
-                        </span>
-                        <p className={`text-sm font-medium mt-1 ${
-                          isDarkMode ? 'text-white' : 'text-gray-900'
-                        }`}>
-                          {party.name}
-                        </p>
-                      </div>
-                      {party.contactName && (
-                        <div>
-                          <span className={`text-sm font-medium ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                          }`}>
-                            Contact Person:
-                          </span>
-                          <p className={`text-sm mt-1 ${
-                            isDarkMode ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {party.contactName}
-                          </p>
-                        </div>
-                      )}
-                      {party.contactPhone && (
-                        <div className="flex items-center">
-                          <PhoneIcon className={`h-4 w-4 mr-2 ${
-                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                          }`} />
-                          <span className={`text-sm ${
-                            isDarkMode ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {party.contactPhone}
-                          </span>
-                        </div>
-                      )}
-                      {party.address && (
-                        <div className="flex items-start">
-                          <MapPinIcon className={`h-4 w-4 mr-2 mt-0.5 ${
-                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                          }`} />
-                          <span className={`text-sm ${
-                            isDarkMode ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {party.address}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Contact Information Card */}
-                {(order.contactName || order.contactPhone) && (
-                  <div className={`p-6 rounded-xl border ${
-                    isDarkMode 
-                      ? 'bg-white/5 border-white/10' 
-                      : 'bg-white border-gray-200 shadow-sm'
-                  }`}>
-                    <div className="flex items-center mb-4">
-                      <UserIcon className={`h-5 w-5 mr-2 ${
-                        isDarkMode ? 'text-orange-400' : 'text-orange-600'
-                      }`} />
-                      <h3 className={`text-lg font-semibold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        Contact Information
-                      </h3>
-                    </div>
-                    <div className="space-y-4">
-                      {order.contactName && (
-                        <div>
-                          <span className={`text-sm font-medium ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                          }`}>
-                            Contact Name:
-                          </span>
-                          <p className={`text-sm mt-1 ${
-                            isDarkMode ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {order.contactName}
-                          </p>
-                        </div>
-                      )}
-                      {order.contactPhone && (
-                        <div className="flex items-center">
-                          <PhoneIcon className={`h-4 w-4 mr-2 ${
-                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                          }`} />
-                          <span className={`text-sm ${
-                            isDarkMode ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {order.contactPhone}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                                 {/* Lab Summary Card */}
-                 <div className={`p-6 rounded-xl border-2 ${
+                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                              {/* Left Column - Order & Party Info */}
+                <div className="space-y-6">
+                 {/* Order Information Card */}
+                 <div className={`p-6 rounded-2xl border ${
                    isDarkMode 
-                     ? 'bg-gradient-to-r from-purple-900/20 to-indigo-900/20 border-purple-500/30' 
-                     : 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200'
-                 }`}>
+                     ? 'bg-gray-800/50 border-gray-700' 
+                     : 'bg-white border-gray-200'
+                 } shadow-lg`}>
                    <div className="flex items-center mb-6">
-                     <div className={`p-2 rounded-lg ${
-                       isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                     <div className={`p-3 rounded-xl ${
+                       isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
                      }`}>
-                       <BeakerIcon className={`h-5 w-5 ${
-                         isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                       <CubeIcon className={`h-6 w-6 ${
+                         isDarkMode ? 'text-blue-400' : 'text-blue-600'
                        }`} />
                      </div>
-                     <div className="ml-3">
-                       <h3 className={`text-lg font-semibold ${
+                     <div className="ml-4">
+                       <h3 className={`text-xl font-bold ${
                          isDarkMode ? 'text-white' : 'text-gray-900'
                        }`}>
-                         Lab Summary
+                         Order Information
                        </h3>
                        <p className={`text-sm ${
-                         isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                       }`}>
-                         Overview of lab data status
-                       </p>
-                     </div>
-                     {loadingLabs && (
-                       <div className="ml-auto">
-                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-500"></div>
-                       </div>
-                     )}
-                   </div>
-                   
-                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                     <div className={`text-center p-4 rounded-lg ${
-                       isDarkMode ? 'bg-white/5' : 'bg-white'
-                     }`}>
-                       <div className={`text-3xl font-bold ${
-                         isDarkMode ? 'text-purple-400' : 'text-purple-600'
-                       }`}>
-                         {labStats.withLabs}
-                       </div>
-                       <div className={`text-xs font-semibold uppercase tracking-wide ${
-                         isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                       }`}>
-                         With Labs
-                       </div>
-                     </div>
-                     <div className={`text-center p-4 rounded-lg ${
-                       isDarkMode ? 'bg-white/5' : 'bg-white'
-                     }`}>
-                       <div className={`text-3xl font-bold ${
-                         isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                       }`}>
-                         {labStats.sent}
-                       </div>
-                       <div className={`text-xs font-semibold uppercase tracking-wide ${
-                         isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                       }`}>
-                         Sent
-                       </div>
-                     </div>
-                     <div className={`text-center p-4 rounded-lg ${
-                       isDarkMode ? 'bg-white/5' : 'bg-white'
-                     }`}>
-                       <div className={`text-3xl font-bold ${
-                         isDarkMode ? 'text-green-400' : 'text-green-600'
-                       }`}>
-                         {labStats.received}
-                       </div>
-                       <div className={`text-xs font-semibold uppercase tracking-wide ${
-                         isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                       }`}>
-                         Received
-                       </div>
-                     </div>
-                     <div className={`text-center p-4 rounded-lg ${
-                       isDarkMode ? 'bg-white/5' : 'bg-white'
-                     }`}>
-                       <div className={`text-3xl font-bold ${
                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
                        }`}>
-                         {labStats.withoutLabs}
-                       </div>
-                       <div className={`text-xs font-semibold uppercase tracking-wide ${
-                         isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                       }`}>
-                         No Labs
-                       </div>
+                         Basic order details and specifications
+                       </p>
                      </div>
                    </div>
-                   
-                   {/* Progress Bar */}
-                   {order.items && order.items.length > 0 && (
-                     <div className="mt-6">
-                                               <div className="flex justify-between items-center mb-2">
+                   <div className="space-y-4">
+                                           {order.orderNo && (
+                        <div className={`flex justify-between items-center p-3 rounded-lg ${
+                          isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                        }`}>
                           <span className={`text-sm font-medium ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-600'
                           }`}>
-                            Lab Completion
+                            Order No
                           </span>
-                          <span className={`text-sm font-bold ${
-                            isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                          <span className={`text-sm font-semibold ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
                           }`}>
-                            {Math.min(100, Math.round((labStats.withLabs / order.items.length) * 100))}%
+                            {order.orderNo}
                           </span>
                         </div>
-                        <div className={`w-full h-2 rounded-full ${
-                          isDarkMode ? 'bg-white/10' : 'bg-gray-200'
-                        }`}>
-                          <div 
-                            className={`h-2 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-500`}
-                            style={{ width: `${Math.min(100, (labStats.withLabs / order.items.length) * 100)}%` }}
-                          ></div>
-                        </div>
-                     </div>
-                   )}
+                      )}
+                      {(order.poNumber || order.styleNo) && (
+                        <div className="space-y-3">
+                          {order.poNumber && (
+                            <div className={`flex justify-between items-center p-3 rounded-lg ${
+                              isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                            }`}>
+                              <span className={`text-sm font-medium ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                PO Number
+                              </span>
+                              <span className={`text-sm font-mono font-semibold ${
+                                isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                              }`}>
+                                {order.poNumber}
+                              </span>
+                            </div>
+                          )}
+                          {order.styleNo && (
+                            <div className={`flex justify-between items-center p-3 rounded-lg ${
+                              isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                            }`}>
+                             <span className={`text-sm font-medium ${
+                               isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                             }`}>
+                               Style Number
+                             </span>
+                             <span className={`text-sm font-mono font-semibold ${
+                               isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                             }`}>
+                               {order.styleNo}
+                             </span>
+                           </div>
+                         )}
+                       </div>
+                     )}
+                   </div>
                  </div>
+
+                                 {/* Dates Card */}
+                 <div className={`p-6 rounded-2xl border ${
+                   isDarkMode 
+                     ? 'bg-gray-800/50 border-gray-700' 
+                     : 'bg-white border-gray-200'
+                 } shadow-lg`}>
+                   <div className="flex items-center mb-6">
+                     <div className={`p-3 rounded-xl ${
+                       isDarkMode ? 'bg-green-500/20' : 'bg-green-100'
+                     }`}>
+                       <CalendarIcon className={`h-6 w-6 ${
+                         isDarkMode ? 'text-green-400' : 'text-green-600'
+                       }`} />
+                     </div>
+                     <div className="ml-4">
+                       <h3 className={`text-xl font-bold ${
+                         isDarkMode ? 'text-white' : 'text-gray-900'
+                       }`}>
+                         Important Dates
+                       </h3>
+                       <p className={`text-sm ${
+                         isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                       }`}>
+                         Key milestones and deadlines
+                       </p>
+                     </div>
+                   </div>
+                   <div className="space-y-4">
+                                           <div className={`flex justify-between items-center p-3 rounded-lg ${
+                        isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                      }`}>
+                        <span className={`text-sm font-medium ${
+                          isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                        }`}>
+                          Arrival Date
+                        </span>
+                        <span className={`text-sm font-semibold ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {order.arrivalDate ? formatDate(order.arrivalDate) : 'Not specified'}
+                        </span>
+                      </div>
+                      {order.poDate && (
+                        <div className={`flex justify-between items-center p-3 rounded-lg ${
+                          isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                        }`}>
+                          <span className={`text-sm font-medium ${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                          }`}>
+                            PO Date
+                          </span>
+                          <span className={`text-sm font-semibold ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}>
+                            {order.poDate ? formatDate(order.poDate) : 'Not specified'}
+                          </span>
+                        </div>
+                      )}
+                      {order.deliveryDate && (
+                        <div className={`flex justify-between items-center p-3 rounded-lg ${
+                          isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                        }`}>
+                         <span className={`text-sm font-medium ${
+                           isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                         }`}>
+                           Delivery Date
+                         </span>
+                         <span className={`text-sm font-semibold ${
+                           isDarkMode ? 'text-white' : 'text-gray-900'
+                         }`}>
+                           {order.deliveryDate ? formatDate(order.deliveryDate) : 'Not specified'}
+                         </span>
+                       </div>
+                     )}
+                   </div>
+                 </div>
+
+                                 {/* Party Information Card */}
+                 {party && (
+                   <div className={`p-6 rounded-2xl border ${
+                     isDarkMode 
+                       ? 'bg-gray-800/50 border-gray-700' 
+                       : 'bg-white border-gray-200'
+                   } shadow-lg`}>
+                     <div className="flex items-center mb-6">
+                       <div className={`p-3 rounded-xl ${
+                         isDarkMode ? 'bg-indigo-500/20' : 'bg-indigo-100'
+                       }`}>
+                         <BuildingOfficeIcon className={`h-6 w-6 ${
+                           isDarkMode ? 'text-indigo-400' : 'text-indigo-600'
+                         }`} />
+                       </div>
+                       <div className="ml-4">
+                         <h3 className={`text-xl font-bold ${
+                           isDarkMode ? 'text-white' : 'text-gray-900'
+                         }`}>
+                           Party Information
+                         </h3>
+                         <p className={`text-sm ${
+                           isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                         }`}>
+                           Customer and contact details
+                         </p>
+                       </div>
+                     </div>
+                     <div className="space-y-4">
+                                               <div className={`p-3 rounded-lg ${
+                          isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                        }`}>
+                         <span className={`text-sm font-medium ${
+                           isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                         }`}>
+                           Company Name
+                         </span>
+                         <p className={`text-lg font-semibold mt-1 ${
+                           isDarkMode ? 'text-white' : 'text-gray-900'
+                         }`}>
+                           {party.name}
+                         </p>
+                       </div>
+                       {party.contactName && (
+                         <div className={`p-3 rounded-lg ${
+                           isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                         }`}>
+                           <span className={`text-sm font-medium ${
+                             isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                           }`}>
+                             Contact Person
+                           </span>
+                           <p className={`text-sm font-semibold mt-1 ${
+                             isDarkMode ? 'text-white' : 'text-gray-900'
+                           }`}>
+                             {party.contactName}
+                           </p>
+                         </div>
+                       )}
+                       {party.contactPhone && (
+                         <div className={`flex items-center p-3 rounded-lg ${
+                           isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                         }`}>
+                           <PhoneIcon className={`h-5 w-5 mr-3 ${
+                             isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                           }`} />
+                           <div>
+                             <span className={`text-sm font-medium ${
+                               isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                             }`}>
+                               Phone Number
+                             </span>
+                             <p className={`text-sm font-semibold ${
+                               isDarkMode ? 'text-white' : 'text-gray-900'
+                             }`}>
+                               {party.contactPhone}
+                             </p>
+                           </div>
+                         </div>
+                       )}
+                       {party.address && (
+                         <div className={`flex items-start p-3 rounded-lg ${
+                           isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                         }`}>
+                           <MapPinIcon className={`h-5 w-5 mr-3 mt-0.5 ${
+                             isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                           }`} />
+                           <div>
+                             <span className={`text-sm font-medium ${
+                               isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                             }`}>
+                               Address
+                             </span>
+                             <p className={`text-sm font-semibold ${
+                               isDarkMode ? 'text-white' : 'text-gray-900'
+                             }`}>
+                               {party.address}
+                             </p>
+                           </div>
+                         </div>
+                       )}
+                     </div>
+                   </div>
+                 )}
+
+                 {/* Contact Information Card */}
+                 {(order.contactName || order.contactPhone) && (
+                   <div className={`p-6 rounded-2xl border ${
+                     isDarkMode 
+                       ? 'bg-gray-800/50 border-gray-700' 
+                       : 'bg-white border-gray-200'
+                   } shadow-lg`}>
+                     <div className="flex items-center mb-6">
+                       <div className={`p-3 rounded-xl ${
+                         isDarkMode ? 'bg-orange-500/20' : 'bg-orange-100'
+                       }`}>
+                         <UserIcon className={`h-6 w-6 ${
+                           isDarkMode ? 'text-orange-400' : 'text-orange-600'
+                         }`} />
+                       </div>
+                       <div className="ml-4">
+                         <h3 className={`text-xl font-bold ${
+                           isDarkMode ? 'text-white' : 'text-gray-900'
+                         }`}>
+                           Contact Information
+                         </h3>
+                         <p className={`text-sm ${
+                           isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                         }`}>
+                           Order-specific contact details
+                         </p>
+                       </div>
+                     </div>
+                     <div className="space-y-4">
+                       {order.contactName && (
+                         <div className={`p-3 rounded-lg ${
+                           isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                         }`}>
+                           <span className={`text-sm font-medium ${
+                             isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                           }`}>
+                             Contact Name
+                           </span>
+                           <p className={`text-sm font-semibold mt-1 ${
+                             isDarkMode ? 'text-white' : 'text-gray-900'
+                           }`}>
+                             {order.contactName}
+                           </p>
+                         </div>
+                       )}
+                       {order.contactPhone && (
+                         <div className={`flex items-center p-3 rounded-lg ${
+                           isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                         }`}>
+                           <PhoneIcon className={`h-5 w-5 mr-3 ${
+                             isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                           }`} />
+                           <div>
+                             <span className={`text-sm font-medium ${
+                               isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                             }`}>
+                               Contact Phone
+                             </span>
+                             <p className={`text-sm font-semibold ${
+                               isDarkMode ? 'text-white' : 'text-gray-900'
+                             }`}>
+                               {order.contactPhone}
+                             </p>
+                           </div>
+                         </div>
+                       )}
+                     </div>
+                   </div>
+                 )}
+               </div>
+
+                                                           {/* Right Column - Order Items */}
+                <div className="space-y-6">
 
                  {/* Order Items Card */}
                  {order.items && order.items.length > 0 && (
@@ -739,7 +854,8 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                                      <img
                                        src={imageUrl}
                                        alt={`Item ${index + 1} image ${imageIndex + 1}`}
-                                       className="w-full h-32 md:h-28 object-cover rounded-xl border-2 border-gray-200 shadow-lg hover:border-blue-400 transition-all duration-300 hover:scale-110 hover:shadow-xl"
+                                       className="w-full h-32 md:h-28 object-cover rounded-xl border-2 border-gray-200 shadow-lg hover:border-blue-400 transition-all duration-300 hover:scale-110 hover:shadow-xl cursor-pointer"
+                                       onClick={() => handleImageClick(imageUrl, `Item ${index + 1} image ${imageIndex + 1}`)}
                                        onError={(e) => {
                                          e.currentTarget.style.display = 'none';
                                        }}
@@ -762,154 +878,152 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                           
 
 
-                                                     {/* Lab Information */}
-                           {(() => {
-                             const lab = getLabForItem((item as any)._id);
-                             return lab ? (
-                               <div className={`mt-4 p-5 rounded-xl border-2 ${
-                                 isDarkMode 
-                                   ? 'bg-gradient-to-r from-purple-900/20 to-indigo-900/20 border-purple-500/30' 
-                                   : 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200'
-                               }`}>
-                                 <div className="flex items-center justify-between mb-4">
-                                   <div className="flex items-center">
-                                     <div className={`p-2 rounded-lg ${
-                                       isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
-                                     }`}>
-                                       <BeakerIcon className={`h-5 w-5 ${
-                                         isDarkMode ? 'text-purple-400' : 'text-purple-600'
-                                       }`} />
-                                     </div>
-                                     <div className="ml-3">
-                                       <span className={`text-sm font-bold ${
-                                         isDarkMode ? 'text-purple-400' : 'text-purple-700'
+                                                                                                           {/* Enhanced Lab Information */}
+                            {(() => {
+                              const lab = getLabForItem((item as any)._id);
+                              return lab ? (
+                                <div className={`mt-4 p-6 rounded-2xl border-2 ${
+                                  isDarkMode 
+                                    ? 'bg-gradient-to-r from-purple-900/20 to-indigo-900/20 border-purple-500/30' 
+                                    : 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200'
+                                } shadow-lg`}>
+                                  <div className="flex items-center justify-between mb-6">
+                                    <div className="flex items-center">
+                                      <div className={`p-3 rounded-xl ${
+                                        isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                                      }`}>
+                                        <BeakerIcon className={`h-6 w-6 ${
+                                          isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                                        }`} />
+                                      </div>
+                                      <div className="ml-4">
+                                        <h4 className={`text-lg font-bold ${
+                                          isDarkMode ? 'text-purple-400' : 'text-purple-700'
+                                        }`}>
+                                          Lab Record
+                                        </h4>
+                                        <p className={`text-sm ${
+                                          isDarkMode ? 'text-purple-300' : 'text-purple-600'
+                                        }`}>
+                                          Sample Number: {lab.labSendNumber || 'Not specified'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <span className={`inline-flex items-center px-4 py-2 text-sm font-bold rounded-full border-2 ${
+                                      lab.status === 'sent' 
+                                        ? isDarkMode ? 'bg-blue-900/30 text-blue-400 border-blue-500/50' : 'bg-blue-100 text-blue-800 border-blue-300'
+                                        : lab.status === 'received'
+                                        ? isDarkMode ? 'bg-green-900/30 text-green-400 border-green-500/50' : 'bg-green-100 text-green-800 border-green-300'
+                                        : isDarkMode ? 'bg-red-900/30 text-red-400 border-red-500/50' : 'bg-red-100 text-red-800 border-red-300'
+                                    }`}>
+                                      {lab.status === 'sent' && <ClockIcon className="h-4 w-4 mr-2" />}
+                                      {lab.status === 'received' && <CheckCircleIcon className="h-4 w-4 mr-2" />}
+                                      {lab.status === 'cancelled' && <ExclamationTriangleIcon className="h-4 w-4 mr-2" />}
+                                      {lab.status.toUpperCase()}
+                                    </span>
+                                  </div>
+                                  
+                                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                     <div className={`p-4 rounded-xl ${
+                                       isDarkMode ? 'bg-white/5' : 'bg-white'
+                                     } shadow-sm`}>
+                                       <div className="flex items-center mb-3">
+                                         <CalendarIcon className={`h-5 w-5 mr-3 ${
+                                           isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                                         }`} />
+                                         <span className={`text-sm font-semibold uppercase tracking-wide ${
+                                           isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                         }`}>
+                                           Lab Send Date
+                                         </span>
+                                       </div>
+                                       <p className={`text-lg font-semibold ${
+                                         isDarkMode ? 'text-white' : 'text-gray-900'
                                        }`}>
-                                         Lab Data
-                                       </span>
-                                       <p className={`text-xs ${
-                                         isDarkMode ? 'text-purple-300' : 'text-purple-600'
-                                       }`}>
-                                         Sample: {lab.labSendNumber}
+                                         {lab.labSendDate ? new Date(lab.labSendDate).toLocaleDateString('en-US', {
+                                           year: 'numeric',
+                                           month: 'long',
+                                           day: 'numeric'
+                                         }) : 'Not specified'}
                                        </p>
                                      </div>
-                                   </div>
-                                   <span className={`inline-flex items-center px-3 py-1 text-xs font-bold rounded-full border-2 ${
-                                     lab.status === 'sent' 
-                                       ? isDarkMode ? 'bg-blue-900/20 text-blue-400 border-blue-500/30' : 'bg-blue-100 text-blue-800 border-blue-300'
-                                       : lab.status === 'received'
-                                       ? isDarkMode ? 'bg-green-900/20 text-green-400 border-green-500/30' : 'bg-green-100 text-green-800 border-green-300'
-                                       : isDarkMode ? 'bg-red-900/20 text-red-400 border-red-500/30' : 'bg-red-100 text-red-800 border-red-300'
-                                   }`}>
-                                     {lab.status === 'sent' && <ClockIcon className="h-3 w-3 mr-1" />}
-                                     {lab.status === 'received' && <CheckCircleIcon className="h-3 w-3 mr-1" />}
-                                     {lab.status === 'cancelled' && <ExclamationTriangleIcon className="h-3 w-3 mr-1" />}
-                                     {lab.status.toUpperCase()}
-                                   </span>
-                                 </div>
-                                 
-                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                   <div className={`p-3 rounded-lg ${
-                                     isDarkMode ? 'bg-white/5' : 'bg-white'
-                                   }`}>
-                                     <div className="flex items-center mb-2">
-                                       <CalendarIcon className={`h-4 w-4 mr-2 ${
-                                         isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                                       }`} />
-                                       <span className={`text-xs font-semibold uppercase tracking-wide ${
-                                         isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                                       }`}>
-                                         Send Date
-                                       </span>
-                                     </div>
-                                     <p className={`font-medium ${
-                                       isDarkMode ? 'text-white' : 'text-gray-900'
-                                     }`}>
-                                       {new Date(lab.labSendDate).toLocaleDateString('en-US', {
-                                         year: 'numeric',
-                                         month: 'long',
-                                         day: 'numeric'
-                                       })}
-                                     </p>
-                                   </div>
-                                   
-                                   {lab.labSendData?.approvalDate && (
-                                     <div className={`p-3 rounded-lg ${
+                                     
+                                     <div className={`p-4 rounded-xl ${
                                        isDarkMode ? 'bg-white/5' : 'bg-white'
-                                     }`}>
-                                       <div className="flex items-center mb-2">
-                                         <CheckCircleIcon className={`h-4 w-4 mr-2 ${
+                                     } shadow-sm`}>
+                                       <div className="flex items-center mb-3">
+                                         <CheckCircleIcon className={`h-5 w-5 mr-3 ${
                                            isDarkMode ? 'text-green-400' : 'text-green-600'
                                          }`} />
-                                         <span className={`text-xs font-semibold uppercase tracking-wide ${
+                                         <span className={`text-sm font-semibold uppercase tracking-wide ${
                                            isDarkMode ? 'text-gray-300' : 'text-gray-600'
                                          }`}>
                                            Approval Date
                                          </span>
                                        </div>
-                                       <p className={`font-medium ${
+                                       <p className={`text-lg font-semibold ${
                                          isDarkMode ? 'text-white' : 'text-gray-900'
                                        }`}>
-                                         {new Date(lab.labSendData.approvalDate).toLocaleDateString('en-US', {
+                                         {lab.labSendData?.approvalDate ? new Date(lab.labSendData.approvalDate).toLocaleDateString('en-US', {
                                            year: 'numeric',
                                            month: 'long',
                                            day: 'numeric'
-                                         })}
+                                         }) : 'Not specified'}
                                        </p>
                                      </div>
-                                   )}
-                                 </div>
-                                 
-                                 {lab.remarks && (
-                                   <div className={`mt-4 p-3 rounded-lg ${
-                                     isDarkMode ? 'bg-white/5' : 'bg-white'
+                                   </div>
+                                  
+                                  {lab.remarks && (
+                                    <div className={`mt-6 p-4 rounded-xl ${
+                                      isDarkMode ? 'bg-white/5' : 'bg-white'
+                                    } shadow-sm`}>
+                                      <div className="flex items-center mb-3">
+                                        <DocumentTextIcon className={`h-5 w-5 mr-3 ${
+                                          isDarkMode ? 'text-orange-400' : 'text-orange-600'
+                                        }`} />
+                                        <span className={`text-sm font-semibold uppercase tracking-wide ${
+                                          isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                        }`}>
+                                          Remarks
+                                        </span>
+                                      </div>
+                                      <p className={`text-base ${
+                                        isDarkMode ? 'text-white' : 'text-gray-900'
+                                      }`}>
+                                        {lab.remarks}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                                                         ) : (
+                               <div className={`mt-4 p-6 rounded-2xl border-2 border-dashed ${
+                                 isDarkMode 
+                                   ? 'bg-gray-900/10 border-gray-500/30' 
+                                   : 'bg-gray-50 border-gray-300'
+                               } shadow-sm`}>
+                                 <div className="flex items-center justify-center">
+                                   <div className={`p-3 rounded-xl ${
+                                     isDarkMode ? 'bg-gray-500/20' : 'bg-gray-100'
                                    }`}>
-                                     <div className="flex items-center mb-2">
-                                       <DocumentTextIcon className={`h-4 w-4 mr-2 ${
-                                         isDarkMode ? 'text-orange-400' : 'text-orange-600'
-                                       }`} />
-                                       <span className={`text-xs font-semibold uppercase tracking-wide ${
-                                         isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                                       }`}>
-                                         Remarks
-                                       </span>
-                                     </div>
-                                     <p className={`text-sm ${
-                                       isDarkMode ? 'text-white' : 'text-gray-900'
+                                     <BeakerIcon className={`h-6 w-6 ${
+                                       isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                     }`} />
+                                   </div>
+                                   <div className="ml-4 text-center">
+                                     <h4 className={`text-lg font-semibold ${
+                                       isDarkMode ? 'text-gray-400' : 'text-gray-600'
                                      }`}>
-                                       {lab.remarks}
+                                       No Lab Record
+                                     </h4>
+                                     <p className={`text-sm ${
+                                       isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                                     }`}>
+                                       Lab data can be added after order is saved
                                      </p>
                                    </div>
-                                 )}
+                                 </div>
                                </div>
-                            ) : (
-                              <div className={`mt-4 p-4 rounded-xl border-2 border-dashed ${
-                                isDarkMode 
-                                  ? 'bg-gray-900/10 border-gray-500/30' 
-                                  : 'bg-gray-50 border-gray-300'
-                              }`}>
-                                <div className="flex items-center justify-center">
-                                  <div className={`p-2 rounded-lg ${
-                                    isDarkMode ? 'bg-gray-500/20' : 'bg-gray-100'
-                                  }`}>
-                                    <BeakerIcon className={`h-5 w-5 ${
-                                      isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                    }`} />
-                                  </div>
-                                  <div className="ml-3 text-center">
-                                    <span className={`text-sm font-medium ${
-                                      isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                    }`}>
-                                      No lab data available
-                                    </span>
-                                    <p className={`text-xs ${
-                                      isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                                    }`}>
-                                      Lab data can be added after order is saved
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            );
+                             );
                           })()}
                         </div>
                       ))}
@@ -917,92 +1031,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                   </div>
                 )}
 
-                {/* Order Images Card */}
-                {order.items && order.items.some(item => item.imageUrls && item.imageUrls.length > 0) && (
-                  <div className={`p-6 rounded-xl border ${
-                    isDarkMode 
-                      ? 'bg-white/5 border-white/10' 
-                      : 'bg-white border-gray-200 shadow-sm'
-                  }`}>
-                    <div className="flex items-center mb-6">
-                      <div className={`p-2 rounded-lg ${
-                        isDarkMode ? 'bg-pink-500/20' : 'bg-pink-100'
-                      }`}>
-                        <PhotoIcon className={`h-5 w-5 ${
-                          isDarkMode ? 'text-pink-400' : 'text-pink-600'
-                        }`} />
-                      </div>
-                      <div className="ml-3">
-                        <h3 className={`text-lg font-semibold ${
-                          isDarkMode ? 'text-white' : 'text-gray-900'
-                        }`}>
-                          Order Images
-                        </h3>
-                        <p className={`text-sm ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                        }`}>
-                          All item images in this order
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-6">
-                      {order.items.map((item, index) => {
-                        const hasImages = item.imageUrls && item.imageUrls.length > 0;
-                        if (!hasImages) return null;
-                        
-                        return (
-                          <div key={index} className={`p-4 rounded-lg border ${
-                            isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'
-                          }`}>
-                            <div className="flex items-center mb-3">
-                              <span className={`text-sm font-semibold ${
-                                isDarkMode ? 'text-white' : 'text-gray-900'
-                              }`}>
-                                Item {index + 1}
-                              </span>
-                              {item.imageUrls && item.imageUrls.length > 0 && (
-                                <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${
-                                  isDarkMode ? 'bg-blue-900/20 text-blue-400' : 'bg-blue-100 text-blue-700'
-                                }`}>
-                                  {item.imageUrls.length} image{item.imageUrls.length !== 1 ? 's' : ''}
-                                </span>
-                              )}
-                            </div>
-                            
-                                                         {/* Multiple Images */}
-                             {item.imageUrls && item.imageUrls.length > 0 && (
-                               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                 {item.imageUrls.map((imageUrl, imageIndex) => (
-                                   <div key={imageIndex} className="relative group">
-                                     <img
-                                       src={imageUrl}
-                                       alt={`Item ${index + 1} image ${imageIndex + 1}`}
-                                       className="w-full h-36 md:h-32 object-cover rounded-xl border-2 border-gray-200 shadow-lg hover:border-blue-400 transition-all duration-300 hover:scale-110 hover:shadow-xl"
-                                       onError={(e) => {
-                                         e.currentTarget.style.display = 'none';
-                                       }}
-                                     />
-                                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                       <div className="bg-white/95 backdrop-blur-sm rounded-full p-2 shadow-xl border border-gray-200">
-                                         <PhotoIcon className="h-4 w-4 text-gray-700" />
-                                       </div>
-                                     </div>
-                                     <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                       <div className="bg-black/70 backdrop-blur-sm rounded-full px-2 py-1">
-                                         <span className="text-white text-xs font-medium">#{imageIndex + 1}</span>
-                                       </div>
-                                     </div>
-                                   </div>
-                                 ))}
-                               </div>
-                             )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+
               </div>
             </div>
 
@@ -1026,6 +1055,136 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+
+      {/* Enhanced Image Preview Modal */}
+      {showImagePreview && previewImage && (
+        <div className="fixed inset-0 backdrop-blur-md bg-black/90 flex items-center justify-center z-[60] p-4">
+          <div className="relative w-full max-w-6xl max-h-[95vh] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+              <div className="flex items-center space-x-3">
+                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <span className="ml-4 text-sm font-medium text-gray-600 dark:text-gray-300">
+                  Order Image Preview
+                </span>
+              </div>
+              <button
+                onClick={() => setShowImagePreview(false)}
+                className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200"
+              >
+                <XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+              </button>
+            </div>
+
+            {/* Image Container */}
+            <div className="relative flex-1 flex items-center justify-center p-8 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900">
+              <div className="relative group">
+                <img
+                  src={previewImage?.url || ''}
+                  alt={previewImage?.alt || ''}
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-xl border border-gray-200 dark:border-gray-600"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+                
+                {/* Fallback for failed images */}
+                <div className="hidden max-w-full max-h-[70vh] w-96 h-64 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center border border-gray-300 dark:border-gray-600">
+                  <div className="text-center">
+                    <PhotoIcon className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400 font-medium">Image not available</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Failed to load image</p>
+                  </div>
+                </div>
+
+                {/* Image Info Overlay */}
+                <div className="absolute bottom-4 left-4 right-4 bg-black/70 backdrop-blur-sm rounded-lg p-4 text-white opacity-0 group-hover:opacity-100 transition-all duration-300">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-sm">{previewImage?.alt || 'Order Image'}</h3>
+                      <p className="text-xs text-gray-300 mt-1">Click to download</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = previewImage?.url || '';
+                        link.download = previewImage?.alt || 'order-image.jpg';
+                        link.click();
+                      }}
+                      className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-all duration-200"
+                      title="Download image"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+              <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                <div className="flex items-center space-x-4">
+                  <span className="flex items-center space-x-1">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    <span>Preview Mode</span>
+                  </span>
+                  <span>•</span>
+                  <span>Press ESC to close</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
+                    Professional View
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+                 </div>
+       )}
+
+       {/* Order Activity Log Modal */}
+       {showOrderLogs && (
+         <OrderLogsModal
+           orderId={order._id}
+           onClose={() => setShowOrderLogs(false)}
+         />
+       )}
+
+       {/* Lab Add/Edit Modal */}
+       {showLabModal && (
+         <LabAddModal
+           order={order}
+           onClose={() => setShowLabModal(false)}
+           onSuccess={() => {
+             // Refresh labs data after successful lab operation
+             const fetchLabs = async () => {
+               try {
+                 const response = await fetch(`/api/labs/by-order/${order._id}`, {
+                   headers: {
+                     'Cache-Control': 'no-cache'
+                   }
+                 });
+                 const data = await response.json();
+                 if (data.success && Array.isArray(data.data)) {
+                   setLabs(data.data);
+                 }
+               } catch (error) {
+                 console.error('Error refreshing labs:', error);
+               }
+             };
+             fetchLabs();
+           }}
+         />
+       )}
+     </div>
+   );
+ }

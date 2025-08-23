@@ -18,7 +18,7 @@ export interface Quality {
 
 export interface OrderItem {
   quality?: string | Quality;
-  quantity?: number;
+  quantity: number | string; // Quantity can be string in form, number in final data
   imageUrls?: string[]; // Changed from imageUrl to imageUrls array
   description?: string;
   labData?: {

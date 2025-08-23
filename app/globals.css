@@ -64,6 +64,10 @@ body {
   background: #1f2937;
 }
 
+.scrollbar-track-gray-800::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
 .scrollbar-thin::-webkit-scrollbar-thumb {
   border-radius: 2px;
   background: #d1d5db;
@@ -87,6 +91,10 @@ body {
 
 .scrollbar-thumb-slate-400::-webkit-scrollbar-thumb {
   background: #94a3b8;
+}
+
+.scrollbar-thumb-gray-600::-webkit-scrollbar-thumb {
+  background: #4b5563;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {

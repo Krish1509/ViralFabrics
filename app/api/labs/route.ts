@@ -67,6 +67,12 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error('Error creating lab:', error);
+    
+    // Check for duplicate key error specifically
+    if (error instanceof Error && error.message.includes('E11000 duplicate key error')) {
+      return conflict('A lab already exists for this order item');
+    }
+    
     await logError('lab_create', 'lab', error instanceof Error ? error.message : 'Unknown error', request);
     return serverError(error);
   }
@@ -110,55 +116,41 @@ export async function GET(request: NextRequest) {
     // Calculate pagination
     const skip = (page - 1) * limit;
     
-    // Execute query with aggregation for better performance
-    const pipeline: any[] = [
-      { $match: filter },
-      { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: limit }
-    ];
-    
-    // Add lookup to get order details
-    pipeline.push({
-      $lookup: {
-        from: 'orders',
-        localField: 'order',
-        foreignField: '_id',
-        as: 'orderDetails'
-      }
-    });
-    
-    pipeline.push({
-      $addFields: {
-        orderDetails: { $arrayElemAt: ['$orderDetails', 0] }
-      }
-    });
-    
-    // Get total count for pagination
-    const totalPipeline = [
-      { $match: filter },
-      { $count: 'total' }
-    ];
-    
-    const [labs, totalResult] = await Promise.all([
-      Lab.aggregate(pipeline),
-      Lab.aggregate(totalPipeline)
+    // Optimized: Use simple find instead of aggregation for better performance
+    const [labs, total] = await Promise.all([
+      Lab.find(filter)
+        .select('_id order orderItemId status labSendDate labSendNumber remarks createdAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .maxTimeMS(8000), // 8 second timeout
+      
+      Lab.countDocuments(filter)
+        .maxTimeMS(3000) // 3 second timeout
     ]);
     
-    const total = totalResult[0]?.total || 0;
+    // Add cache headers for better performance
+    const headers = {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60', // Cache for 30 seconds
+    };
     
-    // Log the labs view
-    await logView('lab', undefined, request);
-    
-    return ok({
-      items: labs,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      }
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        data: {
+          items: labs,
+          pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit)
+          }
+        }
+      }), 
+      { status: 200, headers }
+    );
     
   } catch (error) {
     console.error('Error fetching labs:', error);

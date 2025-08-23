@@ -6,19 +6,25 @@ export async function GET(req: NextRequest) {
   try {
     await dbConnect();
     
-    // Test basic log query
-    const logs = await Log.find({})
-      .limit(5)
-      .lean();
+    // Test order logs query
+    const orderLogs = await Log.find({
+      resource: 'order'
+    })
+    .limit(10)
+    .lean();
     
-    console.log('Test logs found:', logs.length);
+    console.log('Order logs found:', orderLogs.length);
+    
+    // Get all unique resourceIds
+    const resourceIds = [...new Set(orderLogs.map(log => log.resourceId))];
     
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Log model is working',
-        count: logs.length,
-        sample: logs[0] || null
+        message: 'Order logs query successful',
+        totalOrderLogs: orderLogs.length,
+        uniqueOrderIds: resourceIds,
+        sampleLogs: orderLogs.slice(0, 3)
       }), 
       { 
         status: 200,
@@ -26,7 +32,7 @@ export async function GET(req: NextRequest) {
       }
     );
   } catch (error: unknown) {
-    console.error('Test logs error:', error);
+    console.error('Test order logs error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error occurred';
     
     return new Response(

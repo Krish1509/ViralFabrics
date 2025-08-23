@@ -151,8 +151,9 @@ const OrderSchema = new Schema<IOrder>({
       },
       quantity: {
         type: Number,
-        min: [0, "Quantity cannot be negative"],
-        default: 0
+        min: [1, "Quantity must be at least 1"],
+        required: [true, "Quantity is required for each order item"],
+        default: 1
       },
       unitPrice: {
         type: Number,

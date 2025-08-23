@@ -8,7 +8,7 @@ import {
   CheckIcon,
   ExclamationTriangleIcon,
   PhotoIcon,
-  TrashIcon
+  BeakerIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { Order, Party, Quality } from '@/types';
@@ -21,10 +21,11 @@ interface LabAddModalProps {
 
 interface LabData {
   orderItemId: string;
+  orderItemName: string;
   labSendDate: string;
   approvalDate: string;
   sampleNumber: string;
-  existingLabId?: string; // Track if lab already exists
+  existingLab?: any; // Track if lab already exists
 }
 
 export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalProps) {
@@ -33,7 +34,8 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [checkingExisting, setCheckingExisting] = useState(true);
-
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
 
   // Check for existing labs when order changes
   useEffect(() => {
@@ -47,96 +49,75 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
     
     setCheckingExisting(true);
     try {
-      const response = await fetch(`/api/labs/by-order/${order._id}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+      
+      const response = await fetch(`/api/labs/by-order/${order._id}`, {
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'max-age=30' // Cache for 30 seconds
+        }
+      });
+      
+      clearTimeout(timeoutId);
+      
       const data = await response.json();
       
       if (data.success) {
         const existingLabs = Array.isArray(data.data) ? data.data : [];
+        const existingLabMap = new Map();
         
-        // Initialize lab data with existing labs info
-        const initialLabData: LabData[] = order.items.map((item, index) => {
-          // Use item index as fallback if _id doesn't exist (for new orders)
-          const itemId = (item as any)._id || `item_${index}`;
-          
-          // Try to find existing lab by multiple criteria
-          let existingLab = existingLabs.find((lab: any) => 
-            lab.orderItemId === itemId || 
-            (lab.orderItem && lab.orderItem._id === itemId)
-          );
-          
-          // If no direct match, try to match by item position/index
-          if (!existingLab && itemId !== `item_${index}`) {
-            // Sort labs by creation date to maintain order consistency
-            const sortedLabs = [...existingLabs].sort((a: any, b: any) => 
-              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-            );
-            existingLab = sortedLabs[index];
-            
-            // If we found a lab by position, update its orderItemId to match the new item
-            if (existingLab && existingLab.orderItemId !== itemId) {
-              console.log(`Updating lab ${existingLab._id} orderItemId from ${existingLab.orderItemId} to ${itemId}`);
-            }
-          }
-          
-                     return {
-             orderItemId: itemId,
-             labSendDate: existingLab ? new Date(existingLab.labSendDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-             approvalDate: existingLab?.labSendData?.approvalDate || '',
-             sampleNumber: existingLab?.labSendNumber || '',
-             existingLabId: existingLab?._id
-           };
+        existingLabs.forEach((lab: any) => {
+          existingLabMap.set(lab.orderItemId, lab);
         });
         
-        console.log('Lab detection results:', {
-          orderId: order._id,
-          itemCount: order.items.length,
-          existingLabsCount: existingLabs.length,
-          labData: initialLabData.map((lab, index) => ({
-            itemIndex: index,
-            itemId: lab.orderItemId,
-            hasExistingLab: !!lab.existingLabId,
-            existingLabId: lab.existingLabId
-          }))
+        // Initialize lab data for all order items
+        const initialLabData: LabData[] = order.items.map((item: any, index: number) => {
+          const existingLab = existingLabMap.get(item._id);
+          return {
+            orderItemId: item._id,
+            orderItemName: item.quality?.name || `Item ${index + 1}`,
+            labSendDate: existingLab?.labSendDate ? new Date(existingLab.labSendDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            approvalDate: existingLab?.labSendData?.approvalDate || new Date().toISOString().split('T')[0],
+            sampleNumber: existingLab?.labSendNumber || '',
+            existingLab: existingLab || null
+          };
         });
         
         setLabData(initialLabData);
       } else {
-        // If API fails, initialize with empty data
-        const initialLabData: LabData[] = order.items.map((item, index) => ({
-          orderItemId: (item as any)._id || `item_${index}`,
+        console.error('Failed to fetch existing labs:', data.message);
+        // Initialize with empty data
+        const initialLabData: LabData[] = order.items.map((item: any, index: number) => ({
+          orderItemId: item._id,
+          orderItemName: item.quality?.name || `Item ${index + 1}`,
           labSendDate: new Date().toISOString().split('T')[0],
-          approvalDate: '',
+          approvalDate: new Date().toISOString().split('T')[0],
           sampleNumber: '',
-          existingLabId: undefined
+          existingLab: null
         }));
         setLabData(initialLabData);
       }
-    } catch (error) {
-      console.error('Error checking existing labs:', error);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.warn('Lab check timeout - initializing with empty data');
+      } else {
+        console.error('Error checking existing labs:', error);
+      }
       // Initialize with empty data on error
-      const initialLabData: LabData[] = order.items.map((item, index) => ({
-        orderItemId: (item as any)._id || `item_${index}`,
+      const initialLabData: LabData[] = order.items.map((item: any, index: number) => ({
+        orderItemId: item._id,
+        orderItemName: item.quality?.name || `Item ${index + 1}`,
         labSendDate: new Date().toISOString().split('T')[0],
-        approvalDate: '',
+        approvalDate: new Date().toISOString().split('T')[0],
         sampleNumber: '',
-        existingLabId: undefined
+        existingLab: null
       }));
       setLabData(initialLabData);
     } finally {
       setCheckingExisting(false);
     }
   };
-
-  // Initialize lab data for all order items
-  useEffect(() => {
-    if (order && order.items && !checkingExisting) {
-      const updatedLabData = labData.map((lab, index) => ({
-        ...lab,
-        sampleNumber: lab.existingLabId ? lab.sampleNumber : ''
-      }));
-      setLabData(updatedLabData);
-    }
-        }, [order, checkingExisting]);
 
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
@@ -147,6 +128,11 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
     const updatedLabData = [...labData];
     updatedLabData[index] = { ...updatedLabData[index], [field]: value };
     setLabData(updatedLabData);
+  };
+
+  const handleImageClick = (imageUrl: string, alt: string) => {
+    setPreviewImage({ url: imageUrl, alt });
+    setShowImagePreview(true);
   };
 
 
@@ -181,25 +167,23 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           return;
         }
 
-
-
-        if (lab.existingLabId) {
+        if (lab.existingLab) {
           // Update existing lab - also update orderItemId if it changed
-          const response = await fetch(`/api/labs/${lab.existingLabId}`, {
+          const response = await fetch(`/api/labs/${lab.existingLab._id}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
             },
-                         body: JSON.stringify({
-               orderItemId: lab.orderItemId, // Update the orderItemId to match new item ID
-               labSendDate: lab.labSendDate,
-               labSendNumber: lab.sampleNumber.trim() || undefined,
-               labSendData: {
-                 approvalDate: lab.approvalDate,
-                 sampleNumber: lab.sampleNumber.trim() || undefined
-               },
-               remarks: lab.sampleNumber.trim() ? `Sample: ${lab.sampleNumber.trim()}` : 'Lab record updated'
-             }),
+            body: JSON.stringify({
+              orderItemId: lab.orderItemId, // Update the orderItemId to match new item ID
+              labSendDate: lab.labSendDate,
+              labSendNumber: lab.sampleNumber.trim() || undefined,
+              labSendData: {
+                approvalDate: lab.approvalDate,
+                sampleNumber: lab.sampleNumber.trim() || undefined
+              },
+              remarks: lab.sampleNumber.trim() ? `Sample: ${lab.sampleNumber.trim()}` : 'Lab record updated'
+            }),
           });
 
           const data = await response.json();
@@ -219,64 +203,86 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
             headers: {
               'Content-Type': 'application/json',
             },
-                         body: JSON.stringify({
-               orderId: order._id,
-               orderItemId: lab.orderItemId,
-               labSendDate: lab.labSendDate,
-               labSendNumber: lab.sampleNumber.trim() || undefined,
-               labSendData: {
-                 approvalDate: lab.approvalDate,
-                 sampleNumber: lab.sampleNumber.trim() || undefined
-               },
-               status: 'sent',
-               remarks: lab.sampleNumber.trim() ? `Sample: ${lab.sampleNumber.trim()}` : 'Lab record created'
-             }),
+            body: JSON.stringify({
+              orderId: order._id,
+              orderItemId: lab.orderItemId,
+              labSendDate: lab.labSendDate,
+              labSendNumber: lab.sampleNumber.trim() || undefined,
+              labSendData: {
+                approvalDate: lab.approvalDate,
+                sampleNumber: lab.sampleNumber.trim() || undefined
+              },
+              status: 'sent',
+              remarks: lab.sampleNumber.trim() ? `Sample: ${lab.sampleNumber.trim()}` : 'Lab record created'
+            }),
           });
 
           const data = await response.json();
           console.log('Lab creation response:', data); // Debug log
           
-          if (response.ok) {
-            // Handle both { success: true, data: ... } and direct data responses
-            const labData = data.success ? data.data : data;
-            createdLabs.push(labData);
-          } else {
-            // Check if it's a server error but lab was actually created
-            if (response.status === 500 && data.error?.includes('wasPopulated')) {
-              // Lab was created but populate failed - this is still a success
-              console.log('Lab created successfully but populate failed, treating as success');
-              createdLabs.push({ id: 'created', orderItemId: lab.orderItemId });
-            } else if (data.error?.includes('already exists')) {
-              showMessage('error', `Lab already exists for item ${lab.orderItemId}. Please refresh and try again.`);
-            } else {
-              throw new Error(data.error || data.message || 'Failed to create lab');
-            }
-          }
+                     if (response.ok) {
+             // Handle both { success: true, data: ... } and direct data responses
+             const labData = data.success ? data.data : data;
+             createdLabs.push(labData);
+           } else {
+             // Check for duplicate key error or conflict
+             if (response.status === 409 || 
+                 (data.error && data.error.includes('duplicate key')) ||
+                 (data.message && data.message.includes('already exists'))) {
+               console.log('Lab already exists for this item, treating as success');
+               // Treat duplicate as success since the lab already exists
+               createdLabs.push({ id: 'exists', orderItemId: lab.orderItemId });
+             } else if (response.status === 500 && data.error?.includes('wasPopulated')) {
+               // Lab was created but populate failed - this is still a success
+               console.log('Lab created successfully but populate failed, treating as success');
+               createdLabs.push({ id: 'created', orderItemId: lab.orderItemId });
+             } else {
+               throw new Error(data.error || data.message || 'Failed to create lab');
+             }
+           }
         }
       }
 
-      const totalProcessed = createdLabs.length + updatedLabs.length;
-      let message = '';
-      if (createdLabs.length > 0 && updatedLabs.length > 0) {
-        message = `Successfully created ${createdLabs.length} and updated ${updatedLabs.length} lab records`;
-      } else if (createdLabs.length > 0) {
-        message = `Successfully created ${createdLabs.length} lab records`;
-      } else if (updatedLabs.length > 0) {
-        message = `Successfully updated ${updatedLabs.length} lab records`;
-      } else {
-        message = 'No changes made';
-      }
+             const totalProcessed = createdLabs.length + updatedLabs.length;
+       const existingLabs = createdLabs.filter(lab => lab.id === 'exists').length;
+       const newLabs = createdLabs.filter(lab => lab.id !== 'exists').length;
+       
+       let message = '';
+       if (newLabs > 0 && updatedLabs.length > 0) {
+         message = `Successfully created ${newLabs} and updated ${updatedLabs.length} lab records`;
+       } else if (newLabs > 0) {
+         message = `Successfully created ${newLabs} lab records`;
+       } else if (updatedLabs.length > 0) {
+         message = `Successfully updated ${updatedLabs.length} lab records`;
+       } else if (existingLabs > 0) {
+         message = `Lab records already exist for ${existingLabs} items. No changes needed.`;
+       } else {
+         message = 'No changes made';
+       }
 
-      showMessage('success', message);
-      onSuccess();
-      onClose();
-    } catch (error) {
-      console.error('Error processing labs:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to process labs';
-      showMessage('error', errorMessage);
-    } finally {
-      setLoading(false);
-    }
+             showMessage('success', message);
+       
+       // Refresh lab data to get updated state
+       await checkExistingLabs();
+       
+       onSuccess();
+       onClose();
+         } catch (error) {
+       console.error('Error processing labs:', error);
+       let errorMessage = 'Failed to process labs';
+       
+       if (error instanceof Error) {
+         if (error.message.includes('duplicate key')) {
+           errorMessage = 'Some lab records already exist. Please refresh and try again.';
+         } else {
+           errorMessage = error.message;
+         }
+       }
+       
+       showMessage('error', errorMessage);
+     } finally {
+       setLoading(false);
+     }
   };
 
   if (!order) return null;
@@ -294,7 +300,7 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
 
   if (checkingExisting) {
     return (
-      <div className="fixed inset-0  backdrop-blur-sm bg-opacity-50 bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 bg-black/30 flex items-center justify-center z-50 p-4">
         <div className={`w-full max-w-md rounded-xl shadow-2xl ${
           isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'
         }`}>
@@ -307,8 +313,8 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
     );
   }
 
-  const hasExistingLabs = labData.some(lab => lab.existingLabId);
-  const hasNewLabs = labData.some(lab => !lab.existingLabId);
+  const hasExistingLabs = labData.some(lab => lab.existingLab);
+  const hasNewLabs = labData.some(lab => !lab.existingLab);
   const hasUnsavedOrder = labData.some(lab => lab.orderItemId.startsWith('item_'));
   const hasValidationErrors = labData.some(lab => 
     !lab.labSendDate
@@ -316,35 +322,46 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
 
   return (
     <div className="fixed inset-0 backdrop-blur-md bg-black/60 bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className={`w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl ${
+      <div className={`w-full max-w-6xl h-[92vh] flex flex-col rounded-xl shadow-2xl ${
         isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'
       }`}>
         {/* Header */}
         <div className={`flex items-center justify-between p-6 border-b ${
           isDarkMode ? 'border-white/10' : 'border-gray-200'
         }`}>
-          <div>
-            <h2 className="text-xl font-bold">
-              {hasUnsavedOrder ? 'Order Not Saved' : hasExistingLabs ? 'Edit Lab Data' : 'Add Lab Data'}
-            </h2>
-            <p className={`text-sm mt-1 ${
-              isDarkMode ? 'text-gray-300' : 'text-gray-600'
-            }`}>
-              Order: {order.orderId} • {order.items.length} items
-              {hasExistingLabs && hasNewLabs && ' • Some items have existing labs'}
-              {hasUnsavedOrder && ' • Please save the order first'}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className={`p-2 rounded-lg transition-colors ${
-              isDarkMode
-                ? 'hover:bg-white/10 text-gray-400 hover:text-white'
-                : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <XMarkIcon className="h-6 w-6" />
-          </button>
+          <div className="flex items-center space-x-3">
+            {hasUnsavedOrder ? (
+              <ExclamationTriangleIcon className="h-6 w-6 text-yellow-500" />
+            ) : hasExistingLabs ? (
+              <PencilIcon className="h-6 w-6 text-blue-500" />
+            ) : (
+              <PlusIcon className="h-6 w-6 text-green-500" />
+            )}
+                          <div>
+                <h2 className="text-xl font-bold">
+                  {hasUnsavedOrder ? 'Order Not Saved' : hasExistingLabs ? 'Edit Lab Data' : 'Add Lab Data'}
+                </h2>
+                <p className={`text-sm mt-1 ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>
+                  Order: {order.orderId} • {order.items.length} items
+                  {hasExistingLabs && hasNewLabs && ' • Some items have existing labs'}
+                  {hasUnsavedOrder && ' • Please save the order first'}
+                </p>
+              </div>
+            </div>
+                     <div className="flex items-center space-x-2">
+             <button
+               onClick={onClose}
+               className={`p-2 rounded-lg transition-colors ${
+                 isDarkMode
+                   ? 'hover:bg-white/10 text-gray-400 hover:text-white'
+                   : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+               }`}
+             >
+               <XMarkIcon className="h-6 w-6" />
+             </button>
+           </div>
         </div>
 
         {/* Message */}
@@ -386,274 +403,277 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           </div>
         )}
 
-
-
-                       {/* Lab Data Table */}
-               <div className="p-6">
-                 <h3 className="text-lg font-semibold mb-4">Lab Data for Order Items</h3>
-                 
-                 {/* Legend */}
-                 <div className={`mb-4 p-3 rounded-lg border ${
-                   isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'
-                 }`}>
-                   <div className="flex items-center justify-center space-x-6 text-sm">
-                     <div className="flex items-center">
-                       <div className={`w-4 h-4 rounded mr-2 ${
-                         isDarkMode ? 'bg-green-900/20 border-green-500/30' : 'bg-green-50 border-green-200'
-                       } border`}></div>
-                       <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>
-                         Existing Lab Data
-                       </span>
-                     </div>
-                     <div className="flex items-center">
-                       <div className={`w-4 h-4 rounded mr-2 ${
-                         isDarkMode ? 'bg-white/10 border-white/20' : 'bg-white border-gray-300'
-                       } border`}></div>
-                       <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>
-                         New Lab Data
-                       </span>
+        {/* Lab Data Content */}
+        <div className="flex-1 overflow-y-auto p-6" style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: isDarkMode ? '#4B5563 #1F2937' : '#D1D5DB #F3F4F6'
+        }}>
+          <style jsx>{`
+            .lab-scroll::-webkit-scrollbar {
+              width: 8px;
+            }
+            .lab-scroll::-webkit-scrollbar-track {
+              background: ${isDarkMode ? '#1F2937' : '#F3F4F6'};
+              border-radius: 4px;
+            }
+            .lab-scroll::-webkit-scrollbar-thumb {
+              background: ${isDarkMode ? '#4B5563' : '#D1D5DB'};
+              border-radius: 4px;
+            }
+            .lab-scroll::-webkit-scrollbar-thumb:hover {
+              background: ${isDarkMode ? '#6B7280' : '#9CA3AF'};
+            }
+          `}</style>
+                     <div className="lab-scroll">
+             <h3 className="text-lg font-semibold mb-6">Lab Data for Order Items</h3>
+          
+          {/* Lab Data Form */}
+          <div className="space-y-6">
+            {labData.map((lab, index) => {
+              const orderItem = order.items.find((item: any) => item._id === lab.orderItemId);
+              return (
+                <div key={lab.orderItemId} className={`p-6 rounded-xl border-2 shadow-sm hover:shadow-md transition-all duration-200 ${
+                  lab.existingLab 
+                    ? (isDarkMode ? 'bg-green-900/10 border-green-500/40' : 'bg-green-50/80 border-green-200')
+                    : lab.orderItemId.startsWith('item_')
+                    ? (isDarkMode ? 'bg-yellow-900/10 border-yellow-500/40' : 'bg-yellow-50/80 border-yellow-200')
+                    : (isDarkMode ? 'bg-blue-900/10 border-blue-500/40' : 'bg-blue-50/80 border-blue-200')
+                }`}>
+                                     {/* Item Header with Status Tag */}
+                   <div className="flex items-center mb-6">
+                     <div className="flex items-center space-x-3">
+                       {/* Status Tag */}
+                       <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                         lab.existingLab
+                           ? (isDarkMode ? 'bg-green-600/20 text-green-400 border border-green-500/30' : 'bg-green-100 text-green-700 border border-green-200')
+                           : lab.orderItemId.startsWith('item_')
+                           ? (isDarkMode ? 'bg-yellow-600/20 text-yellow-400 border border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border border-yellow-200')
+                           : (isDarkMode ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'bg-blue-100 text-blue-700 border border-blue-200')
+                       }`}>
+                         {lab.existingLab ? 'Existing Lab' : lab.orderItemId.startsWith('item_') ? 'Unsaved Order' : 'New Lab'}
+                       </div>
+                       
+                       {/* Item Title */}
+                       <h4 className="font-bold text-lg">{lab.orderItemName}</h4>
                      </div>
                    </div>
-                 </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className={`${
-                isDarkMode ? 'bg-white/5' : 'bg-gray-50'
-              }`}>
-                <tr>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    Item Details
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    Sample Send Date
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    Approval Date
-                  </th>
-                                     <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                     isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                   }`}>
-                     Sample Number
-                   </th>
-                   
-                   <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                     isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                   }`}>
-                     Status
-                   </th>
-                </tr>
-              </thead>
-              <tbody className={`divide-y ${
-                isDarkMode ? 'divide-white/10' : 'divide-gray-200'
-              }`}>
-                {labData.map((lab, index) => (
-                  <tr key={lab.orderItemId} className={`hover:${
-                    isDarkMode ? 'bg-white/5' : 'bg-gray-50'
-                  }`}>
-                    <td className="px-4 py-3">
-                      <div className="text-sm">
-                        <div className={`font-medium flex items-center ${
-                          isDarkMode ? 'text-white' : 'text-gray-900'
-                        }`}>
-                          Item {index + 1}
-                          {lab.existingLabId && (
-                            <span className={`ml-2 inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded-full ${
-                              isDarkMode
-                                ? 'bg-green-900/20 text-green-400'
-                                : 'bg-green-100 text-green-800'
-                            }`}>
-                              <CheckIcon className="h-2.5 w-2.5 mr-0.5" />
-                              Lab
-                            </span>
-                          )}
+
+                  {/* Item Content */}
+                  <div className="flex items-start space-x-4 mb-6">
+                    {/* Item Images */}
+                    <div className="flex-shrink-0">
+                      {(orderItem as any)?.imageUrls && (orderItem as any).imageUrls.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          {(orderItem as any).imageUrls.map((imageUrl: string, imageIndex: number) => (
+                            <div key={imageIndex} className="relative group">
+                                                             <img
+                                 src={imageUrl}
+                                 alt={`Item ${index + 1} image ${imageIndex + 1}`}
+                                 className="w-16 h-16 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer"
+                                 onClick={() => handleImageClick(imageUrl, `Item ${index + 1} image ${imageIndex + 1}`)}
+                                 onError={(e) => {
+                                   e.currentTarget.style.display = 'none';
+                                 }}
+                               />
+                              <div className="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                <div className="bg-black/70 backdrop-blur-sm rounded-full px-2 py-1">
+                                  <span className="text-white text-xs font-medium">#{imageIndex + 1}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        <div className={`text-xs ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                        }`}>
-                          Qty: {order.items[index]?.quantity || 0}
+                      ) : (
+                        <div className="w-16 h-16 rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-600 flex-shrink-0 bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                          <PhotoIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
                         </div>
-                        {order.items[index]?.description && (
-                          <div className={`text-xs ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                      )}
+                    </div>
+                    
+                    {/* Enhanced Item Details */}
+                    <div className="flex-1">
+                      {/* Image count info */}
+                      <div className="text-xs text-gray-500 mb-3">
+                        {(orderItem as any)?.imageUrls ? `${(orderItem as any).imageUrls.length} images` : 'No images'}
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="flex items-center space-x-2">
+                          <span className={`font-medium ${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                          }`}>Quality:</span>
+                          <span className={`${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-600'
                           }`}>
-                            {order.items[index]?.description}
+                            {(orderItem as any)?.quality?.name || 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`font-medium ${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                          }`}>Quantity:</span>
+                          <span className={`${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                          }`}>
+                            {(orderItem as any)?.quantity || 0}
+                          </span>
+                        </div>
+                        {(orderItem as any)?.styleNo && (
+                          <div className="flex items-center space-x-2">
+                            <span className={`font-medium ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                            }`}>Style:</span>
+                            <span className={`${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              {(orderItem as any).styleNo}
+                            </span>
                           </div>
                         )}
-                        {/* Item Images */}
-                        {order.items[index]?.imageUrls && order.items[index]?.imageUrls.length > 0 && (
-                          <div className="mt-2">
-                            <div className="text-xs font-medium mb-1">Item Images:</div>
-                            <div className="flex flex-wrap gap-1">
-                              {order.items[index]?.imageUrls.map((imageUrl, imageIndex) => (
-                                <div key={imageIndex} className="relative group">
-                                  <img 
-                                    src={imageUrl} 
-                                    alt={`Item ${index + 1} image ${imageIndex + 1}`}
-                                    className="w-6 h-6 object-cover rounded border"
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = 'none';
-                                    }}
-                                  />
-                                </div>
-                              ))}
-                            </div>
+                        {(orderItem as any)?.description && (
+                          <div className="flex items-center space-x-2">
+                            <span className={`font-medium ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                            }`}>Description:</span>
+                            <span className={`${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              {(orderItem as any).description}
+                            </span>
                           </div>
                         )}
                       </div>
-                    </td>
-                    <td className="px-4 py-3">
+                    </div>
+                  </div>
+
+                  {/* Compact Form Fields in One Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className={`block text-xs font-medium mb-2 ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        Lab Send Date *
+                      </label>
                       <input
                         type="date"
                         value={lab.labSendDate}
                         onChange={(e) => handleLabDataChange(index, 'labSendDate', e.target.value)}
-                        className={`w-full px-3 py-2 rounded-lg border text-sm transition-colors ${
-                          lab.existingLabId
-                            ? isDarkMode
-                              ? 'bg-green-900/10 border-green-500/30 text-white focus:border-green-500'
-                              : 'bg-green-50 border-green-200 text-gray-900 focus:border-green-500'
-                            : isDarkMode
-                              ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                              : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                        className={`w-full p-3 rounded-lg border text-sm transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                          isDarkMode 
+                            ? 'bg-gray-800 border-gray-600 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
                         }`}
+                        required
                       />
-                    </td>
-                    <td className="px-4 py-3">
+                    </div>
+
+                    <div>
+                      <label className={`block text-xs font-medium mb-2 ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        Approval Date
+                      </label>
                       <input
                         type="date"
                         value={lab.approvalDate}
                         onChange={(e) => handleLabDataChange(index, 'approvalDate', e.target.value)}
-                        className={`w-full px-3 py-2 rounded-lg border text-sm transition-colors ${
-                          lab.existingLabId && lab.approvalDate
-                            ? isDarkMode
-                              ? 'bg-green-900/10 border-green-500/30 text-white focus:border-green-500'
-                              : 'bg-green-50 border-green-200 text-gray-900 focus:border-green-500'
-                            : isDarkMode
-                              ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                              : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                        className={`w-full p-3 rounded-lg border text-sm transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                          isDarkMode 
+                            ? 'bg-gray-800 border-gray-600 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
                         }`}
                       />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="text"
-                        value={lab.sampleNumber}
-                        onChange={(e) => {
-                          // Allow any input without restrictions
-                          handleLabDataChange(index, 'sampleNumber', e.target.value);
-                        }}
-                        className={`w-full px-3 py-2 rounded-lg border text-sm transition-colors ${
-                          lab.existingLabId
-                            ? isDarkMode
-                              ? 'bg-green-900/10 border-green-500/30 text-white focus:border-green-500'
-                              : 'bg-green-50 border-green-200 text-gray-900 focus:border-green-500'
-                            : isDarkMode
-                              ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                              : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                        }`}
-                        placeholder="Enter sample number (optional)"
-                        maxLength={100}
-                      />
+                    </div>
 
-                    </td>
-                     
-                     <td className="px-4 py-3">
-                      <div className="flex items-center">
-                        {lab.orderItemId.startsWith('item_') ? (
-                          <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
-                            isDarkMode
-                              ? 'bg-yellow-900/20 text-yellow-400'
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
-                            Unsaved
-                          </span>
-                        ) : lab.existingLabId ? (
-                          <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
-                            isDarkMode
-                              ? 'bg-green-900/20 text-green-400'
-                              : 'bg-green-100 text-green-800'
-                          }`}>
-                            <CheckIcon className="h-3 w-3 mr-1" />
-                            Exists
-                          </span>
-                        ) : (
-                          <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
-                            isDarkMode
-                              ? 'bg-blue-900/20 text-blue-400'
-                              : 'bg-blue-100 text-blue-800'
-                          }`}>
-                            <PlusIcon className="h-3 w-3 mr-1" />
-                            New
-                          </span>
+                    <div>
+                      <label className={`block text-xs font-medium mb-2 ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        Sample Number
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={lab.sampleNumber}
+                          onChange={(e) => handleLabDataChange(index, 'sampleNumber', e.target.value)}
+                          placeholder="Enter sample number"
+                          className={`w-full p-3 pr-10 rounded-lg border text-sm transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                            isDarkMode 
+                              ? 'bg-gray-800 border-gray-600 text-white' 
+                              : 'bg-white border-gray-300 text-gray-900'
+                          }`}
+                        />
+                        {lab.sampleNumber && (
+                          <button
+                            type="button"
+                            onClick={() => handleLabDataChange(index, 'sampleNumber', '')}
+                            className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
+                              isDarkMode 
+                                ? 'text-gray-400 hover:text-white hover:bg-gray-700' 
+                                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
+                            }`}
+                            title="Clear sample number"
+                          >
+                            <XMarkIcon className="h-4 w-4" />
+                          </button>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
+      </div>
 
-        {/* Footer */}
-        <div className={`flex items-center justify-end gap-3 p-6 border-t ${
-          isDarkMode ? 'border-white/10' : 'border-gray-200'
-        }`}>
+      {/* Sticky Action Buttons */}
+      <div className="sticky bottom-0 bg-inherit border-t border-gray-200 dark:border-gray-700 p-4">
+        <div className="flex justify-end space-x-3">
           <button
             onClick={onClose}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
               isDarkMode
-                ? 'text-gray-300 hover:text-white hover:bg-white/10'
-                : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
             }`}
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || hasUnsavedOrder || hasValidationErrors}
-            className={`inline-flex items-center px-6 py-2 rounded-lg font-medium transition-all duration-300 ${
-              loading || hasUnsavedOrder || hasValidationErrors
-                ? 'opacity-50 cursor-not-allowed'
-                : 'hover:scale-105'
-            } ${
-              isDarkMode
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
-                : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
+            disabled={loading || hasValidationErrors || hasUnsavedOrder}
+            className={`px-8 py-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
+              loading || hasValidationErrors || hasUnsavedOrder
+                ? 'bg-gray-400 cursor-not-allowed text-gray-600'
+                : isDarkMode
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-green-500 hover:bg-green-600 text-white'
             }`}
           >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Processing...
-              </>
-            ) : hasUnsavedOrder ? (
-              <>
-                <ExclamationTriangleIcon className="h-4 w-4 mr-2" />
-                Save Order First
-              </>
-            ) : hasValidationErrors ? (
-              <>
-                <ExclamationTriangleIcon className="h-4 w-4 mr-2" />
-                Fix Required Fields
-              </>
-            ) : (
-              <>
-                {hasExistingLabs ? <PencilIcon className="h-4 w-4 mr-2" /> : <PlusIcon className="h-4 w-4 mr-2" />}
-                {hasExistingLabs && hasNewLabs ? 'Update & Create' : hasExistingLabs ? 'Update Labs' : 'Create Lab Records'}
-              </>
-            )}
+            {loading ? 'Saving...' : 'Save Lab Data'}
           </button>
         </div>
       </div>
+      </div>
 
-
+      {/* Image Preview Modal */}
+      {showImagePreview && previewImage && (
+        <div className="fixed inset-0 backdrop-blur-md bg-black/80 flex items-center justify-center z-[60] p-4">
+          <div className="relative max-w-4xl max-h-[90vh]">
+            <button
+              onClick={() => setShowImagePreview(false)}
+              className="absolute -top-4 -right-4 p-2 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-all duration-200 z-10"
+            >
+              <XMarkIcon className="h-6 w-6" />
+            </button>
+            <img
+              src={previewImage?.url || ''}
+              alt={previewImage?.alt || ''}
+              className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

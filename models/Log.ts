@@ -19,6 +19,8 @@ export interface ILog extends Document {
     oldValues?: any;
     newValues?: any;
     metadata?: any;
+    changedFields?: any;
+    changeSummary?: any;
   };
   timestamp: Date;
   sessionId?: string;
@@ -123,7 +125,9 @@ const LogSchema = new Schema<ILog>({
     errorMessage: String,
     oldValues: Schema.Types.Mixed,
     newValues: Schema.Types.Mixed,
-    metadata: Schema.Types.Mixed
+    metadata: Schema.Types.Mixed,
+    changedFields: Schema.Types.Mixed,
+    changeSummary: Schema.Types.Mixed
   },
   timestamp: {
     type: Date,
@@ -162,6 +166,11 @@ LogSchema.index({ action: 1, timestamp: -1 });
 LogSchema.index({ resource: 1, timestamp: -1 });
 LogSchema.index({ success: 1, timestamp: -1 });
 LogSchema.index({ severity: 1, timestamp: -1 });
+
+// Compound indexes for specific queries
+LogSchema.index({ resource: 1, resourceId: 1, timestamp: -1 }); // For order logs
+LogSchema.index({ resource: 1, action: 1, timestamp: -1 }); // For resource-specific actions
+LogSchema.index({ userId: 1, resource: 1, timestamp: -1 }); // For user activity by resource
 
 // Static method to log user actions
 LogSchema.statics.logUserAction = async function(data: {

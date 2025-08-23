@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Order from '@/models/Order';
 import Counter from '@/models/Counter';
+import { logDelete } from '@/lib/logger';
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -29,6 +30,13 @@ export async function DELETE(request: NextRequest) {
 
     // Reset the counter to 0
     await Counter.findByIdAndUpdate('orderId', { sequence: 0 }, { upsert: true });
+
+    // Log the bulk deletion
+    await logDelete('order', 'bulk', {
+      deletedCount: deleteResult.deletedCount,
+      action: 'delete_all_orders',
+      previousOrderCount: orderCount
+    }, request);
 
     return NextResponse.json({
       success: true,
