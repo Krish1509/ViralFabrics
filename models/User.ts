@@ -234,14 +234,7 @@ const UserSchema = new Schema<IUser>({
 });
 
 // **EXACT INDEXES TO ADD**
-// Primary indexes
-UserSchema.index({ username: 1 }, { unique: true, name: 'idx_user_username_unique' });
-UserSchema.index({ email: 1 }, { sparse: true, name: 'idx_user_email' });
-UserSchema.index({ isActive: 1 }, { name: 'idx_user_active' });
-UserSchema.index({ role: 1 }, { name: 'idx_user_role' });
-UserSchema.index({ department: 1 }, { name: 'idx_user_department' });
-UserSchema.index({ accountLocked: 1 }, { name: 'idx_user_locked' });
-UserSchema.index({ lastLogin: -1 }, { name: 'idx_user_last_login' });
+// Primary indexes (removed duplicates that are already defined in field definitions)
 UserSchema.index({ loginCount: -1 }, { name: 'idx_user_login_count' });
 UserSchema.index({ createdAt: -1 }, { name: 'idx_user_created_desc' });
 UserSchema.index({ updatedAt: -1 }, { name: 'idx_user_updated_desc' });

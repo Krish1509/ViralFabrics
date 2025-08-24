@@ -1055,8 +1055,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     styleNo: '',
     poDate: '',
     deliveryDate: '',
-    weaverSupplierName: '',
-    purchaseRate: '',
+
+
     items: [{
       quality: '',
       quantity: '', // Always initialize as empty string, never null
@@ -1245,18 +1245,22 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         styleNo: order.styleNo || '',
         poDate: order.poDate ? new Date(order.poDate).toISOString().split('T')[0] : '',
         deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toISOString().split('T')[0] : '',
-        weaverSupplierName: order.weaverSupplierName || '',
-        purchaseRate: order.purchaseRate ? String(order.purchaseRate) : '',
+    
+    
                  items: order.items.length > 0 ? order.items.map(item => ({
            quality: typeof item.quality === 'string' ? item.quality : item.quality?._id || '',
            quantity: item.quantity !== undefined && item.quantity !== null && item.quantity !== '' ? String(item.quantity) : '',
            imageUrls: item.imageUrls || [],
-           description: item.description || ''
+           description: item.description || '',
+           weaverSupplierName: item.weaverSupplierName || '',
+           purchaseRate: item.purchaseRate ? String(item.purchaseRate) : ''
          })) : [{
            quality: '',
            quantity: '', // Always empty string, never null
            imageUrls: [],
-           description: ''
+           description: '',
+           weaverSupplierName: '',
+           purchaseRate: ''
          }]
       });
       
@@ -1317,7 +1321,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     setFormData(prev => {
       const updatedItems = [...prev.items];
       if (!updatedItems[index]) {
-        updatedItems[index] = { quality: '', quantity: '', imageUrls: [], description: '' };
+        updatedItems[index] = { quality: '', quantity: '', imageUrls: [], description: '', weaverSupplierName: '', purchaseRate: '' };
       }
       updatedItems[index] = { ...updatedItems[index], [field]: value };
       console.log('🔍 Updated form data:', { ...prev, items: updatedItems });
@@ -1334,7 +1338,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   const addItem = () => {
     setFormData(prev => ({
       ...prev,
-      items: [...prev.items, { quality: '', quantity: '', imageUrls: [], description: '' }] // Always empty string for quantity
+      items: [...prev.items, { quality: '', quantity: '', imageUrls: [], description: '', weaverSupplierName: '', purchaseRate: '' }] // Always empty string for quantity
     }));
     
     // Scroll to bottom after adding item with smooth animation
@@ -1465,21 +1469,17 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         cleanedFormData.contactPhone = formData.contactPhone;
         cleanedFormData.poNumber = formData.poNumber;
         cleanedFormData.styleNo = formData.styleNo;
-        cleanedFormData.weaverSupplierName = formData.weaverSupplierName;
         cleanedFormData.poDate = cleanDate(formData.poDate);
         cleanedFormData.deliveryDate = cleanDate(formData.deliveryDate);
         
-        if (formData.purchaseRate && formData.purchaseRate !== '') {
-          const rate = parseFloat(formData.purchaseRate);
-          if (!isNaN(rate)) {
-            cleanedFormData.purchaseRate = rate;
-          }
-        }
+
         
         cleanedFormData.items = formData.items.map(item => ({
           quality: item.quality || undefined,
           quantity: item.quantity === '' || item.quantity === null || item.quantity === undefined ? 1 : Number(item.quantity),
           description: item.description || '',
+          weaverSupplierName: item.weaverSupplierName || '',
+          purchaseRate: item.purchaseRate && item.purchaseRate !== '' ? parseFloat(String(item.purchaseRate)) : undefined,
           imageUrls: item.imageUrls || []
         }));
       } else {
@@ -1541,10 +1541,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
           changedFields.push('styleNo');
         }
         
-        if (formData.weaverSupplierName !== order.weaverSupplierName) {
-          cleanedFormData.weaverSupplierName = formData.weaverSupplierName;
-          changedFields.push('weaverSupplierName');
-        }
+
         
         const existingPoDate = normalizeDateForComparison(order.poDate);
         const newPoDate = normalizeDateForComparison(formData.poDate);
@@ -1562,12 +1559,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
           changedFields.push('deliveryDate');
         }
         
-        const currentRate = order.purchaseRate || 0;
-        const newRate = formData.purchaseRate && formData.purchaseRate !== '' ? parseFloat(formData.purchaseRate) : 0;
-        if (currentRate !== newRate) {
-          cleanedFormData.purchaseRate = newRate;
-          changedFields.push('purchaseRate');
-        }
+
         
         // Check if items have changed - more accurate comparison
         const currentItems = order.items || [];
@@ -1575,6 +1567,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
           quality: item.quality || undefined,
           quantity: item.quantity === '' || item.quantity === null || item.quantity === undefined ? 1 : Number(item.quantity),
           description: item.description || '',
+          weaverSupplierName: item.weaverSupplierName || '',
+          purchaseRate: item.purchaseRate && item.purchaseRate !== '' ? parseFloat(String(item.purchaseRate)) : undefined,
           imageUrls: item.imageUrls || []
         }));
         
@@ -1588,6 +1582,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
               currentItem.quality?.toString() !== newItem.quality?.toString() ||
               currentItem.quantity !== newItem.quantity ||
               currentItem.description !== newItem.description ||
+              currentItem.weaverSupplierName !== newItem.weaverSupplierName ||
+              currentItem.purchaseRate !== newItem.purchaseRate ||
               JSON.stringify(currentItem.imageUrls || []) !== JSON.stringify(newItem.imageUrls || [])
             );
             
@@ -2050,120 +2046,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                 </div>
               </div>
 
-              {/* Weaver / Supplier Name */}
-              <div>
-                <label className="block text-sm font-medium mb-3">Weaver / Supplier Name</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.weaverSupplierName}
-                    onChange={(e) => handleFieldChange('weaverSupplierName', e.target.value)}
-                    placeholder="Enter weaver or supplier name"
-                    className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    }`}
-                  />
-                  {formData.weaverSupplierName && (
-                    <button
-                      type="button"
-                      onClick={() => handleFieldChange('weaverSupplierName', '')}
-                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
-                        isDarkMode 
-                          ? 'text-gray-400 hover:text-white hover:bg-gray-700' 
-                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                      }`}
-                      title="Clear weaver supplier name"
-                    >
-                      <XMarkIcon className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
 
-              {/* Purchase Rate */}
-              <div>
-                <label className="block text-sm font-medium mb-3">Purchase Rate</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={formData.purchaseRate}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      // Allow empty string, valid numbers, and decimal numbers with up to 2 decimal places
-                      if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
-                        const numValue = parseFloat(value);
-                        if (value === '' || (!isNaN(numValue) && numValue >= 0)) {
-                          handleFieldChange('purchaseRate', value);
-                        }
-                      }
-                    }}
-                    onKeyPress={(e) => {
-                      // Allow numbers, decimal point, backspace, delete, arrow keys
-                      if (!/[0-9.]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
-                        e.preventDefault();
-                      }
-                      // Prevent multiple decimal points
-                      if (e.key === '.' && (e.target as HTMLInputElement).value.includes('.')) {
-                        e.preventDefault();
-                      }
-                    }}
-                    placeholder="Enter purchase rate"
-                    className={`w-full p-3 pr-16 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    }`}
-                  />
-                  {/* Custom Increment/Decrement Buttons */}
-                  <div className="absolute right-1 top-1/2 transform -translate-y-1/2 flex flex-col">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const currentValue = parseFloat(String(formData.purchaseRate || '0')) || 0;
-                        const newValue = currentValue + 0.01;
-                        // Format to 2 decimal places
-                        const formattedValue = newValue.toFixed(2);
-                        handleFieldChange('purchaseRate', formattedValue);
-                      }}
-                      className={`w-6 h-6 flex items-center justify-center rounded-t-sm border-b border-gray-300 transition-all duration-200 hover:scale-110 ${
-                        isDarkMode 
-                          ? 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
-                      }`}
-                      title="Increase purchase rate by 0.01"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const currentValue = parseFloat(String(formData.purchaseRate || '0')) || 0;
-                        if (currentValue > 0) {
-                          const newValue = Math.max(0, currentValue - 0.01);
-                          // Format to 2 decimal places
-                          const formattedValue = newValue.toFixed(2);
-                          handleFieldChange('purchaseRate', formattedValue);
-                        }
-                      }}
-                      className={`w-6 h-6 flex items-center justify-center rounded-b-sm transition-all duration-200 hover:scale-110 ${
-                        isDarkMode 
-                          ? 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
-                      }`}
-                      title="Decrease purchase rate by 0.01"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
             </div>
 
 
@@ -2179,7 +2062,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                   <div key={index} className={`p-6 rounded-xl border transition-all duration-200 hover:shadow-lg ${
                     isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
                   }`}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-6">
                       {/* Quality */}
                       <div>
                         <label className="block text-sm font-medium mb-3">
@@ -2337,6 +2220,121 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                               <XMarkIcon className="h-4 w-4" />
                             </button>
                           )}
+                        </div>
+                      </div>
+
+                      {/* Weaver / Supplier Name */}
+                      <div>
+                        <label className="block text-sm font-medium mb-3">Weaver / Supplier Name</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={item.weaverSupplierName || ''}
+                            onChange={(e) => handleItemChange(index, 'weaverSupplierName', e.target.value)}
+                            placeholder="Enter weaver or supplier name"
+                            className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                              isDarkMode 
+                                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                            }`}
+                          />
+                          {item.weaverSupplierName && (
+                            <button
+                              type="button"
+                              onClick={() => handleItemChange(index, 'weaverSupplierName', '')}
+                              className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
+                                isDarkMode 
+                                  ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
+                                  : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
+                              }`}
+                              title="Clear weaver supplier name"
+                            >
+                              <XMarkIcon className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Purchase Rate */}
+                      <div>
+                        <label className="block text-sm font-medium mb-3">Purchase Rate</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.purchaseRate || ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              // Allow empty string, valid numbers, and decimal numbers with up to 2 decimal places
+                              if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+                                const numValue = parseFloat(value);
+                                if (value === '' || (!isNaN(numValue) && numValue >= 0)) {
+                                  handleItemChange(index, 'purchaseRate', value);
+                                }
+                              }
+                            }}
+                            onKeyPress={(e) => {
+                              // Allow numbers, decimal point, backspace, delete, arrow keys
+                              if (!/[0-9.]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+                                e.preventDefault();
+                              }
+                              // Prevent multiple decimal points
+                              if (e.key === '.' && (e.target as HTMLInputElement).value.includes('.')) {
+                                e.preventDefault();
+                              }
+                            }}
+                            placeholder="Enter purchase rate"
+                            className={`w-full p-3 pr-16 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                              isDarkMode 
+                                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                            }`}
+                          />
+                          {/* Custom Increment/Decrement Buttons */}
+                          <div className="absolute right-1 top-1/2 transform -translate-y-1/2 flex flex-col">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentValue = parseFloat(String(item.purchaseRate || '0')) || 0;
+                                const newValue = currentValue + 0.01;
+                                // Format to 2 decimal places
+                                const formattedValue = newValue.toFixed(2);
+                                handleItemChange(index, 'purchaseRate', formattedValue);
+                              }}
+                              className={`w-6 h-6 flex items-center justify-center rounded-t-sm border-b border-gray-300 transition-all duration-200 hover:scale-110 ${
+                                isDarkMode 
+                                  ? 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:text-white' 
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                              }`}
+                              title="Increase purchase rate by 0.01"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentValue = parseFloat(String(item.purchaseRate || '0')) || 0;
+                                if (currentValue > 0) {
+                                  const newValue = Math.max(0, currentValue - 0.01);
+                                  // Format to 2 decimal places
+                                  const formattedValue = newValue.toFixed(2);
+                                  handleItemChange(index, 'purchaseRate', formattedValue);
+                                }
+                              }}
+                              className={`w-6 h-6 flex items-center justify-center rounded-b-sm transition-all duration-200 hover:scale-110 ${
+                                isDarkMode 
+                                  ? 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:text-white' 
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                              }`}
+                              title="Decrease purchase rate by 0.01"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       </div>
 

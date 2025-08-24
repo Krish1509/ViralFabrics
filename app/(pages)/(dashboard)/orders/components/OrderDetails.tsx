@@ -15,13 +15,15 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
   InformationCircleIcon,
-  BeakerIcon
+  BeakerIcon,
+  TruckIcon
 } from '@heroicons/react/24/outline';
 import { Order } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { useState, useEffect } from 'react';
 import OrderLogsModal from './OrderLogsModal';
 import LabAddModal from './LabAddModal';
+import DispatchForm from './DispatchForm';
 
 interface OrderDetailsProps {
   order: Order;
@@ -33,10 +35,17 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
   const { isDarkMode, mounted } = useDarkMode();
   const [labs, setLabs] = useState<any[]>([]);
   const [loadingLabs, setLoadingLabs] = useState(false);
+  const [millInputs, setMillInputs] = useState<any[]>([]);
+  const [loadingMillInputs, setLoadingMillInputs] = useState(false);
+  const [millOutputs, setMillOutputs] = useState<any[]>([]);
+  const [loadingMillOutputs, setLoadingMillOutputs] = useState(false);
+  const [dispatches, setDispatches] = useState<any[]>([]);
+  const [loadingDispatches, setLoadingDispatches] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const [showOrderLogs, setShowOrderLogs] = useState(false);
   const [showLabModal, setShowLabModal] = useState(false);
+  const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [logsLoading, setLogsLoading] = useState(false);
 
   // Pre-fetch logs and labs when order details open
@@ -79,9 +88,78 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
           setLoadingLabs(false);
         }
       };
+
+      // Fetch mill inputs data
+      const fetchMillInputs = async () => {
+        try {
+          setLoadingMillInputs(true);
+          const token = localStorage.getItem('token');
+          const response = await fetch(`/api/mill-inputs?orderId=${order.orderId}`, {
+            headers: {
+              'Cache-Control': 'max-age=30',
+              'Authorization': `Bearer ${token}`,
+            }
+          });
+          const data = await response.json();
+          if (data.success && Array.isArray(data.data.millInputs)) {
+            setMillInputs(data.data.millInputs);
+          }
+        } catch (error) {
+          console.error('Error fetching mill inputs:', error);
+        } finally {
+          setLoadingMillInputs(false);
+        }
+      };
+
+      // Fetch mill outputs data
+      const fetchMillOutputs = async () => {
+        try {
+          setLoadingMillOutputs(true);
+          const token = localStorage.getItem('token');
+          const response = await fetch(`/api/mill-outputs?orderId=${order.orderId}`, {
+            headers: {
+              'Cache-Control': 'max-age=30',
+              'Authorization': `Bearer ${token}`,
+            }
+          });
+          const data = await response.json();
+          if (data.success && Array.isArray(data.data)) {
+            setMillOutputs(data.data);
+          }
+        } catch (error) {
+          console.error('Error fetching mill outputs:', error);
+        } finally {
+          setLoadingMillOutputs(false);
+        }
+      };
+
+      // Fetch dispatch data
+      const fetchDispatches = async () => {
+        try {
+          setLoadingDispatches(true);
+          const token = localStorage.getItem('token');
+          const response = await fetch(`/api/dispatch?orderId=${order.orderId}`, {
+            headers: {
+              'Cache-Control': 'max-age=30',
+              'Authorization': `Bearer ${token}`,
+            }
+          });
+          const data = await response.json();
+          if (data.success && Array.isArray(data.data)) {
+            setDispatches(data.data);
+          }
+        } catch (error) {
+          console.error('Error fetching dispatches:', error);
+        } finally {
+          setLoadingDispatches(false);
+        }
+      };
       
       preloadLogs();
       fetchLabs();
+      fetchMillInputs();
+      fetchMillOutputs();
+      fetchDispatches();
     }
   }, [order._id]);
 
@@ -365,7 +443,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                   <span className="hidden xs:inline sm:hidden">Edit</span>
                   <span className="xs:hidden">Edit</span>
                 </button>
-                <button
+                                <button
                   onClick={() => setShowLabModal(true)}
                   className={`inline-flex items-center px-1.5 py-1.5 xs:px-2 sm:px-3 lg:px-4 xs:py-2 sm:py-2.5 rounded-lg font-medium transition-all duration-300 shadow-md hover:shadow-lg text-xs ${
                     labs.length > 0
@@ -382,7 +460,25 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                   <span className="hidden sm:inline lg:hidden">{labs.length > 0 ? 'Edit Lab' : 'Add Lab'}</span>
                   <span className="hidden xs:inline sm:hidden">{labs.length > 0 ? 'Edit' : 'Add'}</span>
                   {/* <span className="xs:hidden">{labs.length > 0 ? 'E' : 'A'}</span> */}
-               </button>
+                </button>
+                <button
+                  onClick={() => setShowDispatchModal(true)}
+                  className={`inline-flex items-center px-1.5 py-1.5 xs:px-2 sm:px-3 lg:px-4 xs:py-2 sm:py-2.5 rounded-lg font-medium transition-all duration-300 shadow-md hover:shadow-lg text-xs ${
+                    dispatches.length > 0
+                      ? isDarkMode
+                        ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white hover:from-orange-700 hover:to-red-700'
+                        : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
+                      : isDarkMode
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700'
+                        : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600'
+                  }`}
+                >
+                  <TruckIcon className="h-3 w-3 xs:h-3.5 xs:w-3.5 sm:h-4 sm:w-4 mr-0.5 xs:mr-1 sm:mr-1.5 lg:mr-2" />
+                  <span className="hidden lg:inline">{dispatches.length > 0 ? 'Edit Dispatch' : 'Add Dispatch'}</span>
+                  <span className="hidden sm:inline lg:hidden">{dispatches.length > 0 ? 'Edit Dispatch' : 'Add Dispatch'}</span>
+                  <span className="hidden xs:inline sm:hidden">{dispatches.length > 0 ? 'Edit' : 'Add'}</span>
+                  <span className="xs:hidden">{dispatches.length > 0 ? 'E' : 'A'}</span>
+                </button>
                <button
                  onClick={onClose}
                   className={`p-1 xs:p-1.5 sm:p-2 lg:p-3 rounded-lg transition-all duration-300 ${
@@ -592,7 +688,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                           </span>
                         </div>
                       )}
-                      {(order.poNumber || order.styleNo || order.weaverSupplierName || order.purchaseRate) && (
+                      {(order.poNumber || order.styleNo) && ( // Removed weaverSupplierName and purchaseRate checks
                         <div className="space-y-3">
                           {order.poNumber && (
                             <div className={`flex justify-between items-center p-3 rounded-lg ${
@@ -626,38 +722,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                              </span>
                            </div>
                          )}
-                          {order.weaverSupplierName && (
-                            <div className={`flex justify-between items-center p-3 rounded-lg ${
-                              isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
-                            }`}>
-                              <span className={`text-sm font-medium ${
-                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                              }`}>
-                                Weaver / Supplier Name
-                              </span>
-                              <span className={`text-sm font-semibold ${
-                                isDarkMode ? 'text-orange-400' : 'text-orange-600'
-                              }`}>
-                                {order.weaverSupplierName}
-                              </span>
-                            </div>
-                          )}
-                          {order.purchaseRate && (
-                            <div className={`flex justify-between items-center p-3 rounded-lg ${
-                              isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
-                            }`}>
-                              <span className={`text-sm font-medium ${
-                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                              }`}>
-                                Purchase Rate
-                              </span>
-                              <span className={`text-sm font-semibold ${
-                                isDarkMode ? 'text-green-400' : 'text-green-600'
-                              }`}>
-                                ₹{order.purchaseRate.toFixed(2)}
-                              </span>
-                            </div>
-                          )}
+                          
                        </div>
                      )}
                    </div>
@@ -980,6 +1045,22 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                             </p>
                           )}
                           
+                          {item.weaverSupplierName && (
+                            <p className={`text-sm mb-2 ${
+                              isDarkMode ? 'text-orange-300' : 'text-orange-600'
+                            }`}>
+                              <span className="font-medium">Weaver/Supplier:</span> {item.weaverSupplierName}
+                            </p>
+                          )}
+                          
+                          {item.purchaseRate && (
+                            <p className={`text-sm mb-3 ${
+                              isDarkMode ? 'text-green-300' : 'text-green-600'
+                            }`}>
+                              <span className="font-medium">Purchase Rate:</span> ₹{Number(item.purchaseRate).toFixed(2)}
+                            </p>
+                          )}
+                          
                           {/* Item Images */}
                           {item.imageUrls && item.imageUrls.length > 0 && (
                             <div className="mt-4">
@@ -1176,11 +1257,499 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                   </div>
                 )}
 
+                {/* Mill Inputs Card */}
+                <div className={`mt-8 p-6 rounded-xl border ${
+                  isDarkMode 
+                    ? 'bg-white/5 border-white/10' 
+                    : 'bg-white border-gray-200 shadow-sm'
+                }`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center">
+                      <BuildingOfficeIcon className={`h-5 w-5 mr-2 ${
+                        isDarkMode ? 'text-cyan-400' : 'text-cyan-600'
+                      }`} />
+                      <h3 className={`text-lg font-semibold ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        Mill Inputs ({millInputs.length})
+                      </h3>
+                    </div>
+                    {loadingMillInputs && (
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-cyan-500"></div>
+                    )}
+                  </div>
+                  
+                  {loadingMillInputs ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500 mx-auto mb-4"></div>
+                      <p className={`text-sm ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        Loading mill inputs...
+                      </p>
+                    </div>
+                  ) : millInputs.length > 0 ? (
+                    <div className="space-y-4">
+                      {millInputs.map((millInput, index) => (
+                        <div key={millInput._id || index} className={`p-4 rounded-lg border-l-4 ${
+                          isDarkMode 
+                            ? 'bg-white/5 border-cyan-500/50' 
+                            : 'bg-gray-50 border-cyan-500'
+                        }`}>
+                          <div className="flex justify-between items-start mb-3">
+                            <h4 className={`font-semibold ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              Mill Input #{index + 1}
+                            </h4>
+                            <span className={`text-sm font-medium px-2 py-1 rounded-full ${
+                              isDarkMode 
+                                ? 'bg-cyan-900/20 text-cyan-400' 
+                                : 'bg-cyan-100 text-cyan-700'
+                            }`}>
+                              {millInput.mill?.name || 'Unknown Mill'}
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div>
+                              <span className={`text-sm font-medium ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Mill Name
+                              </span>
+                              <p className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                {millInput.mill?.name || 'Not specified'}
+                              </p>
+                            </div>
+                            
+                            <div>
+                              <span className={`text-sm font-medium ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Mill Date
+                              </span>
+                              <p className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                {millInput.millDate ? new Date(millInput.millDate).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric'
+                                }) : 'Not specified'}
+                              </p>
+                            </div>
+                            
+                            <div>
+                              <span className={`text-sm font-medium ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Chalan No
+                              </span>
+                              <p className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                {millInput.chalanNo || 'Not specified'}
+                              </p>
+                            </div>
+                            
+                            <div>
+                              <span className={`text-sm font-medium ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Greigh Meters
+                              </span>
+                              <p className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                {millInput.greighMtr ? `${millInput.greighMtr.toLocaleString()} mtr` : 'Not specified'}
+                              </p>
+                            </div>
+                            
+                            <div>
+                              <span className={`text-sm font-medium ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Pieces
+                              </span>
+                              <p className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                {millInput.pcs ? millInput.pcs.toLocaleString() : 'Not specified'}
+                              </p>
+                            </div>
+                            
+                            {millInput.notes && (
+                              <div className="md:col-span-2 lg:col-span-3">
+                                <span className={`text-sm font-medium ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                }`}>
+                                  Notes
+                                </span>
+                                <p className={`text-sm ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                }`}>
+                                  {millInput.notes}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={`p-6 rounded-2xl border-2 border-dashed ${
+                      isDarkMode 
+                        ? 'bg-gray-900/10 border-gray-500/30' 
+                        : 'bg-gray-50 border-gray-300'
+                    } shadow-sm`}>
+                      <div className="flex items-center justify-center">
+                        <div className={`p-3 rounded-xl ${
+                          isDarkMode ? 'bg-gray-500/20' : 'bg-gray-100'
+                        }`}>
+                          <BuildingOfficeIcon className={`h-6 w-6 ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`} />
+                        </div>
+                        <div className="ml-4 text-center">
+                          <h4 className={`text-lg font-semibold ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                          }`}>
+                            No Mill Inputs
+                          </h4>
+                          <p className={`text-sm ${
+                            isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                          }`}>
+                            Mill inputs can be added from the orders page
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-              </div>
-            </div>
+                {/* Mill Outputs Card */}
+                <div className={`mt-8 p-6 rounded-xl border ${
+                  isDarkMode 
+                    ? 'bg-white/5 border-white/10' 
+                    : 'bg-white border-gray-200 shadow-sm'
+                }`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center">
+                      <BuildingOfficeIcon className={`h-5 w-5 mr-2 ${
+                        isDarkMode ? 'text-green-400' : 'text-green-600'
+                      }`} />
+                      <h3 className={`text-lg font-semibold ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        Mill Outputs ({millOutputs.length})
+                      </h3>
+                    </div>
+                    {loadingMillOutputs && (
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-500"></div>
+                    )}
+                  </div>
+                  
+                  {loadingMillOutputs ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto mb-4"></div>
+                      <p className={`text-sm ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        Loading mill outputs...
+                      </p>
+                    </div>
+                  ) : millOutputs.length > 0 ? (
+                    <div className="space-y-4">
+                      {millOutputs.map((millOutput, index) => (
+                        <div key={millOutput._id || index} className={`p-4 rounded-lg border-l-4 ${
+                          isDarkMode 
+                            ? 'bg-white/5 border-green-500/50' 
+                            : 'bg-gray-50 border-green-500'
+                        }`}>
+                          <div className="flex justify-between items-start mb-3">
+                            <h4 className={`font-semibold ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              Mill Output #{index + 1}
+                            </h4>
+                            <span className={`text-sm font-medium px-2 py-1 rounded-full ${
+                              isDarkMode 
+                                ? 'bg-green-900/20 text-green-400' 
+                                : 'bg-green-100 text-green-700'
+                            }`}>
+                              {millOutput.millBillNo}
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div>
+                              <span className={`text-sm font-medium ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Bill Number
+                              </span>
+                              <p className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                {millOutput.millBillNo || 'Not specified'}
+                              </p>
+                            </div>
+                            
+                            <div>
+                              <span className={`text-sm font-medium ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Received Date
+                              </span>
+                              <p className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                {millOutput.recdDate ? new Date(millOutput.recdDate).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric'
+                                }) : 'Not specified'}
+                              </p>
+                            </div>
+                            
+                            <div>
+                              <span className={`text-sm font-medium ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Finished Meters
+                              </span>
+                              <p className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-green-400' : 'text-green-600'
+                              }`}>
+                                {millOutput.finishedMtr ? `${millOutput.finishedMtr.toLocaleString()} mtr` : 'Not specified'}
+                              </p>
+                            </div>
+                            
+                            <div>
+                              <span className={`text-sm font-medium ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Mill Rate
+                              </span>
+                              <p className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
+                              }`}>
+                                {millOutput.millRate ? `₹${millOutput.millRate.toLocaleString()}` : 'Not specified'}
+                              </p>
+                            </div>
+                            
+                            <div className="md:col-span-2 lg:col-span-4">
+                              <span className={`text-sm font-medium ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Total Value
+                              </span>
+                              <p className={`text-lg font-bold ${
+                                isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                              }`}>
+                                ₹{(millOutput.finishedMtr * millOutput.millRate).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={`p-6 rounded-2xl border-2 border-dashed ${
+                      isDarkMode 
+                        ? 'bg-gray-900/10 border-gray-500/30' 
+                        : 'bg-gray-50 border-gray-300'
+                    } shadow-sm`}>
+                      <div className="flex items-center justify-center">
+                        <div className={`p-3 rounded-xl ${
+                          isDarkMode ? 'bg-gray-500/20' : 'bg-gray-100'
+                        }`}>
+                          <BuildingOfficeIcon className={`h-6 w-6 ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`} />
+                        </div>
+                        <div className="ml-4 text-center">
+                          <h4 className={`text-lg font-semibold ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                          }`}>
+                            No Mill Outputs
+                          </h4>
+                          <p className={`text-sm ${
+                            isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                          }`}>
+                            Mill outputs can be added from the orders page
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                                 </div>
 
-            {/* Timestamps */}
+                 {/* Dispatch Card */}
+                 <div className={`mt-8 p-6 rounded-xl border ${
+                   isDarkMode 
+                     ? 'bg-white/5 border-white/10' 
+                     : 'bg-white border-gray-200 shadow-sm'
+                 }`}>
+                   <div className="flex items-center justify-between mb-4">
+                     <div className="flex items-center">
+                       <TruckIcon className={`h-5 w-5 mr-2 ${
+                         isDarkMode ? 'text-orange-400' : 'text-orange-600'
+                       }`} />
+                       <h3 className={`text-lg font-semibold ${
+                         isDarkMode ? 'text-white' : 'text-gray-900'
+                       }`}>
+                         Dispatch Records ({dispatches.length})
+                       </h3>
+                     </div>
+                     {loadingDispatches && (
+                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-500"></div>
+                     )}
+                   </div>
+                   
+                   {loadingDispatches ? (
+                     <div className="text-center py-8">
+                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                       <p className={`text-sm ${
+                         isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                       }`}>
+                         Loading dispatch records...
+                       </p>
+                     </div>
+                   ) : dispatches.length > 0 ? (
+                     <div className="space-y-4">
+                       {dispatches.map((dispatch, index) => (
+                         <div key={dispatch._id || index} className={`p-4 rounded-lg border-l-4 ${
+                           isDarkMode 
+                             ? 'bg-white/5 border-orange-500/50' 
+                             : 'bg-gray-50 border-orange-500'
+                         }`}>
+                           <div className="flex justify-between items-start mb-3">
+                             <h4 className={`font-semibold ${
+                               isDarkMode ? 'text-white' : 'text-gray-900'
+                             }`}>
+                               Dispatch #{index + 1}
+                             </h4>
+                             <span className={`text-sm font-medium px-2 py-1 rounded-full ${
+                               isDarkMode 
+                                 ? 'bg-orange-900/20 text-orange-400' 
+                                 : 'bg-orange-100 text-orange-700'
+                             }`}>
+                               {dispatch.billNo}
+                             </span>
+                           </div>
+                           
+                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                             <div>
+                               <span className={`text-sm font-medium ${
+                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                               }`}>
+                                 Bill Number
+                               </span>
+                               <p className={`text-sm font-semibold ${
+                                 isDarkMode ? 'text-white' : 'text-gray-900'
+                               }`}>
+                                 {dispatch.billNo || 'Not specified'}
+                               </p>
+                             </div>
+                             
+                             <div>
+                               <span className={`text-sm font-medium ${
+                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                               }`}>
+                                 Dispatch Date
+                               </span>
+                               <p className={`text-sm font-semibold ${
+                                 isDarkMode ? 'text-white' : 'text-gray-900'
+                               }`}>
+                                 {dispatch.dispatchDate ? new Date(dispatch.dispatchDate).toLocaleDateString('en-US', {
+                                   year: 'numeric',
+                                   month: 'short',
+                                   day: 'numeric'
+                                 }) : 'Not specified'}
+                               </p>
+                             </div>
+                             
+                             <div>
+                               <span className={`text-sm font-medium ${
+                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                               }`}>
+                                 Finish Meters
+                               </span>
+                               <p className={`text-sm font-semibold ${
+                                 isDarkMode ? 'text-green-400' : 'text-green-600'
+                               }`}>
+                                 {dispatch.finishMtr ? `${dispatch.finishMtr.toLocaleString()} mtr` : 'Not specified'}
+                               </p>
+                             </div>
+                             
+                             <div>
+                               <span className={`text-sm font-medium ${
+                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                               }`}>
+                                 Sale Rate
+                               </span>
+                               <p className={`text-sm font-semibold ${
+                                 isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
+                               }`}>
+                                 {dispatch.saleRate ? `₹${dispatch.saleRate.toLocaleString()}` : 'Not specified'}
+                               </p>
+                             </div>
+                             
+                             <div className="md:col-span-2 lg:col-span-4">
+                               <span className={`text-sm font-medium ${
+                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                               }`}>
+                                 Total Value
+                               </span>
+                               <p className={`text-lg font-bold ${
+                                 isDarkMode ? 'text-orange-400' : 'text-orange-600'
+                               }`}>
+                                 ₹{(dispatch.finishMtr * dispatch.saleRate).toLocaleString()}
+                               </p>
+                             </div>
+                           </div>
+                         </div>
+                       ))}
+                     </div>
+                   ) : (
+                     <div className={`p-6 rounded-2xl border-2 border-dashed ${
+                       isDarkMode 
+                         ? 'bg-gray-900/10 border-gray-500/30' 
+                         : 'bg-gray-50 border-gray-300'
+                     } shadow-sm`}>
+                       <div className="flex items-center justify-center">
+                         <div className={`p-3 rounded-xl ${
+                           isDarkMode ? 'bg-gray-500/20' : 'bg-gray-100'
+                         }`}>
+                           <TruckIcon className={`h-6 w-6 ${
+                             isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                           }`} />
+                         </div>
+                         <div className="ml-4 text-center">
+                           <h4 className={`text-lg font-semibold ${
+                             isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                           }`}>
+                             No Dispatch Records
+                           </h4>
+                           <p className={`text-sm ${
+                             isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                           }`}>
+                             Dispatch records can be added from the orders page
+                           </p>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+                 </div>
+
+               </div>
+             </div>
+
+             {/* Timestamps */}
             <div className={`mt-8 pt-6 border-t ${
               isDarkMode ? 'border-slate-700' : 'border-gray-200'
             }`}>
@@ -1304,41 +1873,77 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
          />
        )}
 
-       {/* Lab Add/Edit Modal */}
-       {showLabModal && (
-         <LabAddModal
-           order={order}
-           onClose={() => setShowLabModal(false)}
-           onSuccess={() => {
-             // Refresh labs data after successful lab operation
-             const fetchLabs = async () => {
-               try {
-                 // Force refresh by adding timestamp to avoid cache
-                 const token = localStorage.getItem('token');
-                 const response = await fetch(`/api/labs/by-order/${order._id}?t=${Date.now()}`, {
-                   headers: {
-                     'Cache-Control': 'no-cache',
-                     'Pragma': 'no-cache',
-                     'Authorization': `Bearer ${token}`,
-                   }
-                 });
-                 const data = await response.json();
-                 if (data.success && Array.isArray(data.data)) {
-                   setLabs(data.data);
-                   console.log('Labs refreshed successfully:', data.data.length, 'labs');
-                 } else {
-                   console.log('Failed to refresh labs:', data);
-                 }
-               } catch (error) {
-                 console.error('Error refreshing labs:', error);
-               }
-             };
-             
-             // Add a small delay to ensure the API has processed the changes
-             setTimeout(fetchLabs, 500);
-           }}
-         />
-       )}
-     </div>
-   );
- }
+               {/* Lab Add/Edit Modal */}
+        {showLabModal && (
+          <LabAddModal
+            order={order}
+            onClose={() => setShowLabModal(false)}
+            onSuccess={() => {
+              // Refresh labs data after successful lab operation
+              const fetchLabs = async () => {
+                try {
+                  // Force refresh by adding timestamp to avoid cache
+                  const token = localStorage.getItem('token');
+                  const response = await fetch(`/api/labs/by-order/${order._id}?t=${Date.now()}`, {
+                    headers: {
+                      'Cache-Control': 'no-cache',
+                      'Pragma': 'no-cache',
+                      'Authorization': `Bearer ${token}`,
+                    }
+                  });
+                  const data = await response.json();
+                  if (data.success && Array.isArray(data.data)) {
+                    setLabs(data.data);
+                    console.log('Labs refreshed successfully:', data.data.length, 'labs');
+                  } else {
+                    console.log('Failed to refresh labs:', data);
+                  }
+                } catch (error) {
+                  console.error('Error refreshing labs:', error);
+                }
+              };
+              
+              // Add a small delay to ensure the API has processed the changes
+              setTimeout(fetchLabs, 500);
+            }}
+          />
+        )}
+
+        {/* Dispatch Add/Edit Modal */}
+        {showDispatchModal && (
+          <DispatchForm
+            orderId={order.orderId}
+            onClose={() => setShowDispatchModal(false)}
+            onSuccess={() => {
+              // Refresh dispatch data after successful dispatch operation
+              const fetchDispatches = async () => {
+                try {
+                  // Force refresh by adding timestamp to avoid cache
+                  const token = localStorage.getItem('token');
+                  const response = await fetch(`/api/dispatch?orderId=${order.orderId}&t=${Date.now()}`, {
+                    headers: {
+                      'Cache-Control': 'no-cache',
+                      'Pragma': 'no-cache',
+                      'Authorization': `Bearer ${token}`,
+                    }
+                  });
+                  const data = await response.json();
+                  if (data.success && Array.isArray(data.data)) {
+                    setDispatches(data.data);
+                    console.log('Dispatches refreshed successfully:', data.data.length, 'dispatches');
+                  } else {
+                    console.log('Failed to refresh dispatches:', data);
+                  }
+                } catch (error) {
+                  console.error('Error refreshing dispatches:', error);
+                }
+              };
+              
+              // Add a small delay to ensure the API has processed the changes
+              setTimeout(fetchDispatches, 500);
+            }}
+          />
+        )}
+      </div>
+    );
+  }

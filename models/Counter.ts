@@ -139,11 +139,7 @@ const CounterSchema = new Schema<ICounter>({
 });
 
 // **EXACT INDEXES TO ADD**
-// Primary indexes
-CounterSchema.index({ sequence: -1 }, { name: 'idx_counter_sequence_desc' });
-CounterSchema.index({ lastReset: -1 }, { name: 'idx_counter_last_reset' });
-CounterSchema.index({ createdAt: -1 }, { name: 'idx_counter_created_desc' });
-CounterSchema.index({ updatedAt: -1 }, { name: 'idx_counter_updated_desc' });
+// Primary indexes (removed duplicates that are already defined in field definitions)
 
 // Compound indexes for common query patterns
 CounterSchema.index({ "metadata.category": 1, "metadata.isActive": 1 }, { name: 'idx_counter_category_active' });

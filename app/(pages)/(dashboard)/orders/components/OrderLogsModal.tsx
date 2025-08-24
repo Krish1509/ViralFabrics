@@ -462,6 +462,12 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
           if (item?.description) {
             details.push(`Description: "${item.description}"`);
           }
+          if (item?.weaverSupplierName) {
+            details.push(`Weaver: "${item.weaverSupplierName}"`);
+          }
+          if (item?.purchaseRate) {
+            details.push(`Rate: ₹${Number(item.purchaseRate).toFixed(2)}`);
+          }
           if (item?.imageUrls && item.imageUrls.length > 0) {
             details.push(`${item.imageUrls.length} image(s)`);
           }

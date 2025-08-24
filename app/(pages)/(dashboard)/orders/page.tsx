@@ -19,7 +19,8 @@ import {
   ChartBarIcon,
   BeakerIcon,
   PhotoIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  TruckIcon
 } from '@heroicons/react/24/outline';
 import OrderForm from './components/OrderForm';
 import OrderDetails from './components/OrderDetails';
@@ -27,7 +28,11 @@ import PartyModal from './components/PartyModal';
 import QualityModal from './components/QualityModal';
 import LabAddModal from './components/LabAddModal';
 import OrderLogsModal from './components/OrderLogsModal';
-import { Order, Party, Quality } from '@/types';
+// import MillInputModal from './components/MillInputModal';
+import MillInputForm from './components/MillInputForm';
+import MillOutputForm from './components/MillOutputForm';
+import DispatchForm from './components/DispatchForm';
+import { Order, Party, Quality, Mill, MillOutput } from '@/types';
 import { useDarkMode } from '../hooks/useDarkMode';
 
 export default function OrdersPage() {
@@ -61,13 +66,22 @@ export default function OrdersPage() {
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [selectedOrderForLogs, setSelectedOrderForLogs] = useState<Order | null>(null);
+  const [showMillInputModal, setShowMillInputModal] = useState(false);
+  const [selectedOrderForMillInput, setSelectedOrderForMillInput] = useState<Order | null>(null);
+  const [showMillInputForm, setShowMillInputForm] = useState(false);
+  const [selectedOrderForMillInputForm, setSelectedOrderForMillInputForm] = useState<Order | null>(null);
+  const [showMillOutputForm, setShowMillOutputForm] = useState(false);
+  const [selectedOrderForMillOutput, setSelectedOrderForMillOutput] = useState<Order | null>(null);
+  const [showDispatchForm, setShowDispatchForm] = useState(false);
+  const [selectedOrderForDispatch, setSelectedOrderForDispatch] = useState<Order | null>(null);
+  const [mills, setMills] = useState<Mill[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
 
   const ordersPerPage = 12; // Increased for better UX
 
   // Filters
   const [filters, setFilters] = useState({
-    orderFilter: 'all', // all, latest_first, oldest_first
+    orderFilter: 'latest_first', // latest_first, oldest_first - default to latest first
     typeFilter: 'all' // all, Dying, Printing
   });
 
@@ -215,6 +229,41 @@ export default function OrdersPage() {
     }
   }, []);
 
+  // Fetch mills
+  const fetchMills = useCallback(async () => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/mills?limit=100', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Cache-Control': 'max-age=60, must-revalidate',
+          'Pragma': 'no-cache'
+        },
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      if (data.success) {
+        setMills(data.data.mills || []);
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.warn('Mills fetch timeout - continuing without mills');
+      } else {
+        console.error('Error fetching mills:', error);
+      }
+    }
+  }, []);
+
   // Fetch orders, parties, and qualities with better error handling
   useEffect(() => {
     // Prevent multiple initializations
@@ -229,17 +278,21 @@ export default function OrdersPage() {
         await fetchOrders();
         ordersLoaded = true;
         
-        // Fetch parties and qualities in parallel (non-critical)
+        // Fetch parties, qualities, and mills in parallel (non-critical)
         Promise.allSettled([
           fetchParties(),
-          fetchQualities()
+          fetchQualities(),
+          fetchMills()
         ]).then((results) => {
-          const [partiesResult, qualitiesResult] = results;
+          const [partiesResult, qualitiesResult, millsResult] = results;
           if (partiesResult.status === 'rejected') {
             console.warn('Failed to load parties:', partiesResult.reason);
           }
           if (qualitiesResult.status === 'rejected') {
             console.warn('Failed to load qualities:', qualitiesResult.reason);
+          }
+          if (millsResult.status === 'rejected') {
+            console.warn('Failed to load mills:', millsResult.reason);
           }
         });
         
@@ -264,7 +317,7 @@ export default function OrdersPage() {
     }, 8000); // Reduced to 8 second timeout
     
     return () => clearTimeout(timeoutId);
-  }, [fetchOrders, fetchParties, fetchQualities, showMessage, isInitialized]); // Added isInitialized to dependencies
+  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, showMessage, isInitialized]); // Added isInitialized to dependencies
 
   // Listen for real-time order updates
   useEffect(() => {
@@ -484,8 +537,12 @@ export default function OrdersPage() {
 
     // Apply order filter
     if (filters.orderFilter === 'latest_first') {
-      // Sort by newest first (latest orders at top)
-      filtered = filtered.sort((a, b) => new Date(b.arrivalDate || '').getTime() - new Date(a.arrivalDate || '').getTime());
+      // Sort by newest first (latest orders at top) - use createdAt as primary, arrivalDate as fallback
+      filtered = filtered.sort((a, b) => {
+        const dateA = new Date(a.createdAt || a.arrivalDate || '').getTime();
+        const dateB = new Date(b.createdAt || b.arrivalDate || '').getTime();
+        return dateB - dateA; // Latest first
+      });
     } else if (filters.orderFilter === 'oldest_first') {
       // Sort by order ID ascending (001, 002, 003, etc.)
       filtered = filtered.sort((a, b) => {
@@ -493,9 +550,6 @@ export default function OrdersPage() {
         const orderIdB = parseInt(b.orderId || '0');
         return orderIdA - orderIdB;
       });
-    } else {
-      // Default: sort by newest first
-      filtered = filtered.sort((a, b) => new Date(b.arrivalDate || '').getTime() - new Date(a.arrivalDate || '').getTime());
     }
 
     // Debug logging removed for production
@@ -580,6 +634,11 @@ export default function OrdersPage() {
   const handleViewLogs = (order: Order) => {
     setSelectedOrderForLogs(order);
     setShowLogsModal(true);
+  };
+
+  const handleMillInput = (order: Order) => {
+    setSelectedOrderForMillInput(order);
+    setShowMillInputModal(true);
   };
 
   const handleImagePreview = (url: string, alt: string) => {
@@ -950,6 +1009,23 @@ export default function OrdersPage() {
                 <div className="text-xs font-medium">Add Quality</div>
               </button>
               
+              {/* Add Mill Input */}
+              <button
+                onClick={() => {
+                  setShowQuickActions(false);
+                  setSelectedOrderForMillInputForm(orders[0]); // Use first order or you can add a selection mechanism
+                  setShowMillInputForm(true);
+                }}
+                className={`group p-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
+                  isDarkMode
+                    ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-500/40'
+                    : 'bg-cyan-50 border-cyan-200 text-cyan-700 hover:bg-cyan-100 hover:border-cyan-300'
+                }`}
+              >
+                <BuildingOfficeIcon className="h-5 w-5 mx-auto mb-1 group-hover:scale-110 transition-transform" />
+                <div className="text-xs font-medium">Add Mill Input</div>
+              </button>
+              
 
               
               {/* Refresh */}
@@ -1109,8 +1185,7 @@ export default function OrdersPage() {
                   paddingRight: '2.5rem'
                 }}
               >
-                <option value="all" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>All Orders</option>
-                <option value="latest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Latest First</option>
+                <option value="latest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Latest First (Default)</option>
                 <option value="oldest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Oldest First</option>
               </select>
             </div>
@@ -1232,19 +1307,7 @@ export default function OrdersPage() {
                                Style: {order.styleNo}
                              </div>
                            )}
-                           {order.weaverSupplierName && (
-                             <div className={`text-xs ${isDarkMode ? 'text-orange-300' : 'text-orange-600'}`}>
-                               Weaver: {order.weaverSupplierName}
-                             </div>
-                           )}
-                           {order.purchaseRate && (
-                             <div className={`text-xs ${isDarkMode ? 'text-green-300' : 'text-green-600'}`}>
-                               {/* Rate: ₹{order.purchaseRate.toFixed(2)} */}
-                               Rate: {order.purchaseRate || 0}
 
-                               
-                             </div>
-                           )}
                            {/* Created and Updated dates */}
                            <div className={`text-xs mt-2 space-y-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                              <div className="flex items-center gap-1">
@@ -1334,6 +1397,20 @@ export default function OrdersPage() {
                             {item.description && (
                               <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mb-1.5 italic`}>
                                 "{item.description}"
+                              </div>
+                            )}
+                            
+                            {/* Weaver / Supplier Name */}
+                            {item.weaverSupplierName && (
+                              <div className={`text-xs ${isDarkMode ? 'text-orange-300' : 'text-orange-600'} mb-1`}>
+                                Weaver: {item.weaverSupplierName}
+                              </div>
+                            )}
+                            
+                            {/* Purchase Rate */}
+                            {item.purchaseRate && (
+                              <div className={`text-xs ${isDarkMode ? 'text-green-300' : 'text-green-600'} mb-1`}>
+                                Rate: ₹{Number(item.purchaseRate).toFixed(2)}
                               </div>
                             )}
                             
@@ -1506,6 +1583,48 @@ export default function OrdersPage() {
                           <ChartBarIcon className="h-4 w-4" />
                         </button>
                         <button
+                          onClick={() => {
+                            setSelectedOrderForMillInputForm(order);
+                            setShowMillInputForm(true);
+                          }}
+                          className={`p-1.5 rounded transition-all duration-300 ${
+                            isDarkMode
+                              ? 'text-cyan-400 hover:bg-cyan-500/20'
+                              : 'text-cyan-600 hover:bg-cyan-50'
+                          }`}
+                          title="Add mill input"
+                        >
+                          <BuildingOfficeIcon className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedOrderForMillOutput(order);
+                            setShowMillOutputForm(true);
+                          }}
+                          className={`p-1.5 rounded transition-all duration-300 ${
+                            isDarkMode
+                              ? 'text-green-400 hover:bg-green-500/20'
+                              : 'text-green-600 hover:bg-green-50'
+                          }`}
+                          title="Add mill output"
+                        >
+                          <DocumentTextIcon className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedOrderForDispatch(order);
+                            setShowDispatchForm(true);
+                          }}
+                          className={`p-1.5 rounded transition-all duration-300 ${
+                            isDarkMode
+                              ? 'text-orange-400 hover:bg-orange-500/20'
+                              : 'text-orange-600 hover:bg-orange-50'
+                          }`}
+                          title="Add dispatch"
+                        >
+                          <TruckIcon className="h-4 w-4" />
+                        </button>
+                        <button
                           onClick={() => handleDeleteClick(order)}
                           className={`p-1.5 rounded transition-all duration-300 ${
                             isDarkMode
@@ -1586,7 +1705,7 @@ export default function OrdersPage() {
                 <button
                   onClick={() => {
                     setSearchTerm('');
-                    setFilters({ orderFilter: 'all', typeFilter: 'all' });
+                    setFilters({ orderFilter: 'latest_first', typeFilter: 'all' });
                   }}
                   className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-colors ${
                     isDarkMode
@@ -2002,6 +2121,74 @@ export default function OrdersPage() {
           onClose={() => {
             setShowLogsModal(false);
             setSelectedOrderForLogs(null);
+          }}
+        />
+      )}
+
+      {/* Mill Input Modal */}
+      {/* {showMillInputModal && selectedOrderForMillInput && (
+        <MillInputModal
+          order={selectedOrderForMillInput}
+          onClose={() => {
+            setShowMillInputModal(false);
+            setSelectedOrderForMillInput(null);
+          }}
+          onSuccess={() => {
+            // Refresh orders to show any updates
+            fetchOrders();
+          }}
+        />
+      )} */}
+
+      {/* Mill Input Form */}
+      {showMillInputForm && selectedOrderForMillInputForm && (
+        <MillInputForm
+          order={selectedOrderForMillInputForm}
+          mills={mills}
+          onClose={() => {
+            setShowMillInputForm(false);
+            setSelectedOrderForMillInputForm(null);
+          }}
+          onSuccess={() => {
+            // Refresh orders to show any updates
+            fetchOrders();
+            showMessage('success', 'Mill input added successfully!');
+          }}
+          onAddMill={() => {
+            // This will be handled within the form
+          }}
+          onRefreshMills={fetchMills}
+                />
+      )}
+
+      {/* Mill Output Form */}
+      {showMillOutputForm && selectedOrderForMillOutput && (
+        <MillOutputForm
+          order={selectedOrderForMillOutput}
+          onClose={() => {
+            setShowMillOutputForm(false);
+            setSelectedOrderForMillOutput(null);
+          }}
+          onSuccess={() => {
+            // Refresh orders to show any updates
+            fetchOrders();
+            showMessage('success', 'Mill output added successfully!');
+          }}
+        />
+      )}
+
+      {/* Dispatch Form */}
+      {showDispatchForm && selectedOrderForDispatch && (
+        <DispatchForm
+          orderId={selectedOrderForDispatch.orderId}
+          onClose={() => {
+            setShowDispatchForm(false);
+            setSelectedOrderForDispatch(null);
+          }}
+          onSuccess={() => {
+            // Refresh orders to show any updates
+            fetchOrders();
+            showMessage('success', 'Dispatch record added successfully!');
           }}
         />
       )}

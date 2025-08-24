@@ -232,16 +232,7 @@ const LabSchema = new Schema<ILab>({
 });
 
 // **EXACT INDEXES TO ADD**
-// Primary indexes
-LabSchema.index({ labSendNumber: 1 }, { name: 'idx_lab_send_number' }); // Removed unique constraint since labSendNumber is now optional
-LabSchema.index({ order: 1 }, { name: 'idx_lab_order' });
-LabSchema.index({ orderItemId: 1 }, { name: 'idx_lab_order_item' });
-LabSchema.index({ status: 1 }, { name: 'idx_lab_status' });
-LabSchema.index({ priority: -1 }, { name: 'idx_lab_priority' });
-LabSchema.index({ urgency: 1 }, { name: 'idx_lab_urgency' });
-LabSchema.index({ softDeleted: 1 }, { name: 'idx_lab_soft_deleted' });
-LabSchema.index({ labSendDate: -1 }, { name: 'idx_lab_send_date' });
-LabSchema.index({ receivedDate: -1 }, { name: 'idx_lab_received_date' });
+// Primary indexes (removed duplicates that are already defined in field definitions)
 LabSchema.index({ createdAt: -1 }, { name: 'idx_lab_created_desc' });
 LabSchema.index({ updatedAt: -1 }, { name: 'idx_lab_updated_desc' });
 

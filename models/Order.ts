@@ -9,6 +9,8 @@ export interface IOrderItem {
   totalPrice?: number;
   imageUrls?: string[];
   description?: string;
+  weaverSupplierName?: string; // Weaver / Supplier Name moved to item level
+  purchaseRate?: number; // Purchase Rate moved to item level
   specifications?: Record<string, any>;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   priority: number;
@@ -28,8 +30,7 @@ export interface IOrder extends Document {
   styleNo?: string;
   poDate?: Date;
   deliveryDate?: Date;
-  weaverSupplierName?: string; // Weaver / Supplier Name (renamed from GREIGH WEAVER)
-  purchaseRate?: number; // Purchase Rate (Raw Cloth) - new field
+  // weaverSupplierName and purchaseRate moved to item level
   items: IOrderItem[];
   status: "pending" | "in_progress" | "completed" | "delivered" | "cancelled";
   priority: number;
@@ -145,15 +146,7 @@ const OrderSchema = new Schema<IOrder>({
     type: Date,
     index: true
   },
-  weaverSupplierName: {
-    type: String,
-    trim: true,
-    maxlength: [100, "Weaver supplier name cannot exceed 100 characters"]
-  },
-  purchaseRate: {
-    type: Number,
-    min: [0, "Purchase rate cannot be negative"]
-  },
+  // weaverSupplierName and purchaseRate moved to item level
   items: {
     type: [{
       quality: {
@@ -188,6 +181,15 @@ const OrderSchema = new Schema<IOrder>({
         type: String,
         trim: true,
         maxlength: [200, "Description cannot exceed 200 characters"]
+      },
+      weaverSupplierName: {
+        type: String,
+        trim: true,
+        maxlength: [100, "Weaver supplier name cannot exceed 100 characters"]
+      },
+      purchaseRate: {
+        type: Number,
+        min: [0, "Purchase rate cannot be negative"]
       },
       specifications: {
         type: Schema.Types.Mixed,
@@ -346,18 +348,7 @@ const OrderSchema = new Schema<IOrder>({
 });
 
 // **EXACT INDEXES TO ADD**
-// Primary indexes
-OrderSchema.index({ orderId: 1 }, { unique: true, name: 'idx_order_id_unique' });
-OrderSchema.index({ party: 1 }, { name: 'idx_order_party' });
-OrderSchema.index({ orderType: 1 }, { name: 'idx_order_type' });
-OrderSchema.index({ status: 1 }, { name: 'idx_order_status' });
-OrderSchema.index({ priority: -1 }, { name: 'idx_order_priority' });
-OrderSchema.index({ paymentStatus: 1 }, { name: 'idx_order_payment_status' });
-OrderSchema.index({ poNumber: 1 }, { name: 'idx_order_po_number' });
-OrderSchema.index({ styleNo: 1 }, { name: 'idx_order_style_no' });
-OrderSchema.index({ arrivalDate: -1 }, { name: 'idx_order_arrival_date' });
-OrderSchema.index({ deliveryDate: -1 }, { name: 'idx_order_delivery_date' });
-OrderSchema.index({ finalAmount: -1 }, { name: 'idx_order_final_amount' });
+// Primary indexes (removed duplicates that are already defined in field definitions)
 OrderSchema.index({ createdAt: -1 }, { name: 'idx_order_created_desc' });
 OrderSchema.index({ updatedAt: -1 }, { name: 'idx_order_updated_desc' });
 

@@ -1,9 +1,8 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import { Lab } from '@/models';
-import { Order, Quality } from '@/models';
-import { ok, badRequest, notFound, serverError } from '@/lib/http';
-import { isValidObjectId } from '@/lib/ids';
+import { getSession } from '@/lib/session';
+import { successResponse, errorResponse, validationErrorResponse, unauthorizedResponse } from '@/lib/response';
 
 // GET /api/labs/by-order/[orderId] - Get all labs for a specific order
 export async function GET(
@@ -14,11 +13,17 @@ export async function GET(
   try {
     await dbConnect();
     
+    // Validate session
+    const session = await getSession(request);
+    if (!session) {
+      return NextResponse.json(unauthorizedResponse('Unauthorized'), { status: 401 });
+    }
+    
     const { orderId } = await params;
     
     // Validate ObjectId
-    if (!isValidObjectId(orderId)) {
-      return badRequest('Invalid order ID');
+    if (!orderId || orderId.length !== 24) {
+      return NextResponse.json(validationErrorResponse('Invalid order ID'), { status: 400 });
     }
     
     // Optimized: Get labs only with minimal data and faster timeout
@@ -30,24 +35,11 @@ export async function GET(
     .sort({ createdAt: -1 })
     .lean()
     .maxTimeMS(2000); // Reduced timeout to 2 seconds
-    
-    // Add cache headers for better performance
-    const headers = {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=30, stale-while-revalidate=60', // Reduced cache for more frequent updates
-      'X-Response-Time': `${Date.now() - startTime}ms`
-    };
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        data: labs 
-      }), 
-      { status: 200, headers }
-    );
+    return NextResponse.json(successResponse(labs, 'Labs fetched successfully'));
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching labs by order:', error);
-    return serverError(error);
+    return NextResponse.json(errorResponse('Failed to fetch labs'), { status: 500 });
   }
 }

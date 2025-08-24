@@ -221,15 +221,9 @@ const PartySchema = new Schema<IParty>({
 });
 
 // **EXACT INDEXES TO ADD**
-// Primary indexes
-PartySchema.index({ name: 1 }, { name: 'idx_party_name' });
-PartySchema.index({ isActive: 1 }, { name: 'idx_party_active' });
-PartySchema.index({ category: 1 }, { name: 'idx_party_category' });
-PartySchema.index({ priority: -1 }, { name: 'idx_party_priority' });
+// Primary indexes (removed duplicates that are already defined in field definitions)
 PartySchema.index({ contactPhone: 1 }, { sparse: true, name: 'idx_party_phone' });
 PartySchema.index({ contactEmail: 1 }, { sparse: true, name: 'idx_party_email' });
-PartySchema.index({ industry: 1 }, { name: 'idx_party_industry' });
-PartySchema.index({ region: 1 }, { name: 'idx_party_region' });
 PartySchema.index({ lastOrderDate: -1 }, { name: 'idx_party_last_order' });
 PartySchema.index({ totalOrders: -1 }, { name: 'idx_party_total_orders' });
 PartySchema.index({ totalValue: -1 }, { name: 'idx_party_total_value' });

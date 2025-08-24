@@ -90,6 +90,10 @@ const LogSchema = new Schema<ILog>({
       'order_create', 'order_update', 'order_delete', 'order_status_change',
       // Lab actions
       'lab_create', 'lab_update', 'lab_delete', 'lab_status_change',
+      // Mill Output actions
+      'mill_output_create', 'mill_output_update', 'mill_output_delete',
+      // Dispatch actions
+      'dispatch_create', 'dispatch_update', 'dispatch_delete',
       // Party actions
       'party_create', 'party_update', 'party_delete',
       // Quality actions
@@ -107,7 +111,7 @@ const LogSchema = new Schema<ILog>({
     type: String,
     required: [true, "Resource is required"],
     enum: [
-      'auth', 'user', 'order', 'lab', 'party', 'quality', 'file', 'system', 'dashboard', 'log'
+      'auth', 'user', 'order', 'lab', 'mill_output', 'dispatch', 'party', 'quality', 'file', 'system', 'dashboard', 'log'
     ],
     index: true
   },
@@ -159,13 +163,7 @@ const LogSchema = new Schema<ILog>({
   timestamps: true
 });
 
-// Optimized indexes for better query performance
-LogSchema.index({ timestamp: -1 }, { background: true });
-LogSchema.index({ userId: 1, timestamp: -1 }, { background: true });
-LogSchema.index({ action: 1, timestamp: -1 }, { background: true });
-LogSchema.index({ resource: 1, timestamp: -1 }, { background: true });
-LogSchema.index({ success: 1, timestamp: -1 }, { background: true });
-LogSchema.index({ severity: 1, timestamp: -1 }, { background: true });
+// Optimized indexes for better query performance (removed duplicates that are already defined in field definitions)
 
 // Compound indexes for specific queries
 LogSchema.index({ resource: 1, action: 1, timestamp: -1 }, { background: true }); // For resource-specific actions

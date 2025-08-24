@@ -142,8 +142,6 @@ export async function POST(req: NextRequest) {
       styleNo,
       poDate,
       deliveryDate,
-      weaverSupplierName,
-      purchaseRate,
       items
     } = await req.json();
 
@@ -182,16 +180,7 @@ export async function POST(req: NextRequest) {
       errors.push("Style number cannot exceed 50 characters");
     }
     
-    if (weaverSupplierName && weaverSupplierName.trim().length > 100) {
-      errors.push("Weaver supplier name cannot exceed 100 characters");
-    }
-    
-    if (purchaseRate !== undefined && purchaseRate !== null && purchaseRate !== '') {
-      const rate = parseFloat(purchaseRate);
-      if (isNaN(rate) || rate < 0) {
-        errors.push("Purchase rate must be a non-negative number");
-      }
-    }
+
     
     if (poDate) {
       const po = new Date(poDate);
@@ -305,17 +294,18 @@ export async function POST(req: NextRequest) {
       styleNo: styleNo ? styleNo.trim() : undefined,
       poDate: poDate ? new Date(poDate) : undefined,
       deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
-      weaverSupplierName: weaverSupplierName ? weaverSupplierName.trim() : undefined,
-      purchaseRate: purchaseRate !== undefined && purchaseRate !== null && purchaseRate !== '' ? 
-        (() => {
-          const rate = parseFloat(purchaseRate);
-          return isNaN(rate) ? undefined : rate;
-        })() : undefined,
+
       items: items && items.length > 0 ? items.map((item: any) => ({
         quality: item.quality && item.quality !== '' && item.quality !== 'null' && item.quality !== 'undefined' ? item.quality : undefined,
         quantity: item.quantity !== undefined && item.quantity !== null ? item.quantity : undefined,
         imageUrls: item.imageUrls && Array.isArray(item.imageUrls) ? item.imageUrls.map((url: string) => url.trim()) : [],
         description: item.description ? item.description.trim() : undefined,
+        weaverSupplierName: item.weaverSupplierName ? item.weaverSupplierName.trim() : undefined,
+        purchaseRate: item.purchaseRate !== undefined && item.purchaseRate !== null && item.purchaseRate !== '' ? 
+          (() => {
+            const rate = parseFloat(item.purchaseRate);
+            return isNaN(rate) ? undefined : rate;
+          })() : undefined,
       })) : [],
     };
 
@@ -343,7 +333,7 @@ export async function POST(req: NextRequest) {
     const populatedOrder = await Order.findById(order._id)
       .populate('party', '_id name contactName contactPhone address')
       .populate('items.quality', '_id name description')
-      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo weaverSupplierName purchaseRate poDate deliveryDate items status labData createdAt updatedAt')
+      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt')
       .maxTimeMS(5000);
 
     // Log the order creation with complete details
@@ -358,8 +348,7 @@ export async function POST(req: NextRequest) {
       contactPhone: populatedOrder.contactPhone,
       poNumber: populatedOrder.poNumber,
       styleNo: populatedOrder.styleNo,
-      weaverSupplierName: populatedOrder.weaverSupplierName,
-      purchaseRate: populatedOrder.purchaseRate,
+
       poDate: populatedOrder.poDate,
       deliveryDate: populatedOrder.deliveryDate,
       status: populatedOrder.status,
@@ -367,7 +356,9 @@ export async function POST(req: NextRequest) {
         quality: item.quality,
         quantity: item.quantity,
         imageUrls: item.imageUrls || [],
-        description: item.description
+        description: item.description,
+        weaverSupplierName: item.weaverSupplierName,
+        purchaseRate: item.purchaseRate
       }))
     }, req);
 
@@ -384,21 +375,33 @@ export async function POST(req: NextRequest) {
     
     if (error instanceof Error) {
       if (error.message.includes("Unauthorized")) {
-        return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
+        return new Response(JSON.stringify({ 
+          success: false, 
+          message: "Unauthorized" 
+        }), { 
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        });
       }
       
       if (error.message.includes("Database connection failed")) {
         return new Response(JSON.stringify({ 
           success: false, 
           message: "Database connection failed. Please try again." 
-        }), { status: 503 });
+        }), { 
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
+        });
       }
       
       if (error.message.includes("Order creation timeout")) {
         return new Response(JSON.stringify({ 
           success: false, 
           message: "Order creation timeout. Please try again." 
-        }), { status: 408 });
+        }), { 
+          status: 408,
+          headers: { 'Content-Type': 'application/json' }
+        });
       }
       
       // Handle MongoDB duplicate key errors
@@ -406,9 +409,13 @@ export async function POST(req: NextRequest) {
         if (error.message.includes('orderId')) {
           return new Response(
             JSON.stringify({ 
+              success: false,
               message: "Order ID already exists. Please try again." 
             }), 
-            { status: 400 }
+            { 
+              status: 400,
+              headers: { 'Content-Type': 'application/json' }
+            }
           );
         }
       }
@@ -417,13 +424,25 @@ export async function POST(req: NextRequest) {
       if (error.name === 'ValidationError') {
         const validationErrors = Object.values((error as any).errors).map((err: any) => err.message);
         return new Response(
-          JSON.stringify({ message: validationErrors.join(", ") }), 
-          { status: 400 }
+          JSON.stringify({ 
+            success: false,
+            message: validationErrors.join(", ") 
+          }), 
+          { 
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+          }
         );
       }
     }
     
     const message = error instanceof Error ? error.message : "Internal Server Error";
-    return new Response(JSON.stringify({ message }), { status: 500 });
+    return new Response(JSON.stringify({ 
+      success: false,
+      message 
+    }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }

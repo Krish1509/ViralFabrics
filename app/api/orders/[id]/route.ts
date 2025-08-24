@@ -19,7 +19,7 @@ export async function GET(
     const order = await Order.findById(id)
       .populate('party', '_id name contactName contactPhone address')
       .populate('items.quality', '_id name description')
-      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo weaverSupplierName purchaseRate poDate deliveryDate items status labData createdAt updatedAt');
+      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
 
     if (!order) {
       return new Response(
@@ -85,7 +85,10 @@ export async function GET(
     return new Response(JSON.stringify({ 
       success: false, 
       message 
-    }), { status: 500 });
+    }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
 
@@ -98,7 +101,6 @@ export async function PUT(
     // await requireAuth(req);
 
     const requestData = await req.json();
-    // DEBUG: Request data received
     
     const {
       orderType,
@@ -110,13 +112,9 @@ export async function PUT(
       styleNo,
       poDate,
       deliveryDate,
-      weaverSupplierName,
-      purchaseRate,
       items,
       status
     } = requestData;
-
-    // Debug logging removed for production
 
     // Validation
     const errors: string[] = [];
@@ -132,10 +130,8 @@ export async function PUT(
       }
     }
     
-    // DEBUG: Party field validation
     if (party !== undefined && party !== null && party !== '' && party !== 'null' && party !== 'undefined') {
       if (!party.match(/^[0-9a-fA-F]{24}$/)) {
-        // DEBUG: Party validation failed
         errors.push("Invalid party ID format");
       }
     }
@@ -154,17 +150,6 @@ export async function PUT(
     
     if (styleNo !== undefined && styleNo && styleNo.trim().length > 50) {
       errors.push("Style number cannot exceed 50 characters");
-    }
-    
-    if (weaverSupplierName !== undefined && weaverSupplierName && weaverSupplierName.trim().length > 100) {
-      errors.push("Weaver supplier name cannot exceed 100 characters");
-    }
-    
-    if (purchaseRate !== undefined && purchaseRate !== null) {
-      const rate = parseFloat(purchaseRate);
-      if (isNaN(rate) || rate < 0) {
-        errors.push("Purchase rate must be a non-negative number");
-      }
     }
     
     if (poDate !== undefined && poDate) {
@@ -266,26 +251,21 @@ export async function PUT(
       }
     }
 
-    // Removed duplicate validation - only ID needs to be unique
-
-    // Prepare update data - explicitly exclude orderId to prevent conflicts
+    // Prepare update data
     const updateData: any = {};
     if (orderType !== undefined) updateData.orderType = orderType;
     if (arrivalDate !== undefined) updateData.arrivalDate = new Date(arrivalDate);
     if (party !== undefined) {
-      // Handle party field properly - only set if it's a valid ObjectId or null
       if (party && party !== '' && party !== 'null' && party !== 'undefined') {
         updateData.party = party;
       } else {
-        updateData.party = null; // Set to null if empty or invalid
+        updateData.party = null;
       }
     }
     if (contactName !== undefined) updateData.contactName = contactName !== null ? contactName.trim() : '';
     if (contactPhone !== undefined) updateData.contactPhone = contactPhone !== null ? contactPhone.trim() : '';
     if (poNumber !== undefined) updateData.poNumber = poNumber !== null ? poNumber.trim() : '';
     if (styleNo !== undefined) updateData.styleNo = styleNo !== null ? styleNo.trim() : '';
-    if (weaverSupplierName !== undefined) updateData.weaverSupplierName = weaverSupplierName !== null ? weaverSupplierName.trim() : '';
-    if (purchaseRate !== undefined) updateData.purchaseRate = purchaseRate !== null ? parseFloat(purchaseRate) : undefined;
     if (poDate !== undefined) updateData.poDate = poDate ? new Date(poDate) : undefined;
     if (deliveryDate !== undefined) updateData.deliveryDate = deliveryDate ? new Date(deliveryDate) : undefined;
     if (status !== undefined) updateData.status = status;
@@ -295,17 +275,20 @@ export async function PUT(
         quantity: item.quantity !== undefined && item.quantity !== null ? item.quantity : undefined,
         imageUrls: item.imageUrls && Array.isArray(item.imageUrls) ? item.imageUrls.map((url: string) => url.trim()) : [],
         description: item.description !== null ? item.description.trim() : '',
+        weaverSupplierName: item.weaverSupplierName ? item.weaverSupplierName.trim() : undefined,
+        purchaseRate: item.purchaseRate !== undefined && item.purchaseRate !== null && item.purchaseRate !== '' ? 
+          (() => {
+            const rate = parseFloat(item.purchaseRate);
+            return isNaN(rate) ? undefined : rate;
+          })() : undefined,
       }));
     }
-    
 
-
-    // Capture old values for logging - ONLY fields that are actually being updated
+    // Capture old values for logging
     const oldValues: any = {};
     const newValues: any = {};
     const changedFields: string[] = [];
     
-    // Only track changes for fields that are actually being updated AND have different values
     if (orderType !== undefined && orderType !== existingOrder.orderType) {
       oldValues.orderType = existingOrder.orderType;
       newValues.orderType = orderType;
@@ -315,18 +298,15 @@ export async function PUT(
       const newArrivalDate = arrivalDate ? new Date(arrivalDate) : undefined;
       const existingArrivalDate = existingOrder.arrivalDate ? new Date(existingOrder.arrivalDate) : undefined;
       
-      // More robust date comparison - normalize dates to YYYY-MM-DD format
       const normalizeDate = (date: Date | undefined) => {
         if (!date) return null;
-        return date.toISOString().split('T')[0]; // Get YYYY-MM-DD format
+        return date.toISOString().split('T')[0];
       };
       
       const existingDateStr = normalizeDate(existingArrivalDate);
       const newDateStr = normalizeDate(newArrivalDate);
       
       const arrivalDateChanged = existingDateStr !== newDateStr;
-      
-
       
       if (arrivalDateChanged) {
         oldValues.arrivalDate = existingOrder.arrivalDate;
@@ -339,7 +319,6 @@ export async function PUT(
       const newPartyId = party && party !== '' && party !== 'null' && party !== 'undefined' ? party : null;
       
       if (currentPartyId !== newPartyId) {
-        // Store party names instead of IDs for better log display
         oldValues.party = existingOrder.party?.name || existingOrder.party || 'Not set';
         newValues.party = newPartyName || newPartyId || 'Not set';
         changedFields.push('party');
@@ -377,38 +356,19 @@ export async function PUT(
         changedFields.push('styleNo');
       }
     }
-    if (weaverSupplierName !== undefined) {
-      const newWeaverSupplierName = weaverSupplierName !== null && weaverSupplierName !== '' ? weaverSupplierName.trim() : '';
-      if (existingOrder.weaverSupplierName !== newWeaverSupplierName) {
-        oldValues.weaverSupplierName = existingOrder.weaverSupplierName;
-        newValues.weaverSupplierName = newWeaverSupplierName;
-        changedFields.push('weaverSupplierName');
-      }
-    }
-    if (purchaseRate !== undefined) {
-      const newPurchaseRate = purchaseRate !== null ? parseFloat(purchaseRate) : undefined;
-      if (existingOrder.purchaseRate !== newPurchaseRate) {
-        oldValues.purchaseRate = existingOrder.purchaseRate;
-        newValues.purchaseRate = newPurchaseRate;
-        changedFields.push('purchaseRate');
-      }
-    }
     if (poDate !== undefined) {
       const newPoDate = poDate ? new Date(poDate) : undefined;
       const existingPoDate = existingOrder.poDate ? new Date(existingOrder.poDate) : undefined;
       
-      // More robust date comparison - normalize dates to YYYY-MM-DD format
       const normalizeDate = (date: Date | undefined) => {
         if (!date) return null;
-        return date.toISOString().split('T')[0]; // Get YYYY-MM-DD format
+        return date.toISOString().split('T')[0];
       };
       
       const existingDateStr = normalizeDate(existingPoDate);
       const newDateStr = normalizeDate(newPoDate);
       
       const poDateChanged = existingDateStr !== newDateStr;
-      
-
       
       if (poDateChanged) {
         oldValues.poDate = existingOrder.poDate;
@@ -420,18 +380,15 @@ export async function PUT(
       const newDeliveryDate = deliveryDate ? new Date(deliveryDate) : undefined;
       const existingDeliveryDate = existingOrder.deliveryDate ? new Date(existingOrder.deliveryDate) : undefined;
       
-      // More robust date comparison - normalize dates to YYYY-MM-DD format
       const normalizeDate = (date: Date | undefined) => {
         if (!date) return null;
-        return date.toISOString().split('T')[0]; // Get YYYY-MM-DD format
+        return date.toISOString().split('T')[0];
       };
       
       const existingDateStr = normalizeDate(existingDeliveryDate);
       const newDateStr = normalizeDate(newDeliveryDate);
       
       const deliveryDateChanged = existingDateStr !== newDateStr;
-      
-
       
       if (deliveryDateChanged) {
         oldValues.deliveryDate = existingOrder.deliveryDate;
@@ -445,12 +402,13 @@ export async function PUT(
       changedFields.push('status');
     }
     if (items !== undefined) {
-      // Compare items arrays - only log specific changes, not entire items
       const oldItems = existingOrder.items.map((item: any) => ({
         quality: item.quality?.name || item.quality?.toString() || 'Not set',
         quantity: item.quantity,
         imageUrls: item.imageUrls || [],
-        description: item.description || ''
+        description: item.description || '',
+        weaverSupplierName: item.weaverSupplierName || '',
+        purchaseRate: item.purchaseRate || 0
       }));
       
       const newItems = items.map((item: any) => ({
@@ -458,6 +416,12 @@ export async function PUT(
         quantity: item.quantity !== undefined && item.quantity !== null ? item.quantity : 0,
         imageUrls: item.imageUrls && Array.isArray(item.imageUrls) ? item.imageUrls.map((url: string) => url.trim()) : [],
         description: item.description !== null ? item.description.trim() : '',
+        weaverSupplierName: item.weaverSupplierName ? item.weaverSupplierName.trim() : '',
+        purchaseRate: item.purchaseRate !== undefined && item.purchaseRate !== null && item.purchaseRate !== '' ? 
+          (() => {
+            const rate = parseFloat(item.purchaseRate);
+            return isNaN(rate) ? 0 : rate;
+          })() : 0,
       }));
       
       const itemChanges: any[] = [];
@@ -472,29 +436,34 @@ export async function PUT(
         const changes: any = {};
         let hasItemChanges = false;
         
-        // Check quality changes
         if (oldItem.quality !== newItem.quality) {
           changes.quality = { old: oldItem.quality, new: newItem.quality };
           hasItemChanges = true;
         }
         
-        // Check quantity changes
         if (oldItem.quantity !== newItem.quantity) {
           changes.quantity = { old: oldItem.quantity, new: newItem.quantity };
           hasItemChanges = true;
         }
         
-        // Check description changes
         if (oldItem.description !== newItem.description) {
           changes.description = { old: oldItem.description, new: newItem.description };
           hasItemChanges = true;
         }
         
-        // Check imageUrls changes with detailed tracking
+        if (oldItem.weaverSupplierName !== newItem.weaverSupplierName) {
+          changes.weaverSupplierName = { old: oldItem.weaverSupplierName, new: newItem.weaverSupplierName };
+          hasItemChanges = true;
+        }
+        
+        if (oldItem.purchaseRate !== newItem.purchaseRate) {
+          changes.purchaseRate = { old: oldItem.purchaseRate, new: newItem.purchaseRate };
+          hasItemChanges = true;
+        }
+        
         const oldImageUrls = oldItem.imageUrls || [];
         const newImageUrls = newItem.imageUrls || [];
         if (JSON.stringify(oldImageUrls) !== JSON.stringify(newImageUrls)) {
-          // Calculate specific image changes
           const addedImages = newImageUrls.filter((url: string) => !oldImageUrls.includes(url));
           const removedImages = oldImageUrls.filter((url: string) => !newImageUrls.includes(url));
           
@@ -516,7 +485,6 @@ export async function PUT(
         return false;
       });
       
-      // Check for new items
       if (newItems.length > oldItems.length) {
         for (let i = oldItems.length; i < newItems.length; i++) {
           const newItem = newItems[i];
@@ -527,6 +495,8 @@ export async function PUT(
               quality: newItem.quality,
               quantity: newItem.quantity,
               description: newItem.description || '',
+              weaverSupplierName: newItem.weaverSupplierName || '',
+              purchaseRate: newItem.purchaseRate || 0,
               imageUrls: newItem.imageUrls || [],
               imageCount: (newItem.imageUrls || []).length
             }
@@ -535,15 +505,11 @@ export async function PUT(
         }
       }
       
-      console.log('🔍 Item changes detected:', itemChanges);
-      
       if (itemChanges.length > 0) {
-        // Only log the specific changes, not entire items
         oldValues.itemChanges = itemChanges.map(change => {
           if (change.type === 'item_updated') {
             const formattedChanges = Object.keys(change.changes).map(field => {
               if (field === 'imageUrls' && change.changes[field].addedCount !== undefined) {
-                // Special handling for image changes
                 const imageChange = change.changes[field];
                 if (imageChange.addedCount > 0 && imageChange.removedCount > 0) {
                   return {
@@ -593,14 +559,12 @@ export async function PUT(
           }
           return change;
         });
-        newValues.itemChanges = oldValues.itemChanges; // Same structure for display
+        newValues.itemChanges = oldValues.itemChanges;
         changedFields.push('itemChanges');
       }
     }
-    
 
-
-    // First update the order without populate to avoid wasPopulated issues
+    // Update the order
     let updatedOrder;
     try {
       updatedOrder = await Order.findByIdAndUpdate(
@@ -609,7 +573,7 @@ export async function PUT(
         { new: true, runValidators: true }
       );
     } catch (updateError) {
-      throw updateError; // Re-throw to be caught by outer catch block
+      throw updateError;
     }
 
     if (!updatedOrder) {
@@ -622,7 +586,7 @@ export async function PUT(
       );
     }
 
-    // Populate the updated order to get quality names for logging
+    // Populate the updated order
     const populatedOrder = await Order.findById(id)
       .populate('party', '_id name')
       .populate('items.quality', '_id name');
@@ -638,9 +602,7 @@ export async function PUT(
       );
     }
 
-
-
-    // Only log if there are actual changes
+    // Log changes if any
     if (changedFields.length > 0) {
       console.log('🔍 Logging order changes:', changedFields);
       await logOrderChange('update', id, oldValues, newValues, req);
@@ -662,40 +624,35 @@ export async function PUT(
         return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
       }
       
-             // Handle MongoDB duplicate key errors with better debugging
-       if (error.message.includes('E11000')) {
-         console.error('🔍 Duplicate key error details:', error.message);
-         
-         // Check if it's an orderId conflict
-         if (error.message.includes('orderId')) {
-           return new Response(
-             JSON.stringify({ 
-               message: "Order ID already exists - please use a different order ID" 
-             }), 
-             { status: 400 }
-           );
-         }
-         
-         // Check if it's a party + poNumber + styleNo conflict
-         if (error.message.includes('party') && error.message.includes('poNumber') && error.message.includes('styleNo')) {
-           return new Response(
-             JSON.stringify({ 
-               message: "This combination of Party, PO Number, and Style Number already exists. Please use different values." 
-             }), 
-             { status: 400 }
-           );
-         }
-         
-         // Generic duplicate key error
-         return new Response(
-           JSON.stringify({ 
-             message: "Duplicate key error - please check your data and try again" 
-           }), 
-           { status: 400 }
-         );
-       }
+      if (error.message.includes('E11000')) {
+        console.error('🔍 Duplicate key error details:', error.message);
+        
+        if (error.message.includes('orderId')) {
+          return new Response(
+            JSON.stringify({ 
+              message: "Order ID already exists - please use a different order ID" 
+            }), 
+            { status: 400 }
+          );
+        }
+        
+        if (error.message.includes('party') && error.message.includes('poNumber') && error.message.includes('styleNo')) {
+          return new Response(
+            JSON.stringify({ 
+              message: "This combination of Party, PO Number, and Style Number already exists. Please use different values." 
+            }), 
+            { status: 400 }
+          );
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            message: "Duplicate key error - please check your data and try again" 
+          }), 
+          { status: 400 }
+        );
+      }
       
-      // Handle validation errors
       if (error.name === 'ValidationError') {
         const validationErrors = Object.values((error as any).errors).map((err: any) => err.message);
         return new Response(
@@ -754,8 +711,8 @@ export async function DELETE(
       );
     }
 
-         // Log the order deletion
-     await logOrderChange('delete', id, orderDetails, {}, req);
+    // Log the order deletion
+    await logOrderChange('delete', id, orderDetails, {}, req);
 
     return new Response(
       JSON.stringify({ 
@@ -815,7 +772,7 @@ export async function PATCH(
     // Store old status for logging
     const oldStatus = existingOrder.status;
 
-    // First update the order without populate to avoid wasPopulated issues
+    // Update the order
     const updatedOrder = await Order.findByIdAndUpdate(
       id,
       { status },
@@ -832,15 +789,15 @@ export async function PATCH(
       );
     }
 
-    // Then populate the fields separately with proper error handling
+    // Populate the order
     try {
       const populatedOrder = await Order.findById(updatedOrder._id)
         .populate('party', '_id name contactName contactPhone address')
         .populate('items.quality', '_id name description')
         .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
 
-             // Log the status change
-       await logOrderChange('status_change', id, { status: oldStatus }, { status: updatedOrder.status }, req);
+      // Log the status change
+      await logOrderChange('status_change', id, { status: oldStatus }, { status: updatedOrder.status }, req);
 
       return new Response(
         JSON.stringify({ 
@@ -852,7 +809,6 @@ export async function PATCH(
       );
     } catch (populateError) {
       console.error('Populate error:', populateError);
-      // Return the order without populate if populate fails
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -862,20 +818,10 @@ export async function PATCH(
         { status: 200 }
       );
     }
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "Order status updated successfully", 
-        data: updatedOrder 
-      }), 
-      { status: 200 }
-    );
   } catch (error: unknown) {
     console.error('PATCH error:', error);
     
     if (error instanceof Error) {
-      // Handle validation errors
       if (error.name === 'ValidationError') {
         const validationErrors = Object.values((error as any).errors).map((err: any) => err.message);
         return new Response(
@@ -887,7 +833,6 @@ export async function PATCH(
         );
       }
       
-      // Handle MongoDB errors
       if (error.message.includes('E11000')) {
         return new Response(
           JSON.stringify({ 
@@ -903,7 +848,10 @@ export async function PATCH(
     return new Response(JSON.stringify({ 
       success: false, 
       message 
-    }), { status: 500 });
+    }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
 

@@ -1,9 +1,8 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import { Lab, Order, Quality } from '@/models';
-import { createLabSchema, queryLabsSchema } from '@/lib/validation/lab';
-import { ok, created, badRequest, notFound, conflict, serverError } from '@/lib/http';
-import { ensureOrderItemExists } from '@/lib/ids';
+import { getSession } from '@/lib/session';
+import { successResponse, errorResponse, validationErrorResponse, unauthorizedResponse, createdResponse, conflictResponse } from '@/lib/response';
 import { logCreate, logView, logError } from '@/lib/logger';
 
 // POST /api/labs - Create a new lab
@@ -11,26 +10,29 @@ export async function POST(request: NextRequest) {
   try {
     await dbConnect();
     
+    // Validate session
+    const session = await getSession(request);
+    if (!session) {
+      return NextResponse.json(unauthorizedResponse('Unauthorized'), { status: 401 });
+    }
+    
     const body = await request.json();
     
-    // Validate request body
-    const validationResult = createLabSchema.safeParse(body);
-    if (!validationResult.success) {
-      return badRequest(validationResult.error.issues[0].message);
+    // Basic validation
+    const { orderId, orderItemId, labSendDate, labSendNumber, labSendData, status, remarks } = body;
+    
+    if (!orderId) {
+      return NextResponse.json(validationErrorResponse('Order ID is required'), { status: 400 });
     }
     
-    const { orderId, orderItemId, ...labData } = validationResult.data;
-    
-    // Verify order exists and order item exists in that order
-    // Skip validation for temporary orderItemIds (like item_0, item_1, etc.)
-    if (!orderItemId.startsWith('item_')) {
-      try {
-        await ensureOrderItemExists(orderId, orderItemId);
-      } catch (error) {
-        return notFound((error as Error).message);
-      }
+    if (!orderItemId) {
+      return NextResponse.json(validationErrorResponse('Order item ID is required'), { status: 400 });
     }
-      
+    
+    if (!labSendDate) {
+      return NextResponse.json(validationErrorResponse('Lab send date is required'), { status: 400 });
+    }
+    
     // Check if lab already exists for this order item
     const existingLab = await Lab.findOne({ 
       order: orderId, 
@@ -39,38 +41,41 @@ export async function POST(request: NextRequest) {
     });
     
     if (existingLab) {
-      return conflict('A lab already exists for this order item');
+      return NextResponse.json(conflictResponse('A lab already exists for this order item'), { status: 409 });
     }
     
     // Create the lab
     const lab = new Lab({
       order: orderId,
       orderItemId: orderItemId,
-      ...labData
+      labSendDate: new Date(labSendDate),
+      labSendNumber: labSendNumber?.trim(),
+      labSendData: labSendData || {},
+      status: status || 'sent',
+      remarks: remarks?.trim()
     });
     
     await lab.save();
     
     // Log the lab creation
     try {
-      await logCreate('lab', lab._id.toString(), { orderId, orderItemId, ...labData }, request);
+      await logCreate('lab', lab._id?.toString() || 'unknown', { orderId, orderItemId }, request);
     } catch (logError) {
       // Don't fail the request if logging fails
     }
     
-    // Return the lab without populate to avoid any potential issues
-    return created(lab);
+    return NextResponse.json(createdResponse(lab, 'Lab created successfully'));
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating lab:', error);
     
     // Check for duplicate key error specifically
-    if (error instanceof Error && error.message.includes('E11000 duplicate key error')) {
-      return conflict('A lab already exists for this order item');
+    if (error.code === 11000) {
+      return NextResponse.json(conflictResponse('A lab already exists for this order item'), { status: 409 });
     }
     
-    await logError('lab_create', 'lab', error instanceof Error ? error.message : 'Unknown error', request);
-    return serverError(error);
+    await logError('lab_create', 'lab', error.message || 'Unknown error', request);
+    return NextResponse.json(errorResponse('Failed to create lab'), { status: 500 });
   }
 }
 
@@ -79,16 +84,19 @@ export async function GET(request: NextRequest) {
   try {
     await dbConnect();
     
-    const { searchParams } = new URL(request.url);
-    const query = Object.fromEntries(searchParams.entries());
-    
-    // Validate query parameters
-    const validationResult = queryLabsSchema.safeParse(query);
-    if (!validationResult.success) {
-      return badRequest(validationResult.error.issues[0].message);
+    // Validate session
+    const session = await getSession(request);
+    if (!session) {
+      return NextResponse.json(unauthorizedResponse('Unauthorized'), { status: 401 });
     }
     
-    const { orderId, q, page, limit, status, includeDeleted } = validationResult.data;
+    const { searchParams } = new URL(request.url);
+    const orderId = searchParams.get('orderId');
+    const q = searchParams.get('q');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const status = searchParams.get('status');
+    const includeDeleted = searchParams.get('includeDeleted') === 'true';
     
     // Build filter object
     const filter: any = {};
@@ -126,31 +134,19 @@ export async function GET(request: NextRequest) {
         .maxTimeMS(3000) // 3 second timeout
     ]);
     
-    // Add cache headers for better performance
-    const headers = {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60', // Cache for 30 seconds
-    };
+    return NextResponse.json(successResponse({
+      items: labs,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    }, 'Labs fetched successfully'));
     
-    return new Response(
-      JSON.stringify({
-        success: true,
-        data: {
-          items: labs,
-          pagination: {
-            page,
-            limit,
-            total,
-            pages: Math.ceil(total / limit)
-          }
-        }
-      }), 
-      { status: 200, headers }
-    );
-    
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching labs:', error);
-    await logError('lab_view', 'lab', error instanceof Error ? error.message : 'Unknown error', request);
-    return serverError(error);
+    await logError('lab_view', 'lab', error.message || 'Unknown error', request);
+    return NextResponse.json(errorResponse('Failed to fetch labs'), { status: 500 });
   }
 }

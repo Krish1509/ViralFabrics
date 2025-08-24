@@ -6,6 +6,9 @@ export { default as Quality } from './Quality';
 export { default as Lab } from './Lab';
 export { default as Counter } from './Counter';
 export { default as Log } from './Log';
+export { Mill, MillInput } from './Mill';
+export { default as MillOutput } from './MillOutput';
+export { default as Dispatch } from './Dispatch';
 
 // Export TypeScript interfaces for all models
 export type { 
@@ -43,6 +46,23 @@ export type {
   ILog, 
   ILogModel 
 } from './Log';
+
+export type { 
+  IMill, 
+  IMillModel,
+  IMillInput,
+  IMillInputModel
+} from './Mill';
+
+export type { 
+  IMillOutput, 
+  IMillOutputModel
+} from './MillOutput';
+
+export type { 
+  IDispatch, 
+  IDispatchModel
+} from './Dispatch';
 
 // Export common types and utilities
 export type { Document, Model, Schema } from 'mongoose';

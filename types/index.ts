@@ -21,6 +21,8 @@ export interface OrderItem {
   quantity: number | string; // Quantity can be string in form, number in final data
   imageUrls?: string[]; // Changed from imageUrl to imageUrls array
   description?: string;
+  weaverSupplierName?: string; // Weaver / Supplier Name moved to item level
+  purchaseRate?: number | string; // Purchase Rate moved to item level (can be string in form)
   labData?: {
     color?: string;
     shade?: string;
@@ -45,8 +47,7 @@ export interface Order {
   styleNo?: string;
   poDate?: string;
   deliveryDate?: string;
-  weaverSupplierName?: string; // Weaver / Supplier Name (renamed from GREIGH WEAVER)
-  purchaseRate?: number; // Purchase Rate (Raw Cloth) - new field
+  // weaverSupplierName and purchaseRate moved to item level
   items: OrderItem[];
   status?: "pending" | "delivered" | "Not selected";
   labData?: any;
@@ -65,8 +66,7 @@ export interface OrderFormData {
   styleNo?: string;
   poDate?: string;
   deliveryDate?: string;
-  weaverSupplierName?: string; // Weaver / Supplier Name
-  purchaseRate?: string; // Purchase Rate (Raw Cloth) - as string for form input
+  // weaverSupplierName and purchaseRate moved to item level
   items: OrderItem[];
 }
 
@@ -75,4 +75,68 @@ export interface PartyFormData {
   contactName?: string;
   contactPhone?: string;
   address?: string;
+}
+
+export interface Mill {
+  _id: string;
+  name: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  address?: string;
+  email?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MillInput {
+  _id: string;
+  orderId: string;
+  order: string | Order;
+  mill: string | Mill;
+  millDate: string;
+  chalanNo: string;
+  greighMtr: number;
+  pcs: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MillFormData {
+  name: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  address?: string;
+  email?: string;
+}
+
+export interface MillInputFormData {
+  orderId: string;
+  mill: string;
+  millDate: string;
+  chalanNo: string;
+  greighMtr: string;
+  pcs: string;
+  notes?: string;
+}
+
+export interface MillOutput {
+  _id: string;
+  orderId: string;
+  order: string | Order;
+  recdDate: string;
+  millBillNo: string;
+  finishedMtr: number;
+  millRate: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MillOutputFormData {
+  orderId: string;
+  recdDate: string;
+  millBillNo: string;
+  finishedMtr: string;
+  millRate: string;
 }

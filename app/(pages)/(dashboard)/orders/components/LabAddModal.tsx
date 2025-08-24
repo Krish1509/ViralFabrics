@@ -40,21 +40,14 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
   // Check for existing labs when order changes
   useEffect(() => {
     if (order && order.items) {
-      // Initialize with optimistic data immediately
-      const optimisticLabData: LabData[] = order.items.map((item: any, index: number) => ({
-        orderItemId: item._id,
-        orderItemName: item.quality?.name || `Item ${index + 1}`,
-        labSendDate: new Date().toISOString().split('T')[0],
-        approvalDate: new Date().toISOString().split('T')[0],
-        sampleNumber: '',
-        existingLab: null
-      }));
-      setLabData(optimisticLabData);
+      // Reset state completely for new order
+      setLabData([]);
+      setCheckingExisting(true);
       
-      // Then fetch actual data in background
+      // Fetch existing labs first, then initialize with actual data
       checkExistingLabs();
     }
-  }, [order]);
+  }, [order?._id]); // Only depend on order ID, not the entire order object
 
   const checkExistingLabs = async () => {
     if (!order) return;
@@ -62,16 +55,22 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
     setCheckingExisting(true);
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000); // Reduced timeout to 2 seconds
+      const timeoutId = setTimeout(() => controller.abort(), 1500); // Reduced timeout to 1.5 seconds
       
+      const token = localStorage.getItem('token');
       const response = await fetch(`/api/labs/by-order/${order._id}`, {
         signal: controller.signal,
         headers: {
-          'Cache-Control': 'max-age=60' // Increased cache to 60 seconds
+          'Authorization': `Bearer ${token}`,
+          'Cache-Control': 'no-cache' // Disable cache for real-time data
         }
       });
       
       clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       
       const data = await response.json();
       
@@ -83,14 +82,14 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           existingLabMap.set(lab.orderItemId, lab);
         });
         
-        // Update lab data with existing labs
+        // Initialize lab data with existing labs or default values
         const updatedLabData: LabData[] = order.items.map((item: any, index: number) => {
           const existingLab = existingLabMap.get(item._id);
           return {
             orderItemId: item._id,
             orderItemName: item.quality?.name || `Item ${index + 1}`,
             labSendDate: existingLab?.labSendDate ? new Date(existingLab.labSendDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            approvalDate: existingLab?.labSendData?.approvalDate || new Date().toISOString().split('T')[0],
+            approvalDate: existingLab?.labSendData?.approvalDate ? new Date(existingLab.labSendData.approvalDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             sampleNumber: existingLab?.labSendNumber || '',
             existingLab: existingLab || null
           };
@@ -99,15 +98,33 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
         setLabData(updatedLabData);
       } else {
         console.error('Failed to fetch existing labs:', data.message);
-        // Keep optimistic data on error
+        // Initialize with default data on error
+        const defaultLabData: LabData[] = order.items.map((item: any, index: number) => ({
+          orderItemId: item._id,
+          orderItemName: item.quality?.name || `Item ${index + 1}`,
+          labSendDate: new Date().toISOString().split('T')[0],
+          approvalDate: new Date().toISOString().split('T')[0],
+          sampleNumber: '',
+          existingLab: null
+        }));
+        setLabData(defaultLabData);
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        console.warn('Lab check timeout - using optimistic data');
+        console.warn('Lab check timeout - using default data');
       } else {
         console.error('Error checking existing labs:', error);
       }
-      // Keep optimistic data on error
+      // Initialize with default data on error
+      const defaultLabData: LabData[] = order.items.map((item: any, index: number) => ({
+        orderItemId: item._id,
+        orderItemName: item.quality?.name || `Item ${index + 1}`,
+        labSendDate: new Date().toISOString().split('T')[0],
+        approvalDate: new Date().toISOString().split('T')[0],
+        sampleNumber: '',
+        existingLab: null
+      }));
+      setLabData(defaultLabData);
     } finally {
       setCheckingExisting(false);
     }
@@ -128,6 +145,8 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
     setPreviewImage({ url: imageUrl, alt });
     setShowImagePreview(true);
   };
+
+
 
 
 
@@ -215,29 +234,23 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
             }),
           });
 
-          const data = await response.json();
-          console.log('Lab creation response:', data); // Debug log
-          
-                     if (response.ok) {
-             // Handle both { success: true, data: ... } and direct data responses
-             const labData = data.success ? data.data : data;
-             createdLabs.push(labData);
-           } else {
-             // Check for duplicate key error or conflict
-             if (response.status === 409 || 
-                 (data.error && data.error.includes('duplicate key')) ||
-                 (data.message && data.message.includes('already exists'))) {
-               console.log('Lab already exists for this item, treating as success');
-               // Treat duplicate as success since the lab already exists
-               createdLabs.push({ id: 'exists', orderItemId: lab.orderItemId });
-             } else if (response.status === 500 && data.error?.includes('wasPopulated')) {
-               // Lab was created but populate failed - this is still a success
-               console.log('Lab created successfully but populate failed, treating as success');
-               createdLabs.push({ id: 'created', orderItemId: lab.orderItemId });
-             } else {
-               throw new Error(data.error || data.message || 'Failed to create lab');
-             }
-           }
+          if (!response.ok) {
+            const data = await response.json();
+            // Check for duplicate key error or conflict
+            if (response.status === 409 || 
+                (data.error && data.error.includes('duplicate key')) ||
+                (data.message && data.message.includes('already exists'))) {
+              console.log('Lab already exists for this item, treating as success');
+              // Treat duplicate as success since the lab already exists
+              createdLabs.push({ id: 'exists', orderItemId: lab.orderItemId });
+            } else {
+              throw new Error(data.error || data.message || 'Failed to create lab');
+            }
+          } else {
+            const data = await response.json();
+            const labData = data.success ? data.data : data;
+            createdLabs.push(labData);
+          }
         }
       }
 
@@ -270,16 +283,11 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
        });
        window.dispatchEvent(event);
        
-       // Refresh lab data to get updated state
-       await checkExistingLabs();
-       
-       // Call onSuccess first, then close
+       // Call onSuccess immediately for faster response
        onSuccess();
        
-       // Add a small delay before closing to ensure the parent component has time to refresh
-       setTimeout(() => {
-         onClose();
-       }, 100);
+       // Close modal immediately for better UX
+       onClose();
          } catch (error) {
        console.error('Error processing labs:', error);
        let errorMessage = 'Failed to process labs';
@@ -626,7 +634,7 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
                       <div className="text-xs text-gray-500 mb-3">
                         {(orderItem as any)?.imageUrls ? `${(orderItem as any).imageUrls.length} images` : 'No images'}
                       </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                         <div className="flex items-center space-x-2">
                           <span className={`font-medium ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
@@ -668,6 +676,30 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
                               isDarkMode ? 'text-gray-400' : 'text-gray-600'
                             }`}>
                               {(orderItem as any).description}
+                            </span>
+                          </div>
+                        )}
+                        {(orderItem as any)?.weaverSupplierName && (
+                          <div className="flex items-center space-x-2">
+                            <span className={`font-medium ${
+                              isDarkMode ? 'text-orange-300' : 'text-orange-600'
+                            }`}>Weaver/Supplier:</span>
+                            <span className={`${
+                              isDarkMode ? 'text-orange-400' : 'text-orange-700'
+                            }`}>
+                              {(orderItem as any).weaverSupplierName}
+                            </span>
+                          </div>
+                        )}
+                        {(orderItem as any)?.purchaseRate && (
+                          <div className="flex items-center space-x-2">
+                            <span className={`font-medium ${
+                              isDarkMode ? 'text-green-300' : 'text-green-600'
+                            }`}>Purchase Rate:</span>
+                            <span className={`${
+                              isDarkMode ? 'text-green-400' : 'text-green-700'
+                            }`}>
+                              ₹{Number((orderItem as any).purchaseRate).toFixed(2)}
                             </span>
                           </div>
                         )}
