@@ -107,7 +107,7 @@ const LogSchema = new Schema<ILog>({
     type: String,
     required: [true, "Resource is required"],
     enum: [
-      'auth', 'user', 'order', 'lab', 'party', 'quality', 'file', 'system', 'dashboard'
+      'auth', 'user', 'order', 'lab', 'party', 'quality', 'file', 'system', 'dashboard', 'log'
     ],
     index: true
   },
@@ -159,18 +159,21 @@ const LogSchema = new Schema<ILog>({
   timestamps: true
 });
 
-// Indexes for better query performance
-LogSchema.index({ timestamp: -1 });
-LogSchema.index({ userId: 1, timestamp: -1 });
-LogSchema.index({ action: 1, timestamp: -1 });
-LogSchema.index({ resource: 1, timestamp: -1 });
-LogSchema.index({ success: 1, timestamp: -1 });
-LogSchema.index({ severity: 1, timestamp: -1 });
+// Optimized indexes for better query performance
+LogSchema.index({ timestamp: -1 }, { background: true });
+LogSchema.index({ userId: 1, timestamp: -1 }, { background: true });
+LogSchema.index({ action: 1, timestamp: -1 }, { background: true });
+LogSchema.index({ resource: 1, timestamp: -1 }, { background: true });
+LogSchema.index({ success: 1, timestamp: -1 }, { background: true });
+LogSchema.index({ severity: 1, timestamp: -1 }, { background: true });
 
 // Compound indexes for specific queries
-LogSchema.index({ resource: 1, resourceId: 1, timestamp: -1 }); // For order logs
-LogSchema.index({ resource: 1, action: 1, timestamp: -1 }); // For resource-specific actions
-LogSchema.index({ userId: 1, resource: 1, timestamp: -1 }); // For user activity by resource
+LogSchema.index({ resource: 1, resourceId: 1, timestamp: -1 }, { background: true }); // For order logs
+LogSchema.index({ resource: 1, action: 1, timestamp: -1 }, { background: true }); // For resource-specific actions
+LogSchema.index({ userId: 1, resource: 1, timestamp: -1 }, { background: true }); // For user activity by resource
+
+// Specific optimized index for order logs
+LogSchema.index({ resource: 'order', resourceId: 1, timestamp: -1 }, { background: true });
 
 // Static method to log user actions
 LogSchema.statics.logUserAction = async function(data: {

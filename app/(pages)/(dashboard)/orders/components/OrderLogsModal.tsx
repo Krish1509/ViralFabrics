@@ -19,7 +19,9 @@ import {
   CalendarIcon,
   BuildingOfficeIcon,
   ArrowRightIcon,
-  QuestionMarkCircleIcon
+  QuestionMarkCircleIcon,
+  CurrencyDollarIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../../hooks/useDarkMode';
 
@@ -57,64 +59,143 @@ interface OrderLogsModalProps {
 export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderLogsModalProps) {
   const { isDarkMode, mounted } = useDarkMode();
   const [logs, setLogs] = useState<OrderLog[]>([]);
-  const [loading, setLoading] = useState(false); // Start with false for immediate modal opening
+  const [loading, setLoading] = useState(true); // Start with true for immediate feedback
   const [error, setError] = useState<string | null>(null);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
   const [showColorLegend, setShowColorLegend] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isFetching, setIsFetching] = useState(false);
 
   useEffect(() => {
     // Start loading immediately when modal opens
-    setLoading(true);
-    fetchLogs();
+    fetchLogs(false);
+    
+    // Listen for manual refresh events
+    const handleRefreshEvent = (event: CustomEvent) => {
+      if (event.detail?.orderId === orderId) {
+        fetchLogs(false);
+      }
+    };
+    
+    // Listen for real-time order updates
+    const handleOrderUpdate = (event: CustomEvent) => {
+      console.log('🔍 OrderLogsModal: Received orderUpdated event:', event.detail);
+      if (event.detail?.orderId === orderId) {
+        console.log('🔍 OrderLogsModal: Updating logs for order:', orderId);
+        setIsUpdating(true);
+        // Reduced delay for faster updates
+                 setTimeout(() => {
+           fetchLogs(false).finally(() => {
+             setIsUpdating(false);
+           });
+         }, 500); // Reduced delay for faster response
+      } else {
+        console.log('🔍 OrderLogsModal: Event orderId mismatch:', event.detail?.orderId, 'vs', orderId);
+      }
+    };
+    
+    window.addEventListener('refreshOrderLogs', handleRefreshEvent as EventListener);
+    window.addEventListener('orderUpdated', handleOrderUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('refreshOrderLogs', handleRefreshEvent as EventListener);
+      window.removeEventListener('orderUpdated', handleOrderUpdate as EventListener);
+    };
   }, [orderId]);
 
-  const fetchLogs = async () => {
+  const fetchLogs = async (isRetry = false) => {
+    // Prevent multiple simultaneous requests
+    if (isFetching && !isRetry) {
+      console.log('🔍 OrderLogsModal: Request already in progress, skipping');
+      return;
+    }
+    
+    let controller: AbortController | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
+    
     try {
+      console.log('🔍 OrderLogsModal: Fetching logs for order:', orderId, isRetry ? '(retry)' : '');
+      setIsFetching(true);
       setLoading(true);
       setError(null);
       
       const token = localStorage.getItem('token');
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
-      console.log('Fetching logs for order:', orderId);
+      controller = new AbortController();
+      timeoutId = setTimeout(() => {
+        if (controller) {
+          controller.abort();
+        }
+      }, 8000); // Increased timeout to 8 seconds
       
       const response = await fetch(`/api/orders/${orderId}/logs`, {
         headers: {
           ...(token && { 'Authorization': `Bearer ${token}` }),
-          'Cache-Control': 'no-cache' // Force fresh data
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
         },
         signal: controller.signal
       });
       
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       
-      console.log('Response status:', response.status);
+      console.log('🔍 OrderLogsModal: Logs API response status:', response.status);
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Response error:', errorText);
+        if (response.status === 404) {
+          setLogs([]); // Empty logs for 404
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
-      console.log('Response data:', data);
+      console.log('🔍 OrderLogsModal: Logs API response data:', data);
       
       if (data.success) {
-        setLogs(data.data);
+        console.log('🔍 OrderLogsModal: Setting logs:', data.data.length, 'logs');
+        setLogs(data.data || []);
+        setRetryCount(0); // Reset retry count on success
       } else {
         setError(data.message || 'Failed to fetch logs');
       }
     } catch (err) {
       console.error('Fetch error:', err);
+      
+      // Clean up timeout
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      
       if (err instanceof Error && err.name === 'AbortError') {
-        setError('Request timed out. Please try again.');
+        // Don't retry if it's a manual abort (component unmounting)
+        if (controller?.signal.aborted) {
+          console.log('🔍 OrderLogsModal: Request was manually aborted, not retrying');
+          return;
+        }
+        
+        const newRetryCount = retryCount + 1;
+        setRetryCount(newRetryCount);
+        
+        if (newRetryCount < 3) {
+          // Auto-retry on timeout
+          console.log('🔍 OrderLogsModal: Auto-retrying due to timeout, attempt:', newRetryCount);
+          setTimeout(() => fetchLogs(true), 1000);
+          return;
+        } else {
+          setError('Request timed out after multiple attempts. Please try again.');
+        }
       } else {
         setError('An error occurred while fetching logs');
-        console.error('Error fetching logs:', err);
       }
     } finally {
       setLoading(false);
+      setIsInitialLoad(false);
+      setIsFetching(false);
     }
   };
 
@@ -286,26 +367,247 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
     }
   };
 
+
+
   const formatChanges = (details: any) => {
     if (!details) return null;
 
+    // Priority 1: Use the changeSummary if available (this contains the detailed image change info)
     if (details.changeSummary && Array.isArray(details.changeSummary)) {
+      console.log('🔍 Using changeSummary for formatting:', details.changeSummary);
       return details.changeSummary;
     }
 
-    if (details.oldValues && details.newValues) {
+    // Priority 2: Check for itemChanges structure (new detailed format)
+    if (details.oldValues?.itemChanges || details.newValues?.itemChanges) {
+      const itemChanges = details.oldValues?.itemChanges || details.newValues?.itemChanges || [];
       const changes: string[] = [];
-      const fields = ['orderType', 'arrivalDate', 'contactName', 'contactPhone', 'poNumber', 'styleNo', 'poDate', 'deliveryDate', 'status'];
       
-      fields.forEach(field => {
-        if (details.oldValues[field] !== details.newValues[field]) {
-          const oldVal = details.oldValues[field] || 'Not set';
-          const newVal = details.newValues[field] || 'Not set';
-          changes.push(`${getFieldDisplayName(field)}: "${oldVal}" → "${newVal}"`);
+      console.log('🔍 Processing itemChanges:', itemChanges);
+      
+      itemChanges.forEach((change: any) => {
+        if (change.type === 'item_updated') {
+          change.changes.forEach((fieldChange: any) => {
+            if (fieldChange.field === 'imageUrls' && fieldChange.message) {
+              // Handle the new detailed image change format with before/after info
+              let imageMessage = `📷 Item ${change.item}: ${fieldChange.message}`;
+              
+              // Add before/after information if available
+              if (fieldChange.oldUrls && fieldChange.newUrls) {
+                const oldCount = fieldChange.oldUrls.length;
+                const newCount = fieldChange.newUrls.length;
+                imageMessage += ` (${oldCount} → ${newCount} images)`;
+              }
+              
+              changes.push(imageMessage);
+              
+              // Show specific image details if available
+              if (fieldChange.addedUrls && fieldChange.addedUrls.length > 0) {
+                fieldChange.addedUrls.forEach((url: string, index: number) => {
+                  const fileName = url.split('/').pop() || url;
+                  changes.push(`  ➕ Added: ${fileName}`);
+                });
+              }
+              if (fieldChange.removedUrls && fieldChange.removedUrls.length > 0) {
+                fieldChange.removedUrls.forEach((url: string, index: number) => {
+                  const fileName = url.split('/').pop() || url;
+                  changes.push(`  ➖ Removed: ${fileName}`);
+                });
+              }
+            } else if (fieldChange.field === 'imageUrls' && fieldChange.type) {
+              // Handle the new detailed image change format
+              let imageMessage = '';
+              if (fieldChange.type === 'added') {
+                imageMessage = `📷 Item ${change.item}: Added ${fieldChange.count} image(s)`;
+                if (fieldChange.oldUrls && fieldChange.newUrls) {
+                  imageMessage += ` (${fieldChange.oldUrls.length} → ${fieldChange.newUrls.length} images)`;
+                }
+              } else if (fieldChange.type === 'removed') {
+                imageMessage = `📷 Item ${change.item}: Removed ${fieldChange.count} image(s)`;
+                if (fieldChange.oldUrls && fieldChange.newUrls) {
+                  imageMessage += ` (${fieldChange.oldUrls.length} → ${fieldChange.newUrls.length} images)`;
+                }
+              } else if (fieldChange.type === 'mixed') {
+                imageMessage = `📷 Item ${change.item}: Added ${fieldChange.added} image(s), Removed ${fieldChange.removed} image(s)`;
+                if (fieldChange.oldUrls && fieldChange.newUrls) {
+                  imageMessage += ` (${fieldChange.oldUrls.length} → ${fieldChange.newUrls.length} images)`;
+                }
+              }
+              
+              changes.push(imageMessage);
+              
+              // Show specific image details if available
+              if (fieldChange.addedUrls && fieldChange.addedUrls.length > 0) {
+                fieldChange.addedUrls.forEach((url: string, index: number) => {
+                  const fileName = url.split('/').pop() || url;
+                  changes.push(`  ➕ Added: ${fileName}`);
+                });
+              }
+              if (fieldChange.removedUrls && fieldChange.removedUrls.length > 0) {
+                fieldChange.removedUrls.forEach((url: string, index: number) => {
+                  const fileName = url.split('/').pop() || url;
+                  changes.push(`  ➖ Removed: ${fileName}`);
+                });
+              }
+            } else {
+              const fieldName = fieldChange.field === 'quality' ? 'Quality' :
+                               fieldChange.field === 'quantity' ? 'Quantity' :
+                               fieldChange.field === 'description' ? 'Description' :
+                               fieldChange.field === 'imageUrls' ? 'Images' : fieldChange.field;
+              
+              const fromText = fieldChange.old || 'Not set';
+              const toText = fieldChange.new || 'Not set';
+              changes.push(`✏️ Item ${change.item} ${fieldName}: "${fromText}" → "${toText}"`);
+            }
+          });
+        } else if (change.type === 'item_added') {
+          const item = change.item;
+          let itemSummary = `📦 Item ${change.index + 1}: Added new item`;
+          
+          // Add detailed information about the new item
+          const details = [];
+          if (item?.quality) {
+            const qualityName = typeof item.quality === 'object' ? item.quality.name : item.quality;
+            details.push(`Quality: "${qualityName}"`);
+          }
+          if (item?.quantity) {
+            details.push(`Quantity: ${item.quantity}`);
+          }
+          if (item?.description) {
+            details.push(`Description: "${item.description}"`);
+          }
+          if (item?.imageUrls && item.imageUrls.length > 0) {
+            details.push(`${item.imageUrls.length} image(s)`);
+          }
+          
+          if (details.length > 0) {
+            itemSummary += ` (${details.join(', ')})`;
+          }
+          
+          changes.push(itemSummary);
+          
+          // Specifically mention images if any
+          if (item?.imageUrls && item.imageUrls.length > 0) {
+            changes.push(`📷 Item ${change.index + 1}: Added ${item.imageUrls.length} image(s)`);
+          }
+        } else if (change.type === 'item_removed') {
+          changes.push(`🗑️ Item ${change.index + 1}: Removed item`);
         }
       });
+      
+      if (changes.length > 0) {
+        return changes;
+      }
+    }
+
+    // Priority 3: Fallback to old format
+    if (details.oldValues && details.newValues) {
+      const changes: string[] = [];
+      
+      console.log('🔍 Formatting changes for:', details.oldValues, details.newValues);
+      
+      // Only check fields that are actually present in oldValues (meaning they were changed)
+      Object.keys(details.oldValues).forEach(field => {
+        const oldVal = details.oldValues[field];
+        const newVal = details.newValues[field];
+        
+        // Skip if values are the same
+        if (oldVal === newVal) {
+          console.log('🔍 Skipping field', field, 'because values are the same:', oldVal);
+          return;
+        }
+        
+        let oldDisplay = oldVal || 'Not set';
+        let newDisplay = newVal || 'Not set';
+        
+        // Format dates for better readability
+        if (field === 'arrivalDate' || field === 'poDate' || field === 'deliveryDate') {
+          if (oldVal && oldVal !== 'Not set') {
+            try {
+              oldDisplay = new Date(oldVal).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              });
+            } catch (e) {
+              oldDisplay = oldVal;
+            }
+          }
+          if (newVal && newVal !== 'Not set') {
+            try {
+              newDisplay = new Date(newVal).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              });
+            } catch (e) {
+              newDisplay = newVal;
+            }
+          }
+        }
+        
+        // Handle party field specially (show name instead of ID)
+        if (field === 'party') {
+          if (oldVal && typeof oldVal === 'object' && oldVal.name) {
+            oldDisplay = oldVal.name;
+          } else if (oldVal && typeof oldVal === 'string') {
+            oldDisplay = oldVal; // Keep as is if it's already a string
+          }
+          if (newVal && typeof newVal === 'object' && newVal.name) {
+            newDisplay = newVal.name;
+          } else if (newVal && typeof newVal === 'string') {
+            newDisplay = newVal; // Keep as is if it's already a string
+          }
+        }
+        
+        console.log('🔍 Adding change for field:', field, 'from', oldDisplay, 'to', newDisplay);
+        changes.push(`${getFieldDisplayName(field)}: "${oldDisplay}" → "${newDisplay}"`);
+      });
+
+      // Check for item changes
+      if (details.oldValues.items && details.newValues.items) {
+        const oldItems = details.oldValues.items || [];
+        const newItems = details.newValues.items || [];
+        
+        if (oldItems.length !== newItems.length) {
+          changes.push(`Items: ${oldItems.length} → ${newItems.length} items`);
+        }
+        
+        // Check for specific item changes
+        newItems.forEach((newItem: any, index: number) => {
+          const oldItem = oldItems[index];
+          if (oldItem) {
+            if (oldItem.quantity !== newItem.quantity) {
+              changes.push(`Item ${index + 1} Quantity: ${oldItem.quantity} → ${newItem.quantity}`);
+            }
+            if (oldItem.description !== newItem.description) {
+              changes.push(`Item ${index + 1} Description: "${oldItem.description || 'Not set'}" → "${newItem.description || 'Not set'}"`);
+            }
+          }
+        });
+      }
 
       return changes;
+    }
+
+    // Handle other types of changes
+    if (details.metadata) {
+      const changes: string[] = [];
+      
+      if (details.metadata.labAdded) {
+        changes.push(`Lab Data Added: ${details.metadata.labAdded}`);
+      }
+      if (details.metadata.labUpdated) {
+        changes.push(`Lab Data Updated: ${details.metadata.labUpdated}`);
+      }
+      if (details.metadata.imageUploaded) {
+        changes.push(`Image Uploaded: ${details.metadata.imageUploaded}`);
+      }
+      if (details.metadata.statusChanged) {
+        changes.push(`Status Changed: ${details.metadata.statusChanged}`);
+      }
+      
+      return changes.length > 0 ? changes : null;
     }
 
     return null;
@@ -319,6 +621,8 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
       contactPhone: 'Contact Phone',
       poNumber: 'PO Number',
       styleNo: 'Style Number',
+      weaverSupplierName: 'Weaver / Supplier Name',
+              purchaseRate: 'Purchase Rate',
       poDate: 'PO Date',
       deliveryDate: 'Delivery Date',
       status: 'Status'
@@ -334,6 +638,8 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
       contactPhone: <ComputerDesktopIcon className="h-4 w-4" />,
       poNumber: <DocumentTextIcon className="h-4 w-4" />,
       styleNo: <DocumentTextIcon className="h-4 w-4" />,
+      weaverSupplierName: <BuildingOfficeIcon className="h-4 w-4" />,
+      purchaseRate: <CurrencyDollarIcon className="h-4 w-4" />,
       poDate: <CalendarIcon className="h-4 w-4" />,
       deliveryDate: <CalendarIcon className="h-4 w-4" />,
       status: <CheckCircleIcon className="h-4 w-4" />
@@ -377,15 +683,44 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
               <DocumentTextIcon className="h-8 w-8 text-blue-500" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold">Order Activity Log</h2>
-              {orderNumber && (
-                <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  📋 Order #{orderNumber} • {logs.length} activities tracked
-                </p>
-              )}
+                             <h2 className="text-2xl font-bold">Order Activity Log</h2>
+               {orderNumber && (
+                 <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                   📋 Order #{orderNumber} • {logs.length} activities tracked
+                   {isUpdating && (
+                     <span className={`ml-2 inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                       isDarkMode ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-100 text-blue-700'
+                     }`}>
+                       <ArrowPathIcon className="h-3 w-3 animate-spin" />
+                       Updating...
+                     </span>
+                   )}
+                 </p>
+               )}
             </div>
           </div>
           <div className="flex items-center space-x-2">
+                                                   {/* Manual refresh button */}
+                           <button
+                 onClick={(e) => {
+                   e.preventDefault();
+                   if (!isFetching) {
+                     fetchLogs(false);
+                   }
+                 }}
+                 disabled={isFetching}
+                 className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
+                   isDarkMode 
+                     ? 'hover:bg-gray-700 text-gray-400 hover:text-white' 
+                     : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+                 } ${isFetching ? 'opacity-50 cursor-not-allowed' : ''}`}
+                 title={isFetching ? "Refreshing..." : "Refresh logs"}
+               >
+                 <ArrowPathIcon className={`h-6 w-6 ${(loading || isFetching) ? 'animate-spin' : ''}`} />
+               </button>
+             
+
+            
             <button
               onClick={() => setShowColorLegend(!showColorLegend)}
               className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
@@ -504,18 +839,104 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
           `}</style>
           
                      {loading ? (
-             <div className="p-8 text-center">
-               <div className={`p-4 rounded-full inline-flex items-center justify-center ${
-                 isDarkMode ? 'bg-blue-600/20' : 'bg-blue-100'
-               }`}>
-                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+             <div className="space-y-4 p-6">
+               {/* Enhanced Loading skeleton that matches actual log structure */}
+               {[...Array(6)].map((_, index) => (
+                 <div key={index} className={`animate-pulse rounded-xl border-2 shadow-lg ${
+                   isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+                 }`}>
+                   {/* Log Header Skeleton */}
+                   <div className="p-6">
+                     <div className="flex items-start justify-between">
+                       <div className="flex items-start space-x-4 flex-1">
+                         {/* Action Icon Skeleton */}
+                         <div className={`p-3 rounded-xl ${
+                           isDarkMode ? 'bg-gray-700/50' : 'bg-gray-100'
+                         }`}>
+                           <div className={`w-5 h-5 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-300'} rounded`}></div>
+                         </div>
+                         
+                         {/* Main Content Skeleton */}
+                         <div className="flex-1 min-w-0">
+                           <div className="flex items-center space-x-3 mb-2">
+                             {/* Action Title Skeleton */}
+                             <div className={`h-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded w-32`}></div>
+                             {/* Status Badge Skeleton */}
+                             <div className={`h-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded w-16`}></div>
+                             {/* Changes Badge Skeleton */}
+                             <div className={`h-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded w-20`}></div>
+                           </div>
+                           
+                           {/* User and Time Info Skeleton */}
+                           <div className="flex items-center space-x-6 text-sm">
+                             <div className="flex items-center space-x-2">
+                               <div className={`w-4 h-4 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-300'} rounded`}></div>
+                               <div className={`h-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded w-24`}></div>
+                               <div className={`h-5 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded w-16`}></div>
+                             </div>
+                             
+                             <div className="flex items-center space-x-2">
+                               <div className={`w-4 h-4 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-300'} rounded`}></div>
+                               <div className="flex flex-col space-y-1">
+                                 <div className={`h-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded w-28`}></div>
+                                 <div className={`h-3 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded w-32`}></div>
+                               </div>
+                             </div>
+                           </div>
+                         </div>
+                       </div>
+                       
+                       {/* Expand Button Skeleton */}
+                       <div className={`p-2 rounded-lg ${
+                         isDarkMode ? 'bg-gray-700/50' : 'bg-gray-200'
+                       }`}>
+                         <div className={`w-5 h-5 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-300'} rounded`}></div>
+                       </div>
+                     </div>
+                   </div>
+                   
+                   {/* Changes Section Skeleton (sometimes visible) */}
+                   {index % 2 === 0 && (
+                     <div className={`border-t ${
+                       isDarkMode ? 'border-gray-700 bg-gray-800/30' : 'border-gray-200 bg-gray-100'
+                     }`}>
+                       <div className="p-6">
+                         <div className={`h-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded w-40 mb-4`}></div>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           {[...Array(2)].map((_, changeIndex) => (
+                             <div key={changeIndex} className={`p-4 rounded-lg border ${
+                               isDarkMode ? 'border-gray-600 bg-gray-800/50' : 'border-gray-300 bg-white'
+                             }`}>
+                               <div className="flex items-start space-x-3">
+                                 <div className={`p-2 rounded-lg ${
+                                   isDarkMode ? 'bg-gray-700/50' : 'bg-gray-200'
+                                 }`}>
+                                   <div className={`w-4 h-4 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-300'} rounded`}></div>
+                                 </div>
+                                 <div className="flex-1 space-y-2">
+                                   <div className={`h-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded w-24`}></div>
+                                   <div className={`h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded`}></div>
+                                   <div className={`h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded`}></div>
+                                 </div>
+                               </div>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     </div>
+                   )}
+                 </div>
+               ))}
+               
+               {/* Loading indicator */}
+               <div className="text-center py-6">
+                 <div className="flex items-center justify-center space-x-2">
+                   <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent"></div>
+                   <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                     Loading activity logs...
+                   </span>
+                 </div>
                </div>
-               <h3 className={`text-base font-semibold mt-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                 Loading Activity History
-               </h3>
-               <p className={`text-sm mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                 Fetching recent activity logs...
-               </p>
              </div>
           ) : error ? (
             <div className="p-8 text-center">
@@ -527,7 +948,10 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
               <h3 className="text-base font-semibold mt-3 text-red-600">Failed to Load Logs</h3>
               <p className="text-red-500 mb-4 mt-1 text-sm">{error}</p>
               <button
-                onClick={fetchLogs}
+                onClick={(e) => {
+                  e.preventDefault();
+                  fetchLogs(false);
+                }}
                 className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
                   isDarkMode 
                     ? 'bg-blue-600 hover:bg-blue-700 text-white' 
@@ -537,20 +961,35 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
                 🔄 Retry
               </button>
             </div>
-          ) : logs.length === 0 ? (
-            <div className="p-8 text-center">
-              <div className={`p-4 rounded-full inline-flex items-center justify-center ${
-                isDarkMode ? 'bg-gray-600/20' : 'bg-gray-100'
-              }`}>
-                <InformationCircleIcon className="h-8 w-8 text-gray-400" />
-              </div>
-              <h3 className={`text-base font-semibold mt-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                No Activity Found
-              </h3>
-              <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                This order hasn't been modified yet.
-              </p>
-            </div>
+                     ) : logs.length === 0 ? (
+             <div className="p-8 text-center">
+               <div className={`p-4 rounded-full inline-flex items-center justify-center ${
+                 isDarkMode ? 'bg-gray-600/20' : 'bg-gray-100'
+               }`}>
+                 <InformationCircleIcon className="h-8 w-8 text-gray-400" />
+               </div>
+               <h3 className={`text-base font-semibold mt-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                 No Activity Found
+               </h3>
+               <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                 This order hasn't been modified yet. Activity will appear here when changes are made.
+               </p>
+               <div className="mt-4">
+                 <button
+                                       onClick={(e) => {
+                      e.preventDefault();
+                      fetchLogs(false);
+                    }}
+                   className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
+                     isDarkMode 
+                       ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                       : 'bg-blue-500 hover:bg-blue-600 text-white'
+                   }`}
+                 >
+                   🔄 Refresh
+                 </button>
+               </div>
+             </div>
           ) : (
             <div className="p-6 space-y-4">
               {logs.map((log, index) => {

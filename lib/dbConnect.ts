@@ -45,13 +45,14 @@ export default async function dbConnect(): Promise<Mongoose> {
   // If we don't have a connection promise, create one
   if (!cached.promise) {
     const opts = {
-      bufferCommands: false,
+      bufferCommands: true, // Enable buffering to prevent connection errors
       maxPoolSize: 10, // Maintain up to 10 socket connections
-      serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
-      socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+      serverSelectionTimeoutMS: 10000, // Increased to 10 seconds
+      socketTimeoutMS: 60000, // Increased to 60 seconds
       family: 4, // Use IPv4, skip trying IPv6
       retryWrites: true,
       retryReads: true,
+      connectTimeoutMS: 10000, // Connection timeout
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts);

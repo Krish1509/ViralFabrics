@@ -9,21 +9,48 @@ import { logLogin } from "@/lib/logger";
 export async function POST(req: Request) {
   try {
     await dbConnect();
-    const { username, password } = await req.json();
+    const { username, password, rememberMe } = await req.json();
 
     if (!username || !password) {
       return NextResponse.json({ message: "Username and password are required" }, { status: 400 });
     }
-    const user = await User.findOne({ $or: [{ username }, { name: username }] }).select('+password');
+    // First try to find by username (exact match)
+    let user = await User.findOne({ username: username.trim() }).select('+password');
+    
+    // If not found by username, try by name (for backward compatibility)
+    if (!user) {
+      user = await User.findOne({ name: username.trim() }).select('+password');
+    }
+    
     if (!user) {
       await logLogin(username, false, req as any, 'User not found');
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
+    // Check if account is locked
+    if (user.accountLocked && user.lockExpiresAt && user.lockExpiresAt > new Date()) {
+      await logLogin(username, false, req as any, 'Account locked');
+      return NextResponse.json({ message: "Account is temporarily locked due to too many failed attempts" }, { status: 423 });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      // Record failed login attempt
+      try {
+        await user.recordFailedLogin();
+      } catch (error) {
+        console.error('Error recording failed login:', error);
+      }
+      
       await logLogin(username, false, req as any, 'Invalid password');
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+    }
+
+    // Reset failed login attempts on successful login
+    try {
+      await user.incrementLoginCount();
+    } catch (error) {
+      console.error('Error updating login count:', error);
     }
 
     const JWT_SECRET = process.env.JWT_SECRET;
@@ -33,6 +60,10 @@ export async function POST(req: Request) {
     }
 
     const secretKey = new TextEncoder().encode(JWT_SECRET);
+    
+    // Set expiration time based on rememberMe option
+    const expirationTime = rememberMe ? "30d" : "7d";
+    
     const token = await new SignJWT({ 
       id: user._id.toString(), 
       role: user.role,
@@ -41,7 +72,7 @@ export async function POST(req: Request) {
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
-      .setExpirationTime("7d")
+      .setExpirationTime(expirationTime)
       .sign(secretKey);
 
     // Prepare user object without password

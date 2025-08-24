@@ -103,26 +103,42 @@ export default function UsersPage() {
   const isSmallScreen = screenSize > 500;
   const isTinyScreen = screenSize <= 500;
 
-  // Fetch users
+  // Fetch users with optimization
   const fetchUsers = async () => {
+    setLoading(true);
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+      
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/users', {
+      const response = await fetch('/api/users?limit=50', { // Limit for faster loading
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          'Authorization': `Bearer ${token}`,
+          'Cache-Control': 'max-age=30' // Cache for 30 seconds
+        },
+        signal: controller.signal
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        // Validate that all users have _id
-        const validUsers = data.filter((user: any) => user._id);
-        setUsers(validUsers);
-      } else {
-        throw new Error('Failed to fetch users');
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    } catch (error) {
-      showMessage('error', 'Failed to load users');
+      
+      const data = await response.json();
+      if (data.success) {
+        setUsers(data.data || []);
+      } else {
+        throw new Error(data.message || 'Failed to fetch users');
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error('Request timeout');
+        setMessage({ type: 'error', text: 'Request timeout - please try again' });
+      } else {
+        console.error('Error fetching users:', error);
+        setMessage({ type: 'error', text: 'Failed to fetch users' });
+      }
     } finally {
       setLoading(false);
     }
@@ -377,10 +393,142 @@ export default function UsersPage() {
     );
   }
 
+  // Loading skeleton component that matches the actual table structure
+  const LoadingSkeleton = () => (
+    <div className="space-y-4">
+      {/* Header Skeleton */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className={`h-8 w-48 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+          <div className={`h-4 w-64 rounded mt-2 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+        </div>
+        <div className={`h-10 w-32 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+      </div>
+
+      {/* Filters Skeleton */}
+      <div className={`p-4 rounded-lg border ${
+        isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200'
+      }`}>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className={`h-10 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+            </div>
+            <div className="sm:w-auto">
+              <div className={`h-10 w-24 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Table Skeleton */}
+      <div className={`overflow-hidden rounded-lg border ${
+        isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200'
+      }`}>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            {/* Table Header Skeleton */}
+            <thead className={`${
+              isDarkMode ? 'bg-white/5 border-b border-white/10' : 'bg-gray-50 border-b border-gray-200'
+            }`}>
+              <tr>
+                <th className="px-6 py-3 text-left">
+                  <div className={`h-4 w-16 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                </th>
+                {isSmallScreen && (
+                  <th className="px-6 py-3 text-left">
+                    <div className={`h-4 w-12 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                  </th>
+                )}
+                {isLargeScreen && (
+                  <th className="px-6 py-3 text-left">
+                    <div className={`h-4 w-24 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                  </th>
+                )}
+                {isMediumScreen && (
+                  <th className="px-6 py-3 text-left">
+                    <div className={`h-4 w-20 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                  </th>
+                )}
+                <th className="px-6 py-3 text-left">
+                  <div className={`h-4 w-20 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                </th>
+              </tr>
+            </thead>
+            {/* Table Body Skeleton */}
+            <tbody className={`divide-y ${
+              isDarkMode ? 'divide-white/10' : 'divide-gray-200'
+            }`}>
+              {[...Array(7)].map((_, index) => (
+                <tr key={index} className={`${
+                  isDarkMode ? 'bg-white/5' : 'bg-white'
+                }`}>
+                  {/* User Column Skeleton */}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className={`h-10 w-10 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                      <div className="ml-4 flex-1">
+                        <div className={`h-4 w-32 rounded mb-2 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                        <div className={`h-3 w-24 rounded mb-1 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                        <div className={`h-6 w-20 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                      </div>
+                    </div>
+                  </td>
+                  
+                  {/* Role Column Skeleton (Small Screen) */}
+                  {isSmallScreen && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className={`h-6 w-16 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                    </td>
+                  )}
+                  
+                  {/* Contact Info Column Skeleton (Large Screen) */}
+                  {isLargeScreen && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="space-y-2">
+                        <div className={`h-3 w-28 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                        <div className={`h-3 w-32 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                      </div>
+                    </td>
+                  )}
+                  
+                  {/* Created Date Column Skeleton (Medium Screen) */}
+                  {isMediumScreen && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className={`h-4 w-24 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                    </td>
+                  )}
+                  
+                  {/* Actions Column Skeleton */}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center space-x-2">
+                      <div className={`h-8 w-8 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                      <div className={`h-8 w-8 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Pagination Skeleton */}
+      <div className="flex items-center justify-between">
+        <div className={`h-4 w-32 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+        <div className="flex items-center space-x-2">
+          <div className={`h-8 w-8 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+          <div className={`h-8 w-8 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+          <div className={`h-8 w-8 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} animate-pulse`}></div>
+        </div>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-[#1D293D]' : 'bg-gray-50'}`}>
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      <div className={`min-h-screen ${isDarkMode ? 'bg-[#1D293D]' : 'bg-gray-50'} p-6`}>
+        <LoadingSkeleton />
       </div>
     );
   }

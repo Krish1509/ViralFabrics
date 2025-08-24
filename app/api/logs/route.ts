@@ -7,6 +7,7 @@ import { logView } from '@/lib/logger';
 
 // GET /api/logs - Get logs with filtering and pagination
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
   try {
     await dbConnect();
     
@@ -16,31 +17,31 @@ export async function GET(request: NextRequest) {
       return unauthorized('Authentication required');
     }
     
-         // Allow both users and superadmins to view logs
-     if (session.role !== 'superadmin' && session.role !== 'user') {
-       return unauthorized('Authentication required');
-     }
+    // Allow both users and superadmins to view logs
+    if (session.role !== 'superadmin' && session.role !== 'user') {
+      return unauthorized('Authentication required');
+    }
     
-         const { searchParams } = new URL(request.url);
-     const queryParams = Object.fromEntries(searchParams.entries());
+    const { searchParams } = new URL(request.url);
+    const queryParams = Object.fromEntries(searchParams.entries());
     
-         const {
-       page = '1',
-       limit = '50',
-       cursor,
-       userId,
-       username,
-       action,
-       resource,
-       resourceId,
-       success,
-       severity,
-       startDate,
-       endDate,
-       excludeAction,
-       sortBy = 'timestamp',
-       sortOrder = 'desc'
-     } = queryParams;
+    const {
+      page = '1',
+      limit = '50',
+      cursor,
+      userId,
+      username,
+      action,
+      resource,
+      resourceId,
+      success,
+      severity,
+      startDate,
+      endDate,
+      excludeAction,
+      sortBy = 'timestamp',
+      sortOrder = 'desc'
+    } = queryParams;
     
     // Build filter object
     const filter: any = {};
@@ -65,87 +66,86 @@ export async function GET(request: NextRequest) {
       if (endDate) filter.timestamp.$lte = new Date(endDate);
     }
     
-                       // Handle large limits (load all logs)
-       const limitNum = Math.min(parseInt(limit), 99999); // Max 99999 logs per request
-       const isLargeLimit = limitNum >= 1000; // Consider large limit for "load all"
-      
-       // Sorting
-       const sort: any = {};
-       sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
-       
-       let logs, hasMore, results;
-       
-       if (isLargeLimit && !cursor) {
-         // For large limits without cursor, load all logs
-         logs = await Log.find(filter).sort(sort).lean();
-         hasMore = false;
-         results = logs;
-       } else {
-         // Use cursor-based pagination for smaller limits or when cursor is provided
-         let query = Log.find(filter).sort(sort).limit(limitNum + 1);
-         
-         // Add cursor-based pagination if cursor is provided
-         if (cursor) {
-           try {
-             const cursorDate = new Date(cursor);
-             if (sortOrder === 'desc') {
-               filter[sortBy] = { ...filter[sortBy], $lt: cursorDate };
-             } else {
-               filter[sortBy] = { ...filter[sortBy], $gt: cursorDate };
-             }
-           } catch (error) {
-             console.error('Invalid cursor format:', error);
-             // Continue without cursor if it's invalid
-           }
-         }
-         
-         // Re-apply filter after cursor modification
-         query = Log.find(filter).sort(sort).limit(limitNum + 1);
-         
-         // Execute query
-         logs = await query.lean();
-         
-         // Check if there are more results
-         hasMore = logs.length > limitNum;
-         results = hasMore ? logs.slice(0, limitNum) : logs;
-       }
-     
-     // Get total count for first page only
-     let total = 0;
-     if (!cursor) {
-       total = await Log.countDocuments(filter);
-     }
+    // Optimized limit handling
+    const limitNum = Math.min(parseInt(limit), 100); // Max 100 logs per request for performance
+    const isLargeLimit = limitNum >= 50; // Consider large limit for "load all"
     
-    // Log this view action
-    await logView('dashboard', undefined, request);
+    // Sorting
+    const sort: any = {};
+    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
     
-    // For large limits, return data directly without wrapping
+    let logs, hasMore, results;
+    
     if (isLargeLimit && !cursor) {
-      return NextResponse.json({
-        logs: results,
-        pagination: {
-          hasMore,
-          nextCursor: hasMore ? results[results.length - 1]?.timestamp : null,
-          total,
-          limit: limitNum
+      // For large limits without cursor, load logs with timeout
+      logs = await Log.find(filter)
+        .sort(sort)
+        .limit(limitNum)
+        .lean()
+        .maxTimeMS(3000); // 3 second timeout
+      hasMore = false;
+      results = logs;
+    } else {
+      // Use cursor-based pagination for smaller limits or when cursor is provided
+      let query = Log.find(filter).sort(sort).limit(limitNum + 1);
+      
+      // Add cursor-based pagination if cursor is provided
+      if (cursor) {
+        try {
+          const cursorDate = new Date(cursor);
+          if (sortOrder === 'desc') {
+            filter[sortBy] = { ...filter[sortBy], $lt: cursorDate };
+          } else {
+            filter[sortBy] = { ...filter[sortBy], $gt: cursorDate };
+          }
+        } catch (error) {
+          console.error('Invalid cursor format:', error);
+          // Continue without cursor if it's invalid
         }
-      });
+      }
+      
+      // Execute query with timeout
+      logs = await query.lean().maxTimeMS(3000); // 3 second timeout
+      
+      // Check if there are more results
+      hasMore = logs.length > limitNum;
+      results = hasMore ? logs.slice(0, limitNum) : logs;
     }
     
-    // For normal requests, use the ok helper
-    return ok({
+    // Get total count for pagination info
+    const total = await Log.countDocuments(filter).maxTimeMS(2000); // 2 second timeout
+    
+    // Get next cursor
+    let nextCursor = null;
+    if (hasMore && results.length > 0) {
+      const lastLog = results[results.length - 1];
+      nextCursor = lastLog[sortBy];
+    }
+    
+    // Add cache headers
+    const headers = {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=30, stale-while-revalidate=60',
+      'X-Response-Time': `${Date.now() - startTime}ms`
+    };
+    
+    return new Response(JSON.stringify({
+      success: true,
       logs: results,
       pagination: {
         hasMore,
-        nextCursor: hasMore ? results[results.length - 1]?.timestamp : null,
+        nextCursor,
         total,
         limit: limitNum
       }
-    });
+    }), { headers });
     
   } catch (error) {
     console.error('Error fetching logs:', error);
-    return serverError(error);
+    return new Response(JSON.stringify({
+      success: false,
+      message: 'Failed to fetch logs'
+    }), { status: 500 });
   }
 }
 

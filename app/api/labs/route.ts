@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Lab from '@/models/Lab';
 import Order from '@/models/Order';
+import Quality from '@/models/Quality';
 import { createLabSchema, queryLabsSchema } from '@/lib/validation/lab';
 import { ok, created, badRequest, notFound, conflict, serverError } from '@/lib/http';
 import { ensureOrderItemExists } from '@/lib/ids';
@@ -50,19 +51,22 @@ export async function POST(request: NextRequest) {
       ...labData
     });
     
+    console.log('🔍 Creating lab with data:', { orderId, orderItemId, labData });
+    
     await lab.save();
     
-    // Log the lab creation
-    await logCreate('lab', lab._id.toString(), { orderId, orderItemId, ...labData }, request);
+    console.log('🔍 Lab created successfully with ID:', lab._id.toString());
     
-    // Try to populate order details, but don't fail if it doesn't work
+    // Log the lab creation
     try {
-      await lab.populate('order');
-    } catch (populateError) {
-      console.log('Populate failed but lab was created successfully:', populateError);
-      // Continue without populate - the lab was still created successfully
+      await logCreate('lab', lab._id.toString(), { orderId, orderItemId, ...labData }, request);
+      console.log('🔍 Lab creation logged successfully');
+    } catch (logError) {
+      console.error('🔍 Error logging lab creation:', logError);
+      // Don't fail the request if logging fails
     }
     
+    // Return the lab without populate to avoid any potential issues
     return created(lab);
     
   } catch (error) {

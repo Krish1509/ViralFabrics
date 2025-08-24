@@ -291,6 +291,11 @@ UserSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
 
   try {
+    // Check if password is already hashed (bcrypt hashes start with $2b$)
+    if (this.password && this.password.startsWith('$2b$')) {
+      return next(); // Password is already hashed, don't hash again
+    }
+    
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
     next();
@@ -303,6 +308,11 @@ UserSchema.pre('findOneAndUpdate', async function(next) {
   const update = this.getUpdate() as any;
   if (update.password) {
     try {
+      // Check if password is already hashed (bcrypt hashes start with $2b$)
+      if (update.password && update.password.startsWith('$2b$')) {
+        return next(); // Password is already hashed, don't hash again
+      }
+      
       const salt = await bcrypt.genSalt(12);
       update.password = await bcrypt.hash(update.password, salt);
     } catch (error) {

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import Log, { ILogModel } from '@/models/Log';
+import dbConnect from '@/lib/dbConnect';
 
 export async function POST(request: NextRequest) {
   try {
+    // Ensure database connection is established
+    await dbConnect();
+    
     const session = await getSession(request);
     if (!session) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });

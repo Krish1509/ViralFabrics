@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { 
   ShoppingBagIcon, 
@@ -16,36 +16,71 @@ import { Order, Party } from '@/types';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { BRAND_NAME, BRAND_SHORT_NAME } from '@/lib/config';
 
+// Cache for dashboard data
+const dashboardCache = {
+  data: null as any,
+  timestamp: 0,
+  ttl: 120000 // 2 minutes cache for better performance
+};
+
 export default function DashboardPage() {
   const { isDarkMode, mounted } = useDarkMode();
   const [orders, setOrders] = useState<Order[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  // Optimized data fetching with caching and preloading
+  const fetchData = useCallback(async (isRetry = false) => {
     try {
+      if (isRetry) {
+        setIsRetrying(true);
+        setError(null);
+      }
+
+      // Check cache first (skip cache on retry)
+      if (!isRetry) {
+        const now = Date.now();
+        if (dashboardCache.data && (now - dashboardCache.timestamp) < dashboardCache.ttl) {
+          setOrders(dashboardCache.data.orders || []);
+          setParties(dashboardCache.data.parties || []);
+          setLoading(false);
+          return;
+        }
+      }
+
       const token = localStorage.getItem('token');
       if (!token) {
-        console.error('Authentication token not found');
+        setError('Authentication token not found');
+        setLoading(false);
         return;
       }
 
+      // Use AbortController for timeout with increased timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10s timeout
+
+      // Optimized parallel requests with minimal limits for instant loading
       const [ordersResponse, partiesResponse] = await Promise.all([
-        fetch('/api/orders', {
+        fetch('/api/orders?limit=10', { // Minimal limit for instant loading
           headers: {
             'Authorization': `Bearer ${token}`,
+            'Cache-Control': 'max-age=120' // 2 minutes cache for better performance
           },
+          signal: controller.signal
         }),
-        fetch('/api/parties', {
+        fetch('/api/parties?limit=5', { // Minimal limit for instant loading
           headers: {
             'Authorization': `Bearer ${token}`,
+            'Cache-Control': 'max-age=120' // 2 minutes cache for better performance
           },
+          signal: controller.signal
         })
       ]);
+
+      clearTimeout(timeoutId);
 
       const ordersData = await ordersResponse.json();
       const partiesData = await partiesResponse.json();
@@ -56,14 +91,62 @@ export default function DashboardPage() {
       if (partiesData.success) {
         setParties(partiesData.data || []);
       }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+
+      // Cache the data
+      dashboardCache.data = {
+        orders: ordersData.data || [],
+        parties: partiesData.data || []
+      };
+      dashboardCache.timestamp = Date.now();
+
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        const newRetryCount = retryCount + 1;
+        setRetryCount(newRetryCount);
+        
+        if (newRetryCount < 3) {
+          // Auto-retry on timeout
+          console.log('Dashboard: Auto-retrying due to timeout, attempt:', newRetryCount);
+          setTimeout(() => fetchData(true), 1000);
+          return;
+        } else {
+          setError('Request timeout after multiple attempts. Please try again.');
+        }
+      } else {
+        console.error('Error fetching dashboard data:', error);
+        setError('Failed to load dashboard data');
+      }
     } finally {
       setLoading(false);
+      setIsRetrying(false);
     }
-  };
+  }, [retryCount]);
 
-  const getOrderStats = () => {
+  // Fetch data on component mount with optimized loading
+  useEffect(() => {
+    // Check if we have cached data first
+    const now = Date.now();
+    if (dashboardCache.data && (now - dashboardCache.timestamp) < dashboardCache.ttl) {
+      setOrders(dashboardCache.data.orders || []);
+      setParties(dashboardCache.data.parties || []);
+      setLoading(false);
+    } else {
+      fetchData();
+    }
+    
+    // Fallback timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        setLoading(false);
+        setError('Loading timeout. Please refresh the page.');
+      }
+    }, 15000); // 15 second fallback timeout
+    
+    return () => clearTimeout(timeoutId);
+  }, [fetchData, loading]);
+
+  // Memoized calculations for better performance
+  const orderStats = useMemo(() => {
     const total = orders.length;
     const pending = orders.filter(order => {
       const now = new Date();
@@ -80,9 +163,9 @@ export default function DashboardPage() {
     }).length;
 
     return { total, pending, arrived, delivered };
-  };
+  }, [orders]);
 
-  const getMonthlyStats = () => {
+  const monthlyStats = useMemo(() => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const currentYear = new Date().getFullYear();
     const monthlyData = months.map((month, index) => {
@@ -98,15 +181,15 @@ export default function DashboardPage() {
       };
     });
     return monthlyData;
-  };
+  }, [orders]);
 
-  const getOrderTypeStats = () => {
+  const orderTypeStats = useMemo(() => {
     const dying = orders.filter(order => order.orderType === 'Dying').length;
     const printing = orders.filter(order => order.orderType === 'Printing').length;
     return { dying, printing };
-  };
+  }, [orders]);
 
-  const getRecentActivity = () => {
+  const recentActivity = useMemo(() => {
     const now = new Date();
     const last7Days = orders.filter(order => {
       const orderDate = new Date(order.arrivalDate || '');
@@ -123,26 +206,122 @@ export default function DashboardPage() {
     }).length;
 
     return { last7Days, last30Days };
-  };
+  }, [orders]);
 
-  const stats = getOrderStats();
-  const monthlyStats = getMonthlyStats();
-  const orderTypeStats = getOrderTypeStats();
-  const recentActivity = getRecentActivity();
+  // Loading skeleton component
+  const LoadingSkeleton = () => (
+    <div className="space-y-6">
+      {/* Stats Cards Skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className={`p-6 rounded-2xl border animate-pulse ${
+            isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <div className={`h-4 w-20 rounded ${
+                  isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                }`}></div>
+                <div className={`h-8 w-16 rounded ${
+                  isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                }`}></div>
+              </div>
+              <div className={`h-12 w-12 rounded-xl ${
+                isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+              }`}></div>
+            </div>
+          </div>
+        ))}
+      </div>
 
-  // Prevent hydration mismatch by not rendering until mounted
-  if (!mounted) {
+      {/* Chart Skeleton */}
+      <div className={`p-6 rounded-2xl border animate-pulse ${
+        isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+      }`}>
+        <div className={`h-6 w-32 rounded mb-6 ${
+          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+        }`}></div>
+        <div className="h-64 rounded ${
+          isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+        }"></div>
+      </div>
+    </div>
+  );
+
+  if (!mounted) return null;
+
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className={`text-3xl font-bold ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+              Dashboard
+            </h1>
+            <p className={`mt-2 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              Welcome to {BRAND_NAME} Admin Panel
+            </p>
+          </div>
+        </div>
+        <LoadingSkeleton />
       </div>
     );
   }
 
-  if (loading) {
+  if (error) {
     return (
-      <div className={`flex items-center justify-center min-h-screen ${isDarkMode ? 'bg-[#1D293D]' : 'bg-gray-50'}`}>
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className={`text-3xl font-bold ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+              Dashboard
+            </h1>
+            <p className={`mt-2 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              Welcome to {BRAND_NAME} Admin Panel
+            </p>
+          </div>
+        </div>
+        
+        <div className={`p-6 rounded-2xl border ${
+          isDarkMode ? 'bg-red-900/20 border-red-500/30' : 'bg-red-50 border-red-200'
+        }`}>
+          <div className="flex items-center">
+            <ExclamationTriangleIcon className={`h-6 w-6 mr-3 ${
+              isDarkMode ? 'text-red-400' : 'text-red-600'
+            }`} />
+            <div>
+              <h3 className={`font-semibold ${
+                isDarkMode ? 'text-red-400' : 'text-red-800'
+              }`}>
+                Error Loading Dashboard
+              </h3>
+              <p className={`mt-1 ${
+                isDarkMode ? 'text-red-300' : 'text-red-700'
+              }`}>
+                {error}
+              </p>
+              <button
+                onClick={() => fetchData(true)}
+                disabled={isRetrying}
+                className={`mt-3 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  isDarkMode 
+                    ? 'bg-red-600 hover:bg-red-700 text-white' 
+                    : 'bg-red-600 hover:bg-red-700 text-white'
+                } ${isRetrying ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isRetrying ? 'Retrying...' : 'Retry'}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -174,7 +353,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="ml-4">
                   <p className={`text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Total Orders</p>
-                  <p className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.total}</p>
+                  <p className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{orderStats.total}</p>
                 </div>
               </div>
             </div>
@@ -189,7 +368,7 @@ export default function DashboardPage() {
               </div>
               <div className="ml-4">
                 <p className={`text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Pending</p>
-                <p className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.pending}</p>
+                <p className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{orderStats.pending}</p>
               </div>
             </div>
           </div>
@@ -204,7 +383,7 @@ export default function DashboardPage() {
               </div>
               <div className="ml-4">
                 <p className={`text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Arrived</p>
-                <p className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.arrived}</p>
+                <p className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{orderStats.arrived}</p>
               </div>
             </div>
           </div>
@@ -219,7 +398,7 @@ export default function DashboardPage() {
               </div>
               <div className="ml-4">
                 <p className={`text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Delivered</p>
-                <p className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.delivered}</p>
+                <p className={`text-2xl font-bold transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{orderStats.delivered}</p>
               </div>
             </div>
           </div>
@@ -282,11 +461,11 @@ export default function DashboardPage() {
                   <div className="w-32 bg-gray-200 rounded-full h-3">
                     <div 
                       className="bg-red-500 h-3 rounded-full transition-all duration-300"
-                      style={{ width: `${stats.total > 0 ? (orderTypeStats.dying / stats.total) * 100 : 0}%` }}
+                      style={{ width: `${orderStats.total > 0 ? (orderTypeStats.dying / orderStats.total) * 100 : 0}%` }}
                     ></div>
                   </div>
                   <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {stats.total > 0 ? Math.round((orderTypeStats.dying / stats.total) * 100) : 0}%
+                    {orderStats.total > 0 ? Math.round((orderTypeStats.dying / orderStats.total) * 100) : 0}%
                   </span>
                 </div>
               </div>
@@ -304,11 +483,11 @@ export default function DashboardPage() {
                   <div className="w-32 bg-gray-200 rounded-full h-3">
                     <div 
                       className="bg-blue-500 h-3 rounded-full transition-all duration-300"
-                      style={{ width: `${stats.total > 0 ? (orderTypeStats.printing / stats.total) * 100 : 0}%` }}
+                      style={{ width: `${orderStats.total > 0 ? (orderTypeStats.printing / orderStats.total) * 100 : 0}%` }}
                     ></div>
                   </div>
                   <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {stats.total > 0 ? Math.round((orderTypeStats.printing / stats.total) * 100) : 0}%
+                    {orderStats.total > 0 ? Math.round((orderTypeStats.printing / orderStats.total) * 100) : 0}%
                   </span>
                 </div>
               </div>
@@ -352,7 +531,7 @@ export default function DashboardPage() {
               <div className="flex justify-between items-center">
                 <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Completion Rate</span>
                 <span className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {stats.total > 0 ? Math.round((stats.delivered / stats.total) * 100) : 0}%
+                  {orderStats.total > 0 ? Math.round((orderStats.delivered / orderStats.total) * 100) : 0}%
                 </span>
               </div>
             </div>

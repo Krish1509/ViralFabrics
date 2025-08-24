@@ -40,6 +40,18 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
   // Check for existing labs when order changes
   useEffect(() => {
     if (order && order.items) {
+      // Initialize with optimistic data immediately
+      const optimisticLabData: LabData[] = order.items.map((item: any, index: number) => ({
+        orderItemId: item._id,
+        orderItemName: item.quality?.name || `Item ${index + 1}`,
+        labSendDate: new Date().toISOString().split('T')[0],
+        approvalDate: new Date().toISOString().split('T')[0],
+        sampleNumber: '',
+        existingLab: null
+      }));
+      setLabData(optimisticLabData);
+      
+      // Then fetch actual data in background
       checkExistingLabs();
     }
   }, [order]);
@@ -50,12 +62,12 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
     setCheckingExisting(true);
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // Reduced timeout to 2 seconds
       
       const response = await fetch(`/api/labs/by-order/${order._id}`, {
         signal: controller.signal,
         headers: {
-          'Cache-Control': 'max-age=30' // Cache for 30 seconds
+          'Cache-Control': 'max-age=60' // Increased cache to 60 seconds
         }
       });
       
@@ -71,8 +83,8 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           existingLabMap.set(lab.orderItemId, lab);
         });
         
-        // Initialize lab data for all order items
-        const initialLabData: LabData[] = order.items.map((item: any, index: number) => {
+        // Update lab data with existing labs
+        const updatedLabData: LabData[] = order.items.map((item: any, index: number) => {
           const existingLab = existingLabMap.get(item._id);
           return {
             orderItemId: item._id,
@@ -84,36 +96,18 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           };
         });
         
-        setLabData(initialLabData);
+        setLabData(updatedLabData);
       } else {
         console.error('Failed to fetch existing labs:', data.message);
-        // Initialize with empty data
-        const initialLabData: LabData[] = order.items.map((item: any, index: number) => ({
-          orderItemId: item._id,
-          orderItemName: item.quality?.name || `Item ${index + 1}`,
-          labSendDate: new Date().toISOString().split('T')[0],
-          approvalDate: new Date().toISOString().split('T')[0],
-          sampleNumber: '',
-          existingLab: null
-        }));
-        setLabData(initialLabData);
+        // Keep optimistic data on error
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        console.warn('Lab check timeout - initializing with empty data');
+        console.warn('Lab check timeout - using optimistic data');
       } else {
         console.error('Error checking existing labs:', error);
       }
-      // Initialize with empty data on error
-      const initialLabData: LabData[] = order.items.map((item: any, index: number) => ({
-        orderItemId: item._id,
-        orderItemName: item.quality?.name || `Item ${index + 1}`,
-        labSendDate: new Date().toISOString().split('T')[0],
-        approvalDate: new Date().toISOString().split('T')[0],
-        sampleNumber: '',
-        existingLab: null
-      }));
-      setLabData(initialLabData);
+      // Keep optimistic data on error
     } finally {
       setCheckingExisting(false);
     }
@@ -262,6 +256,16 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
 
              showMessage('success', message);
        
+       // Trigger real-time update for Order Activity Log
+       const event = new CustomEvent('orderUpdated', { 
+         detail: { 
+           orderId: order._id,
+           action: 'lab_add',
+           timestamp: new Date().toISOString()
+         } 
+       });
+       window.dispatchEvent(event);
+       
        // Refresh lab data to get updated state
        await checkExistingLabs();
        
@@ -291,7 +295,32 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
   if (!mounted) {
     return (
       <div className="fixed inset-0 backdrop-blur-md bg-black/60 bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl bg-white text-gray-900 flex items-center justify-center">
+        <div className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl bg-white text-gray-900 flex items-center justify-center lab-scroll">
+          <style jsx>{`
+            .lab-scroll::-webkit-scrollbar {
+              width: 10px;
+            }
+            .lab-scroll::-webkit-scrollbar-track {
+              background: #E5E7EB;
+              border-radius: 6px;
+              margin: 4px 0;
+            }
+            .lab-scroll::-webkit-scrollbar-thumb {
+              background: #9CA3AF;
+              border-radius: 6px;
+              border: 2px solid #E5E7EB;
+              transition: background 0.2s ease;
+            }
+            .lab-scroll::-webkit-scrollbar-thumb:hover {
+              background: #6B7280;
+            }
+            .lab-scroll::-webkit-scrollbar-thumb:active {
+              background: #4B5563;
+            }
+            .lab-scroll::-webkit-scrollbar-corner {
+              background: #E5E7EB;
+            }
+          `}</style>
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
         </div>
       </div>
@@ -301,12 +330,95 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
   if (checkingExisting) {
     return (
       <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 bg-black/30 flex items-center justify-center z-50 p-4">
-        <div className={`w-full max-w-md rounded-xl shadow-2xl ${
+        <div className={`w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl lab-scroll ${
           isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'
         }`}>
-          <div className="p-6 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p>Checking existing lab data...</p>
+          <style jsx>{`
+            .lab-scroll::-webkit-scrollbar {
+              width: 10px;
+            }
+            .lab-scroll::-webkit-scrollbar-track {
+              background: ${isDarkMode ? '#374151' : '#E5E7EB'};
+              border-radius: 6px;
+              margin: 4px 0;
+            }
+            .lab-scroll::-webkit-scrollbar-thumb {
+              background: ${isDarkMode ? '#6B7280' : '#9CA3AF'};
+              border-radius: 6px;
+              border: 2px solid ${isDarkMode ? '#374151' : '#E5E7EB'};
+              transition: background 0.2s ease;
+            }
+            .lab-scroll::-webkit-scrollbar-thumb:hover {
+              background: ${isDarkMode ? '#9CA3AF' : '#6B7280'};
+            }
+            .lab-scroll::-webkit-scrollbar-thumb:active {
+              background: ${isDarkMode ? '#D1D5DB' : '#4B5563'};
+            }
+            .lab-scroll::-webkit-scrollbar-corner {
+              background: ${isDarkMode ? '#374151' : '#E5E7EB'};
+            }
+          `}</style>
+          <div className="p-8">
+            <div className="flex items-center justify-center mb-6">
+              <div className={`p-3 rounded-xl ${
+                isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+              }`}>
+                <BeakerIcon className={`h-8 w-8 ${
+                  isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                }`} />
+              </div>
+              <div className="ml-4">
+                <h2 className={`text-2xl font-bold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                  Lab Management
+                </h2>
+                <p className={`text-sm ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  Loading lab data...
+                </p>
+              </div>
+            </div>
+            
+            {/* Loading skeleton */}
+            <div className="space-y-4">
+              {[...Array(3)].map((_, index) => (
+                <div key={index} className={`animate-pulse ${
+                  isDarkMode ? 'bg-gray-800' : 'bg-gray-100'
+                } rounded-lg p-6`}>
+                  <div className="flex items-center space-x-4">
+                    <div className={`w-12 h-12 ${
+                      isDarkMode ? 'bg-gray-700' : 'bg-gray-300'
+                    } rounded-lg`}></div>
+                    <div className="flex-1 space-y-3">
+                      <div className={`h-4 ${
+                        isDarkMode ? 'bg-gray-700' : 'bg-gray-300'
+                      } rounded w-1/3`}></div>
+                      <div className={`h-3 ${
+                        isDarkMode ? 'bg-gray-700' : 'bg-gray-300'
+                      } rounded w-1/2`}></div>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[...Array(3)].map((_, fieldIndex) => (
+                      <div key={fieldIndex} className={`h-10 ${
+                        isDarkMode ? 'bg-gray-700' : 'bg-gray-300'
+                      } rounded`}></div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="text-center mt-6">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500 mx-auto"></div>
+              <p className={`mt-2 text-sm ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                Loading lab records...
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -404,27 +516,36 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
         )}
 
         {/* Lab Data Content */}
-        <div className="flex-1 overflow-y-auto p-6" style={{
+        <div className="flex-1 overflow-y-auto p-6 lab-scroll" style={{
           scrollbarWidth: 'thin',
-          scrollbarColor: isDarkMode ? '#4B5563 #1F2937' : '#D1D5DB #F3F4F6'
+          scrollbarColor: isDarkMode ? '#6B7280 #374151' : '#9CA3AF #E5E7EB'
         }}>
           <style jsx>{`
             .lab-scroll::-webkit-scrollbar {
-              width: 8px;
+              width: 10px;
             }
             .lab-scroll::-webkit-scrollbar-track {
-              background: ${isDarkMode ? '#1F2937' : '#F3F4F6'};
-              border-radius: 4px;
+              background: ${isDarkMode ? '#374151' : '#E5E7EB'};
+              border-radius: 6px;
+              margin: 4px 0;
             }
             .lab-scroll::-webkit-scrollbar-thumb {
-              background: ${isDarkMode ? '#4B5563' : '#D1D5DB'};
-              border-radius: 4px;
+              background: ${isDarkMode ? '#6B7280' : '#9CA3AF'};
+              border-radius: 6px;
+              border: 2px solid ${isDarkMode ? '#374151' : '#E5E7EB'};
+              transition: background 0.2s ease;
             }
             .lab-scroll::-webkit-scrollbar-thumb:hover {
-              background: ${isDarkMode ? '#6B7280' : '#9CA3AF'};
+              background: ${isDarkMode ? '#9CA3AF' : '#6B7280'};
+            }
+            .lab-scroll::-webkit-scrollbar-thumb:active {
+              background: ${isDarkMode ? '#D1D5DB' : '#4B5563'};
+            }
+            .lab-scroll::-webkit-scrollbar-corner {
+              background: ${isDarkMode ? '#374151' : '#E5E7EB'};
             }
           `}</style>
-                     <div className="lab-scroll">
+          <div>
              <h3 className="text-lg font-semibold mb-6">Lab Data for Order Items</h3>
           
           {/* Lab Data Form */}

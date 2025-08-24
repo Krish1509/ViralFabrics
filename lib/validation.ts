@@ -79,6 +79,8 @@ export const createOrderSchema = z.object({
   styleNo: z.string().max(50, 'Style number cannot exceed 50 characters').optional(),
   poDate: z.coerce.date().optional(),
   deliveryDate: z.coerce.date().optional(),
+  weaverSupplierName: z.string().max(100, 'Weaver supplier name cannot exceed 100 characters').optional(),
+  purchaseRate: z.string().optional().transform((val) => val ? parseFloat(val) : undefined),
   items: z.array(orderItemSchema).optional().default([])
 });
 

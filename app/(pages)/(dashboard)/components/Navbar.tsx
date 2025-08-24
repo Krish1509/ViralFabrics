@@ -36,9 +36,10 @@ interface NavbarProps {
   onToggleCollapse: () => void;
   isCollapsed: boolean;
   updateUser: (updatedUser: User) => void;
+  sessionStatus?: 'active' | 'refreshing' | 'expired';
 }
 
-export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollapse, isCollapsed, updateUser }: NavbarProps) {
+export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollapse, isCollapsed, updateUser, sessionStatus = 'active' }: NavbarProps) {
   const { isDarkMode, toggleDarkMode, setSystemTheme, mounted } = useDarkMode();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
@@ -87,6 +88,41 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
       document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
   }, []);
+
+  // Close dropdown when clicking outside or pressing Escape
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      
+      // Check if click is outside the profile dropdown
+      if (isProfileDropdownOpen && !target.closest('[data-profile-dropdown]')) {
+        setIsProfileDropdownOpen(false);
+      }
+      
+      // Check if click is outside the mobile menu
+      if (isMobileMenuOpen && !target.closest('[data-mobile-menu]')) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Close dropdowns when pressing Escape
+      if (event.key === 'Escape') {
+        setIsProfileDropdownOpen(false);
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    // Add event listeners
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isProfileDropdownOpen, isMobileMenuOpen]);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -299,8 +335,10 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                 {isDarkMode ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
               </button>
 
+
+
               {/* Profile Dropdown */}
-              <div className="relative">
+              <div className="relative" data-profile-dropdown>
                 <button
                   onClick={toggleProfileDropdown}
                   className={`flex items-center space-x-3 p-2 rounded-lg transition-all duration-300 cursor-pointer ${
@@ -310,11 +348,17 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                   } shadow-lg backdrop-blur-sm`}
                   aria-label="User profile menu"
                 >
-                  <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all duration-300 ${
                     isDarkMode 
                       ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white' 
                       : 'bg-gradient-to-br from-purple-600 to-purple-700 text-white'
-                  }`}>
+                  } ${
+                    sessionStatus === 'active' 
+                      ? 'border-green-500' 
+                      : sessionStatus === 'refreshing'
+                      ? 'border-yellow-500 animate-pulse'
+                      : 'border-red-500'
+                  }`} title={`Session: ${sessionStatus}`}>
                     {user ? getUserInitials(user.name) : 'U'}
                   </div>
                   <span className={`hidden min-[800px]:block font-medium transition-colors duration-300 ${
@@ -401,6 +445,25 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                         <button
                           onClick={() => {
                             closeProfileDropdown();
+                            // Clear session and redirect to login for account change
+                            localStorage.removeItem('token');
+                            localStorage.removeItem('user');
+                            window.location.href = '/login';
+                          }}
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                            isDarkMode 
+                              ? 'text-indigo-400 hover:bg-indigo-500/10' 
+                              : 'text-indigo-600 hover:bg-indigo-50'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <UserIcon className="h-4 w-4" />
+                            <span>Change Account</span>
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => {
+                            closeProfileDropdown();
                             onLogout();
                           }}
                           className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
@@ -483,7 +546,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
               </button>
 
               {/* Mobile Profile Button */}
-              <div className="relative">
+              <div className="relative" data-profile-dropdown>
                 <button
                   onClick={toggleProfileDropdown}
                   className={`p-2 rounded-lg transition-all duration-300 cursor-pointer ${
@@ -576,6 +639,25 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                       <div className={`border-t transition-colors duration-300 ${
                         isDarkMode ? 'border-slate-700' : 'border-gray-200'
                       }`}>
+                        <button
+                          onClick={() => {
+                            closeProfileDropdown();
+                            // Clear session and redirect to login for account change
+                            localStorage.removeItem('token');
+                            localStorage.removeItem('user');
+                            window.location.href = '/login';
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm transition-colors duration-200 ${
+                            isDarkMode 
+                              ? 'text-indigo-400 hover:bg-indigo-500/10' 
+                              : 'text-indigo-600 hover:bg-indigo-50'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <UserIcon className="h-4 w-4" />
+                            <span>Change Account</span>
+                          </div>
+                        </button>
                         <button
                           onClick={() => {
                             closeProfileDropdown();

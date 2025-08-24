@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import Log, { ILogModel } from '@/models/Log';
 import { getSession } from '@/lib/session';
+import dbConnect from '@/lib/dbConnect';
 
 export interface LogData {
   action: string;
@@ -100,83 +101,205 @@ export async function logOrderChange(
 
 // Helper function to get only changed fields
 function getChangedFields(oldValues: any, newValues: any) {
-  
-  
+  console.log('🔍 DEBUG: getChangedFields called with:', { oldValues, newValues });
   
   const changed: any = {};
   const old: any = {};
   const new_: any = {};
   const summary: string[] = [];
   
-  // Define important fields to track with their display names
+  // Only track fields that are actually present in the update
   const fieldsToTrack = [
     { key: 'orderType', name: 'Order Type' },
     { key: 'arrivalDate', name: 'Arrival Date' },
+    { key: 'party', name: 'Party' },
     { key: 'contactName', name: 'Contact Name' },
     { key: 'contactPhone', name: 'Contact Phone' },
     { key: 'poNumber', name: 'PO Number' },
     { key: 'styleNo', name: 'Style Number' },
+    { key: 'weaverSupplierName', name: 'Weaver/Supplier Name' },
+    { key: 'purchaseRate', name: 'Purchase Rate' },
     { key: 'poDate', name: 'PO Date' },
     { key: 'deliveryDate', name: 'Delivery Date' },
-    { key: 'status', name: 'Status' }
+    { key: 'status', name: 'Status' },
+    { key: 'items', name: 'Items' },
+    { key: 'itemChanges', name: 'Item Changes' }
   ];
   
-  // Track all field changes
+  // Only check fields that are actually being updated
   fieldsToTrack.forEach(({ key, name }) => {
-    const oldVal = oldValues[key];
-    const newVal = newValues[key];
+    // Skip itemChanges as it's handled separately
+    if (key === 'itemChanges') return;
     
-    // Proper comparison for different data types
-    let hasChanged = false;
-    
-    if (oldVal instanceof Date && newVal instanceof Date) {
-      hasChanged = oldVal.getTime() !== newVal.getTime();
-    } else if (oldVal && typeof oldVal === 'object' && newVal && typeof newVal === 'object') {
-      // For objects (like populated party/quality), compare by ID or name
-      if (oldVal._id && newVal._id) {
-        hasChanged = oldVal._id.toString() !== newVal._id.toString();
-      } else if (oldVal.name && newVal.name) {
-        hasChanged = oldVal.name !== newVal.name;
-      } else {
-        hasChanged = JSON.stringify(oldVal) !== JSON.stringify(newVal);
-      }
-    } else {
-      // Handle string comparisons including empty strings
-      if (typeof oldVal === 'string' && typeof newVal === 'string') {
-        hasChanged = oldVal.trim() !== newVal.trim();
-      } else if (oldVal === null || oldVal === undefined || oldVal === '') {
-        hasChanged = newVal !== null && newVal !== undefined && newVal !== '';
-      } else if (newVal === null || newVal === undefined || newVal === '') {
-        hasChanged = oldVal !== null && oldVal !== undefined && oldVal !== '';
-      } else {
-        hasChanged = oldVal !== newVal;
-      }
-    }
-    
-
-    
-    if (hasChanged) {
-      old[key] = oldVal;
-      new_[key] = newVal;
-      changed[key] = { from: oldVal, to: newVal };
+    // Only process if the field is present in newValues (meaning it was actually updated)
+    if (key in newValues) {
+      const oldVal = oldValues[key];
+      const newVal = newValues[key];
       
-      // Create human-readable summary with proper formatting
-      const fromText = formatValue(oldVal);
-      const toText = formatValue(newVal);
-      summary.push(`${name}: ${fromText} → ${toText}`);
+      console.log(`🔍 DEBUG: Comparing ${key}:`, { oldVal, newVal });
+      
+      // Proper comparison for different data types
+      let hasChanged = false;
+      
+      if (oldVal instanceof Date && newVal instanceof Date) {
+        hasChanged = oldVal.getTime() !== newVal.getTime();
+      } else if (oldVal && typeof oldVal === 'object' && newVal && typeof newVal === 'object') {
+        // For objects (like populated party/quality), compare by ID or name
+        if (oldVal._id && newVal._id) {
+          hasChanged = oldVal._id.toString() !== newVal._id.toString();
+        } else if (oldVal.name && newVal.name) {
+          hasChanged = oldVal.name !== newVal.name;
+        } else {
+          hasChanged = JSON.stringify(oldVal) !== JSON.stringify(newVal);
+        }
+      } else {
+        // Handle string comparisons including empty strings
+        if (typeof oldVal === 'string' && typeof newVal === 'string') {
+          hasChanged = oldVal.trim() !== newVal.trim();
+        } else if (oldVal === null || oldVal === undefined || oldVal === '') {
+          hasChanged = newVal !== null && newVal !== undefined && newVal !== '';
+        } else if (newVal === null || newVal === undefined || newVal === '') {
+          hasChanged = oldVal !== null && oldVal !== undefined && oldVal !== '';
+        } else {
+          hasChanged = oldVal !== newVal;
+        }
+      }
+      
+      console.log(`🔍 DEBUG: ${key} hasChanged:`, hasChanged);
+      
+      if (hasChanged) {
+        old[key] = oldVal;
+        new_[key] = newVal;
+        changed[key] = { from: oldVal, to: newVal };
+        
+        // Create human-readable summary with proper formatting
+        const fromText = formatValue(oldVal);
+        const toText = formatValue(newVal);
+        summary.push(`${name}: ${fromText} → ${toText}`);
+      }
     }
   });
 
-  // Enhanced item tracking - capture EVERY detail with 100% depth
-  if (oldValues.items || newValues.items) {
+  // Enhanced item tracking - handle new granular itemChanges structure
+  if (oldValues.itemChanges || newValues.itemChanges) {
+    const itemChanges = oldValues.itemChanges || newValues.itemChanges || [];
+    
+    itemChanges.forEach((change: any) => {
+      if (change.type === 'item_updated') {
+        change.changes.forEach((fieldChange: any) => {
+          if (fieldChange.field === 'imageUrls' && fieldChange.message) {
+            // Handle the new detailed image change format with before/after info
+            let imageMessage = `📷 Item ${change.item}: ${fieldChange.message}`;
+            
+            // Add before/after information if available
+            if (fieldChange.oldUrls && fieldChange.newUrls) {
+              const oldCount = fieldChange.oldUrls.length;
+              const newCount = fieldChange.newUrls.length;
+              imageMessage += ` (${oldCount} → ${newCount} images)`;
+            }
+            
+            summary.push(imageMessage);
+            
+            // Show specific image details if available
+            if (fieldChange.addedUrls && fieldChange.addedUrls.length > 0) {
+              fieldChange.addedUrls.forEach((url: string, index: number) => {
+                const fileName = url.split('/').pop() || url;
+                summary.push(`  ➕ Added: ${fileName}`);
+              });
+            }
+            if (fieldChange.removedUrls && fieldChange.removedUrls.length > 0) {
+              fieldChange.removedUrls.forEach((url: string, index: number) => {
+                const fileName = url.split('/').pop() || url;
+                summary.push(`  ➖ Removed: ${fileName}`);
+              });
+            }
+          } else if (fieldChange.field === 'imageUrls' && fieldChange.type) {
+            // Handle the new detailed image change format
+            let imageMessage = '';
+            if (fieldChange.type === 'added') {
+              imageMessage = `📷 Item ${change.item}: Added ${fieldChange.count} image(s)`;
+              if (fieldChange.oldUrls && fieldChange.newUrls) {
+                imageMessage += ` (${fieldChange.oldUrls.length} → ${fieldChange.newUrls.length} images)`;
+              }
+            } else if (fieldChange.type === 'removed') {
+              imageMessage = `📷 Item ${change.item}: Removed ${fieldChange.count} image(s)`;
+              if (fieldChange.oldUrls && fieldChange.newUrls) {
+                imageMessage += ` (${fieldChange.oldUrls.length} → ${fieldChange.newUrls.length} images)`;
+              }
+            } else if (fieldChange.type === 'mixed') {
+              imageMessage = `📷 Item ${change.item}: Added ${fieldChange.added} image(s), Removed ${fieldChange.removed} image(s)`;
+              if (fieldChange.oldUrls && fieldChange.newUrls) {
+                imageMessage += ` (${fieldChange.oldUrls.length} → ${fieldChange.newUrls.length} images)`;
+              }
+            }
+            
+            summary.push(imageMessage);
+            
+            // Show specific image details if available
+            if (fieldChange.addedUrls && fieldChange.addedUrls.length > 0) {
+              fieldChange.addedUrls.forEach((url: string, index: number) => {
+                const fileName = url.split('/').pop() || url;
+                summary.push(`  ➕ Added: ${fileName}`);
+              });
+            }
+            if (fieldChange.removedUrls && fieldChange.removedUrls.length > 0) {
+              fieldChange.removedUrls.forEach((url: string, index: number) => {
+                const fileName = url.split('/').pop() || url;
+                summary.push(`  ➖ Removed: ${fileName}`);
+              });
+            }
+          } else {
+            const fieldName = fieldChange.field === 'quality' ? 'Quality' :
+                             fieldChange.field === 'quantity' ? 'Quantity' :
+                             fieldChange.field === 'description' ? 'Description' :
+                             fieldChange.field === 'imageUrls' ? 'Images' : fieldChange.field;
+            
+            const fromText = formatValue(fieldChange.old);
+            const toText = formatValue(fieldChange.new);
+            summary.push(`✏️ Item ${change.item} ${fieldName}: ${fromText} → ${toText}`);
+          }
+        });
+      } else if (change.type === 'item_added') {
+        const item = change.item;
+        let itemSummary = `📦 Item ${change.index + 1}: Added new item`;
+        
+        // Add detailed information about the new item
+        const details = [];
+        if (item?.quality) {
+          const qualityName = typeof item.quality === 'object' ? item.quality.name : item.quality;
+          details.push(`Quality: "${qualityName}"`);
+        }
+        if (item?.quantity) {
+          details.push(`Quantity: ${item.quantity}`);
+        }
+        if (item?.description) {
+          details.push(`Description: "${item.description}"`);
+        }
+        if (item?.imageUrls && item.imageUrls.length > 0) {
+          details.push(`${item.imageUrls.length} image(s)`);
+        }
+        
+        if (details.length > 0) {
+          itemSummary += ` (${details.join(', ')})`;
+        }
+        
+        summary.push(itemSummary);
+        
+        // Specifically mention images if any
+        if (item?.imageUrls && item.imageUrls.length > 0) {
+          summary.push(`📷 Item ${change.index + 1}: Added ${item.imageUrls.length} image(s)`);
+        }
+      } else if (change.type === 'item_removed') {
+        summary.push(`🗑️ Item ${change.index + 1}: Removed item`);
+      }
+    });
+  } else if (oldValues.items || newValues.items) {
+    // Fallback for old items structure
     const oldItems = oldValues.items || [];
     const newItems = newValues.items || [];
     
-
-    
     // Check for item count changes
     if (oldItems.length !== newItems.length) {
-
       if (newItems.length > oldItems.length) {
         summary.push(`📦 Items: Added ${newItems.length - oldItems.length} new item(s) (Total: ${oldItems.length} → ${newItems.length})`);
       } else {
@@ -333,26 +456,9 @@ function getChangedFields(oldValues: any, newValues: any) {
     }
   }
   
-  // Track party changes if present
-  let partyChanged = false;
-  if (oldValues.party && newValues.party) {
-    if (oldValues.party._id && newValues.party._id) {
-      partyChanged = oldValues.party._id.toString() !== newValues.party._id.toString();
-    } else if (oldValues.party.name && newValues.party.name) {
-      partyChanged = oldValues.party.name !== newValues.party.name;
-    } else {
-      partyChanged = oldValues.party !== newValues.party;
-    }
-  } else if (oldValues.party || newValues.party) {
-    // One is null/undefined, the other exists - this is a change
-    partyChanged = true;
-  }
-  
-
-  
-  if (partyChanged) {
-    summary.push(`🏢 Party: "${formatValue(oldValues.party)}" → "${formatValue(newValues.party)}"`);
-  }
+  // Track party changes if present - but only if not already handled by main field comparison
+  // The party field is already being logged in the main field comparison, so we skip it here
+  // to avoid duplicate logging
   
   // Track any other fields that might have changed
   const allOldKeys = Object.keys(oldValues || {});
@@ -424,6 +530,9 @@ function formatValue(value: any): string {
 // Main logging function
 export async function logAction(logData: LogData, request?: NextRequest): Promise<void> {
   try {
+    // Ensure database connection is established
+    await dbConnect();
+    
     const userInfo = await getUserInfo(request);
     console.log('User info from getUserInfo:', userInfo);
     
@@ -486,6 +595,9 @@ export async function logAction(logData: LogData, request?: NextRequest): Promis
 // Convenience functions for common actions
 export async function logLogin(username: string, success: boolean, request?: NextRequest, errorMessage?: string) {
   try {
+    // Ensure database connection is established
+    await dbConnect();
+    
     const clientInfo = request ? getClientInfo(request) : { ipAddress: 'unknown', userAgent: 'unknown' };
     
     // For login actions, we don't have a session yet, so we create the log directly

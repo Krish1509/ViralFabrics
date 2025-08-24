@@ -30,49 +30,42 @@ export async function GET(request: NextRequest) {
     // Connect to database
     await dbConnect();
     
-    // Parse and validate query parameters
+    // Parse query parameters
     const url = new URL(request.url);
-    const queryParams = Object.fromEntries(url.searchParams.entries());
+    const limit = parseInt(url.searchParams.get('limit') || '50'); // Default limit for performance
+    const search = url.searchParams.get('search') || '';
     
-    const validatedQuery = validateRequest(searchSchema, queryParams);
-    const { page, limit, search, sortBy, sortOrder } = validatedQuery;
-
     // Build query
-    const query = buildQuery({ search });
+    const query: any = {};
     if (search) {
+      query.name = { $regex: search, $options: 'i' };
       query.isActive = true; // Only search active qualities
     }
 
-    // Build sort
-    const sort = buildSort(sortBy, sortOrder);
+    // Optimized query with limits and timeout
+    const qualities = await Quality.find(query)
+      .sort({ name: 1 })
+      .limit(limit)
+      .lean()
+      .maxTimeMS(2000); // Reduced to 2 second timeout for faster response
 
-    // Calculate pagination
-    const skip = (page - 1) * limit;
+    // Add cache headers
+    const headers = {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+    };
 
-    // Execute queries in parallel for better performance
-    const [qualities, total] = await Promise.all([
-      Quality.find(query)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      Quality.countDocuments(query)
-    ]);
-
-    // Calculate pagination info
-    const pagination = calculatePagination(page, limit, total);
-
-    // Return paginated response
-    const response = paginatedResponse(qualities, pagination, 'Qualities retrieved successfully');
-    
-    return NextResponse.json(response);
+    return new Response(JSON.stringify({
+      success: true,
+      data: qualities
+    }), { status: 200, headers });
 
   } catch (error) {
-    if (error instanceof ValidationError) {
-      return sendValidationError(NextResponse, error.message);
-    }
     console.error('GET /api/qualities error:', error);
-    return sendServerError(NextResponse, 'Failed to retrieve qualities');
+    return new Response(JSON.stringify({
+      success: false,
+      message: 'Failed to retrieve qualities'
+    }), { status: 500 });
   }
 }
 

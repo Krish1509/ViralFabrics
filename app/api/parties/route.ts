@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
     
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search');
+    const limit = parseInt(searchParams.get('limit') || '20'); // Default limit for performance
 
     let query = {};
     
@@ -23,16 +24,24 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    // Get parties with search filter, limit to 20 results, sorted by name
+    // Get parties with search filter, limit results, sorted by name
     const parties = await Party.find(query)
       .sort({ name: 1 })
-      .limit(20)
-      .select('_id name contactName contactPhone address createdAt updatedAt');
+      .limit(limit)
+      .select('_id name contactName contactPhone address createdAt updatedAt')
+      .lean()
+      .maxTimeMS(2000); // Reduced to 2 second timeout for faster response
+
+    // Add cache headers
+    const headers = {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+    };
 
     return new Response(JSON.stringify({ 
       success: true, 
       data: parties 
-    }), { status: 200 });
+    }), { status: 200, headers });
   } catch (error: unknown) {
     if (error instanceof Error) {
       if (error.message.includes("Unauthorized")) {

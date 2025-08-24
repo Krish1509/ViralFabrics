@@ -53,7 +53,7 @@ export interface ILabModel extends Model<ILab> {
 
 // Validation functions
 const validateLabSendNumber = (number: string) => {
-  return /^[A-Z0-9\-_]{3,50}$/.test(number);
+  return /^[A-Z0-9\-_]{1,50}$/.test(number);
 };
 
 const validateUrl = (url: string) => {

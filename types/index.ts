@@ -45,8 +45,10 @@ export interface Order {
   styleNo?: string;
   poDate?: string;
   deliveryDate?: string;
+  weaverSupplierName?: string; // Weaver / Supplier Name (renamed from GREIGH WEAVER)
+  purchaseRate?: number; // Purchase Rate (Raw Cloth) - new field
   items: OrderItem[];
-  status?: "pending" | "delivered";
+  status?: "pending" | "delivered" | "Not selected";
   labData?: any;
   createdAt: string;
   updatedAt: string;
@@ -54,6 +56,7 @@ export interface Order {
 
 export interface OrderFormData {
   orderType?: "Dying" | "Printing";
+  status?: "pending" | "delivered" | "Not selected";
   arrivalDate?: string;
   party?: string;
   contactName?: string;
@@ -62,6 +65,8 @@ export interface OrderFormData {
   styleNo?: string;
   poDate?: string;
   deliveryDate?: string;
+  weaverSupplierName?: string; // Weaver / Supplier Name
+  purchaseRate?: string; // Purchase Rate (Raw Cloth) - as string for form input
   items: OrderItem[];
 }
 

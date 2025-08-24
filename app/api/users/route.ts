@@ -11,7 +11,18 @@ export async function GET(req: NextRequest) {
     await requireSuperAdmin(req);
 
     await dbConnect();
-    const users = await User.find().select("-password"); // exclude password field directly
+    
+    // Get query parameters
+    const { searchParams } = new URL(req.url);
+    const limit = parseInt(searchParams.get('limit') || '50'); // Default limit for performance
+    
+    // Optimized query with limits and timeout
+    const users = await User.find()
+      .select("-password") // exclude password field directly
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean()
+      .maxTimeMS(3000); // 3 second timeout
 
     // Map user fields to send only needed info (use username, not email)
     const usersSafe = users.map(user => ({
@@ -25,18 +36,36 @@ export async function GET(req: NextRequest) {
       updatedAt: user.updatedAt,
     }));
 
-    return new Response(JSON.stringify(usersSafe), { status: 200 });
+    // Add cache headers
+    const headers = {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=30, stale-while-revalidate=60',
+    };
+
+    return new Response(JSON.stringify({
+      success: true,
+      data: usersSafe
+    }), { status: 200, headers });
   } catch (error: unknown) {
     if (error instanceof Error) {
       if (error.message.includes("Unauthorized")) {
-        return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
+        return new Response(JSON.stringify({ 
+          success: false,
+          message: "Unauthorized" 
+        }), { status: 401 });
       }
       if (error.message.includes("Forbidden")) {
-        return new Response(JSON.stringify({ message: "Access denied - Superadmin access required" }), { status: 403 });
+        return new Response(JSON.stringify({ 
+          success: false,
+          message: "Access denied - Superadmin access required" 
+        }), { status: 403 });
       }
     }
     const message = error instanceof Error ? error.message : "Internal Server Error";
-    return new Response(JSON.stringify({ message }), { status: 500 });
+    return new Response(JSON.stringify({ 
+      success: false,
+      message 
+    }), { status: 500 });
   }
 }
 
@@ -76,11 +105,11 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ message: "Username already exists" }), { status: 400 });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Don't hash password here - let the User model pre-save middleware handle it
     const userData = {
       name: name.trim(),
       username: username.trim(),
-      password: hashedPassword,
+      password: password, // Plain password - will be hashed by model middleware
       role: newUserRole === "superadmin" ? "superadmin" : "user",
       phoneNumber: phoneNumber ? phoneNumber.trim() : undefined,
       address: address ? address.trim() : undefined,

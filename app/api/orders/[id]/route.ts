@@ -19,7 +19,7 @@ export async function GET(
     const order = await Order.findById(id)
       .populate('party', '_id name contactName contactPhone address')
       .populate('items.quality', '_id name description')
-      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
+      .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo weaverSupplierName purchaseRate poDate deliveryDate items status labData createdAt updatedAt');
 
     if (!order) {
       return new Response(
@@ -29,6 +29,40 @@ export async function GET(
         }), 
         { status: 404 }
       );
+    }
+
+    // Fetch lab data for this order and attach to items
+    if (order.items && order.items.length > 0) {
+      const Lab = (await import('@/models/Lab')).default;
+      const itemIds = order.items.map((item: any) => item._id);
+      
+      const labs = await Lab.find({ 
+        order: id,
+        orderItemId: { $in: itemIds },
+        softDeleted: { $ne: true }
+      }).lean().maxTimeMS(5000);
+      
+      // Create a map of orderItemId to lab data
+      const labMap = new Map();
+      labs.forEach(lab => {
+        labMap.set(lab.orderItemId.toString(), lab);
+      });
+      
+      // Attach lab data to order items
+      order.items.forEach((item: any) => {
+        const labData = labMap.get(item._id.toString());
+        if (labData) {
+          item.labData = {
+            color: labData.labSendData?.color,
+            shade: labData.labSendData?.shade,
+            notes: labData.labSendData?.notes,
+            labSendDate: labData.labSendDate,
+            approvalDate: labData.labSendData?.approvalDate,
+            sampleNumber: labData.labSendData?.sampleNumber,
+            imageUrl: labData.labSendData?.imageUrl
+          };
+        }
+      });
     }
 
     // Log the order view
@@ -63,6 +97,9 @@ export async function PUT(
     // Remove authentication requirement for now
     // await requireAuth(req);
 
+    const requestData = await req.json();
+    console.log('🔍 DEBUG: Request data received:', JSON.stringify(requestData, null, 2));
+    
     const {
       orderType,
       arrivalDate,
@@ -73,9 +110,28 @@ export async function PUT(
       styleNo,
       poDate,
       deliveryDate,
+      weaverSupplierName,
+      purchaseRate,
       items,
       status
-    } = await req.json();
+    } = requestData;
+
+    // Debug: Log what fields are being sent
+    console.log('🔍 DEBUG: Fields being sent in request:', {
+      orderType: orderType !== undefined ? 'SENT' : 'NOT SENT',
+      arrivalDate: arrivalDate !== undefined ? 'SENT' : 'NOT SENT',
+      party: party !== undefined ? 'SENT' : 'NOT SENT',
+      contactName: contactName !== undefined ? 'SENT' : 'NOT SENT',
+      contactPhone: contactPhone !== undefined ? 'SENT' : 'NOT SENT',
+      poNumber: poNumber !== undefined ? 'SENT' : 'NOT SENT',
+      styleNo: styleNo !== undefined ? 'SENT' : 'NOT SENT',
+      weaverSupplierName: weaverSupplierName !== undefined ? 'SENT' : 'NOT SENT',
+      purchaseRate: purchaseRate !== undefined ? 'SENT' : 'NOT SENT',
+      poDate: poDate !== undefined ? 'SENT' : 'NOT SENT',
+      deliveryDate: deliveryDate !== undefined ? 'SENT' : 'NOT SENT',
+      status: status !== undefined ? 'SENT' : 'NOT SENT',
+      items: items !== undefined ? 'SENT' : 'NOT SENT'
+    });
 
     // Validation
     const errors: string[] = [];
@@ -91,8 +147,11 @@ export async function PUT(
       }
     }
     
-    if (party !== undefined) {
+    console.log('🔍 DEBUG: Party field value:', party, 'Type:', typeof party);
+    console.log('🔍 DEBUG: Party field length:', party ? party.length : 'null/undefined');
+    if (party !== undefined && party !== null && party !== '' && party !== 'null' && party !== 'undefined') {
       if (!party.match(/^[0-9a-fA-F]{24}$/)) {
+        console.log('🔍 DEBUG: Party validation failed for value:', party);
         errors.push("Invalid party ID format");
       }
     }
@@ -111,6 +170,17 @@ export async function PUT(
     
     if (styleNo !== undefined && styleNo && styleNo.trim().length > 50) {
       errors.push("Style number cannot exceed 50 characters");
+    }
+    
+    if (weaverSupplierName !== undefined && weaverSupplierName && weaverSupplierName.trim().length > 100) {
+      errors.push("Weaver supplier name cannot exceed 100 characters");
+    }
+    
+    if (purchaseRate !== undefined && purchaseRate !== null) {
+      const rate = parseFloat(purchaseRate);
+      if (isNaN(rate) || rate < 0) {
+        errors.push("Purchase rate must be a non-negative number");
+      }
     }
     
     if (poDate !== undefined && poDate) {
@@ -138,7 +208,7 @@ export async function PUT(
       } else {
         items.forEach((item, index) => {
           // Quality is optional for each item
-          if (item.quality && !item.quality.match(/^[0-9a-fA-F]{24}$/)) {
+          if (item.quality && item.quality !== null && item.quality !== '' && item.quality !== 'null' && item.quality !== 'undefined' && !item.quality.match(/^[0-9a-fA-F]{24}$/)) {
             errors.push(`Invalid quality ID format in item ${index + 1}`);
           }
           
@@ -183,8 +253,9 @@ export async function PUT(
       );
     }
 
-    // Verify party exists if being updated
-    if (party) {
+    // Verify party exists if being updated and get party name for logging
+    let newPartyName = null;
+    if (party && party !== '' && party !== 'null' && party !== 'undefined') {
       const partyExists = await Party.findById(party);
       if (!partyExists) {
         return new Response(
@@ -192,13 +263,14 @@ export async function PUT(
           { status: 400 }
         );
       }
+      newPartyName = partyExists.name;
     }
 
     // Verify qualities exist if being updated
     if (items && Array.isArray(items) && items.length > 0) {
       const Quality = (await import('@/models/Quality')).default;
       for (const item of items) {
-        if (item && item.quality && typeof item.quality === 'string' && item.quality.trim()) {
+        if (item && item.quality && typeof item.quality === 'string' && item.quality.trim() && item.quality !== 'null' && item.quality !== 'undefined') {
           const qualityExists = await Quality.findById(item.quality);
           if (!qualityExists) {
             return new Response(
@@ -210,73 +282,376 @@ export async function PUT(
       }
     }
 
-    // Check for duplicate PO + Style combination for the same party
-    if (poNumber && styleNo) {
-      const targetParty = party || existingOrder.party;
-      const existingDuplicate = await Order.findOne({
-        _id: { $ne: id }, // Exclude current order
-        party: targetParty,
-        poNumber: poNumber.trim(),
-        styleNo: styleNo.trim()
-      });
-      
-      if (existingDuplicate) {
-        return new Response(
-          JSON.stringify({ 
-            message: "An order with this PO number and style number already exists for this party" 
-          }), 
-          { status: 400 }
-        );
-      }
-    }
+    // Removed duplicate validation - only ID needs to be unique
 
-    // Prepare update data
+    // Prepare update data - explicitly exclude orderId to prevent conflicts
     const updateData: any = {};
     if (orderType !== undefined) updateData.orderType = orderType;
     if (arrivalDate !== undefined) updateData.arrivalDate = new Date(arrivalDate);
-    if (party !== undefined) updateData.party = party;
+    if (party !== undefined) {
+      // Handle party field properly - only set if it's a valid ObjectId or null
+      if (party && party !== '' && party !== 'null' && party !== 'undefined') {
+        updateData.party = party;
+      } else {
+        updateData.party = null; // Set to null if empty or invalid
+      }
+    }
     if (contactName !== undefined) updateData.contactName = contactName !== null ? contactName.trim() : '';
     if (contactPhone !== undefined) updateData.contactPhone = contactPhone !== null ? contactPhone.trim() : '';
     if (poNumber !== undefined) updateData.poNumber = poNumber !== null ? poNumber.trim() : '';
     if (styleNo !== undefined) updateData.styleNo = styleNo !== null ? styleNo.trim() : '';
+    if (weaverSupplierName !== undefined) updateData.weaverSupplierName = weaverSupplierName !== null ? weaverSupplierName.trim() : '';
+    if (purchaseRate !== undefined) updateData.purchaseRate = purchaseRate !== null ? parseFloat(purchaseRate) : undefined;
     if (poDate !== undefined) updateData.poDate = poDate ? new Date(poDate) : undefined;
     if (deliveryDate !== undefined) updateData.deliveryDate = deliveryDate ? new Date(deliveryDate) : undefined;
     if (status !== undefined) updateData.status = status;
     if (items !== undefined) {
       updateData.items = items.map((item: any) => ({
-        quality: item.quality || undefined,
+        quality: item.quality && item.quality !== '' && item.quality !== 'null' && item.quality !== 'undefined' ? item.quality : null,
         quantity: item.quantity !== undefined && item.quantity !== null ? item.quantity : undefined,
         imageUrls: item.imageUrls && Array.isArray(item.imageUrls) ? item.imageUrls.map((url: string) => url.trim()) : [],
         description: item.description !== null ? item.description.trim() : '',
       }));
     }
+    
+    // Debug: Log the update data to see what's being sent
+    console.log('🔍 DEBUG: Update data being sent to MongoDB:', JSON.stringify(updateData, null, 2));
+    console.log('🔍 DEBUG: Existing order ID:', existingOrder._id);
+    console.log('🔍 DEBUG: Existing order ID:', existingOrder.orderId);
 
-    // Capture old values for logging with complete details
-    const oldValues = {
-      orderType: existingOrder.orderType,
-      arrivalDate: existingOrder.arrivalDate,
-      party: existingOrder.party,
-      contactName: existingOrder.contactName,
-      contactPhone: existingOrder.contactPhone,
-      poNumber: existingOrder.poNumber,
-      styleNo: existingOrder.styleNo,
-      poDate: existingOrder.poDate,
-      deliveryDate: existingOrder.deliveryDate,
-      status: existingOrder.status,
-      items: existingOrder.items.map((item: any) => ({
-        quality: item.quality,
+    // Capture old values for logging - ONLY fields that are actually being updated
+    const oldValues: any = {};
+    const newValues: any = {};
+    const changedFields: string[] = [];
+    
+    // Only track changes for fields that are actually being updated AND have different values
+    if (orderType !== undefined && orderType !== existingOrder.orderType) {
+      oldValues.orderType = existingOrder.orderType;
+      newValues.orderType = orderType;
+      changedFields.push('orderType');
+    }
+    if (arrivalDate !== undefined) {
+      const newArrivalDate = arrivalDate ? new Date(arrivalDate) : undefined;
+      const existingArrivalDate = existingOrder.arrivalDate ? new Date(existingOrder.arrivalDate) : undefined;
+      
+      // More robust date comparison - normalize dates to YYYY-MM-DD format
+      const normalizeDate = (date: Date | undefined) => {
+        if (!date) return null;
+        return date.toISOString().split('T')[0]; // Get YYYY-MM-DD format
+      };
+      
+      const existingDateStr = normalizeDate(existingArrivalDate);
+      const newDateStr = normalizeDate(newArrivalDate);
+      
+      const arrivalDateChanged = existingDateStr !== newDateStr;
+      
+      console.log('🔍 Arrival date comparison:', {
+        original: existingOrder.arrivalDate,
+        incoming: arrivalDate,
+        existingDateStr,
+        newDateStr,
+        changed: arrivalDateChanged
+      });
+      
+      if (arrivalDateChanged) {
+        oldValues.arrivalDate = existingOrder.arrivalDate;
+        newValues.arrivalDate = newArrivalDate;
+        changedFields.push('arrivalDate');
+      }
+    }
+    if (party !== undefined) {
+      const currentPartyId = existingOrder.party?.toString() || null;
+      const newPartyId = party && party !== '' && party !== 'null' && party !== 'undefined' ? party : null;
+      
+      if (currentPartyId !== newPartyId) {
+        // Store party names instead of IDs for better log display
+        oldValues.party = existingOrder.party?.name || existingOrder.party || 'Not set';
+        newValues.party = newPartyName || newPartyId || 'Not set';
+        changedFields.push('party');
+      }
+    }
+    if (contactName !== undefined) {
+      const newContactName = contactName !== null && contactName !== '' ? contactName.trim() : '';
+      if (existingOrder.contactName !== newContactName) {
+        oldValues.contactName = existingOrder.contactName;
+        newValues.contactName = newContactName;
+        changedFields.push('contactName');
+      }
+    }
+    if (contactPhone !== undefined) {
+      const newContactPhone = contactPhone !== null && contactPhone !== '' ? contactPhone.trim() : '';
+      if (existingOrder.contactPhone !== newContactPhone) {
+        oldValues.contactPhone = existingOrder.contactPhone;
+        newValues.contactPhone = newContactPhone;
+        changedFields.push('contactPhone');
+      }
+    }
+    if (poNumber !== undefined) {
+      const newPoNumber = poNumber !== null && poNumber !== '' ? poNumber.trim() : '';
+      if (existingOrder.poNumber !== newPoNumber) {
+        oldValues.poNumber = existingOrder.poNumber;
+        newValues.poNumber = newPoNumber;
+        changedFields.push('poNumber');
+      }
+    }
+    if (styleNo !== undefined) {
+      const newStyleNo = styleNo !== null && styleNo !== '' ? styleNo.trim() : '';
+      if (existingOrder.styleNo !== newStyleNo) {
+        oldValues.styleNo = existingOrder.styleNo;
+        newValues.styleNo = newStyleNo;
+        changedFields.push('styleNo');
+      }
+    }
+    if (weaverSupplierName !== undefined) {
+      const newWeaverSupplierName = weaverSupplierName !== null && weaverSupplierName !== '' ? weaverSupplierName.trim() : '';
+      if (existingOrder.weaverSupplierName !== newWeaverSupplierName) {
+        oldValues.weaverSupplierName = existingOrder.weaverSupplierName;
+        newValues.weaverSupplierName = newWeaverSupplierName;
+        changedFields.push('weaverSupplierName');
+      }
+    }
+    if (purchaseRate !== undefined) {
+      const newPurchaseRate = purchaseRate !== null ? parseFloat(purchaseRate) : undefined;
+      if (existingOrder.purchaseRate !== newPurchaseRate) {
+        oldValues.purchaseRate = existingOrder.purchaseRate;
+        newValues.purchaseRate = newPurchaseRate;
+        changedFields.push('purchaseRate');
+      }
+    }
+    if (poDate !== undefined) {
+      const newPoDate = poDate ? new Date(poDate) : undefined;
+      const existingPoDate = existingOrder.poDate ? new Date(existingOrder.poDate) : undefined;
+      
+      // More robust date comparison - normalize dates to YYYY-MM-DD format
+      const normalizeDate = (date: Date | undefined) => {
+        if (!date) return null;
+        return date.toISOString().split('T')[0]; // Get YYYY-MM-DD format
+      };
+      
+      const existingDateStr = normalizeDate(existingPoDate);
+      const newDateStr = normalizeDate(newPoDate);
+      
+      const poDateChanged = existingDateStr !== newDateStr;
+      
+      console.log('🔍 PO date comparison:', {
+        original: existingOrder.poDate,
+        incoming: poDate,
+        existingDateStr,
+        newDateStr,
+        changed: poDateChanged
+      });
+      
+      if (poDateChanged) {
+        oldValues.poDate = existingOrder.poDate;
+        newValues.poDate = newPoDate;
+        changedFields.push('poDate');
+      }
+    }
+    if (deliveryDate !== undefined) {
+      const newDeliveryDate = deliveryDate ? new Date(deliveryDate) : undefined;
+      const existingDeliveryDate = existingOrder.deliveryDate ? new Date(existingOrder.deliveryDate) : undefined;
+      
+      // More robust date comparison - normalize dates to YYYY-MM-DD format
+      const normalizeDate = (date: Date | undefined) => {
+        if (!date) return null;
+        return date.toISOString().split('T')[0]; // Get YYYY-MM-DD format
+      };
+      
+      const existingDateStr = normalizeDate(existingDeliveryDate);
+      const newDateStr = normalizeDate(newDeliveryDate);
+      
+      const deliveryDateChanged = existingDateStr !== newDateStr;
+      
+      console.log('🔍 Delivery date comparison:', {
+        original: existingOrder.deliveryDate,
+        incoming: deliveryDate,
+        existingDateStr,
+        newDateStr,
+        changed: deliveryDateChanged
+      });
+      
+      if (deliveryDateChanged) {
+        oldValues.deliveryDate = existingOrder.deliveryDate;
+        newValues.deliveryDate = newDeliveryDate;
+        changedFields.push('deliveryDate');
+      }
+    }
+    if (status !== undefined && status !== existingOrder.status) {
+      oldValues.status = existingOrder.status;
+      newValues.status = status;
+      changedFields.push('status');
+    }
+    if (items !== undefined) {
+      // Compare items arrays - only log specific changes, not entire items
+      const oldItems = existingOrder.items.map((item: any) => ({
+        quality: item.quality?.name || item.quality?.toString() || 'Not set',
         quantity: item.quantity,
         imageUrls: item.imageUrls || [],
-        description: item.description
-      }))
-    };
+        description: item.description || ''
+      }));
+      
+      const newItems = items.map((item: any) => ({
+        quality: item.quality && item.quality !== '' && item.quality !== 'null' && item.quality !== 'undefined' ? item.quality : 'Not set',
+        quantity: item.quantity !== undefined && item.quantity !== null ? item.quantity : 0,
+        imageUrls: item.imageUrls && Array.isArray(item.imageUrls) ? item.imageUrls.map((url: string) => url.trim()) : [],
+        description: item.description !== null ? item.description.trim() : '',
+      }));
+      
+      const itemChanges: any[] = [];
+      
+      oldItems.some((oldItem: any, index: number) => {
+        const newItem = newItems[index];
+        if (!newItem) {
+          itemChanges.push({ type: 'item_removed', index });
+          return true;
+        }
+        
+        const changes: any = {};
+        let hasItemChanges = false;
+        
+        // Check quality changes
+        if (oldItem.quality !== newItem.quality) {
+          changes.quality = { old: oldItem.quality, new: newItem.quality };
+          hasItemChanges = true;
+        }
+        
+        // Check quantity changes
+        if (oldItem.quantity !== newItem.quantity) {
+          changes.quantity = { old: oldItem.quantity, new: newItem.quantity };
+          hasItemChanges = true;
+        }
+        
+        // Check description changes
+        if (oldItem.description !== newItem.description) {
+          changes.description = { old: oldItem.description, new: newItem.description };
+          hasItemChanges = true;
+        }
+        
+        // Check imageUrls changes with detailed tracking
+        const oldImageUrls = oldItem.imageUrls || [];
+        const newImageUrls = newItem.imageUrls || [];
+        if (JSON.stringify(oldImageUrls) !== JSON.stringify(newImageUrls)) {
+          // Calculate specific image changes
+          const addedImages = newImageUrls.filter((url: string) => !oldImageUrls.includes(url));
+          const removedImages = oldImageUrls.filter((url: string) => !newImageUrls.includes(url));
+          
+          changes.imageUrls = { 
+            old: oldImageUrls, 
+            new: newImageUrls,
+            added: addedImages,
+            removed: removedImages,
+            addedCount: addedImages.length,
+            removedCount: removedImages.length
+          };
+          hasItemChanges = true;
+        }
+        
+        if (hasItemChanges) {
+          itemChanges.push({ type: 'item_updated', index, changes });
+        }
+        
+        return false;
+      });
+      
+      // Check for new items
+      if (newItems.length > oldItems.length) {
+        for (let i = oldItems.length; i < newItems.length; i++) {
+          const newItem = newItems[i];
+          const itemDetail = {
+            type: 'item_added',
+            index: i,
+            item: {
+              quality: newItem.quality,
+              quantity: newItem.quantity,
+              description: newItem.description || '',
+              imageUrls: newItem.imageUrls || [],
+              imageCount: (newItem.imageUrls || []).length
+            }
+          };
+          itemChanges.push(itemDetail);
+        }
+      }
+      
+      console.log('🔍 Item changes detected:', itemChanges);
+      
+      if (itemChanges.length > 0) {
+        // Only log the specific changes, not entire items
+        oldValues.itemChanges = itemChanges.map(change => {
+          if (change.type === 'item_updated') {
+            const formattedChanges = Object.keys(change.changes).map(field => {
+              if (field === 'imageUrls' && change.changes[field].addedCount !== undefined) {
+                // Special handling for image changes
+                const imageChange = change.changes[field];
+                if (imageChange.addedCount > 0 && imageChange.removedCount > 0) {
+                  return {
+                    field: 'imageUrls',
+                    type: 'mixed',
+                    added: imageChange.addedCount,
+                    removed: imageChange.removedCount,
+                    addedUrls: imageChange.added,
+                    removedUrls: imageChange.removed,
+                    oldUrls: imageChange.old,
+                    newUrls: imageChange.new,
+                    message: `Added ${imageChange.addedCount} image(s), Removed ${imageChange.removedCount} image(s)`
+                  };
+                } else if (imageChange.addedCount > 0) {
+                  return {
+                    field: 'imageUrls',
+                    type: 'added',
+                    count: imageChange.addedCount,
+                    addedUrls: imageChange.added,
+                    oldUrls: imageChange.old,
+                    newUrls: imageChange.new,
+                    message: `Added ${imageChange.addedCount} image(s)`
+                  };
+                } else if (imageChange.removedCount > 0) {
+                  return {
+                    field: 'imageUrls',
+                    type: 'removed',
+                    count: imageChange.removedCount,
+                    removedUrls: imageChange.removed,
+                    oldUrls: imageChange.old,
+                    newUrls: imageChange.new,
+                    message: `Removed ${imageChange.removedCount} image(s)`
+                  };
+                }
+              }
+              return {
+                field,
+                old: change.changes[field].old,
+                new: change.changes[field].new
+              };
+            });
+            
+            return {
+              item: change.index + 1,
+              changes: formattedChanges
+            };
+          }
+          return change;
+        });
+        newValues.itemChanges = oldValues.itemChanges; // Same structure for display
+        changedFields.push('itemChanges');
+      }
+    }
+    
+    console.log('🔍 DEBUG: Fields being updated:', changedFields);
+    console.log('🔍 DEBUG: Old values for logging:', JSON.stringify(oldValues, null, 2));
+    console.log('🔍 DEBUG: New values for logging:', JSON.stringify(newValues, null, 2));
 
     // First update the order without populate to avoid wasPopulated issues
-    const updatedOrder = await Order.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true }
-    );
+    let updatedOrder;
+    try {
+      updatedOrder = await Order.findByIdAndUpdate(
+        id,
+        updateData,
+        { new: true, runValidators: true }
+      );
+    } catch (updateError) {
+      console.error('🔍 Update operation failed:', updateError);
+      console.error('🔍 Update error details:', JSON.stringify(updateError, null, 2));
+      throw updateError; // Re-throw to be caught by outer catch block
+    }
 
     if (!updatedOrder) {
       return new Response(
@@ -306,31 +681,16 @@ export async function PUT(
 
     console.log('🔍 DEBUG: Populated order for logging:', JSON.stringify(populatedOrder, null, 2));
 
-    // Prepare new values for logging with complete details
-    const newValues = {
-      orderType: populatedOrder.orderType,
-      arrivalDate: populatedOrder.arrivalDate,
-      party: populatedOrder.party,
-      contactName: populatedOrder.contactName,
-      contactPhone: populatedOrder.contactPhone,
-      poNumber: populatedOrder.poNumber,
-      styleNo: populatedOrder.styleNo,
-      poDate: populatedOrder.poDate,
-      deliveryDate: populatedOrder.deliveryDate,
-      status: populatedOrder.status,
-      items: populatedOrder.items.map((item: any) => ({
-        quality: item.quality,
-        quantity: item.quantity,
-        imageUrls: item.imageUrls || [],
-        description: item.description
-      }))
-    };
-
     console.log('🔍 DEBUG: Old values for logging:', JSON.stringify(oldValues, null, 2));
     console.log('🔍 DEBUG: New values for logging:', JSON.stringify(newValues, null, 2));
 
-    // Log the order update with complete change tracking
-    await logOrderChange('update', id, oldValues, newValues, req);
+    // Only log if there are actual changes
+    if (changedFields.length > 0) {
+      console.log('🔍 Logging order changes:', changedFields);
+      await logOrderChange('update', id, oldValues, newValues, req);
+    } else {
+      console.log('🔍 No changes detected, skipping log');
+    }
 
     return new Response(
       JSON.stringify({ 
@@ -346,17 +706,38 @@ export async function PUT(
         return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
       }
       
-      // Handle MongoDB duplicate key errors
-      if (error.message.includes('E11000')) {
-        if (error.message.includes('party') && error.message.includes('poNumber') && error.message.includes('styleNo')) {
-          return new Response(
-            JSON.stringify({ 
-              message: "An order with this PO number and style number already exists for this party" 
-            }), 
-            { status: 400 }
-          );
-        }
-      }
+             // Handle MongoDB duplicate key errors with better debugging
+       if (error.message.includes('E11000')) {
+         console.error('🔍 Duplicate key error details:', error.message);
+         
+         // Check if it's an orderId conflict
+         if (error.message.includes('orderId')) {
+           return new Response(
+             JSON.stringify({ 
+               message: "Order ID already exists - please use a different order ID" 
+             }), 
+             { status: 400 }
+           );
+         }
+         
+         // Check if it's a party + poNumber + styleNo conflict
+         if (error.message.includes('party') && error.message.includes('poNumber') && error.message.includes('styleNo')) {
+           return new Response(
+             JSON.stringify({ 
+               message: "This combination of Party, PO Number, and Style Number already exists. Please use different values." 
+             }), 
+             { status: 400 }
+           );
+         }
+         
+         // Generic duplicate key error
+         return new Response(
+           JSON.stringify({ 
+             message: "Duplicate key error - please check your data and try again" 
+           }), 
+           { status: 400 }
+         );
+       }
       
       // Handle validation errors
       if (error.name === 'ValidationError') {
@@ -382,9 +763,12 @@ export async function DELETE(
     
     const { id } = await params;
     
+    console.log('🔍 DELETE request for order ID:', id);
+    
     // Check if order exists
     const existingOrder = await Order.findById(id);
     if (!existingOrder) {
+      console.log('🔍 Order not found with ID:', id);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -393,6 +777,8 @@ export async function DELETE(
         { status: 404 }
       );
     }
+    
+    console.log('🔍 Found order to delete:', existingOrder.orderId);
 
     // Store order details for logging before deletion
     const orderDetails = {

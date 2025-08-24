@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Lab from '@/models/Lab';
 import Order from '@/models/Order';
+import Quality from '@/models/Quality';
 import { seedFromOrderSchema } from '@/lib/validation/lab';
 import { ok, badRequest, notFound, serverError } from '@/lib/http';
 import { isValidObjectId } from '@/lib/ids';
@@ -91,7 +92,23 @@ export async function POST(
     }
     
     // Populate order details for response
-    await Promise.all(createdLabs.map(lab => lab.populate('order')));
+    await Promise.all(createdLabs.map(async (lab) => {
+      try {
+        if (lab && typeof lab.populate === 'function') {
+          await lab.populate({
+            path: 'order',
+            select: '_id orderId orderType items._id items.quality',
+            populate: {
+              path: 'items.quality',
+              select: '_id name description'
+            }
+          });
+        }
+      } catch (populateError) {
+        console.log('Populate failed for lab:', lab._id, populateError);
+        // Continue without populate - the lab was still created successfully
+      }
+    }));
     
     return ok({
       message: `Successfully processed ${order.items.length} order items`,

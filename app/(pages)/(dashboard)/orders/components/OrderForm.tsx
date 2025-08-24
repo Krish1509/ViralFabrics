@@ -612,13 +612,12 @@ function EnhancedDropdown({
                     <CheckIcon className="h-4 w-4 text-blue-500" />
                   )}
                     {onDelete && (
-                      <button
-                        type="button"
+                      <div
                         onClick={(e) => {
                           e.stopPropagation();
                           onDelete(option);
                         }}
-                        className={`p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors ${
+                        className={`p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors cursor-pointer ${
                           isDarkMode 
                             ? 'text-gray-400 hover:text-red-400' 
                             : 'text-gray-500 hover:text-red-600'
@@ -626,7 +625,7 @@ function EnhancedDropdown({
                         title="Delete"
                       >
                         <TrashIcon className="h-4 w-4" />
-                      </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -898,25 +897,10 @@ function ImageUploadSection({
                     src={url}
                     alt={`Item ${itemIndex + 1} image ${imgIndex + 1}`}
                        className="w-full h-full object-cover"
-                    onError={(e) => {
+                                          onError={(e) => {
                          console.error('🔍 Image load error:', { url, error: e });
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
-                         // Show error placeholder
-                         const parent = target.parentElement;
-                         if (parent) {
-                           parent.innerHTML = `
-                             <div class="flex items-center justify-center h-full">
-                               <div class="text-center">
-                                 <svg class="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                 </svg>
-                                 <p class="text-xs text-gray-500">Image Error</p>
-                                 <p class="text-xs text-gray-400">${url}</p>
-                               </div>
-                             </div>
-                           `;
-                         }
                        }}
                        onLoad={(e) => {
                          console.log('🔍 Image loaded successfully:', { url });
@@ -1062,6 +1046,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   const { isDarkMode, mounted } = useDarkMode();
   const [formData, setFormData] = useState<OrderFormData>({
     orderType: undefined,
+    status: 'Not selected', // Default to "Not selected" instead of undefined
     arrivalDate: '',
     party: '',
     contactName: '',
@@ -1070,6 +1055,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     styleNo: '',
     poDate: '',
     deliveryDate: '',
+    weaverSupplierName: '',
+    purchaseRate: '',
     items: [{
       quality: '',
       quantity: '', // Always initialize as empty string, never null
@@ -1249,6 +1236,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       
       setFormData({
         orderType: order.orderType,
+        status: order.status || 'Not selected', // Default to "Not selected" if status is undefined
         arrivalDate: order.arrivalDate ? new Date(order.arrivalDate).toISOString().split('T')[0] : '',
         party: partyId,
         contactName: order.contactName || '',
@@ -1257,6 +1245,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         styleNo: order.styleNo || '',
         poDate: order.poDate ? new Date(order.poDate).toISOString().split('T')[0] : '',
         deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toISOString().split('T')[0] : '',
+        weaverSupplierName: order.weaverSupplierName || '',
+        purchaseRate: order.purchaseRate ? String(order.purchaseRate) : '',
                  items: order.items.length > 0 ? order.items.map(item => ({
            quality: typeof item.quality === 'string' ? item.quality : item.quality?._id || '',
            quantity: item.quantity !== undefined && item.quantity !== null && item.quantity !== '' ? String(item.quantity) : '',
@@ -1461,24 +1451,188 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         return parsed && parsed !== dateStr ? parsed : undefined;
       };
 
-      const cleanedFormData = {
-        ...formData,
-        arrivalDate: cleanDate(formData.arrivalDate),
-        poDate: cleanDate(formData.poDate),
-        deliveryDate: cleanDate(formData.deliveryDate),
-        items: formData.items.map(item => ({
-          ...item,
+      // Clean and prepare form data - ONLY send fields that have actually changed
+      const cleanedFormData: any = {};
+      
+      // For new orders, include all required fields
+      if (!order) {
+        cleanedFormData.orderType = formData.orderType;
+        // Handle "Not selected" case - convert to undefined for API
+        cleanedFormData.status = formData.status === 'Not selected' ? undefined : formData.status;
+        cleanedFormData.arrivalDate = cleanDate(formData.arrivalDate);
+        cleanedFormData.party = formData.party;
+        cleanedFormData.contactName = formData.contactName;
+        cleanedFormData.contactPhone = formData.contactPhone;
+        cleanedFormData.poNumber = formData.poNumber;
+        cleanedFormData.styleNo = formData.styleNo;
+        cleanedFormData.weaverSupplierName = formData.weaverSupplierName;
+        cleanedFormData.poDate = cleanDate(formData.poDate);
+        cleanedFormData.deliveryDate = cleanDate(formData.deliveryDate);
+        
+        if (formData.purchaseRate && formData.purchaseRate !== '') {
+          const rate = parseFloat(formData.purchaseRate);
+          if (!isNaN(rate)) {
+            cleanedFormData.purchaseRate = rate;
+          }
+        }
+        
+        cleanedFormData.items = formData.items.map(item => ({
           quality: item.quality || undefined,
           quantity: item.quantity === '' || item.quantity === null || item.quantity === undefined ? 1 : Number(item.quantity),
-          description: item.description !== undefined ? item.description : undefined,
+          description: item.description || '',
           imageUrls: item.imageUrls || []
-        }))
-      };
+        }));
+      } else {
+        // For existing orders - ONLY include fields that have actually changed
+        const changedFields: string[] = [];
+        
+        // Compare each field individually
+        if (formData.orderType !== order.orderType) {
+          cleanedFormData.orderType = formData.orderType;
+          changedFields.push('orderType');
+        }
+        
+        if (formData.status !== order.status) {
+          // Handle "Not selected" case - convert to undefined for API
+          cleanedFormData.status = formData.status === 'Not selected' ? undefined : formData.status;
+          changedFields.push('status');
+        }
+        
+        // Compare dates properly by normalizing them to YYYY-MM-DD format
+        const normalizeDateForComparison = (dateStr: string | undefined) => {
+          if (!dateStr) return null;
+          try {
+            return new Date(dateStr).toISOString().split('T')[0];
+          } catch {
+            return dateStr;
+          }
+        };
+        
+        const existingArrivalDate = normalizeDateForComparison(order.arrivalDate);
+        const newArrivalDate = normalizeDateForComparison(formData.arrivalDate);
+        
+        if (existingArrivalDate !== newArrivalDate) {
+          cleanedFormData.arrivalDate = cleanDate(formData.arrivalDate);
+          changedFields.push('arrivalDate');
+        }
+        
+        if (formData.party !== order.party) {
+          cleanedFormData.party = formData.party;
+          changedFields.push('party');
+        }
+        
+        if (formData.contactName !== order.contactName) {
+          cleanedFormData.contactName = formData.contactName;
+          changedFields.push('contactName');
+        }
+        
+        if (formData.contactPhone !== order.contactPhone) {
+          cleanedFormData.contactPhone = formData.contactPhone;
+          changedFields.push('contactPhone');
+        }
+        
+        if (formData.poNumber !== order.poNumber) {
+          cleanedFormData.poNumber = formData.poNumber;
+          changedFields.push('poNumber');
+        }
+        
+        if (formData.styleNo !== order.styleNo) {
+          cleanedFormData.styleNo = formData.styleNo;
+          changedFields.push('styleNo');
+        }
+        
+        if (formData.weaverSupplierName !== order.weaverSupplierName) {
+          cleanedFormData.weaverSupplierName = formData.weaverSupplierName;
+          changedFields.push('weaverSupplierName');
+        }
+        
+        const existingPoDate = normalizeDateForComparison(order.poDate);
+        const newPoDate = normalizeDateForComparison(formData.poDate);
+        
+        if (existingPoDate !== newPoDate) {
+          cleanedFormData.poDate = cleanDate(formData.poDate);
+          changedFields.push('poDate');
+        }
+        
+        const existingDeliveryDate = normalizeDateForComparison(order.deliveryDate);
+        const newDeliveryDate = normalizeDateForComparison(formData.deliveryDate);
+        
+        if (existingDeliveryDate !== newDeliveryDate) {
+          cleanedFormData.deliveryDate = cleanDate(formData.deliveryDate);
+          changedFields.push('deliveryDate');
+        }
+        
+        const currentRate = order.purchaseRate || 0;
+        const newRate = formData.purchaseRate && formData.purchaseRate !== '' ? parseFloat(formData.purchaseRate) : 0;
+        if (currentRate !== newRate) {
+          cleanedFormData.purchaseRate = newRate;
+          changedFields.push('purchaseRate');
+        }
+        
+        // Check if items have changed - more accurate comparison
+        const currentItems = order.items || [];
+        const newItems = formData.items.map(item => ({
+          quality: item.quality || undefined,
+          quantity: item.quantity === '' || item.quantity === null || item.quantity === undefined ? 1 : Number(item.quantity),
+          description: item.description || '',
+          imageUrls: item.imageUrls || []
+        }));
+        
+        // More accurate items comparison
+        const itemsChanged = currentItems.length !== newItems.length || 
+          currentItems.some((currentItem, index) => {
+            const newItem = newItems[index];
+            if (!newItem) return true; // Different number of items
+            
+            const itemChanged = (
+              currentItem.quality?.toString() !== newItem.quality?.toString() ||
+              currentItem.quantity !== newItem.quantity ||
+              currentItem.description !== newItem.description ||
+              JSON.stringify(currentItem.imageUrls || []) !== JSON.stringify(newItem.imageUrls || [])
+            );
+            
+            if (itemChanged) {
+              console.log(`🔍 Item ${index + 1} changed in frontend:`, {
+                quality: { current: currentItem.quality?.toString(), new: newItem.quality?.toString() },
+                quantity: { current: currentItem.quantity, new: newItem.quantity },
+                description: { current: currentItem.description, new: newItem.description },
+                imageUrls: { current: currentItem.imageUrls, new: newItem.imageUrls }
+              });
+            }
+            
+            return itemChanged;
+          });
+        
+        console.log('🔍 Items comparison result:', { itemsChanged, currentItemsCount: currentItems.length, newItemsCount: newItems.length });
+        
+        if (itemsChanged) {
+          cleanedFormData.items = newItems;
+          changedFields.push('items');
+        }
+        
+        console.log('🔍 Changed fields:', changedFields);
+        
+        // If no fields changed, don't send update
+        if (changedFields.length === 0) {
+          console.log('🔍 No changes detected, skipping update');
+          setValidationMessage({ type: 'success', text: 'No changes detected' });
+          setTimeout(() => {
+            onClose();
+          }, 1000);
+          return;
+        }
+      }
+
+      console.log('🔍 Form data being submitted:', cleanedFormData);
+      console.log('🔍 Original order data:', order);
+      console.log('🔍 Current form data:', formData);
 
       const token = localStorage.getItem('token');
+      console.log('🔍 Token available:', !!token);
       const url = order ? `/api/orders/${order._id}` : '/api/orders';
       const method = order ? 'PUT' : 'POST';
 
+      console.log('🔍 Making request to:', url, 'with method:', method);
       const response = await fetch(url, {
         method,
         headers: {
@@ -1488,17 +1642,47 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         body: JSON.stringify(cleanedFormData)
       });
 
+      console.log('🔍 Response status:', response.status);
+
       const data = await response.json();
+      console.log('🔍 API response:', data);
       if (data.success) {
         setValidationMessage({ type: 'success', text: order ? 'Order updated successfully!' : 'Order created successfully!' });
-        setTimeout(() => {
-          onSuccess();
-          onClose();
-        }, 1500);
+        
+        // Trigger real-time update for Order Activity Log
+        if (order?._id) {
+          // For order updates
+          console.log('🔍 Dispatching orderUpdated event for order:', order._id);
+          const event = new CustomEvent('orderUpdated', { 
+            detail: { 
+              orderId: order._id,
+              action: 'order_update',
+              timestamp: new Date().toISOString()
+            } 
+          });
+          window.dispatchEvent(event);
+        } else if (data.data?._id) {
+          // For new order creation
+          console.log('🔍 Dispatching orderUpdated event for new order:', data.data._id);
+          const event = new CustomEvent('orderUpdated', { 
+            detail: { 
+              orderId: data.data._id,
+              action: 'order_create',
+              timestamp: new Date().toISOString()
+            } 
+          });
+          window.dispatchEvent(event);
+        }
+        
+        // Close form immediately after successful submission
+        onSuccess();
+        onClose();
       } else {
+        console.error('🔍 API error:', data.message);
         setValidationMessage({ type: 'error', text: data.message || 'Operation failed' });
       }
     } catch (error) {
+      console.error('🔍 Form submission error:', error);
       setValidationMessage({ type: 'error', text: 'An error occurred' });
     } finally {
       setLoading(false);
@@ -1550,6 +1734,22 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: ${isDarkMode ? '#2563eb' : '#3b82f6'};
+        }
+        
+        /* Validation Message Animations */
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        
+        .animate-slide-in-right {
+          animation: slideInRight 0.5s ease-out forwards;
         }
       `}</style>
       
@@ -1637,6 +1837,31 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                   </div>
                 </div>
                 {errors.orderType && <p className="text-red-500 text-sm mt-2">{errors.orderType}</p>}
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-sm font-medium mb-3">Status</label>
+                <div className="relative">
+                <select
+                  value={formData.status || 'Not selected'}
+                  onChange={(e) => handleFieldChange('status', e.target.value)}
+                    className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${
+                    isDarkMode 
+                      ? 'bg-gray-800 border-gray-600 text-white' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                >
+                  <option value="Not selected">Not selected</option>
+                  <option value="pending">Pending</option>
+                  <option value="delivered">Delivered</option>
+                </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg className={`h-5 w-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
               </div>
 
               {/* Arrival Date */}
@@ -1824,6 +2049,121 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                   )}
                 </div>
               </div>
+
+              {/* Weaver / Supplier Name */}
+              <div>
+                <label className="block text-sm font-medium mb-3">Weaver / Supplier Name</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.weaverSupplierName}
+                    onChange={(e) => handleFieldChange('weaverSupplierName', e.target.value)}
+                    placeholder="Enter weaver or supplier name"
+                    className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      isDarkMode 
+                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
+                  />
+                  {formData.weaverSupplierName && (
+                    <button
+                      type="button"
+                      onClick={() => handleFieldChange('weaverSupplierName', '')}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
+                        isDarkMode 
+                          ? 'text-gray-400 hover:text-white hover:bg-gray-700' 
+                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
+                      }`}
+                      title="Clear weaver supplier name"
+                    >
+                      <XMarkIcon className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Purchase Rate */}
+              <div>
+                <label className="block text-sm font-medium mb-3">Purchase Rate</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={formData.purchaseRate}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Allow empty string, valid numbers, and decimal numbers with up to 2 decimal places
+                      if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+                        const numValue = parseFloat(value);
+                        if (value === '' || (!isNaN(numValue) && numValue >= 0)) {
+                          handleFieldChange('purchaseRate', value);
+                        }
+                      }
+                    }}
+                    onKeyPress={(e) => {
+                      // Allow numbers, decimal point, backspace, delete, arrow keys
+                      if (!/[0-9.]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+                        e.preventDefault();
+                      }
+                      // Prevent multiple decimal points
+                      if (e.key === '.' && (e.target as HTMLInputElement).value.includes('.')) {
+                        e.preventDefault();
+                      }
+                    }}
+                    placeholder="Enter purchase rate"
+                    className={`w-full p-3 pr-16 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      isDarkMode 
+                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
+                  />
+                  {/* Custom Increment/Decrement Buttons */}
+                  <div className="absolute right-1 top-1/2 transform -translate-y-1/2 flex flex-col">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentValue = parseFloat(String(formData.purchaseRate || '0')) || 0;
+                        const newValue = currentValue + 0.01;
+                        // Format to 2 decimal places
+                        const formattedValue = newValue.toFixed(2);
+                        handleFieldChange('purchaseRate', formattedValue);
+                      }}
+                      className={`w-6 h-6 flex items-center justify-center rounded-t-sm border-b border-gray-300 transition-all duration-200 hover:scale-110 ${
+                        isDarkMode 
+                          ? 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:text-white' 
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                      }`}
+                      title="Increase purchase rate by 0.01"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentValue = parseFloat(String(formData.purchaseRate || '0')) || 0;
+                        if (currentValue > 0) {
+                          const newValue = Math.max(0, currentValue - 0.01);
+                          // Format to 2 decimal places
+                          const formattedValue = newValue.toFixed(2);
+                          handleFieldChange('purchaseRate', formattedValue);
+                        }
+                      }}
+                      className={`w-6 h-6 flex items-center justify-center rounded-b-sm transition-all duration-200 hover:scale-110 ${
+                        isDarkMode 
+                          ? 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:text-white' 
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                      }`}
+                      title="Decrease purchase rate by 0.01"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
 
@@ -1892,31 +2232,77 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                         <label className="block text-sm font-medium mb-3">
                           Quantity <span className="text-red-500">*</span>
                         </label>
-                                                 <input
-                           type="number"
-                           value={item.quantity || ''}
-                                                       onChange={(e) => {
+                        <div className="relative">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={item.quantity || ''}
+                            onChange={(e) => {
                               const value = e.target.value;
-                              // Allow empty string and positive whole numbers only
-                              if (value === '' || (parseFloat(value) > 0 && Number.isInteger(parseFloat(value)) && !isNaN(parseFloat(value)))) {
+                              // Only allow empty string or positive whole numbers (no decimals)
+                              if (value === '' || (/^\d+$/.test(value) && parseInt(value) > 0)) {
                                 handleItemChange(index, 'quantity', value);
                               }
                             }}
-                           onKeyPress={(e) => {
-                             // Prevent non-numeric input except backspace, delete, arrow keys
-                             if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
-                               e.preventDefault();
-                             }
-                           }}
-                           placeholder="Enter quantity"
-                           min="1"
-                           step="1"
-                           className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                             isDarkMode 
-                               ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                               : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                           } ${errors[`items.${index}.quantity`] ? 'border-red-500' : ''}`}
-                         />
+                            onKeyPress={(e) => {
+                              // Block all non-numeric keys including decimal point
+                              if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+                                e.preventDefault();
+                              }
+                              // Specifically block decimal point for whole numbers only
+                              if (e.key === '.') {
+                                e.preventDefault();
+                              }
+                            }}
+                            placeholder="Enter quantity"
+                            className={`w-full p-3 pr-16 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                              isDarkMode 
+                                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                            } ${errors[`items.${index}.quantity`] ? 'border-red-500' : ''}`}
+                          />
+                          {/* Custom Increment/Decrement Buttons */}
+                          <div className="absolute right-1 top-1/2 transform -translate-y-1/2 flex flex-col">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentValue = parseInt(String(item.quantity || '0')) || 0;
+                                handleItemChange(index, 'quantity', String(currentValue + 1));
+                              }}
+                              className={`w-6 h-6 flex items-center justify-center rounded-t-sm border-b border-gray-300 transition-all duration-200 hover:scale-110 ${
+                                isDarkMode 
+                                  ? 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:text-white' 
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                              }`}
+                              title="Increase quantity"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentValue = parseInt(String(item.quantity || '0')) || 0;
+                                if (currentValue > 1) {
+                                  handleItemChange(index, 'quantity', String(currentValue - 1));
+                                } else if (currentValue === 1) {
+                                  handleItemChange(index, 'quantity', ''); // Clear if 1 and decremented
+                                }
+                              }}
+                              className={`w-6 h-6 flex items-center justify-center rounded-b-sm transition-all duration-200 hover:scale-110 ${
+                                isDarkMode 
+                                  ? 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:text-white' 
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                              }`}
+                              title="Decrease quantity"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
                         {errors[`items.${index}.quantity`] && (
                           <p className="text-red-500 text-sm mt-2">{errors[`items.${index}.quantity`]}</p>
                         )}
@@ -2010,32 +2396,91 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
               </div>
             </div>
 
-            {/* Validation Message */}
+            {/* Enhanced Validation Message */}
             {validationMessage && (
-              <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg border shadow-lg max-w-md transform transition-all duration-300 ${
+              <div className={`fixed top-6 right-6 z-50 max-w-md transform transition-all duration-500 ease-in-out ${
                 validationMessage.type === 'success' 
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300 border-green-200 dark:border-green-800' 
-                  : 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300 border-red-200 dark:border-red-800'
+                  ? 'animate-slide-in-right' 
+                  : 'animate-slide-in-right'
               }`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    {validationMessage.type === 'success' ? (
-                      <CheckIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
-                    ) : (
-                      <ExclamationTriangleIcon className="h-5 w-5 text-red-600 dark:text-red-400" />
-                    )}
-                    <span className="font-medium">{validationMessage.text}</span>
+                <div className={`relative p-6 rounded-2xl border-2 shadow-2xl backdrop-blur-sm ${
+                  validationMessage.type === 'success' 
+                    ? isDarkMode
+                      ? 'bg-gradient-to-r from-green-900/90 to-emerald-900/90 border-green-500/50 text-green-100 shadow-green-500/20'
+                      : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 text-green-800 shadow-green-200/50'
+                    : isDarkMode
+                      ? 'bg-gradient-to-r from-red-900/90 to-rose-900/90 border-red-500/50 text-red-100 shadow-red-500/20'
+                      : 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300 text-red-800 shadow-red-200/50'
+                }`}>
+                  {/* Background Pattern */}
+                  <div className={`absolute inset-0 rounded-2xl opacity-10 ${
+                    validationMessage.type === 'success'
+                      ? 'bg-gradient-to-br from-green-400 to-emerald-400'
+                      : 'bg-gradient-to-br from-red-400 to-rose-400'
+                  }`}></div>
+                  
+                  <div className="relative flex items-start space-x-4">
+                    {/* Icon Container */}
+                    <div className={`flex-shrink-0 p-3 rounded-xl ${
+                      validationMessage.type === 'success'
+                        ? isDarkMode
+                          ? 'bg-green-500/20 border border-green-400/30'
+                          : 'bg-green-100 border border-green-200'
+                        : isDarkMode
+                          ? 'bg-red-500/20 border border-red-400/30'
+                          : 'bg-red-100 border border-red-200'
+                    }`}>
+                      {validationMessage.type === 'success' ? (
+                        <CheckIcon className={`h-6 w-6 ${
+                          isDarkMode ? 'text-green-300' : 'text-green-600'
+                        }`} />
+                      ) : (
+                        <ExclamationTriangleIcon className={`h-6 w-6 ${
+                          isDarkMode ? 'text-red-300' : 'text-red-600'
+                        }`} />
+                      )}
+                    </div>
+                    
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`text-lg font-bold mb-1 ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        {validationMessage.type === 'success' ? 'Success!' : 'Error'}
+                      </h3>
+                      <p className={`text-sm leading-relaxed ${
+                        isDarkMode 
+                          ? validationMessage.type === 'success' ? 'text-green-200' : 'text-red-200'
+                          : validationMessage.type === 'success' ? 'text-green-700' : 'text-red-700'
+                      }`}>
+                        {validationMessage.text}
+                      </p>
+                    </div>
+                    
+                    {/* Close Button */}
+                    <button
+                      onClick={() => setValidationMessage(null)}
+                      className={`flex-shrink-0 p-2 rounded-xl transition-all duration-200 hover:scale-110 ${
+                        validationMessage.type === 'success'
+                          ? isDarkMode
+                            ? 'text-green-300 hover:bg-green-500/20 hover:text-green-200'
+                            : 'text-green-600 hover:bg-green-100 hover:text-green-700'
+                          : isDarkMode
+                            ? 'text-red-300 hover:bg-red-500/20 hover:text-red-200'
+                            : 'text-red-600 hover:bg-red-100 hover:text-red-700'
+                      }`}
+                      title="Close notification"
+                    >
+                      <XMarkIcon className="h-5 w-5" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setValidationMessage(null)}
-                    className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
-                      validationMessage.type === 'success' 
-                        ? 'text-green-600 dark:text-green-400' 
-                        : 'text-red-600 dark:text-red-400'
-                    }`}
-                  >
-                    <XMarkIcon className="h-4 w-4" />
-                  </button>
+                  
+                  {/* Progress Bar */}
+                  <div className={`absolute bottom-0 left-0 h-1 rounded-b-2xl transition-all duration-300 ${
+                    validationMessage.type === 'success'
+                      ? isDarkMode ? 'bg-green-400' : 'bg-green-500'
+                      : isDarkMode ? 'bg-red-400' : 'bg-red-500'
+                  }`} style={{ width: '100%' }}></div>
                 </div>
               </div>
             )}

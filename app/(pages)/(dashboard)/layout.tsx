@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
-import PageVisitLogger from './components/PageVisitLogger';
+import Navbar from './components/Navbar';
 import { useDarkMode } from './hooks/useDarkMode';
+import PageVisitLogger from './components/PageVisitLogger';
+import LoadingOptimizer from './components/LoadingOptimizer';
 
 interface User {
   _id: string;
@@ -27,6 +28,7 @@ export default function SuperAdminLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [screenSize, setScreenSize] = useState<number>(0);
+  const [sessionStatus, setSessionStatus] = useState<'active' | 'refreshing' | 'expired'>('active');
   const { isDarkMode, mounted } = useDarkMode();
 
   // Track screen size
@@ -70,6 +72,81 @@ export default function SuperAdminLayout({
       setIsLoading(false);
     }
   }, [router]);
+
+  // Auto-refresh session when user is active
+  useEffect(() => {
+    if (!user) return;
+
+    let sessionRefreshInterval: NodeJS.Timeout;
+    let lastActivity = Date.now();
+
+    // Function to refresh session
+    const refreshSession = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      setSessionStatus('refreshing');
+      
+      try {
+        const response = await fetch('/api/auth/refresh-session', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            // Update stored token and user data
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            setUser(data.user);
+            setSessionStatus('active');
+            console.log('✅ Session refreshed successfully');
+          } else {
+            setSessionStatus('expired');
+          }
+        } else {
+          setSessionStatus('expired');
+        }
+      } catch (error) {
+        console.error('Session refresh failed:', error);
+        setSessionStatus('expired');
+      }
+    };
+
+    // Function to track user activity
+    const updateActivity = () => {
+      lastActivity = Date.now();
+    };
+
+    // Set up activity tracking
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    activityEvents.forEach(event => {
+      document.addEventListener(event, updateActivity, true);
+    });
+
+    // Refresh session every 30 minutes if user is active
+    sessionRefreshInterval = setInterval(() => {
+      const now = Date.now();
+      const timeSinceLastActivity = now - lastActivity;
+      
+      // Only refresh if user has been active in the last 5 minutes
+      if (timeSinceLastActivity < 5 * 60 * 1000) {
+        refreshSession();
+      }
+    }, 30 * 60 * 1000); // 30 minutes
+
+    // Cleanup
+    return () => {
+      clearInterval(sessionRefreshInterval);
+      activityEvents.forEach(event => {
+        document.removeEventListener(event, updateActivity, true);
+      });
+    };
+  }, [user]);
 
   const handleLogout = async () => {
     try {
@@ -155,6 +232,9 @@ export default function SuperAdminLayout({
       {/* Page Visit Logger - Logs all page visits */}
       <PageVisitLogger />
       
+      {/* Loading Optimizer - Improves performance across all pages */}
+      <LoadingOptimizer />
+      
       {/* Sidebar - Fixed on left */}
       <Sidebar 
         isOpen={isSidebarOpen} 
@@ -174,6 +254,7 @@ export default function SuperAdminLayout({
           onToggleCollapse={toggleSidebarCollapse}
           isCollapsed={isSidebarCollapsed}
           updateUser={updateUser}
+          sessionStatus={sessionStatus}
         />
 
         {/* Main Content - Starts immediately below navbar */}

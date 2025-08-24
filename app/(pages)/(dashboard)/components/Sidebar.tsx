@@ -9,7 +9,8 @@ import {
   BuildingOfficeIcon,
   XMarkIcon,
   ShoppingBagIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  CubeIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { BRAND_NAME, BRAND_COPYRIGHT, BRAND_TAGLINE } from '@/lib/config';
@@ -47,6 +48,11 @@ const getNavItems = (userRole?: string): NavItem[] => {
       name: 'Orders',
       href: '/orders',
       icon: ShoppingBagIcon
+    },
+    {
+      name: 'Fabrics',
+      href: '/fabrics',
+      icon: CubeIcon
     }
   ];
 

@@ -37,6 +37,108 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const [showOrderLogs, setShowOrderLogs] = useState(false);
   const [showLabModal, setShowLabModal] = useState(false);
+  const [logsLoading, setLogsLoading] = useState(false);
+
+  // Pre-fetch logs and labs when order details open
+  useEffect(() => {
+    if (order._id) {
+      // Pre-fetch logs in background
+      const preloadLogs = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          await fetch(`/api/orders/${order._id}/logs`, {
+            headers: {
+              ...(token && { 'Authorization': `Bearer ${token}` }),
+              'Cache-Control': 'max-age=30' // Cache for 30 seconds
+            }
+          });
+        } catch (error) {
+          // Silent fail for preloading
+          console.log('Preload logs failed:', error);
+        }
+      };
+      
+      // Fetch labs data with optimized caching
+      const fetchLabs = async () => {
+        try {
+          setLoadingLabs(true);
+          console.log('🔍 Fetching labs for order:', order._id);
+          const response = await fetch(`/api/labs/by-order/${order._id}`, {
+            headers: {
+              'Cache-Control': 'max-age=30' // Reduced cache time for more frequent updates
+            }
+          });
+          const data = await response.json();
+          console.log('🔍 Labs API response:', data);
+          if (data.success && Array.isArray(data.data)) {
+            console.log('🔍 Setting labs:', data.data.length, 'labs');
+            setLabs(data.data);
+          }
+        } catch (error) {
+          console.error('Error fetching labs:', error);
+        } finally {
+          setLoadingLabs(false);
+        }
+      };
+      
+      preloadLogs();
+      fetchLabs();
+    }
+  }, [order._id]);
+
+  // Listen for lab updates and refresh labs data
+  useEffect(() => {
+    const handleLabUpdate = (event: CustomEvent) => {
+      if (event.detail?.orderId === order._id && event.detail?.action === 'lab_add') {
+        console.log('🔍 OrderDetails: Refreshing labs after lab_add event');
+        // Refresh labs data after a short delay to ensure server has updated
+        setTimeout(() => {
+          const fetchLabs = async () => {
+            try {
+              setLoadingLabs(true);
+              const response = await fetch(`/api/labs/by-order/${order._id}`, {
+                headers: {
+                  'Cache-Control': 'no-cache' // Force fresh data
+                }
+              });
+              const data = await response.json();
+              if (data.success && Array.isArray(data.data)) {
+                console.log('🔍 OrderDetails: Updated labs after lab_add:', data.data.length, 'labs');
+                setLabs(data.data);
+              }
+            } catch (error) {
+              console.error('Error refreshing labs:', error);
+            } finally {
+              setLoadingLabs(false);
+            }
+          };
+          fetchLabs();
+        }, 500); // 500ms delay to ensure server has processed the lab creation
+      }
+    };
+
+    window.addEventListener('orderUpdated', handleLabUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('orderUpdated', handleLabUpdate as EventListener);
+    };
+  }, [order._id]);
+
+  const handleViewLogs = async () => {
+    setLogsLoading(true);
+    setShowOrderLogs(true);
+    // Loading state will be managed by OrderLogsModal
+    setLogsLoading(false);
+  };
+
+  // Function to refresh logs when order is updated
+  const refreshLogs = () => {
+    if (showOrderLogs) {
+      // Trigger a refresh in the OrderLogsModal
+      const event = new CustomEvent('refreshOrderLogs', { detail: { orderId: order._id } });
+      window.dispatchEvent(event);
+    }
+  };
 
   const getOrderStatus = (order: Order) => {
     const now = new Date();
@@ -129,12 +231,12 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
       setLoadingLabs(true);
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 2000); // Reduced timeout to 2 seconds
         
         const response = await fetch(`/api/labs/by-order/${order._id}`, {
           signal: controller.signal,
           headers: {
-            'Cache-Control': 'max-age=30' // Cache for 30 seconds
+            'Cache-Control': 'max-age=60' // Increased cache to 60 seconds
           }
         });
         
@@ -165,7 +267,9 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
 
   const getLabForItem = (itemId: string) => {
     if (!Array.isArray(labs)) return null;
-    return labs.find(lab => lab.orderItemId === itemId);
+    const lab = labs.find(lab => lab.orderItemId === itemId);
+    console.log('🔍 getLabForItem:', { itemId, labsCount: labs.length, foundLab: !!lab });
+    return lab;
   };
 
   // Calculate lab statistics
@@ -177,6 +281,14 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
     received: labs.filter(lab => lab.status === 'received').length,
     cancelled: labs.filter(lab => lab.status === 'cancelled').length
   };
+
+  // Debug: Log current state
+  console.log('🔍 OrderDetails state:', { 
+    orderId: order._id, 
+    itemsCount: order.items.length, 
+    labsCount: labs.length, 
+    labStats 
+  });
 
 
 
@@ -224,19 +336,26 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
               </div>
             </div>
                                                    <div className="flex items-center space-x-0.5 xs:space-x-1 sm:space-x-2 lg:space-x-3">
-                               <button
-                  onClick={() => setShowOrderLogs(true)}
-                   className={`inline-flex items-center px-1.5 py-1.5 xs:px-2 sm:px-3 lg:px-4 xs:py-2 sm:py-2.5 rounded-lg font-medium transition-all duration-300 shadow-md hover:shadow-lg text-xs ${
-                    isDarkMode
-                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700'
-                      : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600'
+                                               <button
+                  onClick={handleViewLogs}
+                  disabled={logsLoading}
+                  className={`inline-flex items-center px-1.5 py-1.5 xs:px-2 sm:px-3 lg:px-4 xs:py-2 sm:py-2.5 rounded-lg font-medium transition-all duration-300 shadow-md hover:shadow-lg text-xs ${
+                    logsLoading
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : isDarkMode
+                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700'
+                        : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600'
                   }`}
                 >
-                   <DocumentTextIcon className="h-3 w-3 xs:h-3.5 xs:w-3.5 sm:h-4 sm:w-4 mr-0.5 xs:mr-1 sm:mr-1.5 lg:mr-2" />
-                   <span className="hidden lg:inline">View Activity Log</span>
-                   <span className="hidden sm:inline lg:hidden">Activity Log</span>
-                   <span className="hidden xs:inline sm:hidden">Logs</span>
-                   <span className="xs:hidden">Log</span>
+                   {logsLoading ? (
+                     <div className="animate-spin rounded-full h-3 w-3 xs:h-3.5 xs:w-3.5 sm:h-4 sm:w-4 mr-0.5 xs:mr-1 sm:mr-1.5 lg:mr-2 border-2 border-white border-t-transparent" />
+                   ) : (
+                     <DocumentTextIcon className="h-3 w-3 xs:h-3.5 xs:w-3.5 sm:h-4 sm:w-4 mr-0.5 xs:mr-1 sm:mr-1.5 lg:mr-2" />
+                   )}
+                   <span className="hidden lg:inline">{logsLoading ? 'Loading...' : 'View Activity Log'}</span>
+                   <span className="hidden sm:inline lg:hidden">{logsLoading ? 'Loading...' : 'Activity Log'}</span>
+                   <span className="hidden xs:inline sm:hidden">{logsLoading ? 'Loading...' : 'Logs'}</span>
+                   <span className="xs:hidden">{logsLoading ? 'Loading...' : 'Log'}</span>
                 </button>
                <button
                  onClick={onEdit}
@@ -268,7 +387,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                   <span className="hidden lg:inline">{labs.length > 0 ? 'Edit Lab' : 'Add Lab'}</span>
                   <span className="hidden sm:inline lg:hidden">{labs.length > 0 ? 'Edit Lab' : 'Add Lab'}</span>
                   <span className="hidden xs:inline sm:hidden">{labs.length > 0 ? 'Edit' : 'Add'}</span>
-                  <span className="xs:hidden">{labs.length > 0 ? 'E' : 'A'}</span>
+                  {/* <span className="xs:hidden">{labs.length > 0 ? 'E' : 'A'}</span> */}
                </button>
                <button
                  onClick={onClose}
@@ -479,7 +598,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                           </span>
                         </div>
                       )}
-                      {(order.poNumber || order.styleNo) && (
+                      {(order.poNumber || order.styleNo || order.weaverSupplierName || order.purchaseRate) && (
                         <div className="space-y-3">
                           {order.poNumber && (
                             <div className={`flex justify-between items-center p-3 rounded-lg ${
@@ -513,6 +632,38 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                              </span>
                            </div>
                          )}
+                          {order.weaverSupplierName && (
+                            <div className={`flex justify-between items-center p-3 rounded-lg ${
+                              isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                            }`}>
+                              <span className={`text-sm font-medium ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Weaver / Supplier Name
+                              </span>
+                              <span className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-orange-400' : 'text-orange-600'
+                              }`}>
+                                {order.weaverSupplierName}
+                              </span>
+                            </div>
+                          )}
+                          {order.purchaseRate && (
+                            <div className={`flex justify-between items-center p-3 rounded-lg ${
+                              isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                            }`}>
+                              <span className={`text-sm font-medium ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Purchase Rate
+                              </span>
+                              <span className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-green-400' : 'text-green-600'
+                              }`}>
+                                ₹{order.purchaseRate.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
                        </div>
                      )}
                    </div>
@@ -1170,7 +1321,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                try {
                  const response = await fetch(`/api/labs/by-order/${order._id}`, {
                    headers: {
-                     'Cache-Control': 'no-cache'
+                     'Cache-Control': 'max-age=60' // Use cache instead of no-cache
                    }
                  });
                  const data = await response.json();

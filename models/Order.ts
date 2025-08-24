@@ -28,6 +28,8 @@ export interface IOrder extends Document {
   styleNo?: string;
   poDate?: Date;
   deliveryDate?: Date;
+  weaverSupplierName?: string; // Weaver / Supplier Name (renamed from GREIGH WEAVER)
+  purchaseRate?: number; // Purchase Rate (Raw Cloth) - new field
   items: IOrderItem[];
   status: "pending" | "in_progress" | "completed" | "delivered" | "cancelled";
   priority: number;
@@ -142,6 +144,15 @@ const OrderSchema = new Schema<IOrder>({
   deliveryDate: {
     type: Date,
     index: true
+  },
+  weaverSupplierName: {
+    type: String,
+    trim: true,
+    maxlength: [100, "Weaver supplier name cannot exceed 100 characters"]
+  },
+  purchaseRate: {
+    type: Number,
+    min: [0, "Purchase rate cannot be negative"]
   },
   items: {
     type: [{

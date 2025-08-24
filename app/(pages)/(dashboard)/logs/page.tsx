@@ -87,6 +87,10 @@ export default function LogsPage() {
         return;
       }
       
+      // Use AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+      
       const params = new URLSearchParams({
         limit: pagination.limit.toString(),
         ...Object.fromEntries(
@@ -100,55 +104,56 @@ export default function LogsPage() {
         params.append('startDate', today);
         params.append('endDate', today);
       } else if (filters.dateFilter === 'yesterday') {
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        params.append('startDate', yesterday);
-        params.append('endDate', yesterday);
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        params.append('startDate', yesterdayStr);
+        params.append('endDate', yesterdayStr);
       } else if (filters.dateFilter === 'specific' && specificDate) {
         params.append('startDate', specificDate);
         params.append('endDate', specificDate);
       }
       
-      // Reset cursor for refresh
-      if (isRefresh) {
-        setPagination(prev => ({ ...prev, nextCursor: null }));
-      }
-      
-      const response = await fetch(`/api/logs?${params}`, {
+      const response = await fetch(`/api/logs?${params.toString()}`, {
         headers: {
-          'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` }),
+          'Authorization': `Bearer ${token}`,
+          'Cache-Control': 'max-age=30' // Cache for 30 seconds
         },
+        signal: controller.signal
       });
       
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Failed to fetch logs: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const responseData = await response.json();
-      const data = responseData.success ? responseData.data : responseData;
+      const data: LogsResponse = await response.json();
       
-      if (!data || !data.logs || !data.pagination) {
-        console.error('Unexpected API response structure:', data);
-        throw new Error('Invalid response format from server');
+      if (isRefresh) {
+        setLogs(data.logs || []);
+      } else {
+        setLogs(data.logs || []);
       }
       
-      setLogs(data.logs);
-      setPagination(prev => ({
-        ...prev,
+      setPagination({
         hasMore: data.pagination.hasMore,
         nextCursor: data.pagination.nextCursor,
-        total: data.pagination.total
-      }));
-    } catch (error) {
-      console.error('Error fetching logs:', error);
-      alert(`Error fetching logs: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      if (isRefresh) {
-        setRefreshing(false);
+        total: data.pagination.total,
+        limit: data.pagination.limit
+      });
+      
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error('Request timeout');
+        alert('Request timeout - please try again');
       } else {
-        setLoading(false);
+        console.error('Error fetching logs:', error);
+        alert('Failed to fetch logs. Please try again.');
       }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -358,7 +363,7 @@ export default function LogsPage() {
 
   if (isLoading || !mounted) {
     return (
-      <div className={`flex items-center justify-center min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
+      <div className={`flex items-center justify-center min-h-screen ${isDarkMode ? 'bg-[#1D293D]' : 'bg-white'}`}>
         <div className="flex items-center gap-2">
           <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
           <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Loading...</span>
@@ -372,7 +377,7 @@ export default function LogsPage() {
   }
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+    <div className={`min-h-screen ${isDarkMode ? 'bg-[#1D293D]' : 'bg-gray-50'}`}>
       <div className="container mx-auto p-4 lg:p-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
