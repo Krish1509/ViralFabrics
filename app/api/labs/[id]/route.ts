@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
-import Lab from '@/models/Lab';
-import Quality from '@/models/Quality';
+import { Lab } from '@/models';
+import { Quality } from '@/models';
 import { updateLabSchema } from '@/lib/validation/lab';
 import { ok, badRequest, notFound, serverError } from '@/lib/http';
 import { isValidObjectId } from '@/lib/ids';
@@ -92,7 +92,15 @@ export async function PUT(
     await lab.save();
     
     // Log the lab update
-    await logUpdate('lab', id, oldValues, lab.toObject(), request);
+    try {
+      console.log('🔍 About to log lab update...');
+      console.log('🔍 Request headers:', Object.fromEntries(request.headers.entries()));
+      await logUpdate('lab', id, oldValues, lab.toObject(), request);
+      console.log('🔍 Lab update logged successfully');
+    } catch (logError) {
+      console.error('🔍 Error logging lab update:', logError);
+      // Don't fail the request if logging fails
+    }
     
     // Return the updated lab without populate to avoid the error
     return ok(lab);

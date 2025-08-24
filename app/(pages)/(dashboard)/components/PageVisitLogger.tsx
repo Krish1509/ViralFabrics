@@ -12,8 +12,8 @@ export default function PageVisitLogger() {
         const token = localStorage.getItem('token');
         if (!token) return;
 
-        // Don't log login page visits
-        if (pathname === '/login') return;
+        // Don't log login page visits or logs page visits
+        if (pathname === '/login' || pathname === '/dashboard/logs') return;
 
         const response = await fetch('/api/logs/page-visit', {
           method: 'POST',

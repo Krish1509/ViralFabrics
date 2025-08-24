@@ -4,7 +4,58 @@ import { useState, useEffect } from 'react';
 import { useSession } from '@/app/(pages)/(dashboard)/hooks/useSession';
 import { useRouter } from 'next/navigation';
 import { useDarkMode } from '@/app/(pages)/(dashboard)/hooks/useDarkMode';
-import { Calendar, Search, Download, RefreshCw, Clock, User, Activity, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { 
+  Calendar, 
+  Search, 
+  Download, 
+  RefreshCw, 
+  User, 
+  Activity, 
+  CheckCircle, 
+  XCircle, 
+  AlertTriangle,
+  LogIn,
+  LogOut,
+  Shield,
+  Users,
+  ShoppingBag,
+  Package,
+  FileText,
+  Settings,
+  Database,
+  Trash2,
+  Edit,
+  Plus,
+  Eye,
+  Lock,
+  Unlock,
+  Key,
+  Home,
+  BarChart3,
+  Bell,
+  Mail,
+  Phone,
+  MapPin,
+  CreditCard,
+  Truck,
+  Factory,
+  TestTube,
+  Microscope,
+  Clipboard,
+  Calculator,
+  CalendarDays,
+  Clock,
+  Star,
+  Heart,
+  Zap,
+  Target,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Percent,
+  Hash,
+  Upload
+} from 'lucide-react';
 
 interface Log {
   _id: string;
@@ -24,737 +75,1187 @@ interface Log {
 }
 
 interface LogsResponse {
+  success: boolean;
   logs: Log[];
-  pagination: {
+  pagination?: {
     hasMore: boolean;
     nextCursor: string | null;
     total: number;
     limit: number;
   };
+  statistics?: {
+    total: number;
+    successful: number;
+    failed: number;
+    uniqueUsers: number;
+  };
 }
 
 export default function LogsPage() {
-  const { user, isLoading, isSuperAdmin, isUser } = useSession();
+  const { user, isLoading: sessionLoading } = useSession();
   const router = useRouter();
-  const { isDarkMode, mounted } = useDarkMode();
+  const { isDarkMode } = useDarkMode();
   
   const [logs, setLogs] = useState<Log[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [pagination, setPagination] = useState({
-    hasMore: false,
-    nextCursor: null as string | null,
-    total: 0,
-    limit: 100
-  });
-  
-  // Simplified filters - only username and date
-  const [filters, setFilters] = useState({
-    username: '',
-    dateFilter: 'all' // 'all', 'today', 'yesterday', 'specific'
-  });
-  const [specificDate, setSpecificDate] = useState('');
+  const [stats, setStats] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [actionFilter, setActionFilter] = useState('all');
+  const [successFilter, setSuccessFilter] = useState('all');
+  const [userRoleFilter, setUserRoleFilter] = useState('all');
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [totalLogs, setTotalLogs] = useState(0);
+  const [autoLoadAll, setAutoLoadAll] = useState(false);
+  const [isInfiniteScrollEnabled, setIsInfiniteScrollEnabled] = useState(true);
+  const [sortField, setSortField] = useState('timestamp');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  useEffect(() => {
-    if (isLoading) return;
-    
-    if (!user) {
-      router.push('/login');
-      return;
-    }
-    
-    if (!isSuperAdmin && !isUser) {
-      router.push('/dashboard/access-denied');
-      return;
-    }
-    
-    fetchLogs();
-  }, [user, isLoading, isSuperAdmin, router, filters]);
-
-  const fetchLogs = async (isRefresh = false) => {
+  // Fetch logs with pagination
+  const fetchLogs = async (loadMore = false) => {
     try {
-      if (isRefresh) {
-        setRefreshing(true);
+      if (loadMore) {
+        setIsLoadingMore(true);
       } else {
-        setLoading(true);
+      setIsLoading(true);
+      setError(null);
+      }
+      
+      // Add a small delay to show skeleton for better UX
+      if (!loadMore) {
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
       
       const token = localStorage.getItem('token');
       if (!token) {
-        alert('No authentication token found. Please log in again.');
-        router.push('/login');
+        setError('Authentication token not found');
+        setIsLoading(false);
         return;
       }
       
-      // Use AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+      // Build query parameters
+      const params = new URLSearchParams();
+      params.append('limit', '50'); // Reduced to 50 for faster initial load
+      params.append('includeStats', 'true');
       
-      const params = new URLSearchParams({
-        limit: pagination.limit.toString(),
-        ...Object.fromEntries(
-          Object.entries(filters).filter(([key, value]) => value !== '')
-        )
-      });
+      if (dateFilter !== 'all') {
+        params.append('dateFilter', dateFilter);
+      }
       
-      // Add date filtering
-      if (filters.dateFilter === 'today') {
-        const today = new Date().toISOString().split('T')[0];
-        params.append('startDate', today);
-        params.append('endDate', today);
-      } else if (filters.dateFilter === 'yesterday') {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
-        params.append('startDate', yesterdayStr);
-        params.append('endDate', yesterdayStr);
-      } else if (filters.dateFilter === 'specific' && specificDate) {
-        params.append('startDate', specificDate);
-        params.append('endDate', specificDate);
+      // Add cursor for pagination
+      if (loadMore && nextCursor) {
+        params.append('cursor', nextCursor);
       }
       
       const response = await fetch(`/api/logs?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=30' // Cache for 30 seconds
-        },
-        signal: controller.signal
+          'Cache-Control': 'max-age=30'
+        }
       });
       
-      clearTimeout(timeoutId);
-      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.status === 401) {
+          setError('Authentication failed. Please log in again.');
+        } else {
+          setError(`Failed to fetch logs (${response.status})`);
+        }
+        return;
       }
       
       const data: LogsResponse = await response.json();
       
-      if (isRefresh) {
+      if (data.success) {
+        if (loadMore) {
+          // Append new logs to existing ones and remove duplicates
+          setLogs(prevLogs => {
+            const newLogs = data.logs || [];
+            const existingIds = new Set(prevLogs.map(log => log._id));
+            const uniqueNewLogs = newLogs.filter(log => !existingIds.has(log._id));
+            return [...prevLogs, ...uniqueNewLogs];
+          });
+        } else {
+          // Replace logs for new search/filter
         setLogs(data.logs || []);
+        }
+        
+        // Update pagination state
+        if (data.pagination) {
+          setHasMore(data.pagination.hasMore);
+          setNextCursor(data.pagination.nextCursor);
+          setTotalLogs(data.pagination.total);
+        }
+        
+        // Update stats only on first load
+        if (!loadMore && data.statistics) {
+        setStats(data.statistics);
+        }
       } else {
-        setLogs(data.logs || []);
+        setError('Failed to fetch logs');
       }
-      
-      setPagination({
-        hasMore: data.pagination.hasMore,
-        nextCursor: data.pagination.nextCursor,
-        total: data.pagination.total,
-        limit: data.pagination.limit
-      });
-      
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.error('Request timeout');
-        alert('Request timeout - please try again');
-      } else {
-        console.error('Error fetching logs:', error);
-        alert('Failed to fetch logs. Please try again.');
-      }
+    } catch (err) {
+      console.error('Error fetching logs:', err);
+      setError('Error loading logs');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setIsLoading(false);
+      setIsLoadingMore(false);
     }
   };
 
-  const handleFilterChange = (key: string, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-    setPagination(prev => ({ ...prev, nextCursor: null }));
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      username: '',
-      dateFilter: 'all'
-    });
-    setSpecificDate('');
-    setPagination(prev => ({ ...prev, nextCursor: null }));
-  };
-
-  const loadMore = async () => {
-    if (!pagination.hasMore || loadingMore) return;
-    
-    try {
-      setLoadingMore(true);
-      
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('No authentication token found. Please log in again.');
-        router.push('/login');
-        return;
-      }
-      
-      const params = new URLSearchParams({
-        limit: pagination.limit.toString(),
-        cursor: pagination.nextCursor || '',
-        ...Object.fromEntries(
-          Object.entries(filters).filter(([key, value]) => value !== '')
-        )
-      });
-      
-      // Add date filtering
-      if (filters.dateFilter === 'today') {
-        const today = new Date().toISOString().split('T')[0];
-        params.append('startDate', today);
-        params.append('endDate', today);
-      } else if (filters.dateFilter === 'yesterday') {
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        params.append('startDate', yesterday);
-        params.append('endDate', yesterday);
-      } else if (filters.dateFilter === 'specific' && specificDate) {
-        params.append('startDate', specificDate);
-        params.append('endDate', specificDate);
-      }
-      
-      const response = await fetch(`/api/logs?${params}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` }),
-        },
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Failed to fetch logs: ${response.status}`);
-      }
-      
-      const responseData = await response.json();
-      const data = responseData.success ? responseData.data : responseData;
-      
-      if (!data || !data.logs || !data.pagination) {
-        console.error('Unexpected API response structure:', data);
-        throw new Error('Invalid response format from server');
-      }
-      
-      setLogs(prev => [...prev, ...data.logs]);
-      setPagination(prev => ({
-        ...prev,
-        hasMore: data.pagination.hasMore,
-        nextCursor: data.pagination.nextCursor
-      }));
-    } catch (error) {
-      console.error('Error loading more logs:', error);
-      alert(`Error loading more logs: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setLoadingMore(false);
+  // Load logs on component mount
+  useEffect(() => {
+    if (user) {
+      fetchLogs(false);
     }
-  };
+  }, [user, dateFilter]);
 
-  const exportLogs = async () => {
-    try {
-      const params = new URLSearchParams({
-        limit: '1000',
-        ...Object.fromEntries(
-          Object.entries(filters).filter(([_, value]) => value !== '')
-        )
-      });
+  // Infinite scroll functionality
+  useEffect(() => {
+    if (!isInfiniteScrollEnabled) return;
+
+    const handleScroll = () => {
+      const scrollTop = window.scrollY;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
       
-      // Add date filtering for export
-      if (filters.dateFilter === 'today') {
-        const today = new Date().toISOString().split('T')[0];
-        params.append('startDate', today);
-        params.append('endDate', today);
-      } else if (filters.dateFilter === 'yesterday') {
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        params.append('startDate', yesterday);
-        params.append('endDate', yesterday);
-      } else if (filters.dateFilter === 'specific' && specificDate) {
-        params.append('startDate', specificDate);
-        params.append('endDate', specificDate);
+      // Load more when user is near bottom (within 200px)
+      if (scrollTop + windowHeight >= documentHeight - 200) {
+        if (hasMore && !isLoadingMore) {
+          loadMoreLogs();
+        }
       }
-      
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/logs?${params}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` }),
-        },
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Failed to export logs: ${response.status}`);
-      }
-      
-      const responseData = await response.json();
-      const data = responseData.success ? responseData.data : responseData;
-      
-      if (!data || !data.logs) {
-        throw new Error('Invalid response format from server');
-      }
-      
-      // Convert to CSV
-      const csvContent = [
-        ['Timestamp', 'Username', 'Action', 'Resource', 'Resource ID', 'Success', 'Severity', 'IP Address', 'Duration (ms)'],
-        ...data.logs.map((log: Log) => [
-          new Date(log.timestamp).toLocaleString(),
-          log.username,
-          log.action,
-          log.resource,
-          log.resourceId || '',
-          log.success ? 'Yes' : 'No',
-          log.severity,
-          log.ipAddress || '',
-          log.duration || ''
-        ])
-      ].map(row => row.join(',')).join('\n');
-      
-      // Download file
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `logs-${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error exporting logs:', error);
-      alert('Error exporting logs. Please try again.');
-    }
-  };
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'bg-red-300 text-red-900 border-red-500 dark:bg-red-900 dark:text-red-200 dark:border-red-700 hover:bg-red-400 dark:hover:bg-red-800';
-      case 'error': return 'bg-orange-300 text-orange-900 border-orange-500 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700 hover:bg-orange-400 dark:hover:bg-orange-800';
-      case 'warning': return 'bg-yellow-300 text-yellow-900 border-yellow-500 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700 hover:bg-yellow-400 dark:hover:bg-yellow-800';
-      default: return 'bg-green-300 text-green-900 border-green-500 dark:bg-green-900 dark:text-green-200 dark:border-green-700 hover:bg-green-400 dark:hover:bg-green-800';
-    }
-  };
-
-  const getActionColor = (action: string) => {
-    if (action.includes('delete')) return 'bg-red-300 text-red-900 border-red-500 dark:bg-red-900 dark:text-red-200 dark:border-red-700 hover:bg-red-400 dark:hover:bg-red-800';
-    if (action.includes('create')) return 'bg-green-300 text-green-900 border-green-500 dark:bg-green-900 dark:text-green-200 dark:border-green-700 hover:bg-green-400 dark:hover:bg-green-800';
-    if (action.includes('update')) return 'bg-blue-300 text-blue-900 border-blue-500 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700 hover:bg-blue-400 dark:hover:bg-blue-800';
-    if (action.includes('login')) return 'bg-purple-300 text-purple-900 border-purple-500 dark:bg-purple-900 dark:text-purple-200 dark:border-purple-700 hover:bg-purple-400 dark:hover:bg-purple-800';
-    return 'bg-gray-300 text-gray-900 border-gray-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 hover:bg-gray-400 dark:hover:bg-gray-600';
-  };
-
-  const formatActionName = (action: string) => {
-    const actionMap: { [key: string]: string } = {
-      'login': '🔐 Login',
-      'logout': '🚪 Logout',
-      'login_failed': '❌ Login Failed',
-      'order_create': '➕ Create Order',
-      'order_update': '✏️ Update Order',
-      'order_delete': '🗑️ Delete Order',
-      'lab_create': '➕ Create Lab',
-      'lab_update': '✏️ Update Lab',
-      'lab_delete': '🗑️ Delete Lab',
-      'user_create': '➕ Create User',
-      'user_update': '✏️ Update User',
-      'user_delete': '🗑️ Delete User',
-      'view': '👁️ View',
-      'export': '📤 Export',
-      'import': '📥 Import',
-      'search': '🔍 Search',
-      'filter': '🔧 Filter'
     };
-    return actionMap[action] || action.replace('_', ' ');
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [hasMore, isLoadingMore, isInfiniteScrollEnabled]);
+
+  // Auto-load all logs if enabled (disabled for infinite scroll)
+  useEffect(() => {
+    if (autoLoadAll && hasMore && !isLoadingMore && logs.length > 0 && !isInfiniteScrollEnabled) {
+      const loadAllLogs = async () => {
+        while (hasMore && !isLoadingMore) {
+          await fetchLogs(true);
+        }
+      };
+      loadAllLogs();
+    }
+  }, [autoLoadAll, hasMore, isLoadingMore, logs.length, isInfiniteScrollEnabled]);
+
+  // Function to load more logs
+  const loadMoreLogs = () => {
+    if (hasMore && !isLoadingMore) {
+      fetchLogs(true);
+    }
   };
 
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push('/login');
+    }
+  }, [isLoading, user, router]);
+
+  // Filter and sort logs - exclude view page logs and only show important operations
+  const filteredAndSortedLogs = logs
+    .filter(log => {
+      // Exclude routine page view logs
+      if (log.action === 'view' && log.resource === 'log') {
+        return false;
+      }
+      
+      // Only show important operations (exclude routine views)
+      const importantActions = [
+        'login', 'logout', 'login_failed', 'password_change', 'password_reset',
+        'user_create', 'user_update', 'user_delete', 'user_activate', 'user_deactivate',
+        'order_create', 'order_update', 'order_delete', 'order_status_change',
+        'lab_create', 'lab_update', 'lab_delete', 'lab_status_change',
+        'party_create', 'party_update', 'party_delete',
+        'quality_create', 'quality_update', 'quality_delete',
+        'file_upload', 'file_delete', 'file_download',
+        'system_backup', 'system_restore', 'system_config_change',
+        'export', 'import', 'search', 'filter'
+      ];
+      
+      if (!importantActions.includes(log.action)) {
+        return false;
+      }
+      
+    const matchesSearch = searchTerm === '' || 
+      log.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.resource.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesAction = actionFilter === 'all' || log.action === actionFilter;
+    const matchesSuccess = successFilter === 'all' || 
+      (successFilter === 'success' && log.success) ||
+      (successFilter === 'failed' && !log.success);
+    
+    const matchesUserRole = userRoleFilter === 'all' || 
+      (userRoleFilter === 'user' && log.userRole === 'user') ||
+      (userRoleFilter === 'superadmin' && log.userRole === 'superadmin');
+    
+    return matchesSearch && matchesAction && matchesSuccess && matchesUserRole;
+    })
+    .sort((a, b) => {
+      let aValue: any = a[sortField as keyof Log];
+      let bValue: any = b[sortField as keyof Log];
+      
+      // Handle timestamp sorting
+      if (sortField === 'timestamp') {
+        aValue = new Date(aValue).getTime();
+        bValue = new Date(bValue).getTime();
+      }
+      
+      // Handle string sorting
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+      
+      if (sortDirection === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+  // Ensure we don't show more logs than total
+  const displayLogs = filteredAndSortedLogs.slice(0, Math.min(filteredAndSortedLogs.length, totalLogs));
+
+  // Get unique actions for filter dropdown
+  const uniqueActions = [...new Set(logs.map(log => log.action))].sort();
+
+  // Format timestamp
+  const formatTimestamp = (timestamp: string) => {
+    return new Date(timestamp).toLocaleString();
+  };
+
+  // Get severity icon
+  const getSeverityIcon = (severity: string) => {
+    switch (severity) {
+      case 'error':
+      case 'critical':
+        return <XCircle className="w-4 h-4 text-red-500" />;
+      case 'warning':
+        return <AlertTriangle className="w-4 h-4 text-yellow-500" />;
+      case 'info':
+      default:
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+    }
+  };
+
+  // Get action icon based on action type
   const getActionIcon = (action: string) => {
-    if (action.includes('login')) return <User className="w-4 h-4" />;
-    if (action.includes('create')) return <CheckCircle className="w-4 h-4" />;
-    if (action.includes('update')) return <Activity className="w-4 h-4" />;
-    if (action.includes('delete')) return <XCircle className="w-4 h-4" />;
-    return <Activity className="w-4 h-4" />;
+    const actionLower = action.toLowerCase();
+    
+    // Authentication actions
+    if (actionLower.includes('login') || actionLower.includes('signin')) {
+      return <LogIn className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+    }
+    if (actionLower.includes('logout') || actionLower.includes('signout')) {
+      return <LogOut className="w-4 h-4 text-orange-600 dark:text-orange-400" />;
+    }
+    
+    // User management actions
+    if (actionLower.includes('create') || actionLower.includes('add')) {
+      return <Plus className="w-4 h-4 text-green-600 dark:text-green-400" />;
+    }
+    if (actionLower.includes('update') || actionLower.includes('edit') || actionLower.includes('modify')) {
+      return <Edit className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+    }
+    if (actionLower.includes('delete') || actionLower.includes('remove')) {
+      return <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />;
+    }
+    if (actionLower.includes('view') || actionLower.includes('read') || actionLower.includes('get')) {
+      return <Eye className="w-4 h-4 text-purple-600 dark:text-purple-400" />;
+    }
+    
+    // Security actions
+    if (actionLower.includes('auth') || actionLower.includes('authenticate')) {
+      return <Shield className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />;
+    }
+    if (actionLower.includes('lock') || actionLower.includes('secure')) {
+      return <Lock className="w-4 h-4 text-red-600 dark:text-red-400" />;
+    }
+    if (actionLower.includes('unlock') || actionLower.includes('access')) {
+      return <Unlock className="w-4 h-4 text-green-600 dark:text-green-400" />;
+    }
+    
+    // Data operations
+    if (actionLower.includes('export') || actionLower.includes('download')) {
+      return <Download className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+    }
+    if (actionLower.includes('import') || actionLower.includes('upload')) {
+      return <Upload className="w-4 h-4 text-green-600 dark:text-green-400" />;
+    }
+    if (actionLower.includes('refresh') || actionLower.includes('reload')) {
+      return <RefreshCw className="w-4 h-4 text-orange-600 dark:text-orange-400" />;
+    }
+    
+    // Default action icon
+    return <Activity className="w-4 h-4 text-purple-600 dark:text-purple-400" />;
   };
 
-  if (isLoading || !mounted) {
+  // Get resource icon based on resource type
+  const getResourceIcon = (resource: string) => {
+    const resourceLower = resource.toLowerCase();
+    
+    // User-related resources
+    if (resourceLower.includes('user') || resourceLower.includes('profile')) {
+      return <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+    }
+    if (resourceLower.includes('admin') || resourceLower.includes('superadmin')) {
+      return <Shield className="w-4 h-4 text-purple-600 dark:text-purple-400" />;
+    }
+    
+    // Order-related resources
+    if (resourceLower.includes('order')) {
+      return <ShoppingBag className="w-4 h-4 text-green-600 dark:text-green-400" />;
+    }
+    if (resourceLower.includes('fabric')) {
+      return <Package className="w-4 h-4 text-orange-600 dark:text-orange-400" />;
+    }
+    
+    // Lab-related resources
+    if (resourceLower.includes('lab')) {
+      return <TestTube className="w-4 h-4 text-red-600 dark:text-red-400" />;
+    }
+    if (resourceLower.includes('test') || resourceLower.includes('experiment')) {
+      return <Microscope className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />;
+    }
+    
+    // System resources
+    if (resourceLower.includes('log')) {
+      return <FileText className="w-4 h-4 text-gray-600 dark:text-gray-400" />;
+    }
+    if (resourceLower.includes('system') || resourceLower.includes('config')) {
+      return <Settings className="w-4 h-4 text-gray-600 dark:text-gray-400" />;
+    }
+    if (resourceLower.includes('database') || resourceLower.includes('db')) {
+      return <Database className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+    }
+    
+    // Dashboard and analytics
+    if (resourceLower.includes('dashboard') || resourceLower.includes('home')) {
+      return <Home className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+    }
+    if (resourceLower.includes('analytics') || resourceLower.includes('stats')) {
+      return <BarChart3 className="w-4 h-4 text-green-600 dark:text-green-400" />;
+    }
+    
+    // Communication resources
+    if (resourceLower.includes('email') || resourceLower.includes('mail')) {
+      return <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+    }
+    if (resourceLower.includes('phone') || resourceLower.includes('call')) {
+      return <Phone className="w-4 h-4 text-green-600 dark:text-green-400" />;
+    }
+    if (resourceLower.includes('notification') || resourceLower.includes('alert')) {
+      return <Bell className="w-4 h-4 text-orange-600 dark:text-orange-400" />;
+    }
+    
+    // Location and shipping
+    if (resourceLower.includes('address') || resourceLower.includes('location')) {
+      return <MapPin className="w-4 h-4 text-red-600 dark:text-red-400" />;
+    }
+    if (resourceLower.includes('shipping') || resourceLower.includes('delivery')) {
+      return <Truck className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+    }
+    
+    // Financial resources
+    if (resourceLower.includes('payment') || resourceLower.includes('billing')) {
+      return <CreditCard className="w-4 h-4 text-green-600 dark:text-green-400" />;
+    }
+    if (resourceLower.includes('price') || resourceLower.includes('cost')) {
+      return <DollarSign className="w-4 h-4 text-green-600 dark:text-green-400" />;
+    }
+    
+    // Manufacturing and production
+    if (resourceLower.includes('factory') || resourceLower.includes('production')) {
+      return <Factory className="w-4 h-4 text-gray-600 dark:text-gray-400" />;
+    }
+    if (resourceLower.includes('quality') || resourceLower.includes('qc')) {
+      return <Target className="w-4 h-4 text-purple-600 dark:text-purple-400" />;
+    }
+    
+    // Default resource icon
+    return <Hash className="w-4 h-4 text-gray-600 dark:text-gray-400" />;
+  };
+
+  // Get action background color based on action type
+  const getActionBgColor = (action: string) => {
+    const actionLower = action.toLowerCase();
+    
+    // Authentication actions
+    if (actionLower.includes('login') || actionLower.includes('signin')) {
+      return isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100';
+    }
+    if (actionLower.includes('logout') || actionLower.includes('signout')) {
+      return isDarkMode ? 'bg-orange-900/30' : 'bg-orange-100';
+    }
+    
+    // User management actions
+    if (actionLower.includes('create') || actionLower.includes('add')) {
+      return isDarkMode ? 'bg-green-900/30' : 'bg-green-100';
+    }
+    if (actionLower.includes('update') || actionLower.includes('edit') || actionLower.includes('modify')) {
+      return isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100';
+    }
+    if (actionLower.includes('delete') || actionLower.includes('remove')) {
+      return isDarkMode ? 'bg-red-900/30' : 'bg-red-100';
+    }
+    if (actionLower.includes('view') || actionLower.includes('read') || actionLower.includes('get')) {
+      return isDarkMode ? 'bg-purple-900/30' : 'bg-purple-100';
+    }
+    
+    // Security actions
+    if (actionLower.includes('auth') || actionLower.includes('authenticate')) {
+      return isDarkMode ? 'bg-indigo-900/30' : 'bg-indigo-100';
+    }
+    if (actionLower.includes('lock') || actionLower.includes('secure')) {
+      return isDarkMode ? 'bg-red-900/30' : 'bg-red-100';
+    }
+    if (actionLower.includes('unlock') || actionLower.includes('access')) {
+      return isDarkMode ? 'bg-green-900/30' : 'bg-green-100';
+    }
+    
+    // Default action background
+    return isDarkMode ? 'bg-purple-900/30' : 'bg-purple-100';
+  };
+
+  // Get user role icon based on user role
+  const getUserRoleIcon = (userRole: string) => {
+    const roleLower = userRole.toLowerCase();
+    
+    if (roleLower.includes('superadmin') || roleLower.includes('admin')) {
+      return <Shield className="w-4 h-4 text-purple-600 dark:text-purple-400" />;
+    }
+    
+    // Default user icon
+    return <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+  };
+
+  // Get user role background color based on user role
+  const getUserRoleBgColor = (userRole: string) => {
+    const roleLower = userRole.toLowerCase();
+    
+    if (roleLower.includes('superadmin') || roleLower.includes('admin')) {
+      return isDarkMode ? 'bg-purple-900/30' : 'bg-purple-100';
+    }
+    
+    // Default user background
+    return isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100';
+  };
+
+  // Get resource background color based on resource type
+  const getResourceBgColor = (resource: string) => {
+    const resourceLower = resource.toLowerCase();
+    
+    // User-related resources
+    if (resourceLower.includes('user') || resourceLower.includes('profile')) {
+      return isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100';
+    }
+    if (resourceLower.includes('admin') || resourceLower.includes('superadmin')) {
+      return isDarkMode ? 'bg-purple-900/30' : 'bg-purple-100';
+    }
+    
+    // Order-related resources
+    if (resourceLower.includes('order')) {
+      return isDarkMode ? 'bg-green-900/30' : 'bg-green-100';
+    }
+    if (resourceLower.includes('fabric')) {
+      return isDarkMode ? 'bg-orange-900/30' : 'bg-orange-100';
+    }
+    
+    // Lab-related resources
+    if (resourceLower.includes('lab')) {
+      return isDarkMode ? 'bg-red-900/30' : 'bg-red-100';
+    }
+    if (resourceLower.includes('test') || resourceLower.includes('experiment')) {
+      return isDarkMode ? 'bg-indigo-900/30' : 'bg-indigo-100';
+    }
+    
+    // System resources
+    if (resourceLower.includes('log')) {
+      return isDarkMode ? 'bg-gray-900/30' : 'bg-gray-100';
+    }
+    if (resourceLower.includes('system') || resourceLower.includes('config')) {
+      return isDarkMode ? 'bg-gray-900/30' : 'bg-gray-100';
+    }
+    if (resourceLower.includes('database') || resourceLower.includes('db')) {
+      return isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100';
+    }
+    
+    // Default resource background
+    return isDarkMode ? 'bg-gray-900/30' : 'bg-gray-100';
+  };
+
+  // Get success status
+  const getSuccessStatus = (success: boolean) => {
+    return success ? (
+      <div className="flex items-center">
+        <div className={`w-6 h-6 rounded-lg flex items-center justify-center mr-2 ${
+          isDarkMode ? 'bg-green-900/30' : 'bg-green-50'
+        }`}>
+          <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
+        </div>
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${
+          isDarkMode 
+            ? 'bg-green-900/50 text-green-300 border border-green-700' 
+            : 'bg-green-50 text-green-700 border border-green-200 shadow-sm'
+        }`}>
+          Success
+        </span>
+      </div>
+    ) : (
+      <div className="flex items-center">
+        <div className={`w-6 h-6 rounded-lg flex items-center justify-center mr-2 ${
+          isDarkMode ? 'bg-red-900/30' : 'bg-red-50'
+        }`}>
+          <XCircle className="w-3 h-3 text-red-600 dark:text-red-400" />
+        </div>
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${
+          isDarkMode 
+            ? 'bg-red-900/50 text-red-300 border border-red-700' 
+            : 'bg-red-50 text-red-700 border border-red-200 shadow-sm'
+        }`}>
+          Failed
+        </span>
+      </div>
+    );
+  };
+
+  if (isLoading) {
     return (
-      <div className={`flex items-center justify-center min-h-screen ${isDarkMode ? 'bg-[#1D293D]' : 'bg-white'}`}>
-        <div className="flex items-center gap-2">
-          <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
-          <span className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Loading...</span>
+      <div className={`min-h-screen ${isDarkMode ? 'bg-[#1D293D]' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header Skeleton */}
+          <div className="mb-8">
+            <div className={`inline-block w-48 h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-full animate-pulse mb-4`}></div>
+            <div className={`w-80 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse mb-3`}></div>
+            <div className={`w-96 h-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+          </div>
+
+          {/* Statistics Cards Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} p-6`}>
+                <div className="flex items-center">
+                  <div className={`w-12 h-12 rounded-xl ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse mr-4`}></div>
+                  <div className="flex-1">
+                    <div className={`w-20 h-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse mb-2`}></div>
+                    <div className={`w-16 h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Filters Skeleton */}
+          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} mb-8`}>
+            <div className="p-8">
+              <div className="flex items-center justify-between mb-6">
+                <div className={`w-40 h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+                <div className={`w-24 h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="space-y-3">
+                    <div className={`w-20 h-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+                    <div className={`w-full h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-xl animate-pulse`}></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Table Skeleton */}
+          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} overflow-hidden`}>
+            <div className={`px-8 py-6 border-b ${isDarkMode ? 'border-gray-700 bg-gray-700' : 'border-gray-200 bg-gray-50'}`}>
+              <div className="flex items-center justify-between">
+                <div className={`w-60 h-8 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+                <div className={`w-32 h-8 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+              </div>
+            </div>
+            <div className="p-8">
+              <div className="space-y-4">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="flex items-center space-x-6">
+                    <div className={`w-32 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+                    <div className={`w-40 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+                    <div className={`w-36 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+                    <div className={`w-24 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+                    <div className={`w-20 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!user || (!isSuperAdmin && !isUser)) {
-    return null;
+  if (error) {
+    return (
+      <div className={`min-h-screen ${isDarkMode ? 'bg-[#1D293D]' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className={`text-center p-8 ${isDarkMode ? 'bg-gray-800' : 'bg-white/90'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} max-w-md`}>
+            <div className={`w-16 h-16 mx-auto ${isDarkMode ? 'bg-red-900/30' : 'bg-red-100'} rounded-2xl flex items-center justify-center mb-4`}>
+              <XCircle className="h-8 w-8 text-red-500" />
+            </div>
+            <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'} mb-2`}>Error Loading Logs</h3>
+            <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mb-6`}>{error}</p>
+            <button 
+              onClick={() => fetchLogs(false)}
+              className={`px-6 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
+                isDarkMode 
+                  ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+              }`}
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-[#1D293D]' : 'bg-gray-50'}`}>
-      <div className="container mx-auto p-4 lg:p-6 space-y-6">
+    <div className={`min-h-screen ${isDarkMode ? 'bg-[#1D293D]' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className={`text-2xl lg:text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>System Logs</h1>
-            <p className={`mt-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Monitor user activities and system events</p>
+        <div className="mb-8">
+          <div className={`inline-flex items-center px-4 py-2 rounded-full ${isDarkMode ? 'bg-gray-800' : 'bg-white/80 backdrop-blur-sm'} shadow-sm border ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} mb-4`}>
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">🔒 Important Activity Logs</span>
           </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={exportLogs} 
-              className={`px-4 py-2 border rounded-lg transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md ${
-                isDarkMode 
-                  ? 'bg-gray-800 border-gray-600 text-gray-200 hover:bg-gray-700 hover:border-gray-500' 
-                  : 'bg-white border-gray-300 text-gray-700 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700'
-              }`}
-            >
-              <Download className="w-4 h-4" />
-              Export
-            </button>
-            <button 
-              onClick={() => fetchLogs(true)} 
-              className={`px-4 py-2 border rounded-lg transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md ${
-                isDarkMode 
-                  ? 'bg-gray-800 border-gray-600 text-gray-200 hover:bg-gray-700 hover:border-gray-500' 
-                  : 'bg-white border-gray-300 text-gray-700 hover:bg-green-50 hover:border-green-400 hover:text-green-700'
-              }`}
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Refreshing...' : 'Refresh'}
-            </button>
-          </div>
+          <h1 className={`text-4xl font-bold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            System Activity Monitor
+          </h1>
+          <p className={`text-lg ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Critical system operations and user actions (excluding routine page views)
+          </p>
         </div>
 
-        {/* Simplified Filters */}
-        <div className={`border rounded-lg p-6 shadow-sm ${
-          isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-        }`}>
-          <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
-          }`}>
-            <Search className="w-5 h-5" />
-            Filters
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Username Filter */}
-            <div>
-              <label className={`block text-sm font-medium mb-2 ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-700'
-              }`}>Username</label>
-              <div className="relative">
-                <User className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${
-                  isDarkMode ? 'text-gray-400' : 'text-gray-400'
-                }`} />
-                <input
-                  type="text"
-                  placeholder="Search username..."
-                  value={filters.username}
-                  onChange={(e) => handleFilterChange('username', e.target.value)}
-                  className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
-                    isDarkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                      : 'border-gray-300'
-                  }`}
-                />
-              </div>
-            </div>
-            
-            {/* Date Filter */}
-            <div>
-              <label className={`block text-sm font-medium mb-2 ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-700'
-              }`}>Date Filter</label>
-              <select 
-                value={filters.dateFilter} 
-                onChange={(e) => handleFilterChange('dateFilter', e.target.value)}
-                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
-                  isDarkMode 
-                    ? 'bg-gray-700 border-gray-600 text-white' 
-                    : 'border-gray-300'
-                }`}
-              >
-                <option value="all">All dates</option>
-                <option value="today">Today</option>
-                <option value="yesterday">Yesterday</option>
-                <option value="specific">Specific date</option>
-              </select>
-            </div>
-            
-            {/* Specific Date Input */}
-            {filters.dateFilter === 'specific' && (
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>Select Date</label>
-                <div className="relative">
-                  <Calendar className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-400'
-                  }`} />
-                  <input
-                    type="date"
-                    value={specificDate}
-                    onChange={(e) => setSpecificDate(e.target.value)}
-                    className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
-                      isDarkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white' 
-                        : 'border-gray-300'
-                    }`}
-                  />
+        {/* Statistics */}
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90 backdrop-blur-sm'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} p-6 hover:shadow-xl transition-all duration-300`}>
+              <div className="flex items-center">
+                <div className={`w-12 h-12 rounded-xl ${isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100'} flex items-center justify-center mr-4`}>
+                  <Activity className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total Logs</p>
+                  <p className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.total}</p>
+                  <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                    {logs.length} loaded
+                  </p>
                 </div>
               </div>
-            )}
-            
-            {/* Clear Filters Button */}
-            <div className="flex items-end">
-              <button 
-                onClick={clearFilters} 
-                className={`px-4 py-2 border rounded-lg transition-all duration-200 font-medium hover:shadow-md ${
-                  isDarkMode 
-                    ? 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600 hover:border-gray-500' 
-                    : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200 hover:border-gray-400 hover:text-gray-900'
-                }`}
-              >
-                Clear Filters
-              </button>
             </div>
-          </div>
-        </div>
-
-        {/* Log Statistics */}
-        {logs.length > 0 && (
-          <div className={`border rounded-lg p-6 shadow-sm ${
-            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-          }`}>
-            <h4 className={`text-lg font-semibold mb-4 ${
-              isDarkMode ? 'text-white' : 'text-gray-900'
-            }`}>📊 Log Statistics</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className={`p-4 rounded-lg border transition-all duration-200 hover:shadow-md ${
-                isDarkMode 
-                  ? 'bg-blue-900/50 border-blue-700 hover:bg-blue-900/70' 
-                  : 'bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300'
-              }`}>
-                <div className={`text-sm font-medium ${
-                  isDarkMode ? 'text-blue-300' : 'text-blue-700'
-                }`}>Total Logs</div>
-                <div className={`text-2xl font-bold ${
-                  isDarkMode ? 'text-blue-100' : 'text-blue-900'
-                }`}>{logs.length}</div>
-              </div>
-              <div className={`p-4 rounded-lg border transition-all duration-200 hover:shadow-md ${
-                isDarkMode 
-                  ? 'bg-green-900/50 border-green-700 hover:bg-green-900/70' 
-                  : 'bg-green-50 border-green-200 hover:bg-green-100 hover:border-green-300'
-              }`}>
-                <div className={`text-sm font-medium ${
-                  isDarkMode ? 'text-green-300' : 'text-green-700'
-                }`}>Successful</div>
-                <div className={`text-2xl font-bold ${
-                  isDarkMode ? 'text-green-100' : 'text-green-900'
-                }`}>
-                  {logs.filter(log => log.success).length}
+            <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90 backdrop-blur-sm'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} p-6 hover:shadow-xl transition-all duration-300`}>
+              <div className="flex items-center">
+                <div className={`w-12 h-12 rounded-xl ${isDarkMode ? 'bg-green-900/30' : 'bg-green-100'} flex items-center justify-center mr-4`}>
+                  <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Successful</p>
+                  <p className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.successful}</p>
                 </div>
               </div>
-              <div className={`p-4 rounded-lg border transition-all duration-200 hover:shadow-md ${
-                isDarkMode 
-                  ? 'bg-orange-900/50 border-orange-700 hover:bg-orange-900/70' 
-                  : 'bg-orange-50 border-orange-200 hover:bg-orange-100 hover:border-orange-300'
-              }`}>
-                <div className={`text-sm font-medium ${
-                  isDarkMode ? 'text-orange-300' : 'text-orange-700'
-                }`}>Failed</div>
-                <div className={`text-2xl font-bold ${
-                  isDarkMode ? 'text-orange-100' : 'text-orange-900'
-                }`}>
-                  {logs.filter(log => !log.success).length}
+            </div>
+            <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90 backdrop-blur-sm'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} p-6 hover:shadow-xl transition-all duration-300`}>
+              <div className="flex items-center">
+                <div className={`w-12 h-12 rounded-xl ${isDarkMode ? 'bg-red-900/30' : 'bg-red-100'} flex items-center justify-center mr-4`}>
+                  <XCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Failed</p>
+                  <p className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.failed}</p>
                 </div>
               </div>
-              <div className={`p-4 rounded-lg border transition-all duration-200 hover:shadow-md ${
-                isDarkMode 
-                  ? 'bg-purple-900/50 border-purple-700 hover:bg-purple-900/70' 
-                  : 'bg-purple-50 border-purple-200 hover:bg-purple-100 hover:border-purple-300'
-              }`}>
-                <div className={`text-sm font-medium ${
-                  isDarkMode ? 'text-purple-300' : 'text-purple-700'
-                }`}>Unique Users</div>
-                <div className={`text-2xl font-bold ${
-                  isDarkMode ? 'text-purple-100' : 'text-purple-900'
-                }`}>
-                  {new Set(logs.map(log => log.username)).size}
+            </div>
+            <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90 backdrop-blur-sm'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} p-6 hover:shadow-xl transition-all duration-300`}>
+              <div className="flex items-center">
+                <div className={`w-12 h-12 rounded-xl ${isDarkMode ? 'bg-purple-900/30' : 'bg-purple-100'} flex items-center justify-center mr-4`}>
+                  <User className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Unique Users</p>
+                  <p className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.uniqueUsers}</p>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Logs Table */}
-        <div className={`border rounded-lg shadow-sm overflow-hidden ${
-          isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-        }`}>
-          <div className={`px-6 py-4 border-b ${
-            isDarkMode ? 'border-gray-700' : 'border-gray-200'
-          }`}>
-            <h3 className={`text-lg font-semibold ${
-              isDarkMode ? 'text-white' : 'text-gray-900'
-            }`}>Activity Logs</h3>
-            <p className={`mt-1 ${
-              isDarkMode ? 'text-gray-300' : 'text-gray-600'
-            }`}>
-              📊 Showing {logs.length} logs {pagination.total > 0 && `(Total: ${pagination.total})`}
-              {pagination.hasMore && ' - Scroll down to load more'}
-            </p>
-          </div>
-          
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
-              <span className={`ml-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Loading logs...</span>
+        {/* Enhanced Filters */}
+        <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90 backdrop-blur-sm'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} mb-8`}>
+          <div className="p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'} flex items-center`}>
+                <div className={`w-10 h-10 rounded-xl ${isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100'} flex items-center justify-center mr-3`}>
+                  <Search className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                Filters & Search
+              </h3>
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setDateFilter('all');
+                  setActionFilter('all');
+                  setSuccessFilter('all');
+                  setUserRoleFilter('all');
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  isDarkMode 
+                    ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' 
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                }`}
+              >
+                Clear All
+              </button>
             </div>
-          ) : logs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Activity className={`w-12 h-12 mb-4 ${
-                isDarkMode ? 'text-gray-500' : 'text-gray-400'
-              }`} />
-              <p className={`text-lg ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-              }`}>No logs found</p>
-              <p className={`text-sm mt-1 ${
-                isDarkMode ? 'text-gray-500' : 'text-gray-500'
-              }`}>Try adjusting your filters or refresh the page</p>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className={`${
-                    isDarkMode ? 'bg-gray-700' : 'bg-gray-50'
-                  }`}>
-                    <tr>
-                      <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                      }`}>Timestamp</th>
-                      <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                      }`}>User</th>
-                      <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                      }`}>Action</th>
-                      <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                      }`}>Resource</th>
-                      <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                      }`}>Status</th>
-                      <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                      }`}>Severity</th>
-                    </tr>
-                  </thead>
-                  <tbody className={`divide-y divide-gray-200 dark:divide-gray-700 ${
-                    isDarkMode ? 'bg-gray-800' : 'bg-white'
-                  }`}>
-                    {logs.map((log) => (
-                      <tr key={log._id} className={`transition-all duration-200 cursor-pointer ${
-                        isDarkMode ? 'hover:bg-gray-700 hover:shadow-lg' : 'hover:bg-blue-50 hover:shadow-md'
-                      }`}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <Clock className={`w-4 h-4 ${
-                              isDarkMode ? 'text-gray-400' : 'text-blue-500'
-                            }`} />
-                            <span className={`text-sm font-mono ${
-                              isDarkMode ? 'text-gray-200' : 'text-gray-900'
-                            }`}>
-                              {new Date(log.timestamp).toLocaleString()}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 ${
-                              isDarkMode ? 'bg-blue-900' : 'bg-blue-100 hover:bg-blue-200'
-                            }`}>
-                              <User className={`w-4 h-4 ${
-                                isDarkMode ? 'text-blue-300' : 'text-blue-600'
-                              }`} />
-                            </div>
-                            <div>
-                              <div className={`font-medium ${
-                                isDarkMode ? 'text-white' : 'text-gray-900'
-                              }`}>
-                                {log.username === 'unknown' ? 'System' : log.username}
-                              </div>
-                              <div className={`text-sm capitalize ${
-                                isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                              }`}>{log.userRole}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <div className={`p-1.5 rounded-lg transition-all duration-200 ${getActionColor(log.action)}`}>
-                              {getActionIcon(log.action)}
-                            </div>
-                            <span className={`text-sm font-medium ${
-                              isDarkMode ? 'text-gray-200' : 'text-gray-900'
-                            }`}>
-                              {formatActionName(log.action)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div>
-                            <div className={`font-medium capitalize ${
-                              isDarkMode ? 'text-white' : 'text-gray-900'
-                            }`}>{log.resource}</div>
-                            {log.resourceId && (
-                              <div className={`text-sm font-mono ${
-                                isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                              }`}>
-                                {log.resourceId.substring(0, 8)}...
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200 ${
-                            log.success 
-                              ? 'bg-green-300 text-green-900 border-green-500 dark:bg-green-900 dark:text-green-200 dark:border-green-700 hover:bg-green-400 dark:hover:bg-green-800' 
-                              : 'bg-red-300 text-red-900 border-red-500 dark:bg-red-900 dark:text-red-200 dark:border-red-700 hover:bg-red-400 dark:hover:bg-red-800'
-                          }`}>
-                            {log.success ? (
-                              <>
-                                <CheckCircle className="w-3 h-3" />
-                                Success
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="w-3 h-3" />
-                                Failed
-                              </>
-                            )}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200 ${getSeverityColor(log.severity)}`}>
-                            {log.severity === 'critical' && <AlertTriangle className="w-3 h-3" />}
-                            {log.severity}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
+              {/* Search */}
+              <div className="space-y-3">
+                <label className={`block text-sm font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  🔍 Search
+                </label>
+                <div className="relative">
+                  <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                  <input
+                    type="text"
+                    placeholder="Search logs..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                      isDarkMode 
+                        ? 'border-gray-600 bg-gray-700 text-white hover:border-gray-500' 
+                        : 'border-gray-300 bg-white text-gray-900 hover:border-gray-400 shadow-sm'
+                    }`}
+                  />
+                </div>
               </div>
 
-              {/* Load More Button */}
-              {pagination.hasMore && (
-                <div className={`flex items-center justify-center p-6 border-t ${
-                  isDarkMode ? 'border-gray-700' : 'border-gray-200'
-                }`}>
-                  <button
-                    onClick={loadMore}
-                    disabled={loadingMore}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 font-medium"
-                  >
-                    {loadingMore ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      'Load More'
-                    )}
-                  </button>
+              {/* Date Filter */}
+              <div className="space-y-3">
+                <label className={`block text-sm font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  📅 Date Range
+                </label>
+                <select
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className={`w-full px-3 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                    isDarkMode 
+                      ? 'border-gray-600 bg-gray-700 text-white hover:border-gray-500' 
+                      : 'border-gray-300 bg-white text-gray-900 hover:border-gray-400 shadow-sm'
+                  }`}
+                >
+                  <option value="all">All Time</option>
+                  <option value="today">Today</option>
+                  <option value="week">This Week</option>
+                  <option value="month">This Month</option>
+                </select>
+              </div>
+
+              {/* Action Filter */}
+              <div className="space-y-3">
+                <label className={`block text-sm font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  ⚡ Action
+                </label>
+                <select
+                  value={actionFilter}
+                  onChange={(e) => setActionFilter(e.target.value)}
+                  className={`w-full px-3 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                    isDarkMode 
+                      ? 'border-gray-600 bg-gray-700 text-white hover:border-gray-500' 
+                      : 'border-gray-300 bg-white text-gray-900 hover:border-gray-400 shadow-sm'
+                  }`}
+                >
+                  <option value="all">All Actions</option>
+                  {uniqueActions.map(action => (
+                    <option key={action} value={action}>{action}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Success Filter */}
+              <div className="space-y-3">
+                <label className={`block text-sm font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  ✅ Status
+                </label>
+                <select
+                  value={successFilter}
+                  onChange={(e) => setSuccessFilter(e.target.value)}
+                  className={`w-full px-3 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                    isDarkMode 
+                      ? 'border-gray-600 bg-gray-700 text-white hover:border-gray-500' 
+                      : 'border-gray-300 bg-white text-gray-900 hover:border-gray-400 shadow-sm'
+                  }`}
+                >
+                  <option value="all">All Status</option>
+                  <option value="success">Success</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </div>
+
+              {/* User Role Filter */}
+              <div className="space-y-3">
+                <label className={`block text-sm font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  👤 User Role
+                </label>
+                <select
+                  value={userRoleFilter}
+                  onChange={(e) => setUserRoleFilter(e.target.value)}
+                  className={`w-full px-3 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                    isDarkMode 
+                      ? 'border-gray-600 bg-gray-700 text-white hover:border-gray-500' 
+                      : 'border-gray-300 bg-white text-gray-900 hover:border-gray-400 shadow-sm'
+                  }`}
+                >
+                  <option value="all">All Users</option>
+                  <option value="user">User</option>
+                  <option value="superadmin">Super Admin</option>
+                </select>
+              </div>
+
+              {/* Infinite Scroll Toggle */}
+              <div className="space-y-3">
+                <label className={`block text-sm font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  🔄 Auto Load
+                </label>
+                <div className="flex items-center h-12">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      id="infiniteScroll"
+                      checked={isInfiniteScrollEnabled}
+                      onChange={(e) => setIsInfiniteScrollEnabled(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 ${
+                      isDarkMode 
+                        ? 'bg-gray-700 after:border-gray-600' 
+                        : 'bg-gray-200 after:border-gray-300'
+                    }`}></div>
+                    <span className={`ml-3 text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {isInfiniteScrollEnabled ? 'On' : 'Off'}
+                    </span>
+                  </label>
                 </div>
-              )}
-            </>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Enhanced Logs Table */}
+        <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90 backdrop-blur-sm'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} overflow-hidden`}>
+          <div className={`px-8 py-6 border-b ${isDarkMode ? 'border-gray-700 bg-gray-700' : 'border-gray-200 bg-gray-50'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'} flex items-center`}>
+                  <div className={`w-8 h-8 rounded-lg ${isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100'} flex items-center justify-center mr-3`}>
+                    <span className="text-blue-600 dark:text-blue-400">🔒</span>
+                  </div>
+                  Activity Logs ({displayLogs.length} of {totalLogs} total)
+                  {isInfiniteScrollEnabled && (
+                    <span className={`ml-3 text-xs font-medium px-3 py-1 rounded-full ${
+                      isDarkMode 
+                        ? 'text-blue-400 bg-blue-900/50' 
+                        : 'text-blue-700 bg-blue-100'
+                    }`}>
+                      🔄 Auto Scroll
+                    </span>
+                  )}
+              </h2>
+                {totalLogs > 0 && (
+                  <div className="mt-3">
+                    <div className="flex items-center text-sm">
+                      <div className={`flex-1 rounded-full h-3 mr-4 max-w-xs ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                        <div 
+                          className={`h-3 rounded-full transition-all duration-300 shadow-sm ${
+                            isDarkMode 
+                              ? 'bg-gradient-to-r from-blue-500 to-blue-600' 
+                              : 'bg-gradient-to-r from-blue-500 to-indigo-600'
+                          }`}
+                          style={{ width: `${Math.min((logs.length / totalLogs) * 100, 100)}%` }}
+                        ></div>
+                      </div>
+                      <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {logs.length} of {totalLogs} loaded
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center space-x-3">
+              <button
+                  onClick={() => fetchLogs(false)}
+                  className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 shadow-sm ${
+                    isDarkMode 
+                      ? 'text-gray-300 bg-gray-600 border border-gray-500 hover:bg-gray-500 hover:text-white' 
+                      : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+                  }`}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </button>
+                {isLoadingMore && (
+                  <div className={`flex items-center text-sm px-4 py-2.5 rounded-xl border ${
+                    isDarkMode 
+                      ? 'text-gray-400 bg-gray-600 border-gray-500' 
+                      : 'text-gray-600 bg-white border-gray-300'
+                  }`}>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Loading...
+                  </div>
+                )}
+                {hasMore && !isInfiniteScrollEnabled && (
+                  <button
+                    onClick={loadMoreLogs}
+                    disabled={isLoadingMore}
+                    className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 disabled:opacity-50 ${
+                      isDarkMode 
+                        ? 'text-blue-300 bg-blue-900/50 border border-blue-700 hover:bg-blue-900' 
+                        : 'text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100'
+                    }`}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Load More
+                  </button>
+                )}
+
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className={`w-full divide-y ${isDarkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+              <thead className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} sticky top-0 z-10`}>
+                <tr>
+                                      <th 
+                      className={`px-4 py-3 text-left text-xs font-semibold ${isDarkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-600 hover:bg-gray-100'} uppercase tracking-wider cursor-pointer transition-colors w-24`}
+                      onClick={() => {
+                        if (sortField === 'username') {
+                          setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortField('username');
+                          setSortDirection('asc');
+                        }
+                      }}
+                    >
+                    <div className="flex items-center space-x-1">
+                      <span>👤 User</span>
+                      {sortField === 'username' && (
+                        <span className="text-blue-500">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className={`px-4 py-3 text-left text-xs font-semibold ${isDarkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-600 hover:bg-gray-100'} uppercase tracking-wider cursor-pointer transition-colors w-32`}
+                    onClick={() => {
+                      if (sortField === 'timestamp') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortField('timestamp');
+                        setSortDirection('desc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>🕒 Date & Time</span>
+                      {sortField === 'timestamp' && (
+                        <span className="text-blue-500">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className={`px-4 py-3 text-left text-xs font-semibold ${isDarkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-600 hover:bg-gray-100'} uppercase tracking-wider cursor-pointer transition-colors w-28`}
+                    onClick={() => {
+                      if (sortField === 'action') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortField('action');
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>⚡ Action</span>
+                      {sortField === 'action' && (
+                        <span className="text-blue-500">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className={`px-4 py-3 text-left text-xs font-semibold ${isDarkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-600 hover:bg-gray-100'} uppercase tracking-wider cursor-pointer transition-colors w-24`}
+                    onClick={() => {
+                      if (sortField === 'resource') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortField('resource');
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>📁 Resource</span>
+                      {sortField === 'resource' && (
+                        <span className="text-blue-500">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} uppercase tracking-wider w-20`}>
+                    ✅ Status
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} uppercase tracking-wider w-20`}>
+                    🚨 Level
+                  </th>
+
+                </tr>
+              </thead>
+              <tbody className={`${isDarkMode ? 'bg-gray-800 divide-gray-700' : 'bg-white divide-gray-200'} divide-y`}>
+                {displayLogs.map((log: Log, index: number) => (
+                  <tr key={`${log._id}-${index}`} className={`${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50/80'} transition-all duration-200 border-l-4 border-transparent hover:border-l-blue-500`}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className={`w-8 h-8 ${getUserRoleBgColor(log.userRole)} rounded-lg flex items-center justify-center mr-3`}>
+                          {getUserRoleIcon(log.userRole)}
+                        </div>
+                        <div>
+                          <div className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'} truncate max-w-16`}>
+                            {log.username}
+                          </div>
+                          <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} capitalize`}>
+                            {log.userRole}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className={`w-8 h-8 ${isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100'} rounded-lg flex items-center justify-center mr-3`}>
+                          <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <div className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {new Date(log.timestamp).toLocaleTimeString('en-US', { 
+                              hour: 'numeric', 
+                              minute: '2-digit', 
+                              hour12: true 
+                            })}
+                          </div>
+                          <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {new Date(log.timestamp).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              year: 'numeric' 
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className={`w-8 h-8 ${getActionBgColor(log.action)} rounded-lg flex items-center justify-center mr-3`}>
+                          {getActionIcon(log.action)}
+                        </div>
+                        <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'} truncate max-w-20`}>
+                          {log.action}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className={`w-8 h-8 ${getResourceBgColor(log.resource)} rounded-lg flex items-center justify-center mr-3`}>
+                          {getResourceIcon(log.resource)}
+                        </div>
+                        <div>
+                          <div className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'} truncate max-w-16`}>
+                            {log.resource}
+                          </div>
+                          {log.resourceId && (
+                            <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {log.resourceId}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getSuccessStatus(log.success)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center mr-3 ${
+                          log.severity === 'critical' || log.severity === 'error' 
+                            ? isDarkMode ? 'bg-red-900/30' : 'bg-red-100'
+                            : log.severity === 'warning'
+                            ? isDarkMode ? 'bg-yellow-900/30' : 'bg-yellow-100'
+                            : isDarkMode ? 'bg-green-900/30' : 'bg-green-100'
+                        }`}>
+                          {getSeverityIcon(log.severity)}
+                        </div>
+                        <span className={`text-sm font-semibold capitalize ${
+                          log.severity === 'critical' || log.severity === 'error'
+                            ? isDarkMode ? 'text-red-400' : 'text-red-700'
+                            : log.severity === 'warning'
+                            ? isDarkMode ? 'text-yellow-400' : 'text-yellow-700'
+                            : isDarkMode ? 'text-green-400' : 'text-green-700'
+                        }`}>
+                          {log.severity}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {displayLogs.length === 0 && (
+            <div className="text-center py-16">
+              <div className={`w-16 h-16 mx-auto ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-2xl flex items-center justify-center mb-4`}>
+                <Activity className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'} mb-2`}>No logs found</h3>
+              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Try adjusting your search or filter criteria.
+              </p>
+            </div>
+          )}
+
+          {/* Enhanced Infinite Scroll Loading Indicator */}
+          {isLoadingMore && (
+            <div className={`px-8 py-8 border-t ${isDarkMode ? 'border-gray-700 bg-gray-700/50' : 'border-gray-200 bg-gray-50'}`}>
+              <div className="text-center">
+                <div className="flex items-center justify-center space-x-4 mb-3">
+                  <div className={`w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin ${isDarkMode ? 'border-blue-400' : 'border-blue-600'}`}></div>
+                  <span className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Loading more logs...
+                  </span>
+                </div>
+                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Fetching next batch of logs
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </div>

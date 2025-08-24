@@ -26,15 +26,26 @@ export interface UserInfo {
 export async function getUserInfo(request?: NextRequest): Promise<UserInfo | null> {
   try {
     if (!request) {
-      console.log('No request provided to getUserInfo');
+      console.log('🔍 No request provided to getUserInfo');
       return null;
     }
     
+    // Check if Authorization header is present
+    const authHeader = request.headers.get('authorization');
+    console.log('🔍 Authorization header present:', !!authHeader);
+    
+    if (authHeader) {
+      console.log('🔍 Auth header starts with Bearer:', authHeader.startsWith('Bearer '));
+    }
+    
     const session = await getSession(request);
-    console.log('Session retrieved:', session);
+    console.log('🔍 Session retrieved:', session);
     
     if (!session) {
-      console.log('No session found in getUserInfo');
+      console.log('❌ No session found in getUserInfo');
+      // Log headers for debugging
+      const cookieHeader = request.headers.get('cookie');
+      console.log('🔍 Cookie header present:', !!cookieHeader);
       return null;
     }
     
@@ -44,10 +55,10 @@ export async function getUserInfo(request?: NextRequest): Promise<UserInfo | nul
       userRole: session.role || 'user'
     };
     
-    console.log('User info created:', userInfo);
+    console.log('✅ User info created:', userInfo);
     return userInfo;
   } catch (error) {
-    console.error('Error getting user info:', error);
+    console.error('❌ Error getting user info:', error);
     return null;
   }
 }
@@ -537,7 +548,7 @@ export async function logAction(logData: LogData, request?: NextRequest): Promis
     console.log('User info from getUserInfo:', userInfo);
     
     if (!userInfo) {
-      console.log('No user info, logging as system action');
+      console.log('No user info, attempting to extract from request');
       // Try to get user info from request headers or cookies as fallback
       let fallbackUsername = 'Unknown User';
       let fallbackUserId = 'unknown';
@@ -560,18 +571,33 @@ export async function logAction(logData: LogData, request?: NextRequest): Promis
           // Try to extract from JWT token
           try {
             const token = authHeader.substring(7);
-            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+            console.log('🔍 Attempting to parse JWT token for user info');
+            
+            // Decode JWT payload (base64url decode)
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            
+            const payload = JSON.parse(jsonPayload);
+            console.log('🔍 JWT payload:', payload);
+            
             if (payload.username) {
               fallbackUsername = payload.username;
               fallbackUserId = payload.id || payload.sub || 'unknown';
               fallbackUserRole = payload.role || 'user';
+              console.log('✅ Extracted user info from JWT:', { fallbackUsername, fallbackUserId, fallbackUserRole });
+            } else {
+              console.log('❌ No username found in JWT payload');
             }
           } catch (e) {
-            // Ignore JWT parsing errors
+            console.log('❌ Failed to parse JWT token:', e);
           }
         }
       }
       
+      console.log('Using fallback user info:', { fallbackUsername, fallbackUserId, fallbackUserRole });
       await (Log as ILogModel).logUserAction({
         userId: fallbackUserId,
         username: fallbackUsername,

@@ -38,10 +38,16 @@ export default function FabricsPage() {
   const [qualityNames, setQualityNames] = useState<string[]>([]);
   const [weavers, setWeavers] = useState<string[]>([]);
   const [weaverQualityNames, setWeaverQualityNames] = useState<string[]>([]);
+  const [filtersLoading, setFiltersLoading] = useState(false);
 
   // Fetch fabrics
   const fetchFabrics = async () => {
     setLoading(true);
+    setFiltersLoading(true);
+    
+    // Add a small delay to show skeleton for better UX
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
@@ -80,6 +86,7 @@ export default function FabricsPage() {
       }
     } finally {
       setLoading(false);
+      setFiltersLoading(false);
     }
   };
 
@@ -186,6 +193,7 @@ export default function FabricsPage() {
   };
 
   useEffect(() => {
+    setFiltersLoading(true);
     fetchFabrics();
     fetchQualityNames();
   }, []);
@@ -299,6 +307,18 @@ export default function FabricsPage() {
     <div className="min-h-screen">
       {/* Header */}
       <div className="mb-8">
+        {filtersLoading ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className={`w-14 h-14 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-xl animate-pulse`}></div>
+              <div>
+                <div className={`w-48 h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse mb-2`}></div>
+                <div className={`w-64 h-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+              </div>
+            </div>
+            <div className={`w-32 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+          </div>
+        ) : (
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className={`p-3 rounded-xl ${
@@ -333,6 +353,7 @@ export default function FabricsPage() {
             Add Fabric
           </button>
         </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -340,6 +361,16 @@ export default function FabricsPage() {
         isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
       } shadow-lg`}>
         <div className="flex items-center justify-between mb-4">
+          {filtersLoading ? (
+            <>
+              <div className="flex items-center space-x-2">
+                <div className={`w-5 h-5 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+                <div className={`w-20 h-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+              </div>
+              <div className={`w-20 h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+            </>
+          ) : (
+            <>
           <div className="flex items-center space-x-2">
             <FunnelIcon className={`h-5 w-5 ${
               isDarkMode ? 'text-gray-400' : 'text-gray-600'
@@ -360,11 +391,17 @@ export default function FabricsPage() {
           >
             Clear All
           </button>
+            </>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Search */}
           <div className="relative">
+            {filtersLoading ? (
+              <div className={`w-full h-10 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+            ) : (
+              <>
             <MagnifyingGlassIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
               isDarkMode ? 'text-gray-400' : 'text-gray-500'
             }`} />
@@ -379,9 +416,14 @@ export default function FabricsPage() {
                   : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
               }`}
             />
+              </>
+            )}
           </div>
 
           {/* Quality Name Filter */}
+          {filtersLoading ? (
+            <div className={`w-full h-10 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+          ) : (
           <select
             value={filters.qualityName}
             onChange={(e) => setFilters({ ...filters, qualityName: e.target.value, weaver: '', weaverQualityName: '' })}
@@ -396,8 +438,12 @@ export default function FabricsPage() {
               <option key={name} value={name}>{name}</option>
             ))}
           </select>
+          )}
 
           {/* Weaver Filter */}
+          {filtersLoading ? (
+            <div className={`w-full h-10 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+          ) : (
           <select
             value={filters.weaver}
             onChange={(e) => setFilters({ ...filters, weaver: e.target.value, weaverQualityName: '' })}
@@ -413,8 +459,12 @@ export default function FabricsPage() {
               <option key={weaver} value={weaver}>{weaver}</option>
             ))}
           </select>
+          )}
 
           {/* Weaver Quality Name Filter */}
+          {filtersLoading ? (
+            <div className={`w-full h-10 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+          ) : (
           <select
             value={filters.weaverQualityName}
             onChange={(e) => setFilters({ ...filters, weaverQualityName: e.target.value })}
@@ -430,8 +480,12 @@ export default function FabricsPage() {
               <option key={name} value={name}>{name}</option>
             ))}
           </select>
+          )}
 
           {/* Apply Filters Button */}
+          {filtersLoading ? (
+            <div className={`w-full h-10 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+          ) : (
           <button
             onClick={fetchFabrics}
             className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
@@ -442,6 +496,7 @@ export default function FabricsPage() {
           >
             Apply Filters
           </button>
+          )}
         </div>
       </div>
 
@@ -450,13 +505,46 @@ export default function FabricsPage() {
         isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
       } shadow-lg`}>
         {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-            <p className={`mt-4 text-lg ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>
-              Loading fabrics...
-            </p>
+          <div className="p-8">
+            {/* Header Skeleton */}
+            <div className="mb-6">
+              <div className={`w-48 h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse mb-2`}></div>
+              <div className={`w-64 h-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+            </div>
+            
+            {/* Table Skeleton */}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className={`${
+                  isDarkMode ? 'bg-gray-900 border-b border-gray-700' : 'bg-gray-50 border-b border-gray-200'
+                }`}>
+                  <tr>
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                      <th key={i} className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                      }`}>
+                        <div className={`w-20 h-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className={`divide-y ${
+                  isDarkMode ? 'divide-gray-700' : 'divide-gray-200'
+                }`}>
+                  {[1, 2, 3, 4, 5].map((row) => (
+                    <tr key={row} className={`hover:${
+                      isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                    } transition-colors duration-200`}>
+                      {[1, 2, 3, 4, 5, 6].map((cell) => (
+                        <td key={cell} className="px-6 py-4">
+                          <div className={`w-24 h-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : fabrics.length === 0 ? (
           <div className="p-8 text-center">

@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
-import Lab from '@/models/Lab';
-import Order from '@/models/Order';
-import Quality from '@/models/Quality';
+import { Lab } from '@/models';
+import { Order, Quality } from '@/models';
 import { seedFromOrderSchema } from '@/lib/validation/lab';
 import { ok, badRequest, notFound, serverError } from '@/lib/http';
 import { isValidObjectId } from '@/lib/ids';

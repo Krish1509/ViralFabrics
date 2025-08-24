@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { BRAND_NAME, BRAND_COPYRIGHT, BRAND_TAGLINE } from '@/lib/config';
+import GlobalSkeleton from './GlobalSkeleton';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -32,98 +33,129 @@ interface NavItem {
   badge?: string;
 }
 
-const getNavItems = (userRole?: string): NavItem[] => {
-  const items: NavItem[] = [
-    {
-      name: 'Dashboard',
-      href: '/dashboard',
-      icon: HomeIcon
-    },
-    {
-      name: 'Users',
-      href: '/users',
-      icon: UsersIcon
-    },
-    {
-      name: 'Orders',
-      href: '/orders',
-      icon: ShoppingBagIcon
-    },
-    {
-      name: 'Fabrics',
-      href: '/fabrics',
-      icon: CubeIcon
-    }
-  ];
-
-  // Only show Users for superadmin
-  if (userRole !== 'superadmin') {
-    items.splice(1, 1); // Remove Users item for non-superadmin
-  }
-  
-  // Add Logs for both users and superadmins
-  items.push({
-    name: 'Logs',
-    href: '/logs',
-    icon: DocumentTextIcon
-  });
-
-  return items;
-};
-
 export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse, user }: SidebarProps) {
   const pathname = usePathname();
   const { isDarkMode, mounted } = useDarkMode();
   const [screenSize, setScreenSize] = useState<number>(0);
-  const navItems = getNavItems(user?.role);
 
-  // Track screen size
+  // Memoize nav items to prevent recalculation on every render
+  const navItems = useMemo(() => {
+    const items: NavItem[] = [
+      {
+        name: 'Dashboard',
+        href: '/dashboard',
+        icon: HomeIcon
+      },
+      {
+        name: 'Users',
+        href: '/users',
+        icon: UsersIcon
+      },
+      {
+        name: 'Orders',
+        href: '/orders',
+        icon: ShoppingBagIcon
+      },
+      {
+        name: 'Fabrics',
+        href: '/fabrics',
+        icon: CubeIcon
+      }
+    ];
+
+    // Only show Users for superadmin
+    if (user?.role !== 'superadmin') {
+      items.splice(1, 1); // Remove Users item for non-superadmin
+    }
+    
+    // Add Logs for both users and superadmins
+    items.push({
+      name: 'Logs',
+      href: '/logs',
+      icon: DocumentTextIcon
+    });
+
+    return items;
+  }, [user?.role]);
+
+  // Optimized screen size tracking with debouncing
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
     const handleResize = () => {
-      setScreenSize(window.innerWidth);
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setScreenSize(window.innerWidth);
+      }, 100); // Debounce resize events
     };
 
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    // Set initial size
+    setScreenSize(window.innerWidth);
+    
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timeoutId);
+    };
   }, []);
 
-  const isActive = (href: string) => {
+  // Memoize active state calculation
+  const isActive = useCallback((href: string) => {
     if (href === '/dashboard/superadmin') {
       return pathname === href;
     }
     return pathname.startsWith(href);
-  };
+  }, [pathname]);
 
-  // Determine sidebar mode based on screen size
-  const isLargeScreen = screenSize >= 1400;
-  const isMediumScreen = screenSize >= 800 && screenSize < 1400;
-  const isSmallScreen = screenSize < 800;
+  // Memoize screen size calculations
+  const screenConfig = useMemo(() => {
+    const isLargeScreen = screenSize >= 1400;
+    const isMediumScreen = screenSize >= 800 && screenSize < 1400;
+    const isSmallScreen = screenSize < 800;
 
-  // Calculate sidebar width
-  const getSidebarWidth = () => {
-    if (isSmallScreen) return 'w-80'; // Mobile overlay
-    if (isMediumScreen) {
+    return {
+      isLargeScreen,
+      isMediumScreen,
+      isSmallScreen
+    };
+  }, [screenSize]);
+
+  // Memoize sidebar width calculation
+  const sidebarWidth = useMemo(() => {
+    if (screenConfig.isSmallScreen) return 'w-80'; // Mobile overlay
+    if (screenConfig.isMediumScreen) {
       return isCollapsed ? 'w-20' : 'w-64'; // Icons-only by default, toggle to full
     }
-    if (isLargeScreen) {
+    if (screenConfig.isLargeScreen) {
       return isCollapsed ? 'w-20' : 'w-64'; // Full by default, toggle to icons-only
     }
     return 'w-64';
-  };
+  }, [screenConfig, isCollapsed]);
 
-  // Determine if text should be shown
-  const shouldShowText = () => {
-    if (isSmallScreen) return true; // Always show text in mobile overlay
-    if (isMediumScreen) return !isCollapsed; // Show text when not collapsed (toggle)
-    if (isLargeScreen) return !isCollapsed; // Show text when not collapsed (toggle)
+  // Memoize text visibility
+  const shouldShowText = useMemo(() => {
+    if (screenConfig.isSmallScreen) return true; // Always show text in mobile overlay
+    if (screenConfig.isMediumScreen) return !isCollapsed; // Show text when not collapsed (toggle)
+    if (screenConfig.isLargeScreen) return !isCollapsed; // Show text when not collapsed (toggle)
     return true;
-  };
+  }, [screenConfig, isCollapsed]);
+
+  // Optimized click handler for mobile close
+  const handleMobileClose = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onClose();
+  }, [onClose]);
+
+  // Show skeleton while not mounted
+  if (!mounted) {
+    return <GlobalSkeleton type="sidebar" />;
+  }
 
   return (
     <>
       {/* Desktop Sidebar - Large and Medium Screens */}
-      <aside className={`hidden min-[800px]:block fixed left-0 top-0 h-full z-40 transition-all duration-300 ${getSidebarWidth()} ${
+      <aside className={`hidden min-[800px]:block fixed left-0 top-0 h-full z-40 transition-all duration-300 ${sidebarWidth} ${
         mounted && isDarkMode 
           ? 'bg-slate-800 border-r border-slate-700' 
           : 'bg-white/80 backdrop-blur-sm border-r border-gray-200/50'
@@ -132,10 +164,10 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
           {/* Logo Section */}
           <div className={`border-b transition-colors duration-300 ${
             mounted && isDarkMode ? 'border-white/10' : 'border-gray-200'
-          } ${shouldShowText() ? 'p-6' : 'p-4'}`}>
+          } ${shouldShowText ? 'p-6' : 'p-4'}`}>
             <Link 
               href="/dashboard/superadmin" 
-              className={`group cursor-pointer ${shouldShowText() ? 'flex items-center space-x-3' : 'flex justify-center'}`}
+              className={`group cursor-pointer ${shouldShowText ? 'flex items-center space-x-3' : 'flex justify-center'}`}
             >
               <div className={`h-10 w-10 rounded-lg flex items-center justify-center shadow-lg transition-all duration-300 ${
                 mounted && isDarkMode 
@@ -144,7 +176,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
               } group-hover:scale-105`}>
                 <BuildingOfficeIcon className="h-5 w-5 text-white" />
               </div>
-              {shouldShowText() && (
+              {shouldShowText && (
                 <div className="min-w-0">
                   <h1 className={`text-lg font-bold transition-colors duration-300 ${
                     mounted && isDarkMode ? 'text-white' : 'text-gray-900'
@@ -166,7 +198,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
             mounted && isDarkMode 
               ? 'scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-500 hover:scrollbar-thumb-slate-400' 
               : 'scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400'
-          } ${shouldShowText() ? 'px-4 py-6 space-y-2' : 'px-3 py-4 space-y-1'}`}>
+          } ${shouldShowText ? 'px-4 py-6 space-y-2' : 'px-3 py-4 space-y-1'}`}>
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
@@ -176,7 +208,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                   key={item.name}
                   href={item.href}
                   className={`group flex items-center transition-all duration-300 cursor-pointer rounded-xl ${
-                    shouldShowText() 
+                    shouldShowText 
                       ? 'space-x-3 px-4 py-3 justify-start' 
                       : 'justify-center p-3'
                   } ${
@@ -188,7 +220,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                         ? 'text-gray-300 hover:bg-white/10 hover:text-white'
                         : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                   }`}
-                  title={!shouldShowText() ? item.name : undefined}
+                  title={!shouldShowText ? item.name : undefined}
                 >
                   <div className="relative">
                     <Icon className={`h-6 w-6 transition-colors duration-300 ${
@@ -196,7 +228,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                         ? mounted && isDarkMode ? 'text-blue-400' : 'text-blue-600'
                         : mounted && isDarkMode ? 'text-gray-400 group-hover:text-white' : 'text-gray-500 group-hover:text-gray-700'
                     }`} />
-                    {!shouldShowText() && item.badge && (
+                    {!shouldShowText && item.badge && (
                       <span className={`absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium ${
                         mounted && isDarkMode ? 'text-white' : 'text-white'
                       }`}>
@@ -204,7 +236,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                       </span>
                     )}
                   </div>
-                  {shouldShowText() && (
+                  {shouldShowText && (
                     <>
                       <span className="font-medium">{item.name}</span>
                       {item.badge && (
@@ -224,7 +256,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
           </nav>
 
           {/* Footer */}
-          {shouldShowText() && (
+          {shouldShowText && (
             <div className={`p-4 border-t transition-colors duration-300 ${
               mounted && isDarkMode ? 'border-white/10' : 'border-gray-200'
             }`}>
@@ -239,16 +271,16 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
       </aside>
 
       {/* Mobile Sidebar Overlay */}
-      {isOpen && isSmallScreen && (
+      {isOpen && screenConfig.isSmallScreen && (
         <div 
           className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50"
-          onClick={onClose}
+          onClick={handleMobileClose}
         />
       )}
 
       {/* Mobile Sidebar */}
       <aside className={`fixed left-0 top-0 h-full w-80 z-50 transition-transform duration-300 ${
-        isSmallScreen ? (isOpen ? 'translate-x-0' : '-translate-x-full') : 'hidden'
+        screenConfig.isSmallScreen ? (isOpen ? 'translate-x-0' : '-translate-x-full') : 'hidden'
       } ${
         mounted && isDarkMode 
           ? 'bg-slate-800 border-r border-slate-700' 
@@ -262,7 +294,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
             <Link 
               href="/dashboard/superadmin" 
               className="flex items-center space-x-3 group cursor-pointer"
-              onClick={onClose}
+              onClick={handleMobileClose}
             >
               <div className={`h-10 w-10 rounded-lg flex items-center justify-center shadow-lg transition-all duration-300 ${
                 mounted && isDarkMode 
@@ -286,7 +318,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
             </Link>
             
             <button
-              onClick={onClose}
+              onClick={handleMobileClose}
               className={`p-2 rounded-lg transition-all duration-300 cursor-pointer ${
                 mounted && isDarkMode 
                   ? 'bg-white/10 text-white hover:bg-white/20' 
@@ -312,7 +344,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                 <Link
                   key={item.name}
                   href={item.href}
-                  onClick={onClose}
+                  onClick={handleMobileClose}
                   className={`group flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 cursor-pointer ${
                     active
                       ? mounted && isDarkMode
@@ -355,14 +387,6 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
           </div>
         </div>
       </aside>
-
-      {/* Mobile Overlay */}
-      {isSmallScreen && isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-          onClick={onClose}
-        />
-      )}
     </>
   );
 }

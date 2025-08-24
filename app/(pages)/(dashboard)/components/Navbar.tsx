@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { 
   CogIcon,
@@ -19,6 +19,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { BRAND_NAME } from '@/lib/config';
+import GlobalSkeleton from './GlobalSkeleton';
 
 interface User {
   _id: string;
@@ -59,15 +60,25 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
     password: ''
   });
 
-  // Track screen size
+  // Track screen size with debouncing
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
     const handleResize = () => {
-      setScreenSize(window.innerWidth);
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setScreenSize(window.innerWidth);
+      }, 100); // Debounce resize events
     };
 
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    // Set initial size
+    setScreenSize(window.innerWidth);
+    
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   // Track fullscreen state
@@ -98,85 +109,85 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
       if (isProfileDropdownOpen && !target.closest('[data-profile-dropdown]')) {
         setIsProfileDropdownOpen(false);
       }
-      
-      // Check if click is outside the mobile menu
-      if (isMobileMenuOpen && !target.closest('[data-mobile-menu]')) {
-        setIsMobileMenuOpen(false);
-      }
     };
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Close dropdowns when pressing Escape
+    const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsProfileDropdownOpen(false);
         setIsMobileMenuOpen(false);
       }
     };
 
-    // Add event listeners
     document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-    
-    // Cleanup
+    document.addEventListener('keydown', handleEscape);
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keydown', handleEscape);
     };
-  }, [isProfileDropdownOpen, isMobileMenuOpen]);
+  }, [isProfileDropdownOpen]);
 
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
-  };
+  // Memoize screen size calculations
+  const screenConfig = useMemo(() => {
+    const isLargeScreen = screenSize >= 1400;
+    const isMediumScreen = screenSize >= 800 && screenSize < 1400;
+    const isSmallScreen = screenSize < 800;
 
-  const toggleProfileDropdown = () => {
-    setIsProfileDropdownOpen(!isProfileDropdownOpen);
-  };
+    return {
+      isLargeScreen,
+      isMediumScreen,
+      isSmallScreen
+    };
+  }, [screenSize]);
 
-  const closeProfileDropdown = () => {
-    setIsProfileDropdownOpen(false);
-  };
+  // Optimized click handlers
+  const handleToggleSidebar = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleSidebar();
+  }, [onToggleSidebar]);
 
-  // Fullscreen functions
-  const toggleFullscreen = async () => {
+  const handleToggleCollapse = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleCollapse();
+  }, [onToggleCollapse]);
+
+  const toggleProfileDropdown = useCallback(() => {
+    setIsProfileDropdownOpen(prev => !prev);
+  }, []);
+
+  const toggleMobileMenu = useCallback(() => {
+    setIsMobileMenuOpen(prev => !prev);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
     try {
       if (!document.fullscreenElement) {
-        // Enter fullscreen
-        if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen();
-        } else if ((document.documentElement as any).webkitRequestFullscreen) {
-          await (document.documentElement as any).webkitRequestFullscreen();
-        } else if ((document.documentElement as any).mozRequestFullScreen) {
-          await (document.documentElement as any).mozRequestFullScreen();
-        } else if ((document.documentElement as any).msRequestFullscreen) {
-          await (document.documentElement as any).msRequestFullscreen();
-        }
+        await document.documentElement.requestFullscreen();
       } else {
-        // Exit fullscreen
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-        } else if ((document as any).webkitExitFullscreen) {
-          await (document as any).webkitExitFullscreen();
-        } else if ((document as any).mozCancelFullScreen) {
-          await (document as any).mozCancelFullScreen();
-        } else if ((document as any).msExitFullscreen) {
-          await (document as any).msExitFullscreen();
-        }
+        await document.exitFullscreen();
       }
     } catch (error) {
-      console.error('Error toggling fullscreen:', error);
+      console.error('Fullscreen toggle failed:', error);
     }
-  };
+  }, []);
 
-  const getUserInitials = (name: string) => {
+  // Helper functions
+  const getUserInitials = useCallback((name: string) => {
     return name
       .split(' ')
       .map(word => word.charAt(0))
       .join('')
       .toUpperCase()
       .slice(0, 2);
-  };
+  }, []);
 
-  const handleSaveField = async (field: string, value: string) => {
+  const closeProfileDropdown = useCallback(() => {
+    setIsProfileDropdownOpen(false);
+  }, []);
+
+  const handleSaveField = useCallback(async (field: string, value: string) => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`/api/profile`, {
@@ -203,9 +214,9 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
     } catch (error) {
       console.error('Error updating profile:', error);
     }
-  };
+  }, [user, updateUser]);
 
-  const startEditing = (field: string) => {
+  const startEditing = useCallback((field: string) => {
     setEditingField(field);
     setEditValues({
       name: user?.name || '',
@@ -214,9 +225,9 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
       address: user?.address || '',
       password: ''
     });
-  };
+  }, [user]);
 
-  const openProfileModal = async () => {
+  const openProfileModal = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/profile', {
@@ -239,20 +250,15 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
     
     setShowProfileModal(true);
     closeProfileDropdown();
-  };
+  }, [user, updateUser, closeProfileDropdown]);
 
-  // Determine screen size categories
-  const isLargeScreen = screenSize >= 1200;
-  const isMediumScreen = screenSize >= 800 && screenSize < 1200;
-  const isSmallScreen = screenSize < 800;
-
-  // Determine which sidebar toggle to show
-  const getSidebarToggleButton = () => {
-    if (isSmallScreen) {
+  // Memoize sidebar toggle button
+  const sidebarToggleButton = useMemo(() => {
+    if (screenConfig.isSmallScreen) {
       // Mobile: Hamburger menu
       return (
         <button
-          onClick={onToggleSidebar}
+          onClick={handleToggleSidebar}
           className={`p-2 rounded-lg transition-all duration-300 cursor-pointer ${
             isDarkMode 
               ? 'bg-white/10 text-white hover:bg-white/20' 
@@ -267,7 +273,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
       // Desktop: Toggle collapse button
       return (
         <button
-          onClick={onToggleCollapse}
+          onClick={handleToggleCollapse}
           className={`p-2 rounded-lg transition-all duration-300 cursor-pointer ${
             isDarkMode 
               ? 'bg-white/10 text-white hover:bg-white/20' 
@@ -283,7 +289,12 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
         </button>
       );
     }
-  };
+  }, [screenConfig.isSmallScreen, isDarkMode, isCollapsed, handleToggleSidebar, handleToggleCollapse]);
+
+  // Show skeleton while not mounted
+  if (!mounted) {
+    return <GlobalSkeleton type="navbar" />;
+  }
 
   return (
     <>
@@ -301,7 +312,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
           <div className="flex justify-between items-center py-3">
             {/* Left: Sidebar Toggle */}
             <div className="flex items-center">
-              {getSidebarToggleButton()}
+              {sidebarToggleButton}
             </div>
 
             {/* Center: Empty space for future search */}
@@ -334,8 +345,6 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
               >
                 {isDarkMode ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
               </button>
-
-
 
               {/* Profile Dropdown */}
               <div className="relative" data-profile-dropdown>

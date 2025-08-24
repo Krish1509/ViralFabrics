@@ -63,9 +63,11 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
         try {
           setLoadingLabs(true);
           console.log('🔍 Fetching labs for order:', order._id);
+          const token = localStorage.getItem('token');
           const response = await fetch(`/api/labs/by-order/${order._id}`, {
             headers: {
-              'Cache-Control': 'max-age=30' // Reduced cache time for more frequent updates
+              'Cache-Control': 'max-age=30', // Reduced cache time for more frequent updates
+              'Authorization': `Bearer ${token}`,
             }
           });
           const data = await response.json();
@@ -96,9 +98,11 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
           const fetchLabs = async () => {
             try {
               setLoadingLabs(true);
+              const token = localStorage.getItem('token');
               const response = await fetch(`/api/labs/by-order/${order._id}`, {
                 headers: {
-                  'Cache-Control': 'no-cache' // Force fresh data
+                  'Cache-Control': 'no-cache', // Force fresh data
+                  'Authorization': `Bearer ${token}`,
                 }
               });
               const data = await response.json();
@@ -233,10 +237,12 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000); // Reduced timeout to 2 seconds
         
+        const token = localStorage.getItem('token');
         const response = await fetch(`/api/labs/by-order/${order._id}`, {
           signal: controller.signal,
           headers: {
-            'Cache-Control': 'max-age=60' // Increased cache to 60 seconds
+            'Cache-Control': 'max-age=60', // Increased cache to 60 seconds
+            'Authorization': `Bearer ${token}`,
           }
         });
         
@@ -1319,20 +1325,29 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
              // Refresh labs data after successful lab operation
              const fetchLabs = async () => {
                try {
-                 const response = await fetch(`/api/labs/by-order/${order._id}`, {
+                 // Force refresh by adding timestamp to avoid cache
+                 const token = localStorage.getItem('token');
+                 const response = await fetch(`/api/labs/by-order/${order._id}?t=${Date.now()}`, {
                    headers: {
-                     'Cache-Control': 'max-age=60' // Use cache instead of no-cache
+                     'Cache-Control': 'no-cache',
+                     'Pragma': 'no-cache',
+                     'Authorization': `Bearer ${token}`,
                    }
                  });
                  const data = await response.json();
                  if (data.success && Array.isArray(data.data)) {
                    setLabs(data.data);
+                   console.log('Labs refreshed successfully:', data.data.length, 'labs');
+                 } else {
+                   console.log('Failed to refresh labs:', data);
                  }
                } catch (error) {
                  console.error('Error refreshing labs:', error);
                }
              };
-             fetchLabs();
+             
+             // Add a small delay to ensure the API has processed the changes
+             setTimeout(fetchLabs, 500);
            }}
          />
        )}

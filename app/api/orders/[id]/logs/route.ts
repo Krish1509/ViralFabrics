@@ -42,16 +42,22 @@ export async function GET(
     // Optimized query for faster performance
     console.log('🔍 Logs API: Searching for logs with resource: order, resourceId:', id);
     
+    // Only show important order-related operations
+    const importantOrderActions = [
+      'order_create', 'order_update', 'order_delete', 'order_status_change',
+      'lab_create', 'lab_update', 'lab_delete', 'lab_status_change'
+    ];
+    
     const logs = await Log.find({
       resource: 'order',
-      resourceId: id
+      resourceId: id,
+      action: { $in: importantOrderActions }
     })
     .select('_id action username userRole timestamp success severity details')
     .sort({ timestamp: -1 })
     .limit(25) // Reduced limit for faster loading
     .lean()
-    .maxTimeMS(3000) // Reduced timeout for faster response
-    .hint({ resource: 1, resourceId: 1, timestamp: -1 }); // Use compound index
+    .maxTimeMS(3000); // Reduced timeout for faster response
     
     console.log('🔍 Logs API: Found logs count:', logs.length);
     
@@ -106,17 +112,24 @@ export async function GET(
     );
   } catch (error: unknown) {
     console.error('Error fetching order logs:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    
+    // Handle MongoDB specific errors
+    let message = 'Unknown error occurred';
+    if (error instanceof Error) {
+      if (error.message.includes('hint provided does not correspond to an existing index')) {
+        message = 'Database index error - please contact administrator';
+      } else if (error.message.includes('timeout')) {
+        message = 'Request timeout - please try again';
+      } else {
+        message = error.message;
+      }
+    }
     
     return new Response(
       JSON.stringify({ 
         success: false, 
         message,
-        error: error instanceof Error ? {
-          name: error.name,
-          message: error.message,
-          stack: error.stack
-        } : error
+        data: [] // Return empty array instead of error details for security
       }), 
       { 
         status: 500,

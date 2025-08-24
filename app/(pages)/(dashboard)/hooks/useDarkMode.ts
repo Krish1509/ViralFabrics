@@ -12,25 +12,43 @@ interface DarkModeReturn {
 }
 
 export function useDarkMode(): DarkModeReturn {
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  // Initialize with a function to prevent hydration mismatch
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    // Check if we're on the client side
+    if (typeof window !== 'undefined') {
+      const savedMode = localStorage.getItem('darkMode');
+      if (savedMode !== null) {
+        return savedMode === 'true';
+      }
+      // Default to system preference to prevent flash
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    // Server-side default (will be updated on mount)
+    return false;
+  });
   const [mounted, setMounted] = useState<boolean>(false);
 
   useEffect(() => {
     setMounted(true);
     
-    // Get initial state
+    // Only update if the initial state doesn't match the current state
     const savedMode = localStorage.getItem('darkMode');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    // If no saved preference, use system preference
-    let initialMode = prefersDark;
+    let shouldUpdate = false;
+    let newMode = isDarkMode;
     
-    // If there's a saved preference, use it
     if (savedMode !== null) {
-      initialMode = savedMode === 'true';
+      newMode = savedMode === 'true';
+      shouldUpdate = newMode !== isDarkMode;
+    } else {
+      newMode = prefersDark;
+      shouldUpdate = newMode !== isDarkMode;
     }
     
-    setIsDarkMode(initialMode);
+    if (shouldUpdate) {
+      setIsDarkMode(newMode);
+    }
 
     // Listen for custom dark mode change events
     const handleDarkModeChange = (event: CustomEvent) => {

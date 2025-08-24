@@ -17,6 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Rocket, Star, Moon as MoonLucide } from 'lucide-react';
 import { BRAND_NAME, BRAND_SHORT_NAME, BRAND_TAGLINE } from '@/lib/config';
+import GlobalSkeleton from '../(dashboard)/components/GlobalSkeleton';
 
 interface LoginFormData {
   username: string;
@@ -49,12 +50,14 @@ function LoginForm() {
   const [errors, setErrors] = useState<LoginErrors>({});
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [showRememberMeAlert, setShowRememberMeAlert] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  // Check for dark mode preference
+  // Check for dark mode preference - prevent flash
   useEffect(() => {
     const savedMode = localStorage.getItem('darkMode');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setIsDarkMode(savedMode ? savedMode === 'true' : prefersDark);
+    setMounted(true);
   }, []);
 
   // Auto-login check for active session
@@ -207,21 +210,14 @@ function LoginForm() {
 
 
 
-  // Show loading state while checking session
-  if (isCheckingSession) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-500 mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            Checking Session...
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            Verifying your login status
-          </p>
-        </div>
-      </div>
-    );
+  // Show skeleton while checking session or not mounted
+  if (isCheckingSession || !mounted) {
+    return <GlobalSkeleton type="login" />;
+  }
+
+  // Also show skeleton for a brief moment to prevent flash
+  if (!mounted) {
+    return <GlobalSkeleton type="login" />;
   }
 
   return (
@@ -701,11 +697,7 @@ function LoginForm() {
 // Main component with Suspense boundary
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-500"></div>
-      </div>
-    }>
+    <Suspense fallback={<GlobalSkeleton type="login" />}>
       <LoginForm />
     </Suspense>
   );

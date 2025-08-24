@@ -1,8 +1,6 @@
 import { NextRequest } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
-import Lab from '@/models/Lab';
-import Order from '@/models/Order';
-import Quality from '@/models/Quality';
+import { Lab, Order, Quality } from '@/models';
 import { createLabSchema, queryLabsSchema } from '@/lib/validation/lab';
 import { ok, created, badRequest, notFound, conflict, serverError } from '@/lib/http';
 import { ensureOrderItemExists } from '@/lib/ids';
@@ -59,6 +57,8 @@ export async function POST(request: NextRequest) {
     
     // Log the lab creation
     try {
+      console.log('🔍 About to log lab creation...');
+      console.log('🔍 Request headers:', Object.fromEntries(request.headers.entries()));
       await logCreate('lab', lab._id.toString(), { orderId, orderItemId, ...labData }, request);
       console.log('🔍 Lab creation logged successfully');
     } catch (logError) {

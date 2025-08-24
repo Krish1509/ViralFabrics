@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
-import Lab from '@/models/Lab';
+import { Lab } from '@/models';
 
 export async function DELETE(
   req: NextRequest,

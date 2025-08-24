@@ -48,7 +48,20 @@ export async function POST(req: Request) {
 
     // Reset failed login attempts on successful login
     try {
-      await user.incrementLoginCount();
+      if (user && typeof user.incrementLoginCount === 'function') {
+        await user.incrementLoginCount();
+      } else {
+        // Fallback: manually update the user
+        await User.findByIdAndUpdate(user._id, {
+          $inc: { loginCount: 1 },
+          $set: { 
+            lastLogin: new Date(),
+            failedLoginAttempts: 0,
+            accountLocked: false
+          },
+          $unset: { lockExpiresAt: 1 }
+        });
+      }
     } catch (error) {
       console.error('Error updating login count:', error);
     }

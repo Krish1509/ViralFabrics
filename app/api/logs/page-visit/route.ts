@@ -13,7 +13,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const { pathname } = await request.json();
+    let pathname = '/dashboard'; // Default pathname
+    
+    try {
+      const body = await request.json();
+      if (body && body.pathname) {
+        pathname = body.pathname;
+      }
+    } catch (error) {
+      console.warn('Could not parse request body, using default pathname:', error);
+      // Continue with default pathname
+    }
 
     // Determine the resource type based on the pathname
     let resource = 'dashboard';

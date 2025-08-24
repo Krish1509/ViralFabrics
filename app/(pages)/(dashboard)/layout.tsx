@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import { useDarkMode } from './hooks/useDarkMode';
 import PageVisitLogger from './components/PageVisitLogger';
 import LoadingOptimizer from './components/LoadingOptimizer';
+import GlobalSkeleton from './components/GlobalSkeleton';
 
 interface User {
   _id: string;
@@ -23,6 +24,7 @@ export default function SuperAdminLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -31,26 +33,43 @@ export default function SuperAdminLayout({
   const [sessionStatus, setSessionStatus] = useState<'active' | 'refreshing' | 'expired'>('active');
   const { isDarkMode, mounted } = useDarkMode();
 
-  // Track screen size
+  // Track screen size with debouncing
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
     const handleResize = () => {
-      const newScreenSize = window.innerWidth;
-      setScreenSize(newScreenSize);
-      
-      // Set default collapsed state based on screen size
-      if (newScreenSize >= 800 && newScreenSize < 1400) {
-        // Medium screens: icons-only by default
-        setIsSidebarCollapsed(true);
-      } else if (newScreenSize >= 1400) {
-        // Large screens: full sidebar by default (icons + text)
-        setIsSidebarCollapsed(false);
-      }
-      // For screens < 800px, keep the current collapsed state (mobile overlay)
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        const newScreenSize = window.innerWidth;
+        setScreenSize(newScreenSize);
+        
+        // Set default collapsed state based on screen size
+        if (newScreenSize >= 800 && newScreenSize < 1400) {
+          // Medium screens: icons-only by default
+          setIsSidebarCollapsed(true);
+        } else if (newScreenSize >= 1400) {
+          // Large screens: full sidebar by default (icons + text)
+          setIsSidebarCollapsed(false);
+        }
+        // For screens < 800px, keep the current collapsed state (mobile overlay)
+      }, 100); // Debounce resize events
     };
 
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    // Set initial size and state
+    const initialSize = window.innerWidth;
+    setScreenSize(initialSize);
+    
+    if (initialSize >= 800 && initialSize < 1400) {
+      setIsSidebarCollapsed(true);
+    } else if (initialSize >= 1400) {
+      setIsSidebarCollapsed(false);
+    }
+    
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   useEffect(() => {
@@ -148,7 +167,7 @@ export default function SuperAdminLayout({
     };
   }, [user]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       // Call logout API to log the action
       const token = localStorage.getItem('token');
@@ -169,27 +188,27 @@ export default function SuperAdminLayout({
       localStorage.removeItem('user');
       router.push('/login');
     }
-  };
+  }, [router]);
 
-  const updateUser = (updatedUser: User) => {
+  const updateUser = useCallback((updatedUser: User) => {
     setUser(updatedUser);
     localStorage.setItem('user', JSON.stringify(updatedUser));
-  };
+  }, []);
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarOpen(prev => !prev);
+  }, []);
 
-  const closeSidebar = () => {
+  const closeSidebar = useCallback(() => {
     setIsSidebarOpen(false);
-  };
+  }, []);
 
-  const toggleSidebarCollapse = () => {
-    setIsSidebarCollapsed(!isSidebarCollapsed);
-  };
+  const toggleSidebarCollapse = useCallback(() => {
+    setIsSidebarCollapsed(prev => !prev);
+  }, []);
 
-  // Calculate main content margin based on screen size and sidebar state
-  const getMainContentMargin = () => {
+  // Memoize main content margin calculation
+  const mainContentMargin = useMemo(() => {
     if (screenSize < 800) {
       return 'ml-0'; // No margin for mobile
     } else if (screenSize >= 1400) {
@@ -198,10 +217,10 @@ export default function SuperAdminLayout({
       // Medium screens (800px to 1400px) - allow toggle between icons and full
       return isSidebarCollapsed ? 'ml-20' : 'ml-64';
     }
-  };
+  }, [screenSize, isSidebarCollapsed]);
 
-  // Calculate content padding for different screen sizes
-  const getContentPadding = () => {
+  // Memoize content padding calculation
+  const contentPadding = useMemo(() => {
     if (screenSize >= 1350) {
       return 'px-4 lg:px-6';
     } else if (screenSize >= 1200) {
@@ -209,18 +228,10 @@ export default function SuperAdminLayout({
     } else {
       return 'px-3 sm:px-4';
     }
-  };
+  }, [screenSize]);
 
-  if (isLoading) {
-    return (
-      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
-        mounted && isDarkMode 
-          ? 'bg-slate-800' 
-          : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
-      }`}>
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-500"></div>
-      </div>
-    );
+  if (isLoading || !mounted) {
+    return <GlobalSkeleton type="page" />;
   }
 
   return (
@@ -245,7 +256,7 @@ export default function SuperAdminLayout({
       />
       
       {/* Main content area - Flush with sidebar */}
-      <div className={getMainContentMargin()}>
+      <div className={mainContentMargin}>
         {/* Navbar - Full width, no extra padding */}
         <Navbar 
           user={user} 
@@ -259,7 +270,7 @@ export default function SuperAdminLayout({
 
         {/* Main Content - Starts immediately below navbar */}
         <main className="pt-4">
-          <div className={`${getContentPadding()} py-8 transition-colors duration-300 ${
+          <div className={`${contentPadding} py-8 transition-colors duration-300 ${
             mounted && isDarkMode ? 'text-white' : 'text-gray-900'
           }`}>
             {children}

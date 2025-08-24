@@ -163,10 +163,12 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
 
         if (lab.existingLab) {
           // Update existing lab - also update orderItemId if it changed
+          const token = localStorage.getItem('token');
           const response = await fetch(`/api/labs/${lab.existingLab._id}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({
               orderItemId: lab.orderItemId, // Update the orderItemId to match new item ID
@@ -192,10 +194,12 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
           }
         } else {
           // Create new lab
+          const token = localStorage.getItem('token');
           const response = await fetch('/api/labs', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({
               orderId: order._id,
@@ -269,8 +273,13 @@ export default function LabAddModal({ order, onClose, onSuccess }: LabAddModalPr
        // Refresh lab data to get updated state
        await checkExistingLabs();
        
+       // Call onSuccess first, then close
        onSuccess();
-       onClose();
+       
+       // Add a small delay before closing to ensure the parent component has time to refresh
+       setTimeout(() => {
+         onClose();
+       }, 100);
          } catch (error) {
        console.error('Error processing labs:', error);
        let errorMessage = 'Failed to process labs';
