@@ -168,12 +168,11 @@ LogSchema.index({ success: 1, timestamp: -1 }, { background: true });
 LogSchema.index({ severity: 1, timestamp: -1 }, { background: true });
 
 // Compound indexes for specific queries
-LogSchema.index({ resource: 1, resourceId: 1, timestamp: -1 }, { background: true }); // For order logs
 LogSchema.index({ resource: 1, action: 1, timestamp: -1 }, { background: true }); // For resource-specific actions
 LogSchema.index({ userId: 1, resource: 1, timestamp: -1 }, { background: true }); // For user activity by resource
 
 // Specific optimized index for order logs
-LogSchema.index({ resource: 'order', resourceId: 1, timestamp: -1 }, { background: true });
+LogSchema.index({ resource: 1, resourceId: 1, timestamp: -1 }, { background: true, partialFilterExpression: { resource: 'order' } });
 
 // Static method to log user actions
 LogSchema.statics.logUserAction = async function(data: {

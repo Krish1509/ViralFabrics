@@ -105,7 +105,6 @@ const FabricSchema = new Schema<IFabric>({
 });
 
 // Create indexes for better performance
-FabricSchema.index({ qualityCode: 1 });
 FabricSchema.index({ qualityName: 1 });
 FabricSchema.index({ weaver: 1 });
 FabricSchema.index({ weaverQualityName: 1 });
