@@ -81,18 +81,14 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
     
     // Listen for real-time order updates
     const handleOrderUpdate = (event: CustomEvent) => {
-      console.log('🔍 OrderLogsModal: Received orderUpdated event:', event.detail);
       if (event.detail?.orderId === orderId) {
-        console.log('🔍 OrderLogsModal: Updating logs for order:', orderId);
         setIsUpdating(true);
-        // Reduced delay for faster updates
+        // Immediate update for better UX
                  setTimeout(() => {
            fetchLogs(false).finally(() => {
              setIsUpdating(false);
            });
-         }, 500); // Reduced delay for faster response
-      } else {
-        console.log('🔍 OrderLogsModal: Event orderId mismatch:', event.detail?.orderId, 'vs', orderId);
+        }, 200); // Faster response
       }
     };
     
@@ -108,7 +104,6 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
   const fetchLogs = async (isRetry = false) => {
     // Prevent multiple simultaneous requests
     if (isFetching && !isRetry) {
-      console.log('🔍 OrderLogsModal: Request already in progress, skipping');
       return;
     }
     
@@ -116,7 +111,6 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
     let timeoutId: NodeJS.Timeout | null = null;
     
     try {
-      console.log('🔍 OrderLogsModal: Fetching logs for order:', orderId, isRetry ? '(retry)' : '');
       setIsFetching(true);
       setLoading(true);
       setError(null);
@@ -127,7 +121,7 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
         if (controller) {
           controller.abort();
         }
-      }, 8000); // Increased timeout to 8 seconds
+      }, 5000); // Reduced timeout to 5 seconds for faster failure detection
       
       const response = await fetch(`/api/orders/${orderId}/logs`, {
         headers: {
@@ -143,8 +137,6 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
         timeoutId = null;
       }
       
-      console.log('🔍 OrderLogsModal: Logs API response status:', response.status);
-      
       if (!response.ok) {
         if (response.status === 404) {
           setLogs([]); // Empty logs for 404
@@ -154,18 +146,14 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
       }
       
       const data = await response.json();
-      console.log('🔍 OrderLogsModal: Logs API response data:', data);
       
       if (data.success) {
-        console.log('🔍 OrderLogsModal: Setting logs:', data.data.length, 'logs');
         setLogs(data.data || []);
         setRetryCount(0); // Reset retry count on success
       } else {
         setError(data.message || 'Failed to fetch logs');
       }
     } catch (err) {
-      console.error('Fetch error:', err);
-      
       // Clean up timeout
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -174,20 +162,18 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
       if (err instanceof Error && err.name === 'AbortError') {
         // Don't retry if it's a manual abort (component unmounting)
         if (controller?.signal.aborted) {
-          console.log('🔍 OrderLogsModal: Request was manually aborted, not retrying');
           return;
         }
         
         const newRetryCount = retryCount + 1;
         setRetryCount(newRetryCount);
         
-        if (newRetryCount < 3) {
+        if (newRetryCount < 2) { // Reduced retry attempts
           // Auto-retry on timeout
-          console.log('🔍 OrderLogsModal: Auto-retrying due to timeout, attempt:', newRetryCount);
-          setTimeout(() => fetchLogs(true), 1000);
+          setTimeout(() => fetchLogs(true), 500); // Faster retry
           return;
         } else {
-          setError('Request timed out after multiple attempts. Please try again.');
+          setError('Request timed out. Please try again.');
         }
       } else {
         setError('An error occurred while fetching logs');

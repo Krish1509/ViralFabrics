@@ -531,6 +531,36 @@ UserSchema.pre('findOne', function() {
   }
 });
 
+// **EXACT INDEXES TO ADD**
+// Primary indexes
+UserSchema.index({ username: 1 }, { unique: true, name: 'idx_user_username_unique' });
+UserSchema.index({ name: 1 }, { name: 'idx_user_name' });
+UserSchema.index({ role: 1 }, { name: 'idx_user_role' });
+UserSchema.index({ isActive: 1 }, { name: 'idx_user_active' });
+UserSchema.index({ createdAt: -1 }, { name: 'idx_user_created_desc' });
+UserSchema.index({ updatedAt: -1 }, { name: 'idx_user_updated_desc' });
+UserSchema.index({ lastLogin: -1 }, { name: 'idx_user_last_login' });
+UserSchema.index({ accountLocked: 1 }, { name: 'idx_user_locked' });
+
+// Compound indexes for common query patterns
+UserSchema.index({ role: 1, isActive: 1 }, { name: 'idx_user_role_active' });
+UserSchema.index({ isActive: 1, createdAt: -1 }, { name: 'idx_user_active_created' });
+UserSchema.index({ role: 1, createdAt: -1 }, { name: 'idx_user_role_created' });
+
+// Text search index
+UserSchema.index({ 
+  name: "text", 
+  username: "text",
+  "metadata.department": "text"
+}, {
+  weights: {
+    name: 10,
+    username: 8,
+    "metadata.department": 5
+  },
+  name: "idx_user_text_search"
+});
+
 const User = mongoose.models.User || mongoose.model<IUser, IUserModel>("User", UserSchema);
 
 export default User;

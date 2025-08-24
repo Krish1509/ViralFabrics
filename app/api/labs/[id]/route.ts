@@ -93,12 +93,8 @@ export async function PUT(
     
     // Log the lab update
     try {
-      console.log('🔍 About to log lab update...');
-      console.log('🔍 Request headers:', Object.fromEntries(request.headers.entries()));
       await logUpdate('lab', id, oldValues, lab.toObject(), request);
-      console.log('🔍 Lab update logged successfully');
     } catch (logError) {
-      console.error('🔍 Error logging lab update:', logError);
       // Don't fail the request if logging fails
     }
     

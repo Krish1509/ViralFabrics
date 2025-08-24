@@ -83,7 +83,7 @@ function LoginForm() {
         if (response.ok) {
           const data = await response.json();
           if (data.success) {
-            console.log('✅ Active session found, auto-login successful');
+            // Active session found, auto-login successful
             // Auto-redirect to dashboard
             router.push('/dashboard');
             return;
@@ -91,7 +91,7 @@ function LoginForm() {
         }
         
         // Session is invalid, clear stored data
-        console.log('❌ Session validation failed, clearing stored data');
+        // Session validation failed, clearing stored data
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         

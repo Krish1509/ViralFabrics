@@ -36,7 +36,7 @@ export default async function dbConnect(): Promise<Mongoose> {
         return cached.conn;
       }
     } catch (error) {
-      console.log('Cached connection is invalid, creating new connection...');
+      // Cached connection is invalid, creating new connection...
       cached.conn = null;
       cached.promise = null;
     }

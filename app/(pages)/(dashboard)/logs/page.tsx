@@ -98,7 +98,7 @@ export default function LogsPage() {
   
   const [logs, setLogs] = useState<Log[]>([]);
   const [stats, setStats] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
@@ -114,20 +114,21 @@ export default function LogsPage() {
   const [sortField, setSortField] = useState('timestamp');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
+
   // Fetch logs with pagination
   const fetchLogs = async (loadMore = false) => {
     try {
       if (loadMore) {
         setIsLoadingMore(true);
       } else {
-      setIsLoading(true);
-      setError(null);
+        setIsLoading(true);
+        setError(null);
       }
       
-      // Add a small delay to show skeleton for better UX
-      if (!loadMore) {
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
+      // Remove the artificial delay that causes white screen flicker
+      // if (!loadMore) {
+      //   await new Promise(resolve => setTimeout(resolve, 300));
+      // }
       
       const token = localStorage.getItem('token');
       if (!token) {
@@ -175,11 +176,14 @@ export default function LogsPage() {
             const newLogs = data.logs || [];
             const existingIds = new Set(prevLogs.map(log => log._id));
             const uniqueNewLogs = newLogs.filter(log => !existingIds.has(log._id));
-            return [...prevLogs, ...uniqueNewLogs];
+            const updatedLogs = [...prevLogs, ...uniqueNewLogs];
+            console.log(`Load more: Previous ${prevLogs.length}, New ${newLogs.length}, Unique ${uniqueNewLogs.length}, Total ${updatedLogs.length}`);
+            return updatedLogs;
           });
         } else {
           // Replace logs for new search/filter
-        setLogs(data.logs || []);
+          setLogs(data.logs || []);
+          console.log(`Initial load: ${data.logs?.length || 0} logs`);
         }
         
         // Update pagination state
@@ -187,6 +191,7 @@ export default function LogsPage() {
           setHasMore(data.pagination.hasMore);
           setNextCursor(data.pagination.nextCursor);
           setTotalLogs(data.pagination.total);
+          console.log(`Pagination: hasMore=${data.pagination.hasMore}, nextCursor=${data.pagination.nextCursor}, total=${data.pagination.total}`);
         }
         
         // Update stats only on first load
@@ -207,10 +212,10 @@ export default function LogsPage() {
 
   // Load logs on component mount
   useEffect(() => {
-    if (user) {
+    if (user && !sessionLoading) {
       fetchLogs(false);
     }
-  }, [user, dateFilter]);
+  }, [user, sessionLoading, dateFilter]);
 
   // Infinite scroll functionality
   useEffect(() => {
@@ -223,7 +228,7 @@ export default function LogsPage() {
       
       // Load more when user is near bottom (within 200px)
       if (scrollTop + windowHeight >= documentHeight - 200) {
-        if (hasMore && !isLoadingMore) {
+        if (hasMore && !isLoadingMore && !isLoading) {
           loadMoreLogs();
         }
       }
@@ -231,7 +236,7 @@ export default function LogsPage() {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [hasMore, isLoadingMore, isInfiniteScrollEnabled]);
+  }, [hasMore, isLoadingMore, isLoading, isInfiniteScrollEnabled]);
 
   // Auto-load all logs if enabled (disabled for infinite scroll)
   useEffect(() => {
@@ -247,17 +252,19 @@ export default function LogsPage() {
 
   // Function to load more logs
   const loadMoreLogs = () => {
-    if (hasMore && !isLoadingMore) {
+    if (hasMore && !isLoadingMore && !isLoading) {
       fetchLogs(true);
     }
   };
 
+
+
   // Redirect if not authenticated
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (!sessionLoading && !isLoading && !user) {
       router.push('/login');
     }
-  }, [isLoading, user, router]);
+  }, [sessionLoading, isLoading, user, router]);
 
   // Filter and sort logs - exclude view page logs and only show important operations
   const filteredAndSortedLogs = logs
@@ -629,7 +636,8 @@ export default function LogsPage() {
     );
   };
 
-  if (isLoading) {
+  // Show skeleton immediately on mount or when session is loading
+  if (sessionLoading || isLoading) {
     return (
       <div className={`min-h-screen ${isDarkMode ? 'bg-[#1D293D]' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -700,7 +708,7 @@ export default function LogsPage() {
     );
   }
 
-  if (error) {
+  if (error && !sessionLoading) {
     return (
       <div className={`min-h-screen ${isDarkMode ? 'bg-[#1D293D]' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
         <div className="flex items-center justify-center min-h-screen">
@@ -972,7 +980,7 @@ export default function LogsPage() {
                         ? 'text-blue-400 bg-blue-900/50' 
                         : 'text-blue-700 bg-blue-100'
                     }`}>
-                      🔄 Auto Scroll
+                      🔄 Auto Load
                     </span>
                   )}
               </h2>
@@ -1018,6 +1026,8 @@ export default function LogsPage() {
                     Loading...
                   </div>
                 )}
+
+
                 {hasMore && !isInfiniteScrollEnabled && (
                   <button
                     onClick={loadMoreLogs}

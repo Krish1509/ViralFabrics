@@ -121,7 +121,7 @@ export default function OrdersPage() {
       const data = await response.json();
       
       if (data.success) {
-        console.log('🔍 OrdersPage: Fetched orders successfully:', data.data?.length || 0, 'orders');
+        // OrdersPage: Fetched orders successfully
         setOrders(data.data || []);
         setLastRefreshTime(new Date());
       } else {
@@ -130,7 +130,7 @@ export default function OrdersPage() {
     } catch (error: any) {
       if (error.name === 'AbortError') {
         if (retryCount < maxRetries) {
-          console.log(`🔍 OrdersPage: Retry attempt ${retryCount + 1} for orders fetch`);
+          // OrdersPage: Retry attempt for orders fetch
           showMessage('error', `Loading timeout. Retrying... (${retryCount + 1}/${maxRetries + 1})`);
           await new Promise(resolve => setTimeout(resolve, 1000)); // Reduced wait time
           return fetchOrders(retryCount + 1);
@@ -269,7 +269,7 @@ export default function OrdersPage() {
   // Listen for real-time order updates
   useEffect(() => {
     const handleOrderUpdate = (event: CustomEvent) => {
-      console.log('🔍 OrdersPage: Received orderUpdated event:', event.detail);
+      // OrdersPage: Received orderUpdated event
       
       // Refresh orders for any order-related action
       if (event.detail?.action === 'order_create' || 
@@ -278,11 +278,11 @@ export default function OrdersPage() {
           event.detail?.action === 'order_delete_all' ||
           event.detail?.action === 'order_status_change' ||
           event.detail?.action === 'lab_add') {
-        console.log('🔍 OrdersPage: Refreshing orders due to', event.detail.action);
+        // OrdersPage: Refreshing orders due to action
         
         // Immediate refresh without loading state for better UX
         fetchOrders().then(() => {
-          console.log('🔍 OrdersPage: Successfully refreshed orders after', event.detail.action);
+          // OrdersPage: Successfully refreshed orders
           // Show success message for automatic refresh
           if (event.detail?.action === 'order_create') {
             showMessage('success', 'New order added to table automatically!');
@@ -319,7 +319,7 @@ export default function OrdersPage() {
       } catch (error: any) {
         retryCount++;
         if (retryCount < maxRetries) {
-          console.log(`Retry attempt ${retryCount} for orders refresh`);
+          // Retry attempt for orders refresh
           await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
           return await attemptRefresh();
         } else {
@@ -468,7 +468,7 @@ export default function OrdersPage() {
 
   // Memoized filtered and sorted orders
   const filteredOrders = useMemo(() => {
-    console.log('🔍 Filtering orders, current orders state:', orders.length, 'orders');
+    // Filtering orders
     let filtered = orders
       .filter(order => {
         const matchesSearch = 
@@ -498,15 +498,7 @@ export default function OrdersPage() {
       filtered = filtered.sort((a, b) => new Date(b.arrivalDate || '').getTime() - new Date(a.arrivalDate || '').getTime());
     }
 
-    // Debug logging
-    console.log('Filter Debug:', {
-      totalOrders: orders.length,
-      searchTerm,
-      orderFilter: filters.orderFilter,
-      typeFilter: filters.typeFilter,
-      filteredCount: filtered.length,
-      filteredOrders: filtered.map(o => ({ id: o.orderId, party: (o.party as any)?.name, type: o.orderType }))
-    });
+    // Debug logging removed for production
 
     return filtered;
   }, [orders, searchTerm, filters]);
@@ -601,17 +593,7 @@ export default function OrdersPage() {
   const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
   const currentOrders = filteredOrders.slice(indexOfFirstOrder, indexOfLastOrder);
   
-  // Debug pagination
-  console.log('🔍 Pagination Debug:', {
-    filteredOrdersLength: filteredOrders.length,
-    ordersPerPage,
-    totalPages,
-    currentPage,
-    indexOfFirstOrder,
-    indexOfLastOrder,
-    currentOrdersLength: currentOrders.length,
-    currentOrders: currentOrders.map(o => ({ id: o.orderId, type: o.orderType }))
-  });
+  // Pagination debug info removed for production
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -837,12 +819,11 @@ export default function OrdersPage() {
     </div>
   );
 
-  console.log('🔍 Component state:', { mounted, loading, ordersLength: orders.length });
+
   
   if (!mounted) return null;
 
   if (loading) {
-    console.log('🔍 Showing loading skeleton');
     return (
       <div className="space-y-6">
         <LoadingSkeleton />
@@ -1085,7 +1066,7 @@ export default function OrdersPage() {
             <div className="sm:w-auto">
               <button
                 onClick={() => {
-                  console.log('🔍 Manual refresh clicked');
+                  // Manual refresh clicked
                   handleRefresh();
                 }}
                 disabled={refreshing}
@@ -1211,7 +1192,7 @@ export default function OrdersPage() {
             <tbody className={`divide-y ${
               isDarkMode ? 'divide-white/10' : 'divide-gray-200'
             }`}>
-              {(() => { console.log('🔍 Rendering table with', currentOrders.length, 'orders'); return null; })()}
+              {/* Rendering table with orders */}
               {currentOrders.map((order) => (
                   <tr key={order._id} className={`hover:${
                     isDarkMode ? 'bg-white/5' : 'bg-gray-50'

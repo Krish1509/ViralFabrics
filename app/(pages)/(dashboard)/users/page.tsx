@@ -9,6 +9,7 @@ import {
   TrashIcon,
   XMarkIcon,
   CheckIcon,
+  CheckCircleIcon,
   ExclamationTriangleIcon,
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
@@ -21,6 +22,7 @@ interface User {
   phoneNumber?: string;
   address?: string;
   role: string;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -104,21 +106,22 @@ export default function UsersPage() {
   const isTinyScreen = screenSize <= 500;
 
   // Fetch users with optimization
-  const fetchUsers = async () => {
+  const fetchUsers = async (retryCount = 0) => {
     setLoading(true);
-    
-    // Add a small delay to show loading experience for better UX
-    await new Promise(resolve => setTimeout(resolve, 300));
     
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased to 8s timeout
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/users?limit=50', { // Limit for faster loading
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      const response = await fetch('/api/users?limit=100', { // Increased limit
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=30' // Cache for 30 seconds
+          'Cache-Control': 'no-cache' // Disable cache to ensure fresh data
         },
         signal: controller.signal
       });
@@ -126,18 +129,28 @@ export default function UsersPage() {
       clearTimeout(timeoutId);
       
       if (!response.ok) {
+        if (response.status === 401) {
+          router.push('/login');
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
       if (data.success) {
         setUsers(data.data || []);
+        setMessage(null); // Clear any previous error messages
       } else {
         throw new Error(data.message || 'Failed to fetch users');
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.error('Request timeout');
+        if (retryCount < 2) {
+          // Retry once more
+          setTimeout(() => fetchUsers(retryCount + 1), 1000);
+          return;
+        }
         setMessage({ type: 'error', text: 'Request timeout - please try again' });
       } else {
         console.error('Error fetching users:', error);
@@ -155,14 +168,21 @@ export default function UsersPage() {
   // Handle refresh
   const handleRefresh = async () => {
     setRefreshing(true);
+    setMessage(null); // Clear any previous messages
     try {
       await fetchUsers();
-      showMessage('success', 'Users refreshed successfully');
+      setMessage({ type: 'success', text: 'Users refreshed successfully' });
     } catch (error) {
-      showMessage('error', 'Failed to refresh users');
+      setMessage({ type: 'error', text: 'Failed to refresh users' });
     } finally {
       setRefreshing(false);
     }
+  };
+
+  // Retry function for failed requests
+  const handleRetry = () => {
+    setMessage(null);
+    fetchUsers();
   };
 
   // Filter and sort users
@@ -218,11 +238,11 @@ export default function UsersPage() {
     setFormErrors({});
     const errors: Partial<UserFormData> = {};
     
-    if (!formData.name.trim()) errors.name = 'Name is required';
-    if (!formData.username.trim()) errors.username = 'Username is required';
-    if (!formData.password.trim()) errors.password = 'Password is required';
-    if (formData.password.length < 6) errors.password = 'Password must be at least 6 characters';
-    if (!formData.role.trim()) errors.role = 'Role is required';
+    if (!formData.name.trim()) errors.name = 'Required';
+    if (!formData.username.trim()) errors.username = 'Required';
+    if (!formData.password.trim()) errors.password = 'Required';
+    if (formData.password.length < 6) errors.password = 'Min 6 chars';
+    if (!formData.role.trim()) errors.role = 'Required';
     
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
@@ -248,14 +268,15 @@ export default function UsersPage() {
         setUsers([...users, data.user]);
         setShowCreateModal(false);
         resetForm();
-        showMessage('success', 'User created successfully');
+        setValidationAlert({ type: 'success', text: 'User created' });
+        setTimeout(() => setValidationAlert(null), 3000);
       } else {
         const error = JSON.parse(responseText);
-        setValidationAlert({ type: 'error', text: error.message || 'Failed to create user' });
+        setValidationAlert({ type: 'error', text: error.message || 'Create failed' });
         setTimeout(() => setValidationAlert(null), 5000);
       }
     } catch (error) {
-      setValidationAlert({ type: 'error', text: 'Failed to create user' });
+      setValidationAlert({ type: 'error', text: 'Create failed' });
       setTimeout(() => setValidationAlert(null), 5000);
     } finally {
       setSubmitting(false);
@@ -269,10 +290,10 @@ export default function UsersPage() {
     setFormErrors({});
     const errors: Partial<UserFormData> = {};
     
-    if (!formData.name.trim()) errors.name = 'Name is required';
-    if (!formData.username.trim()) errors.username = 'Username is required';
-    if (formData.password && formData.password.length < 6) errors.password = 'Password must be at least 6 characters';
-    if (!formData.role.trim()) errors.role = 'Role is required';
+    if (!formData.name.trim()) errors.name = 'Required';
+    if (!formData.username.trim()) errors.username = 'Required';
+    if (formData.password && formData.password.length < 6) errors.password = 'Min 6 chars';
+    if (!formData.role.trim()) errors.role = 'Required';
     
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
@@ -299,15 +320,15 @@ export default function UsersPage() {
         setUsers(users.map(user => user._id === selectedUser._id ? data.user : user));
         setShowEditModal(false);
         resetForm();
-        setValidationAlert({ type: 'success', text: 'User updated successfully' });
+        setValidationAlert({ type: 'success', text: 'User updated' });
         setTimeout(() => setValidationAlert(null), 3000);
       } else {
         const error = await response.json();
-        setValidationAlert({ type: 'error', text: error.message || 'Failed to update user' });
+        setValidationAlert({ type: 'error', text: error.message || 'Update failed' });
         setTimeout(() => setValidationAlert(null), 5000);
       }
     } catch (error) {
-      setValidationAlert({ type: 'error', text: 'Failed to update user' });
+      setValidationAlert({ type: 'error', text: 'Update failed' });
       setTimeout(() => setValidationAlert(null), 5000);
     } finally {
       setSubmitting(false);
@@ -317,7 +338,7 @@ export default function UsersPage() {
   // Delete user
   const handleDeleteUser = async () => {
     if (!selectedUser || !selectedUser._id) {
-      setValidationAlert({ type: 'error', text: 'Invalid user selected for deletion' });
+      setValidationAlert({ type: 'error', text: 'Invalid user' });
       setTimeout(() => setValidationAlert(null), 5000);
       return;
     }
@@ -336,15 +357,15 @@ export default function UsersPage() {
         setUsers(users.filter(user => user._id !== selectedUser._id));
         setShowDeleteModal(false);
         setSelectedUser(null);
-        setValidationAlert({ type: 'success', text: 'User deleted successfully' });
+        setValidationAlert({ type: 'success', text: 'User deleted' });
         setTimeout(() => setValidationAlert(null), 3000);
       } else {
         const error = await response.json();
-        setValidationAlert({ type: 'error', text: error.message || 'Failed to delete user' });
+        setValidationAlert({ type: 'error', text: error.message || 'Delete failed' });
         setTimeout(() => setValidationAlert(null), 5000);
       }
     } catch (error) {
-      setValidationAlert({ type: 'error', text: 'Failed to delete user' });
+      setValidationAlert({ type: 'error', text: 'Delete failed' });
       setTimeout(() => setValidationAlert(null), 5000);
     } finally {
       setSubmitting(false);
@@ -389,7 +410,15 @@ export default function UsersPage() {
   };
 
   // Show skeleton while not mounted or loading
-  if (!mounted || loading) {
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (loading) {
     return (
       <div className="space-y-4">
         {/* Header Skeleton */}
@@ -651,10 +680,10 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Validation Alert - Top of Table */}
-      {validationAlert && (
+      {/* Error Message Display */}
+      {message && (
         <div className={`mb-4 p-4 rounded-lg border ${
-          validationAlert.type === 'success'
+          message.type === 'success'
             ? isDarkMode
               ? 'bg-green-900/20 border-green-500/30 text-green-400'
               : 'bg-green-50 border-green-200 text-green-800'
@@ -664,26 +693,42 @@ export default function UsersPage() {
         }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              {validationAlert.type === 'success' ? (
+              {message.type === 'success' ? (
                 <CheckIcon className="h-5 w-5 mr-2" />
               ) : (
                 <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
               )}
-              {validationAlert.text}
+              {message.text}
             </div>
-            <button
-              onClick={() => setValidationAlert(null)}
-              className={`p-1 rounded transition-all duration-300 ${
-                isDarkMode
-                  ? 'text-gray-400 hover:bg-white/10'
-                  : 'text-gray-500 hover:bg-gray-100'
-              }`}
-            >
-              <XMarkIcon className="h-4 w-4" />
-            </button>
+            <div className="flex items-center space-x-2">
+              {message.type === 'error' && (
+                <button
+                  onClick={handleRetry}
+                  className={`px-3 py-1 rounded text-sm font-medium transition-colors duration-300 ${
+                    isDarkMode
+                      ? 'bg-white/10 text-white hover:bg-white/20'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Retry
+                </button>
+              )}
+              <button
+                onClick={() => setMessage(null)}
+                className={`p-1 rounded transition-colors duration-300 ${
+                  isDarkMode
+                    ? 'text-gray-400 hover:text-white hover:bg-white/10'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+
 
       {/* Users Table */}
       <div className={`rounded-lg border overflow-hidden ${
@@ -865,8 +910,8 @@ export default function UsersPage() {
                             setShowDeleteModal(true);
                             setValidationAlert(null);
                           } else if (!user._id) {
-                            setValidationAlert({ type: 'error', text: 'Invalid user data - cannot delete' });
-                            setTimeout(() => setValidationAlert(null), 5000);
+                                    setValidationAlert({ type: 'error', text: 'Invalid user data' });
+        setTimeout(() => setValidationAlert(null), 5000);
                           }
                         }}
                         disabled={!canDeleteUser(user) || !user._id}
@@ -996,7 +1041,7 @@ export default function UsersPage() {
 
       {/* Create User Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
           <div className={`w-full max-w-2xl rounded-lg shadow-xl ${
             isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
           }`}>
@@ -1025,9 +1070,9 @@ export default function UsersPage() {
             </div>
 
             <div className="p-6">
-              {/* Validation Alert */}
+              {/* Validation Alert - Inside Modal */}
               {validationAlert && (
-                <div className={`mb-6 p-4 rounded-lg border ${
+                <div className={`mb-4 p-3 rounded-md border text-sm ${
                   validationAlert.type === 'success'
                     ? isDarkMode
                       ? 'bg-green-900/20 border-green-500/30 text-green-400'
@@ -1036,17 +1081,29 @@ export default function UsersPage() {
                       ? 'bg-red-900/20 border-red-500/30 text-red-400'
                       : 'bg-red-50 border-red-200 text-red-800'
                 }`}>
-                  <div className="flex items-center">
-                    {validationAlert.type === 'success' ? (
-                      <CheckIcon className="h-5 w-5 mr-2" />
-                    ) : (
-                      <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
-                    )}
-                    {validationAlert.text}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      {validationAlert.type === 'success' ? (
+                        <CheckCircleIcon className="h-4 w-4 mr-2" />
+                      ) : (
+                        <ExclamationTriangleIcon className="h-4 w-4 mr-2" />
+                      )}
+                      <span>{validationAlert.text}</span>
+                    </div>
+                    <button
+                      onClick={() => setValidationAlert(null)}
+                      className={`p-1 rounded transition-all duration-300 ${
+                        isDarkMode
+                          ? 'text-gray-400 hover:bg-white/10'
+                          : 'text-gray-500 hover:bg-gray-100'
+                      }`}
+                    >
+                      <XMarkIcon className="h-3 w-3" />
+                    </button>
                   </div>
                 </div>
               )}
-              
+
               {/* Required Fields Note */}
               <div className={`mb-6 p-3 rounded-lg border ${
                 isDarkMode
@@ -1084,7 +1141,7 @@ export default function UsersPage() {
                       placeholder="Enter full name"
                     />
                     {formErrors.name && (
-                      <p className="mt-1 text-sm text-red-500">{formErrors.name}</p>
+                      <p className="mt-1 text-xs text-red-500">{formErrors.name}</p>
                     )}
                   </div>
 
@@ -1109,7 +1166,7 @@ export default function UsersPage() {
                       placeholder="Enter username"
                     />
                     {formErrors.username && (
-                      <p className="mt-1 text-sm text-red-500">{formErrors.username}</p>
+                      <p className="mt-1 text-xs text-red-500">{formErrors.username}</p>
                     )}
                   </div>
 
@@ -1134,7 +1191,7 @@ export default function UsersPage() {
                       placeholder="Enter password"
                     />
                     {formErrors.password && (
-                      <p className="mt-1 text-sm text-red-500">{formErrors.password}</p>
+                      <p className="mt-1 text-xs text-red-500">{formErrors.password}</p>
                     )}
                   </div>
                 </div>
@@ -1162,7 +1219,7 @@ export default function UsersPage() {
                       placeholder="Enter phone number"
                     />
                     {formErrors.phoneNumber && (
-                      <p className="mt-1 text-sm text-red-500">{formErrors.phoneNumber}</p>
+                      <p className="mt-1 text-xs text-red-500">{formErrors.phoneNumber}</p>
                     )}
                   </div>
 
@@ -1187,7 +1244,7 @@ export default function UsersPage() {
                       placeholder="Enter address"
                     />
                     {formErrors.address && (
-                      <p className="mt-1 text-sm text-red-500">{formErrors.address}</p>
+                      <p className="mt-1 text-xs text-red-500">{formErrors.address}</p>
                     )}
                   </div>
 
@@ -1213,7 +1270,7 @@ export default function UsersPage() {
                       <option value="superadmin" className={isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'}>Super Admin</option>
                     </select>
                     {formErrors.role && (
-                      <p className="mt-1 text-sm text-red-500">{formErrors.role}</p>
+                      <p className="mt-1 text-xs text-red-500">{formErrors.role}</p>
                     )}
                   </div>
                 </div>
@@ -1377,7 +1434,7 @@ export default function UsersPage() {
                       placeholder="Enter password (leave blank to keep current)"
                     />
                     {formErrors.password && (
-                      <p className="mt-1 text-sm text-red-500">{formErrors.password}</p>
+                      <p className="mt-1 text-xs text-red-500">{formErrors.password}</p>
                     )}
                   </div>
                 </div>
@@ -1405,7 +1462,7 @@ export default function UsersPage() {
                       placeholder="Enter phone number"
                     />
                     {formErrors.phoneNumber && (
-                      <p className="mt-1 text-sm text-red-500">{formErrors.phoneNumber}</p>
+                      <p className="mt-1 text-xs text-red-500">{formErrors.phoneNumber}</p>
                     )}
                   </div>
 
@@ -1430,7 +1487,7 @@ export default function UsersPage() {
                       placeholder="Enter address"
                     />
                     {formErrors.address && (
-                      <p className="mt-1 text-sm text-red-500">{formErrors.address}</p>
+                      <p className="mt-1 text-xs text-red-500">{formErrors.address}</p>
                     )}
                   </div>
 

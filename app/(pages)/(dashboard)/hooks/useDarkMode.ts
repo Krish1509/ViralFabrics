@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface DarkModeReturn {
   isDarkMode: boolean;
@@ -12,78 +12,63 @@ interface DarkModeReturn {
 }
 
 export function useDarkMode(): DarkModeReturn {
-  // Initialize with a function to prevent hydration mismatch
+  // Initialize with the theme from the optimized script in layout.tsx
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    // Check if we're on the client side
     if (typeof window !== 'undefined') {
-      const savedMode = localStorage.getItem('darkMode');
-      if (savedMode !== null) {
-        return savedMode === 'true';
-      }
-      // Default to system preference to prevent flash
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+      // Use the initial theme set by the layout script
+      return (window as any).__INITIAL_THEME__ ?? false;
     }
-    // Server-side default (will be updated on mount)
     return false;
   });
+  
   const [mounted, setMounted] = useState<boolean>(false);
 
   useEffect(() => {
     setMounted(true);
     
-    // Only update if the initial state doesn't match the current state
+    // Only update if needed (prevents unnecessary re-renders)
     const savedMode = localStorage.getItem('darkMode');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    let shouldUpdate = false;
-    let newMode = isDarkMode;
+    const expectedMode = savedMode !== null ? savedMode === 'true' : prefersDark;
     
-    if (savedMode !== null) {
-      newMode = savedMode === 'true';
-      shouldUpdate = newMode !== isDarkMode;
-    } else {
-      newMode = prefersDark;
-      shouldUpdate = newMode !== isDarkMode;
-    }
-    
-    if (shouldUpdate) {
-      setIsDarkMode(newMode);
+    if (expectedMode !== isDarkMode) {
+      setIsDarkMode(expectedMode);
     }
 
-    // Listen for custom dark mode change events
+    // Optimized event listeners with passive option
     const handleDarkModeChange = (event: CustomEvent) => {
       setIsDarkMode(event.detail);
     };
 
-    // Listen for storage changes
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === 'darkMode') {
         setIsDarkMode(event.newValue === 'true');
       }
     };
 
-    // Listen for system preference changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleSystemChange = (event: MediaQueryListEvent) => {
-      // Only update if user hasn't set a manual preference
       const savedMode = localStorage.getItem('darkMode');
       if (savedMode === null) {
         setIsDarkMode(event.matches);
       }
     };
 
-    window.addEventListener('darkModeChange', handleDarkModeChange as EventListener);
-    window.addEventListener('storage', handleStorageChange);
-    mediaQuery.addEventListener('change', handleSystemChange);
+    // Use passive listeners for better performance
+    window.addEventListener('darkModeChange', handleDarkModeChange as EventListener, { passive: true });
+    window.addEventListener('storage', handleStorageChange, { passive: true });
+    mediaQuery.addEventListener('change', handleSystemChange, { passive: true });
 
     return () => {
       window.removeEventListener('darkModeChange', handleDarkModeChange as EventListener);
       window.removeEventListener('storage', handleStorageChange);
       mediaQuery.removeEventListener('change', handleSystemChange);
     };
-  }, []);
+  }, [isDarkMode]);
 
-  const toggleDarkMode = () => {
+  // Memoized toggle function for better performance
+  const toggleDarkMode = useCallback(() => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
     localStorage.setItem('darkMode', newMode.toString());
@@ -95,34 +80,31 @@ export function useDarkMode(): DarkModeReturn {
       cancelable: true
     });
     window.dispatchEvent(event);
-  };
+  }, [isDarkMode]);
 
-  const setSystemTheme = () => {
+  const setSystemTheme = useCallback(() => {
     localStorage.removeItem('darkMode');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setIsDarkMode(prefersDark);
     
-    // Dispatch custom event
     const event = new CustomEvent('darkModeChange', { 
       detail: prefersDark,
       bubbles: true,
       cancelable: true
     });
     window.dispatchEvent(event);
-  };
+  }, []);
 
-  const getThemeMode = () => {
+  const getThemeMode = useCallback(() => {
     const savedMode = localStorage.getItem('darkMode');
     if (savedMode === null) return 'system';
     return savedMode === 'true' ? 'dark' : 'light';
-  };
+  }, []);
 
-  // Helper function to safely get dark mode state
-  const getDarkModeState = (defaultValue: boolean = false) => {
+  const getDarkModeState = useCallback((defaultValue: boolean = false) => {
     return mounted ? isDarkMode : defaultValue;
-  };
+  }, [mounted, isDarkMode]);
 
-  // Return mounted state to prevent hydration mismatches
   return { 
     isDarkMode, 
     toggleDarkMode, 

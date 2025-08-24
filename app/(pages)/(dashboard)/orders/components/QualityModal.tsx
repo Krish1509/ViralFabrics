@@ -52,7 +52,7 @@ export default function QualityModal({ onClose, onSuccess }: QualityModalProps) 
     setErrors({}); // Clear previous errors
     
     try {
-      console.log('Submitting quality data:', { name: formData.name.trim() }); // Debug log
+      // Submitting quality data
       
       const response = await fetch('/api/qualities', {
         method: 'POST',
@@ -65,14 +65,14 @@ export default function QualityModal({ onClose, onSuccess }: QualityModalProps) 
       });
 
       const data = await response.json();
-      console.log('Quality creation response:', data); // Debug log
+              // Quality creation response
 
       if (data.success) {
-        console.log('Quality created successfully, calling onSuccess with:', { name: formData.name.trim(), data: data.data }); // Debug log
+                  // Quality created successfully
         // Call onSuccess immediately
         onSuccess(formData.name.trim(), data.data);
       } else {
-        console.log('Quality creation failed:', data.message); // Debug log
+                  // Quality creation failed
         setErrors({ submit: data.message || 'Failed to create quality' });
       }
     } catch (error) {

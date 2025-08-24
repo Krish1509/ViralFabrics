@@ -1,129 +1,69 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense } from 'react';
 import { 
   ShieldExclamationIcon,
   HomeIcon
 } from '@heroicons/react/24/outline';
-import { useDarkMode } from '../hooks/useDarkMode';
+import { BRAND_NAME } from '@/lib/config';
+import AccessDeniedClient from './AccessDeniedClient';
+import AccessDeniedButton from './AccessDeniedButton';  
 
-export default function AccessDeniedPage() {
-  const router = useRouter();
-  const { isDarkMode, mounted } = useDarkMode();
-  const [user, setUser] = useState<{ name: string; role: string } | null>(null);
-
-  useEffect(() => {
-    // Get user info from localStorage
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const userData = JSON.parse(userStr);
-        setUser(userData);
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-      }
-    }
-  }, []);
-
- 
-
-  const handleGoHome = () => {
-    router.push('/dashboard');
-  };
-
-  // Prevent hydration mismatch by not rendering until mounted
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
+// Server Component - Static content
+function AccessDeniedContent() {
   return (
-    <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
-      isDarkMode 
-        ? 'bg-slate-800' 
-        : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
-    }`}>
-      <div className={`max-w-md w-full mx-auto p-8 rounded-xl shadow-2xl ${
-        isDarkMode 
-          ? 'bg-slate-700 border border-slate-600' 
-          : 'bg-white border border-gray-200'
-      }`}>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700 transition-all duration-300">
+      <div className="max-w-md w-full mx-auto p-8 rounded-xl shadow-2xl bg-white/90 backdrop-blur-sm border border-gray-200/50 dark:bg-slate-800/90 dark:border-slate-600/50">
         {/* Icon */}
         <div className="flex justify-center mb-6">
-          <div className={`p-4 rounded-full ${
-            isDarkMode 
-              ? 'bg-red-500/20 text-red-400' 
-              : 'bg-red-100 text-red-600'
-          }`}>
+          <div className="p-4 rounded-full bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400 shadow-lg">
             <ShieldExclamationIcon className="h-12 w-12" />
           </div>
         </div>
 
         {/* Title */}
         <div className="text-center mb-6">
-          <h1 className={`text-2xl font-bold mb-2 ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
-          }`}>
+          <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">
             Access Denied
           </h1>
-          <p className={`text-lg ${
-            isDarkMode ? 'text-red-400' : 'text-red-600'
-          }`}>
+          <p className="text-lg text-red-600 dark:text-red-400">
             Superadmin Access Only
           </p>
         </div>
 
         {/* Message */}
-        <div className={`text-center mb-8 ${
-          isDarkMode ? 'text-gray-300' : 'text-gray-600'
-        }`}>
+        <div className="text-center mb-8 text-gray-600 dark:text-gray-300">
           <p className="mb-4">
             You don't have permission to access this page. This area is restricted to superadmin users only.
           </p>
-          {user && (
-            <div className={`p-4 rounded-lg ${
-              isDarkMode 
-                ? 'bg-slate-600/50 border border-slate-500' 
-                : 'bg-gray-50 border border-gray-200'
-            }`}>
-              <p className="text-sm">
-                <span className="font-medium">Current User:</span> {user.name}
-              </p>
-              <p className="text-sm">
-                <span className="font-medium">Role:</span> {user.role === 'superadmin' ? 'Super Admin' : 'User'}
-              </p>
-            </div>
-          )}
         </div>
 
-        {/* Actions */}
-        <div className="space-y-3">
-         
-          
-          <button
-            onClick={handleGoHome}
-            className={`w-full flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
-              isDarkMode
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
-          >
-            <HomeIcon className="h-5 w-5 mr-2" />
-            Go to Dashboard
-          </button>
+        {/* Client Component for User Info */}
+        <AccessDeniedClient />
+
+        {/* Action Button - Client Component */}
+        <div className="flex justify-center">
+          <AccessDeniedButton />
         </div>
 
-        {/* Footer */}
-        <div className={`text-center mt-8 text-sm ${
-          isDarkMode ? 'text-gray-400' : 'text-gray-500'
-        }`}>
-          <p>If you believe this is an error, please contact your system administrator.</p>
+        {/* Brand Info */}
+        <div className="text-center mt-8 pt-6 border-t border-gray-200/50 dark:border-slate-600/50">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {BRAND_NAME}
+          </p>
         </div>
       </div>
     </div>
+  );
+}
+
+// Main Page Component
+export default function AccessDeniedPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      </div>
+    }>
+      <AccessDeniedContent />
+    </Suspense>
   );
 }

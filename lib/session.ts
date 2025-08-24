@@ -13,19 +13,15 @@ export interface SessionUser {
 export async function getSession(req: NextRequest): Promise<SessionUser | null> {
   try {
     const authHeader = req.headers.get("authorization");
-    console.log('🔍 Session: Auth header present:', !!authHeader);
     if (!authHeader) return null;
 
     const token = authHeader.split(" ")[1];
     const JWT_SECRET = process.env.JWT_SECRET;
     
-    console.log('🔍 Session: Token present:', !!token, 'JWT_SECRET present:', !!JWT_SECRET);
     if (!token || !JWT_SECRET) return null;
 
     const secretKey = new TextEncoder().encode(JWT_SECRET);
     const { payload } = await jwtVerify(token, secretKey);
-    
-    console.log('Raw JWT payload:', payload);
     
     if (!payload || typeof payload !== "object") return null;
 
@@ -38,7 +34,6 @@ export async function getSession(req: NextRequest): Promise<SessionUser | null> 
       address: (payload as any).address,
     };
 
-    console.log('Session user created:', sessionUser);
     return sessionUser;
   } catch (error) {
     console.error("Session verification error:", error);

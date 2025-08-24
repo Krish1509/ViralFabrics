@@ -14,15 +14,11 @@ export async function GET(request: NextRequest) {
     // Check authentication
     const session = await getSession(request);
     if (!session) {
-      console.log('🔍 Logs API: No session found');
       return unauthorized('Authentication required');
     }
     
-    console.log('🔍 Logs API: Session found for user:', session.username, 'role:', session.role);
-    
     // Allow both users and superadmins to view logs
     if (session.role !== 'superadmin' && session.role !== 'user') {
-      console.log('🔍 Logs API: Insufficient permissions for user:', session.username, 'role:', session.role);
       return unauthorized('Insufficient permissions');
     }
     
@@ -128,11 +124,12 @@ export async function GET(request: NextRequest) {
     
     let logs, hasMore, results;
     
-    // Always use cursor-based pagination for consistent behavior
-    let query = Log.find(filter).sort(sort).limit(limitNum + 1);
+    // Build the final query with cursor-based pagination
+    let finalFilter = { ...filter };
     
     // Add cursor-based pagination if cursor is provided
     if (cursor) {
+      console.log(`API: Processing cursor=${cursor}, sortBy=${sortBy}, sortOrder=${sortOrder}`);
       try {
         // Handle compound cursor (timestamp_id)
         if (cursor.includes('_')) {
@@ -143,7 +140,7 @@ export async function GET(request: NextRequest) {
           // Create compound cursor condition for better pagination
           if (sortOrder === 'desc') {
             // For descending order: (timestamp < cursorDate) OR (timestamp = cursorDate AND _id < cursorId)
-            filter.$or = [
+            finalFilter.$or = [
               { [sortBy]: { $lt: cursorDate } },
               { 
                 $and: [
@@ -154,7 +151,7 @@ export async function GET(request: NextRequest) {
             ];
           } else {
             // For ascending order: (timestamp > cursorDate) OR (timestamp = cursorDate AND _id > cursorId)
-            filter.$or = [
+            finalFilter.$or = [
               { [sortBy]: { $gt: cursorDate } },
               { 
                 $and: [
@@ -168,9 +165,9 @@ export async function GET(request: NextRequest) {
           // Fallback for simple cursor format
           const cursorDate = new Date(cursor);
           if (sortOrder === 'desc') {
-            filter[sortBy] = { ...filter[sortBy], $lt: cursorDate };
+            finalFilter[sortBy] = { ...finalFilter[sortBy], $lt: cursorDate };
           } else {
-            filter[sortBy] = { ...filter[sortBy], $gt: cursorDate };
+            finalFilter[sortBy] = { ...finalFilter[sortBy], $gt: cursorDate };
           }
         }
       } catch (error) {
@@ -180,16 +177,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Execute query with timeout
-    logs = await query.lean().maxTimeMS(3000); // 3 second timeout
-    
-    // Debug logging
-    console.log('🔍 Logs API Debug:', {
-      cursor: cursor || 'none',
-      filter: JSON.stringify(filter),
-      logsFound: logs.length,
-      limit: limitNum,
-      hasMore: logs.length > limitNum
-    });
+    logs = await Log.find(finalFilter).sort(sort).limit(limitNum + 1).lean().maxTimeMS(3000); // 3 second timeout
     
     // Check if there are more results
     hasMore = logs.length > limitNum;
@@ -204,6 +192,7 @@ export async function GET(request: NextRequest) {
       const lastLog = results[results.length - 1];
       // Use compound cursor: timestamp_id for better pagination
       nextCursor = `${lastLog[sortBy]}_${lastLog._id}`;
+      console.log(`API: Generated nextCursor=${nextCursor}, hasMore=${hasMore}, results=${results.length}, limit=${limitNum}`);
     }
     
     // Calculate statistics if requested

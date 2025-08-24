@@ -106,7 +106,7 @@ export default function DashboardPage() {
         
         if (newRetryCount < 3) {
           // Auto-retry on timeout
-          console.log('Dashboard: Auto-retrying due to timeout, attempt:', newRetryCount);
+          // Dashboard: Auto-retrying due to timeout
           setTimeout(() => fetchData(true), 1000);
           return;
         } else {

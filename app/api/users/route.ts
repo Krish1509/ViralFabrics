@@ -17,12 +17,12 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50'); // Default limit for performance
     
     // Optimized query with limits and timeout
-    const users = await User.find()
+    const users = await User.find() // Get all users (including inactive)
       .select("-password") // exclude password field directly
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean()
-      .maxTimeMS(3000); // 3 second timeout
+      .maxTimeMS(5000); // Increased to 5 second timeout
 
     // Map user fields to send only needed info (use username, not email)
     const usersSafe = users.map(user => ({
@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
       phoneNumber: user.phoneNumber,
       address: user.address,
       role: user.role,
+      isActive: user.isActive,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     }));

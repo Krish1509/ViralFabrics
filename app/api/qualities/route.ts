@@ -77,10 +77,10 @@ export async function POST(request: NextRequest) {
     
     // Parse and validate request body
     const body = await request.json();
-    console.log('Received quality data:', body); // Debug log
+    // Received quality data
     
     const validatedData = validateRequest(createQualitySchema, body);
-    console.log('Validated quality data:', validatedData); // Debug log
+    // Validated quality data
 
     // Check if quality with same name already exists
     const existingQuality = await Quality.findOne({ name: { $regex: validatedData.name, $options: 'i' } });
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     // Create new quality
     const quality = new Quality(validatedData);
     const savedQuality = await quality.save();
-    console.log('Quality created successfully:', savedQuality); // Debug log
+    // Quality created successfully
 
     // Log the quality creation
     await logCreate('quality', (savedQuality as any)._id.toString(), { 
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString()
     };
 
-    console.log('Sending success response:', response); // Debug log
+    // Sending success response
     return NextResponse.json(response, { status: 201 });
 
   } catch (error) {

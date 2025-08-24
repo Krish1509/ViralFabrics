@@ -62,7 +62,6 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
       const fetchLabs = async () => {
         try {
           setLoadingLabs(true);
-          console.log('🔍 Fetching labs for order:', order._id);
           const token = localStorage.getItem('token');
           const response = await fetch(`/api/labs/by-order/${order._id}`, {
             headers: {
@@ -71,9 +70,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
             }
           });
           const data = await response.json();
-          console.log('🔍 Labs API response:', data);
           if (data.success && Array.isArray(data.data)) {
-            console.log('🔍 Setting labs:', data.data.length, 'labs');
             setLabs(data.data);
           }
         } catch (error) {
@@ -92,7 +89,6 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
   useEffect(() => {
     const handleLabUpdate = (event: CustomEvent) => {
       if (event.detail?.orderId === order._id && event.detail?.action === 'lab_add') {
-        console.log('🔍 OrderDetails: Refreshing labs after lab_add event');
         // Refresh labs data after a short delay to ensure server has updated
         setTimeout(() => {
           const fetchLabs = async () => {
@@ -107,7 +103,6 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
               });
               const data = await response.json();
               if (data.success && Array.isArray(data.data)) {
-                console.log('🔍 OrderDetails: Updated labs after lab_add:', data.data.length, 'labs');
                 setLabs(data.data);
               }
             } catch (error) {
@@ -274,7 +269,6 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
   const getLabForItem = (itemId: string) => {
     if (!Array.isArray(labs)) return null;
     const lab = labs.find(lab => lab.orderItemId === itemId);
-    console.log('🔍 getLabForItem:', { itemId, labsCount: labs.length, foundLab: !!lab });
     return lab;
   };
 
@@ -288,13 +282,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
     cancelled: labs.filter(lab => lab.status === 'cancelled').length
   };
 
-  // Debug: Log current state
-  console.log('🔍 OrderDetails state:', { 
-    orderId: order._id, 
-    itemsCount: order.items.length, 
-    labsCount: labs.length, 
-    labStats 
-  });
+
 
 
 

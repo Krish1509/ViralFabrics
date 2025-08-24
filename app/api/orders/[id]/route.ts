@@ -98,7 +98,7 @@ export async function PUT(
     // await requireAuth(req);
 
     const requestData = await req.json();
-    console.log('🔍 DEBUG: Request data received:', JSON.stringify(requestData, null, 2));
+    // DEBUG: Request data received
     
     const {
       orderType,
@@ -116,22 +116,7 @@ export async function PUT(
       status
     } = requestData;
 
-    // Debug: Log what fields are being sent
-    console.log('🔍 DEBUG: Fields being sent in request:', {
-      orderType: orderType !== undefined ? 'SENT' : 'NOT SENT',
-      arrivalDate: arrivalDate !== undefined ? 'SENT' : 'NOT SENT',
-      party: party !== undefined ? 'SENT' : 'NOT SENT',
-      contactName: contactName !== undefined ? 'SENT' : 'NOT SENT',
-      contactPhone: contactPhone !== undefined ? 'SENT' : 'NOT SENT',
-      poNumber: poNumber !== undefined ? 'SENT' : 'NOT SENT',
-      styleNo: styleNo !== undefined ? 'SENT' : 'NOT SENT',
-      weaverSupplierName: weaverSupplierName !== undefined ? 'SENT' : 'NOT SENT',
-      purchaseRate: purchaseRate !== undefined ? 'SENT' : 'NOT SENT',
-      poDate: poDate !== undefined ? 'SENT' : 'NOT SENT',
-      deliveryDate: deliveryDate !== undefined ? 'SENT' : 'NOT SENT',
-      status: status !== undefined ? 'SENT' : 'NOT SENT',
-      items: items !== undefined ? 'SENT' : 'NOT SENT'
-    });
+    // Debug logging removed for production
 
     // Validation
     const errors: string[] = [];
@@ -147,11 +132,10 @@ export async function PUT(
       }
     }
     
-    console.log('🔍 DEBUG: Party field value:', party, 'Type:', typeof party);
-    console.log('🔍 DEBUG: Party field length:', party ? party.length : 'null/undefined');
+    // DEBUG: Party field validation
     if (party !== undefined && party !== null && party !== '' && party !== 'null' && party !== 'undefined') {
       if (!party.match(/^[0-9a-fA-F]{24}$/)) {
-        console.log('🔍 DEBUG: Party validation failed for value:', party);
+        // DEBUG: Party validation failed
         errors.push("Invalid party ID format");
       }
     }
@@ -314,10 +298,7 @@ export async function PUT(
       }));
     }
     
-    // Debug: Log the update data to see what's being sent
-    console.log('🔍 DEBUG: Update data being sent to MongoDB:', JSON.stringify(updateData, null, 2));
-    console.log('🔍 DEBUG: Existing order ID:', existingOrder._id);
-    console.log('🔍 DEBUG: Existing order ID:', existingOrder.orderId);
+
 
     // Capture old values for logging - ONLY fields that are actually being updated
     const oldValues: any = {};
@@ -345,13 +326,7 @@ export async function PUT(
       
       const arrivalDateChanged = existingDateStr !== newDateStr;
       
-      console.log('🔍 Arrival date comparison:', {
-        original: existingOrder.arrivalDate,
-        incoming: arrivalDate,
-        existingDateStr,
-        newDateStr,
-        changed: arrivalDateChanged
-      });
+
       
       if (arrivalDateChanged) {
         oldValues.arrivalDate = existingOrder.arrivalDate;
@@ -433,13 +408,7 @@ export async function PUT(
       
       const poDateChanged = existingDateStr !== newDateStr;
       
-      console.log('🔍 PO date comparison:', {
-        original: existingOrder.poDate,
-        incoming: poDate,
-        existingDateStr,
-        newDateStr,
-        changed: poDateChanged
-      });
+
       
       if (poDateChanged) {
         oldValues.poDate = existingOrder.poDate;
@@ -462,13 +431,7 @@ export async function PUT(
       
       const deliveryDateChanged = existingDateStr !== newDateStr;
       
-      console.log('🔍 Delivery date comparison:', {
-        original: existingOrder.deliveryDate,
-        incoming: deliveryDate,
-        existingDateStr,
-        newDateStr,
-        changed: deliveryDateChanged
-      });
+
       
       if (deliveryDateChanged) {
         oldValues.deliveryDate = existingOrder.deliveryDate;
@@ -635,9 +598,7 @@ export async function PUT(
       }
     }
     
-    console.log('🔍 DEBUG: Fields being updated:', changedFields);
-    console.log('🔍 DEBUG: Old values for logging:', JSON.stringify(oldValues, null, 2));
-    console.log('🔍 DEBUG: New values for logging:', JSON.stringify(newValues, null, 2));
+
 
     // First update the order without populate to avoid wasPopulated issues
     let updatedOrder;
@@ -648,8 +609,6 @@ export async function PUT(
         { new: true, runValidators: true }
       );
     } catch (updateError) {
-      console.error('🔍 Update operation failed:', updateError);
-      console.error('🔍 Update error details:', JSON.stringify(updateError, null, 2));
       throw updateError; // Re-throw to be caught by outer catch block
     }
 
@@ -679,10 +638,7 @@ export async function PUT(
       );
     }
 
-    console.log('🔍 DEBUG: Populated order for logging:', JSON.stringify(populatedOrder, null, 2));
 
-    console.log('🔍 DEBUG: Old values for logging:', JSON.stringify(oldValues, null, 2));
-    console.log('🔍 DEBUG: New values for logging:', JSON.stringify(newValues, null, 2));
 
     // Only log if there are actual changes
     if (changedFields.length > 0) {
@@ -763,12 +719,9 @@ export async function DELETE(
     
     const { id } = await params;
     
-    console.log('🔍 DELETE request for order ID:', id);
-    
     // Check if order exists
     const existingOrder = await Order.findById(id);
     if (!existingOrder) {
-      console.log('🔍 Order not found with ID:', id);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -777,8 +730,6 @@ export async function DELETE(
         { status: 404 }
       );
     }
-    
-    console.log('🔍 Found order to delete:', existingOrder.orderId);
 
     // Store order details for logging before deletion
     const orderDetails = {

@@ -25,38 +25,26 @@ export interface UserInfo {
 // Get user info from session
 export async function getUserInfo(request?: NextRequest): Promise<UserInfo | null> {
   try {
-    if (!request) {
-      console.log('🔍 No request provided to getUserInfo');
-      return null;
-    }
+      if (!request) {
+    return null;
+  }
     
     // Check if Authorization header is present
     const authHeader = request.headers.get('authorization');
-    console.log('🔍 Authorization header present:', !!authHeader);
     
-    if (authHeader) {
-      console.log('🔍 Auth header starts with Bearer:', authHeader.startsWith('Bearer '));
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const session = await getSession(request);
+      
+      if (session) {
+        return {
+          userId: session.id || 'unknown',
+          username: session.username || session.name || 'unknown',
+          userRole: session.role || 'user'
+        };
+      }
     }
     
-    const session = await getSession(request);
-    console.log('🔍 Session retrieved:', session);
-    
-    if (!session) {
-      console.log('❌ No session found in getUserInfo');
-      // Log headers for debugging
-      const cookieHeader = request.headers.get('cookie');
-      console.log('🔍 Cookie header present:', !!cookieHeader);
-      return null;
-    }
-    
-    const userInfo = {
-      userId: session.id || 'unknown',
-      username: session.username || session.name || 'unknown',
-      userRole: session.role || 'user'
-    };
-    
-    console.log('✅ User info created:', userInfo);
-    return userInfo;
+    return null;
   } catch (error) {
     console.error('❌ Error getting user info:', error);
     return null;
@@ -82,7 +70,7 @@ export async function logOrderChange(
   newValues: any,
   request?: NextRequest
 ): Promise<void> {
-  console.log('🔍 DEBUG: logOrderChange called with:', { action, orderId });
+  // Debug logging removed for production
   try {
     const userInfo = await getUserInfo(request);
     
@@ -112,7 +100,7 @@ export async function logOrderChange(
 
 // Helper function to get only changed fields
 function getChangedFields(oldValues: any, newValues: any) {
-  console.log('🔍 DEBUG: getChangedFields called with:', { oldValues, newValues });
+  // Debug logging removed for production
   
   const changed: any = {};
   const old: any = {};
@@ -147,7 +135,7 @@ function getChangedFields(oldValues: any, newValues: any) {
       const oldVal = oldValues[key];
       const newVal = newValues[key];
       
-      console.log(`🔍 DEBUG: Comparing ${key}:`, { oldVal, newVal });
+      // Debug logging removed for production
       
       // Proper comparison for different data types
       let hasChanged = false;
@@ -176,7 +164,7 @@ function getChangedFields(oldValues: any, newValues: any) {
         }
       }
       
-      console.log(`🔍 DEBUG: ${key} hasChanged:`, hasChanged);
+      // Debug logging removed for production
       
       if (hasChanged) {
         old[key] = oldVal;
@@ -545,10 +533,8 @@ export async function logAction(logData: LogData, request?: NextRequest): Promis
     await dbConnect();
     
     const userInfo = await getUserInfo(request);
-    console.log('User info from getUserInfo:', userInfo);
     
     if (!userInfo) {
-      console.log('No user info, attempting to extract from request');
       // Try to get user info from request headers or cookies as fallback
       let fallbackUsername = 'Unknown User';
       let fallbackUserId = 'unknown';
@@ -571,7 +557,6 @@ export async function logAction(logData: LogData, request?: NextRequest): Promis
           // Try to extract from JWT token
           try {
             const token = authHeader.substring(7);
-            console.log('🔍 Attempting to parse JWT token for user info');
             
             // Decode JWT payload (base64url decode)
             const base64Url = token.split('.')[1];
@@ -581,23 +566,18 @@ export async function logAction(logData: LogData, request?: NextRequest): Promis
             }).join(''));
             
             const payload = JSON.parse(jsonPayload);
-            console.log('🔍 JWT payload:', payload);
             
             if (payload.username) {
               fallbackUsername = payload.username;
               fallbackUserId = payload.id || payload.sub || 'unknown';
               fallbackUserRole = payload.role || 'user';
-              console.log('✅ Extracted user info from JWT:', { fallbackUsername, fallbackUserId, fallbackUserRole });
-            } else {
-              console.log('❌ No username found in JWT payload');
             }
           } catch (e) {
-            console.log('❌ Failed to parse JWT token:', e);
+            // Silent fail for JWT parsing
           }
         }
       }
       
-      console.log('Using fallback user info:', { fallbackUsername, fallbackUserId, fallbackUserRole });
       await (Log as ILogModel).logUserAction({
         userId: fallbackUserId,
         username: fallbackUsername,
@@ -606,8 +586,6 @@ export async function logAction(logData: LogData, request?: NextRequest): Promis
       });
       return;
     }
-    
-    console.log('Logging with user info:', userInfo);
     await (Log as ILogModel).logUserAction({
       ...userInfo,
       ...logData

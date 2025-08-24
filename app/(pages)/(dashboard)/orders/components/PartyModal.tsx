@@ -95,8 +95,8 @@ export default function PartyModal({ onClose, onSuccess }: PartyModalProps) {
         const newParty = responseData.data; // Extract the party data from the response
         
         // Debug logging
-        console.log('Party creation response:', responseData);
-        console.log('Extracted party data:', newParty);
+        // Party creation response
+        // Extracted party data
         
         if (!newParty || !newParty._id || !newParty.name) {
           console.error('Invalid party data received:', newParty);

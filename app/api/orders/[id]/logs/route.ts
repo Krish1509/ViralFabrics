@@ -9,16 +9,12 @@ export async function GET(
 ) {
   const startTime = Date.now();
   try {
-    console.log('🔍 Logs API: Starting request for order ID:', await params);
-    
     await dbConnect();
     
     const { id } = await params;
-    console.log('🔍 Logs API: Order ID from params:', id);
     
     // Quick validation of order ID format
     if (!id || typeof id !== 'string' || id.length < 10) {
-      console.log('🔍 Logs API: Invalid order ID format');
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -36,12 +32,6 @@ export async function GET(
       );
     }
     
-    // Skip order existence check for faster response - just try to get logs
-    console.log('🔍 Logs API: Proceeding directly to logs query');
-
-    // Optimized query for faster performance
-    console.log('🔍 Logs API: Searching for logs with resource: order, resourceId:', id);
-    
     // Only show important order-related operations
     const importantOrderActions = [
       'order_create', 'order_update', 'order_delete', 'order_status_change',
@@ -55,18 +45,9 @@ export async function GET(
     })
     .select('_id action username userRole timestamp success severity details')
     .sort({ timestamp: -1 })
-    .limit(25) // Reduced limit for faster loading
+    .limit(20) // Further reduced limit for faster loading
     .lean()
-    .maxTimeMS(3000); // Reduced timeout for faster response
-    
-    console.log('🔍 Logs API: Found logs count:', logs.length);
-    
-    // Quick debug info only if logs are found
-    if (logs.length > 0) {
-      console.log('🔍 Logs API: Found logs count:', logs.length);
-    } else {
-      console.log('🔍 Logs API: No logs found for this order');
-    }
+    .maxTimeMS(2000); // Further reduced timeout for faster response
 
     // Enhanced log formatting with detailed change information
     const formattedLogs = logs.map((log: any) => ({
@@ -91,8 +72,6 @@ export async function GET(
         metadata: log.details?.metadata
       }
     }));
-    
-    console.log('🔍 Logs API: Returning formatted logs:', formattedLogs.length);
 
     // Disable caching for real-time logs
     const headers = {

@@ -8,6 +8,7 @@ import { useDarkMode } from './hooks/useDarkMode';
 import PageVisitLogger from './components/PageVisitLogger';
 import LoadingOptimizer from './components/LoadingOptimizer';
 import GlobalSkeleton from './components/GlobalSkeleton';
+import PerformanceMonitor from './components/PerformanceMonitor';
 
 interface User {
   _id: string;
@@ -123,7 +124,7 @@ export default function SuperAdminLayout({
             localStorage.setItem('user', JSON.stringify(data.user));
             setUser(data.user);
             setSessionStatus('active');
-            console.log('✅ Session refreshed successfully');
+            // Session refreshed successfully
           } else {
             setSessionStatus('expired');
           }
@@ -245,6 +246,9 @@ export default function SuperAdminLayout({
       
       {/* Loading Optimizer - Improves performance across all pages */}
       <LoadingOptimizer />
+      
+      {/* Silent Performance Monitor - No UI */}
+      <PerformanceMonitor />
       
       {/* Sidebar - Fixed on left */}
       <Sidebar 

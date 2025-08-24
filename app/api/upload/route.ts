@@ -47,11 +47,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Starting Cloudinary upload for file:', {
-      name: file.name,
-      size: file.size,
-      type: file.type
-    });
+    // Starting Cloudinary upload for file
 
     // Convert file to buffer
     const bytes = await file.arrayBuffer();
@@ -72,7 +68,7 @@ export async function POST(request: NextRequest) {
             console.error('Cloudinary upload error:', error);
             reject(error);
           } else {
-            console.log('Cloudinary upload success:', result);
+            // Cloudinary upload success
             resolve(result);
           }
         }

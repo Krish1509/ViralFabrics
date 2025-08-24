@@ -49,20 +49,12 @@ export async function POST(request: NextRequest) {
       ...labData
     });
     
-    console.log('🔍 Creating lab with data:', { orderId, orderItemId, labData });
-    
     await lab.save();
-    
-    console.log('🔍 Lab created successfully with ID:', lab._id.toString());
     
     // Log the lab creation
     try {
-      console.log('🔍 About to log lab creation...');
-      console.log('🔍 Request headers:', Object.fromEntries(request.headers.entries()));
       await logCreate('lab', lab._id.toString(), { orderId, orderItemId, ...labData }, request);
-      console.log('🔍 Lab creation logged successfully');
     } catch (logError) {
-      console.error('🔍 Error logging lab creation:', logError);
       // Don't fail the request if logging fails
     }
     

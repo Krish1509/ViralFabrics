@@ -347,7 +347,7 @@ export async function POST(req: NextRequest) {
       .maxTimeMS(5000);
 
     // Log the order creation with complete details
-    console.log('🔍 DEBUG: Order creation logging - populated order:', JSON.stringify(populatedOrder, null, 2));
+    // Order creation logging completed
     
     await logOrderChange('create', (order as any)._id.toString(), {}, { 
       orderId: populatedOrder.orderId,
