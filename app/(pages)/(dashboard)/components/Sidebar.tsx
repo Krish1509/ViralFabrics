@@ -101,7 +101,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
 
   // Memoize active state calculation
   const isActive = useCallback((href: string) => {
-    if (href === '/dashboard/superadmin') {
+    if (href === '/dashboard') {
       return pathname === href;
     }
     return pathname.startsWith(href);
@@ -119,6 +119,20 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
       isSmallScreen
     };
   }, [screenSize]);
+
+  // Auto-close sidebar on route change for mobile
+  useEffect(() => {
+    // Temporarily disable auto-close to test navigation
+    // if (screenConfig.isSmallScreen && isOpen) {
+    //   // Only close if we're actually navigating to a different page
+    //   const timer = setTimeout(() => {
+    //     onClose();
+    //   }, 500);
+    //   return () => clearTimeout(timer);
+    // }
+  }, [pathname, screenConfig.isSmallScreen, isOpen, onClose]);
+
+
 
   // Memoize sidebar width calculation
   const sidebarWidth = useMemo(() => {
@@ -147,6 +161,16 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
     onClose();
   }, [onClose]);
 
+  // Handle navigation with delayed close for mobile
+  const handleNavigation = useCallback((e: React.MouseEvent) => {
+    // Only close sidebar on mobile screens
+    if (screenConfig.isSmallScreen) {
+      // Close sidebar immediately for now to test
+      onClose();
+    }
+    // Don't prevent default - let the link work normally
+  }, [screenConfig.isSmallScreen, onClose]);
+
   // Show skeleton while not mounted
   if (!mounted) {
     return <GlobalSkeleton type="sidebar" />;
@@ -166,7 +190,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
             mounted && isDarkMode ? 'border-white/10' : 'border-gray-200'
           } ${shouldShowText ? 'p-6' : 'p-4'}`}>
             <Link 
-              href="/dashboard/superadmin" 
+              href="/dashboard" 
               className={`group cursor-pointer ${shouldShowText ? 'flex items-center space-x-3' : 'flex justify-center'}`}
             >
               <div className={`h-10 w-10 rounded-lg flex items-center justify-center shadow-lg transition-all duration-300 ${
@@ -273,7 +297,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
       {/* Mobile Sidebar Overlay */}
       {isOpen && screenConfig.isSmallScreen && (
         <div 
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50"
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
           onClick={handleMobileClose}
         />
       )}
@@ -292,9 +316,8 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
             mounted && isDarkMode ? 'border-white/10' : 'border-gray-200'
           }`}>
             <Link 
-              href="/dashboard/superadmin" 
+              href="/dashboard" 
               className="flex items-center space-x-3 group cursor-pointer"
-              onClick={handleMobileClose}
             >
               <div className={`h-10 w-10 rounded-lg flex items-center justify-center shadow-lg transition-all duration-300 ${
                 mounted && isDarkMode 
@@ -344,7 +367,11 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                 <Link
                   key={item.name}
                   href={item.href}
-                  onClick={handleMobileClose}
+                  onClick={() => {
+                    console.log('Mobile navigation clicked:', item.href);
+                    // Close sidebar manually
+                    onClose();
+                  }}
                   className={`group flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 cursor-pointer ${
                     active
                       ? mounted && isDarkMode

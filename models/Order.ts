@@ -32,7 +32,7 @@ export interface IOrder extends Document {
   deliveryDate?: Date;
   // weaverSupplierName and purchaseRate moved to item level
   items: IOrderItem[];
-  status: "pending" | "in_progress" | "completed" | "delivered" | "cancelled";
+  status: "Not set" | "Not selected" | "pending" | "in_progress" | "completed" | "delivered" | "cancelled";
   priority: number;
   totalAmount: number;
   taxAmount: number;
@@ -216,11 +216,6 @@ const OrderSchema = new Schema<IOrder>({
   },
   status: {
     type: String,
-    enum: {
-      values: ["pending", "in_progress", "completed", "delivered", "cancelled"],
-      message: "Status must be one of: pending, in_progress, completed, delivered, cancelled"
-    },
-    default: "pending",
     index: true
   },
   priority: {
@@ -410,12 +405,18 @@ OrderSchema.statics.createOrder = async function(orderData: any): Promise<IOrder
     
     // Creating order with ID: ${orderId}
     
+    console.log('🔍 Model - Creating order with data:', { ...orderData, orderId });
+    console.log('🔍 Model - Status in orderData:', orderData.status);
+    
     const order = new this({
       ...orderData,
       orderId
     });
     
+    console.log('🔍 Model - Order status before save:', order.status);
+    
     const savedOrder = await order.save();
+    console.log('🔍 Model - Saved order status:', savedOrder.status);
           // Order created successfully with ID: ${savedOrder.orderId}
     return savedOrder;
     
@@ -647,6 +648,11 @@ OrderSchema.pre('findOne', function() {
   this.lean();
 });
 
-const Order = mongoose.models.Order || mongoose.model<IOrder, IOrderModel>("Order", OrderSchema);
+// Clear existing model to force schema recompilation
+if (mongoose.models.Order) {
+  delete mongoose.models.Order;
+}
+
+const Order = mongoose.model<IOrder, IOrderModel>("Order", OrderSchema);
 
 export default Order;

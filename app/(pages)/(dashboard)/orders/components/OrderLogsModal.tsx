@@ -358,7 +358,7 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
   const formatChanges = (details: any) => {
     if (!details) return null;
 
-    // Priority 1: Use the changeSummary if available (this contains the detailed image change info)
+    // Priority 1: Use the changeSummary if available (this contains the detailed change info)
     if (details.changeSummary && Array.isArray(details.changeSummary)) {
       console.log('🔍 Using changeSummary for formatting:', details.changeSummary);
       return details.changeSummary;
@@ -369,119 +369,69 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
       const itemChanges = details.oldValues?.itemChanges || details.newValues?.itemChanges || [];
       const changes: string[] = [];
       
-      console.log('🔍 Processing itemChanges:', itemChanges);
+      console.log('🔍 Processing itemChanges in modal:', itemChanges);
       
       itemChanges.forEach((change: any) => {
         if (change.type === 'item_updated') {
-          change.changes.forEach((fieldChange: any) => {
-            if (fieldChange.field === 'imageUrls' && fieldChange.message) {
-              // Handle the new detailed image change format with before/after info
-              let imageMessage = `📷 Item ${change.item}: ${fieldChange.message}`;
-              
-              // Add before/after information if available
-              if (fieldChange.oldUrls && fieldChange.newUrls) {
-                const oldCount = fieldChange.oldUrls.length;
-                const newCount = fieldChange.newUrls.length;
-                imageMessage += ` (${oldCount} → ${newCount} images)`;
-              }
-              
-              changes.push(imageMessage);
-              
-              // Show specific image details if available
-              if (fieldChange.addedUrls && fieldChange.addedUrls.length > 0) {
-                fieldChange.addedUrls.forEach((url: string, index: number) => {
-                  const fileName = url.split('/').pop() || url;
-                  changes.push(`  ➕ Added: ${fileName}`);
-                });
-              }
-              if (fieldChange.removedUrls && fieldChange.removedUrls.length > 0) {
-                fieldChange.removedUrls.forEach((url: string, index: number) => {
-                  const fileName = url.split('/').pop() || url;
-                  changes.push(`  ➖ Removed: ${fileName}`);
-                });
-              }
-            } else if (fieldChange.field === 'imageUrls' && fieldChange.type) {
-              // Handle the new detailed image change format
-              let imageMessage = '';
-              if (fieldChange.type === 'added') {
-                imageMessage = `📷 Item ${change.item}: Added ${fieldChange.count} image(s)`;
-                if (fieldChange.oldUrls && fieldChange.newUrls) {
-                  imageMessage += ` (${fieldChange.oldUrls.length} → ${fieldChange.newUrls.length} images)`;
+          const fieldChanges: string[] = [];
+          
+          // Process each field change
+          Object.keys(change.changes).forEach(field => {
+            const fieldChange = change.changes[field];
+            
+            if (field === 'quality') {
+              fieldChanges.push(`Quality: "${fieldChange.old}" → "${fieldChange.new}"`);
+            } else if (field === 'quantity') {
+              fieldChanges.push(`Quantity: ${fieldChange.old} → ${fieldChange.new}`);
+            } else if (field === 'description') {
+              fieldChanges.push(`Description: "${fieldChange.old || ''}" → "${fieldChange.new || ''}"`);
+            } else if (field === 'weaverSupplierName') {
+              fieldChanges.push(`Weaver: "${fieldChange.old || ''}" → "${fieldChange.new || ''}"`);
+            } else if (field === 'purchaseRate') {
+              fieldChanges.push(`Rate: ₹${Number(fieldChange.old || 0).toFixed(2)} → ₹${Number(fieldChange.new || 0).toFixed(2)}`);
+            } else if (field === 'imageUrls') {
+              if (fieldChange.addedCount !== undefined) {
+                if (fieldChange.addedCount > 0 && fieldChange.removedCount > 0) {
+                  fieldChanges.push(`Images: Added ${fieldChange.addedCount} image(s), Removed ${fieldChange.removedCount} image(s)`);
+                } else if (fieldChange.addedCount > 0) {
+                  fieldChanges.push(`Images: Added ${fieldChange.addedCount} image(s)`);
+                } else if (fieldChange.removedCount > 0) {
+                  fieldChanges.push(`Images: Removed ${fieldChange.removedCount} image(s)`);
                 }
-              } else if (fieldChange.type === 'removed') {
-                imageMessage = `📷 Item ${change.item}: Removed ${fieldChange.count} image(s)`;
-                if (fieldChange.oldUrls && fieldChange.newUrls) {
-                  imageMessage += ` (${fieldChange.oldUrls.length} → ${fieldChange.newUrls.length} images)`;
-                }
-              } else if (fieldChange.type === 'mixed') {
-                imageMessage = `📷 Item ${change.item}: Added ${fieldChange.added} image(s), Removed ${fieldChange.removed} image(s)`;
-                if (fieldChange.oldUrls && fieldChange.newUrls) {
-                  imageMessage += ` (${fieldChange.oldUrls.length} → ${fieldChange.newUrls.length} images)`;
-                }
+              } else {
+                const oldCount = (fieldChange.old || []).length;
+                const newCount = (fieldChange.new || []).length;
+                fieldChanges.push(`Images: ${oldCount} → ${newCount} image(s)`);
               }
-              
-              changes.push(imageMessage);
-              
-              // Show specific image details if available
-              if (fieldChange.addedUrls && fieldChange.addedUrls.length > 0) {
-                fieldChange.addedUrls.forEach((url: string, index: number) => {
-                  const fileName = url.split('/').pop() || url;
-                  changes.push(`  ➕ Added: ${fileName}`);
-                });
-              }
-              if (fieldChange.removedUrls && fieldChange.removedUrls.length > 0) {
-                fieldChange.removedUrls.forEach((url: string, index: number) => {
-                  const fileName = url.split('/').pop() || url;
-                  changes.push(`  ➖ Removed: ${fileName}`);
-                });
-              }
-            } else {
-              const fieldName = fieldChange.field === 'quality' ? 'Quality' :
-                               fieldChange.field === 'quantity' ? 'Quantity' :
-                               fieldChange.field === 'description' ? 'Description' :
-                               fieldChange.field === 'imageUrls' ? 'Images' : fieldChange.field;
-              
-              const fromText = fieldChange.old || 'Not set';
-              const toText = fieldChange.new || 'Not set';
-              changes.push(`✏️ Item ${change.item} ${fieldName}: "${fromText}" → "${toText}"`);
             }
           });
+          
+          if (fieldChanges.length > 0) {
+            changes.push(`✏️ Item ${change.index + 1}: ${fieldChanges.join(', ')}`);
+          }
         } else if (change.type === 'item_added') {
-          const item = change.item;
-          let itemSummary = `📦 Item ${change.index + 1}: Added new item`;
-          
-          // Add detailed information about the new item
           const details = [];
-          if (item?.quality) {
-            const qualityName = typeof item.quality === 'object' ? item.quality.name : item.quality;
-            details.push(`Quality: "${qualityName}"`);
+          if (change.item?.quality) {
+            details.push(`Quality: "${change.item.quality}"`);
           }
-          if (item?.quantity) {
-            details.push(`Quantity: ${item.quantity}`);
+          if (change.item?.quantity) {
+            details.push(`Quantity: ${change.item.quantity}`);
           }
-          if (item?.description) {
-            details.push(`Description: "${item.description}"`);
+          if (change.item?.description) {
+            details.push(`Description: "${change.item.description}"`);
           }
-          if (item?.weaverSupplierName) {
-            details.push(`Weaver: "${item.weaverSupplierName}"`);
+          if (change.item?.weaverSupplierName) {
+            details.push(`Weaver: "${change.item.weaverSupplierName}"`);
           }
-          if (item?.purchaseRate) {
-            details.push(`Rate: ₹${Number(item.purchaseRate).toFixed(2)}`);
+          if (change.item?.purchaseRate) {
+            details.push(`Rate: ₹${Number(change.item.purchaseRate).toFixed(2)}`);
           }
-          if (item?.imageUrls && item.imageUrls.length > 0) {
-            details.push(`${item.imageUrls.length} image(s)`);
-          }
-          
-          if (details.length > 0) {
-            itemSummary += ` (${details.join(', ')})`;
+          if (change.item?.imageUrls && change.item.imageUrls.length > 0) {
+            details.push(`${change.item.imageUrls.length} image(s)`);
           }
           
+          const itemSummary = `📦 Item ${change.index + 1}: Added new item${details.length > 0 ? ` (${details.join(', ')})` : ''}`;
           changes.push(itemSummary);
-          
-          // Specifically mention images if any
-          if (item?.imageUrls && item.imageUrls.length > 0) {
-            changes.push(`📷 Item ${change.index + 1}: Added ${item.imageUrls.length} image(s)`);
-          }
         } else if (change.type === 'item_removed') {
           changes.push(`🗑️ Item ${change.index + 1}: Removed item`);
         }
@@ -491,6 +441,8 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
         return changes;
       }
     }
+
+
 
     // Priority 3: Fallback to old format
     if (details.oldValues && details.newValues) {
@@ -614,12 +566,51 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
       poNumber: 'PO Number',
       styleNo: 'Style Number',
       weaverSupplierName: 'Weaver / Supplier Name',
-              purchaseRate: 'Purchase Rate',
+      purchaseRate: 'Purchase Rate',
       poDate: 'PO Date',
       deliveryDate: 'Delivery Date',
-      status: 'Status'
+      status: 'Status',
+      // Item field names
+      quality: 'Quality',
+      quantity: 'Quantity',
+      description: 'Description',
+      imageUrls: 'Images'
     };
     return fieldMap[field] || field;
+  };
+
+  // Helper function to format log values for display
+  const formatLogValue = (value: any, field?: string): string => {
+    if (value === null || value === undefined) return 'Not set';
+    if (typeof value === 'string') {
+      // Handle quality field - if it looks like an ObjectId, show as "Unknown Quality"
+      if (field === 'quality' && value.match(/^[0-9a-fA-F]{24}$/)) {
+        return 'Unknown Quality';
+      }
+      return value.trim() || 'Empty';
+    }
+    if (typeof value === 'number') {
+      // Format purchase rate as currency
+      if (field === 'purchaseRate') {
+        return `₹${Number(value).toFixed(2)}`;
+      }
+      return value.toString();
+    }
+    if (Array.isArray(value)) {
+      if (value.length === 0) return 'None';
+      return `${value.length} item(s)`;
+    }
+    if (value && typeof value === 'object') {
+      // Handle quality objects with name property
+      if (value.name) {
+        return value.name;
+      }
+      // Handle objects with _id
+      if (value._id) {
+        return value.name || value._id.toString();
+      }
+    }
+    return String(value);
   };
 
   const getFieldIcon = (field: string) => {
@@ -634,7 +625,14 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
       purchaseRate: <CurrencyDollarIcon className="h-4 w-4" />,
       poDate: <CalendarIcon className="h-4 w-4" />,
       deliveryDate: <CalendarIcon className="h-4 w-4" />,
-      status: <CheckCircleIcon className="h-4 w-4" />
+      status: <CheckCircleIcon className="h-4 w-4" />,
+      // Item field icons
+      quality: <DocumentTextIcon className="h-4 w-4" />,
+      quantity: <DocumentTextIcon className="h-4 w-4" />,
+      description: <DocumentTextIcon className="h-4 w-4" />,
+      weaver: <BuildingOfficeIcon className="h-4 w-4" />,
+      rate: <CurrencyDollarIcon className="h-4 w-4" />,
+      images: <DocumentTextIcon className="h-4 w-4" />
     };
     return iconMap[field] || <DocumentTextIcon className="h-4 w-4" />;
   };
@@ -645,7 +643,16 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
       const [fieldPart, changePart] = change.split(':');
       const fieldName = fieldPart.trim();
       const [oldValue, newValue] = changePart.split('→').map(v => v.trim().replace(/"/g, ''));
-      return { fieldName, oldValue, newValue, type: 'field-change' };
+      
+      // Extract the actual field name for formatting
+      const fieldKey = fieldName.toLowerCase().replace(/\s+/g, '').replace(/[^a-zA-Z]/g, '');
+      
+      return { 
+        fieldName, 
+        oldValue: formatLogValue(oldValue, fieldKey), 
+        newValue: formatLogValue(newValue, fieldKey), 
+        type: 'field-change' 
+      };
     } else if (change.includes('Added item')) {
       return { fieldName: 'Item Added', oldValue: '', newValue: change, type: 'item-added' };
     } else if (change.includes('Removed item')) {

@@ -179,281 +179,84 @@ function getChangedFields(oldValues: any, newValues: any) {
     }
   });
 
-  // Enhanced item tracking - handle new granular itemChanges structure
+  // Handle itemChanges if they were pre-computed in the API route
   if (oldValues.itemChanges || newValues.itemChanges) {
     const itemChanges = oldValues.itemChanges || newValues.itemChanges || [];
     
+    console.log('🔍 Processing pre-computed itemChanges in logger:', JSON.stringify(itemChanges, null, 2));
+    console.log('🔍 Number of item changes:', itemChanges.length);
+    
     itemChanges.forEach((change: any) => {
+      console.log('🔍 Processing change:', change.type, 'for item', change.index + 1);
+      
       if (change.type === 'item_updated') {
-        change.changes.forEach((fieldChange: any) => {
-          if (fieldChange.field === 'imageUrls' && fieldChange.message) {
-            // Handle the new detailed image change format with before/after info
-            let imageMessage = `📷 Item ${change.item}: ${fieldChange.message}`;
-            
-            // Add before/after information if available
-            if (fieldChange.oldUrls && fieldChange.newUrls) {
-              const oldCount = fieldChange.oldUrls.length;
-              const newCount = fieldChange.newUrls.length;
-              imageMessage += ` (${oldCount} → ${newCount} images)`;
-            }
-            
-            summary.push(imageMessage);
-            
-            // Show specific image details if available
-            if (fieldChange.addedUrls && fieldChange.addedUrls.length > 0) {
-              fieldChange.addedUrls.forEach((url: string, index: number) => {
-                const fileName = url.split('/').pop() || url;
-                summary.push(`  ➕ Added: ${fileName}`);
-              });
-            }
-            if (fieldChange.removedUrls && fieldChange.removedUrls.length > 0) {
-              fieldChange.removedUrls.forEach((url: string, index: number) => {
-                const fileName = url.split('/').pop() || url;
-                summary.push(`  ➖ Removed: ${fileName}`);
-              });
-            }
-          } else if (fieldChange.field === 'imageUrls' && fieldChange.type) {
-            // Handle the new detailed image change format
-            let imageMessage = '';
-            if (fieldChange.type === 'added') {
-              imageMessage = `📷 Item ${change.item}: Added ${fieldChange.count} image(s)`;
-              if (fieldChange.oldUrls && fieldChange.newUrls) {
-                imageMessage += ` (${fieldChange.oldUrls.length} → ${fieldChange.newUrls.length} images)`;
+        const fieldChanges: string[] = [];
+        
+        // Process each field change
+        console.log('🔍 Item', change.index + 1, 'changes:', Object.keys(change.changes));
+        Object.keys(change.changes).forEach(field => {
+          const fieldChange = change.changes[field];
+          console.log('🔍 Processing field:', field, 'with data:', fieldChange);
+          
+          if (field === 'quality') {
+            fieldChanges.push(`Quality: "${fieldChange.old}" → "${fieldChange.new}"`);
+          } else if (field === 'quantity') {
+            fieldChanges.push(`Quantity: ${fieldChange.old} → ${fieldChange.new}`);
+          } else if (field === 'description') {
+            fieldChanges.push(`Description: "${fieldChange.old || ''}" → "${fieldChange.new || ''}"`);
+          } else if (field === 'weaverSupplierName') {
+            fieldChanges.push(`Weaver: "${fieldChange.old || ''}" → "${fieldChange.new || ''}"`);
+          } else if (field === 'purchaseRate') {
+            fieldChanges.push(`Rate: ₹${Number(fieldChange.old || 0).toFixed(2)} → ₹${Number(fieldChange.new || 0).toFixed(2)}`);
+          } else if (field === 'imageUrls') {
+            if (fieldChange.addedCount !== undefined) {
+              if (fieldChange.addedCount > 0 && fieldChange.removedCount > 0) {
+                fieldChanges.push(`Images: Added ${fieldChange.addedCount} image(s), Removed ${fieldChange.removedCount} image(s)`);
+              } else if (fieldChange.addedCount > 0) {
+                fieldChanges.push(`Images: Added ${fieldChange.addedCount} image(s)`);
+              } else if (fieldChange.removedCount > 0) {
+                fieldChanges.push(`Images: Removed ${fieldChange.removedCount} image(s)`);
               }
-            } else if (fieldChange.type === 'removed') {
-              imageMessage = `📷 Item ${change.item}: Removed ${fieldChange.count} image(s)`;
-              if (fieldChange.oldUrls && fieldChange.newUrls) {
-                imageMessage += ` (${fieldChange.oldUrls.length} → ${fieldChange.newUrls.length} images)`;
-              }
-            } else if (fieldChange.type === 'mixed') {
-              imageMessage = `📷 Item ${change.item}: Added ${fieldChange.added} image(s), Removed ${fieldChange.removed} image(s)`;
-              if (fieldChange.oldUrls && fieldChange.newUrls) {
-                imageMessage += ` (${fieldChange.oldUrls.length} → ${fieldChange.newUrls.length} images)`;
-              }
+            } else {
+              const oldCount = (fieldChange.old || []).length;
+              const newCount = (fieldChange.new || []).length;
+              fieldChanges.push(`Images: ${oldCount} → ${newCount} image(s)`);
             }
-            
-            summary.push(imageMessage);
-            
-            // Show specific image details if available
-            if (fieldChange.addedUrls && fieldChange.addedUrls.length > 0) {
-              fieldChange.addedUrls.forEach((url: string, index: number) => {
-                const fileName = url.split('/').pop() || url;
-                summary.push(`  ➕ Added: ${fileName}`);
-              });
-            }
-            if (fieldChange.removedUrls && fieldChange.removedUrls.length > 0) {
-              fieldChange.removedUrls.forEach((url: string, index: number) => {
-                const fileName = url.split('/').pop() || url;
-                summary.push(`  ➖ Removed: ${fileName}`);
-              });
-            }
-          } else {
-            const fieldName = fieldChange.field === 'quality' ? 'Quality' :
-                             fieldChange.field === 'quantity' ? 'Quantity' :
-                             fieldChange.field === 'description' ? 'Description' :
-                             fieldChange.field === 'imageUrls' ? 'Images' : fieldChange.field;
-            
-            const fromText = formatValue(fieldChange.old);
-            const toText = formatValue(fieldChange.new);
-            summary.push(`✏️ Item ${change.item} ${fieldName}: ${fromText} → ${toText}`);
           }
         });
+        
+        if (fieldChanges.length > 0) {
+          summary.push(`✏️ Item ${change.index + 1}: ${fieldChanges.join(', ')}`);
+        }
       } else if (change.type === 'item_added') {
-        const item = change.item;
-        let itemSummary = `📦 Item ${change.index + 1}: Added new item`;
-        
-        // Add detailed information about the new item
         const details = [];
-        if (item?.quality) {
-          const qualityName = typeof item.quality === 'object' ? item.quality.name : item.quality;
-          details.push(`Quality: "${qualityName}"`);
+        if (change.item?.quality) {
+          details.push(`Quality: "${change.item.quality}"`);
         }
-        if (item?.quantity) {
-          details.push(`Quantity: ${item.quantity}`);
+        if (change.item?.quantity) {
+          details.push(`Quantity: ${change.item.quantity}`);
         }
-        if (item?.description) {
-          details.push(`Description: "${item.description}"`);
+        if (change.item?.description) {
+          details.push(`Description: "${change.item.description}"`);
         }
-        if (item?.imageUrls && item.imageUrls.length > 0) {
-          details.push(`${item.imageUrls.length} image(s)`);
+        if (change.item?.weaverSupplierName) {
+          details.push(`Weaver: "${change.item.weaverSupplierName}"`);
+        }
+        if (change.item?.purchaseRate) {
+          details.push(`Rate: ₹${Number(change.item.purchaseRate).toFixed(2)}`);
+        }
+        if (change.item?.imageUrls && change.item.imageUrls.length > 0) {
+          details.push(`${change.item.imageUrls.length} image(s)`);
         }
         
-        if (details.length > 0) {
-          itemSummary += ` (${details.join(', ')})`;
-        }
-        
+        const itemSummary = `📦 Item ${change.index + 1}: Added new item${details.length > 0 ? ` (${details.join(', ')})` : ''}`;
         summary.push(itemSummary);
-        
-        // Specifically mention images if any
-        if (item?.imageUrls && item.imageUrls.length > 0) {
-          summary.push(`📷 Item ${change.index + 1}: Added ${item.imageUrls.length} image(s)`);
-        }
       } else if (change.type === 'item_removed') {
         summary.push(`🗑️ Item ${change.index + 1}: Removed item`);
       }
     });
-  } else if (oldValues.items || newValues.items) {
-    // Fallback for old items structure
-    const oldItems = oldValues.items || [];
-    const newItems = newValues.items || [];
-    
-    // Check for item count changes
-    if (oldItems.length !== newItems.length) {
-      if (newItems.length > oldItems.length) {
-        summary.push(`📦 Items: Added ${newItems.length - oldItems.length} new item(s) (Total: ${oldItems.length} → ${newItems.length})`);
-      } else {
-        summary.push(`🗑️ Items: Removed ${oldItems.length - newItems.length} item(s) (Total: ${oldItems.length} → ${newItems.length})`);
-      }
-    }
-    
-    // Track individual item changes with maximum detail
-    const maxItems = Math.max(oldItems.length, newItems.length);
-    for (let i = 0; i < maxItems; i++) {
-      const oldItem = oldItems[i];
-      const newItem = newItems[i];
-      
-
-      
-      if (!oldItem && newItem) {
-        // New item added - show ALL details
-        summary.push(`✨ Item ${i + 1}: Added new item`);
-        
-        // Always show quality and quantity even if they're default values
-        if (newItem.quality) {
-          summary.push(`  📋 Quality: "${formatValue(newItem.quality)}"`);
-        } else {
-          summary.push(`  📋 Quality: Not set`);
-        }
-        
-        if (newItem.quantity !== undefined && newItem.quantity !== null) {
-          summary.push(`  🔢 Quantity: ${formatValue(newItem.quantity)}`);
-        } else {
-          summary.push(`  🔢 Quantity: Not set`);
-        }
-        
-        if (newItem.description && newItem.description.trim()) {
-          summary.push(`  📝 Description: "${formatValue(newItem.description)}"`);
-        } else {
-          summary.push(`  📝 Description: Not set`);
-        }
-        
-        if (newItem.imageUrls && newItem.imageUrls.length > 0) {
-          summary.push(`  📷 Images: Added ${newItem.imageUrls.length} image(s)`);
-          newItem.imageUrls.forEach((url: string, imgIndex: number) => {
-            const fileName = url.split('/').pop() || url;
-            summary.push(`    - Image ${imgIndex + 1}: ${fileName}`);
-          });
-        } else {
-          summary.push(`  📷 Images: No images added`);
-        }
-        
-      } else if (oldItem && !newItem) {
-        // Item removed - show what was removed with full details
-        summary.push(`🗑️ Item ${i + 1}: Removed item`);
-        if (oldItem.quality) summary.push(`  - Had Quality: "${formatValue(oldItem.quality)}"`);
-        if (oldItem.quantity) summary.push(`  - Had Quantity: ${formatValue(oldItem.quantity)}`);
-        if (oldItem.description) summary.push(`  - Had Description: "${formatValue(oldItem.description)}"`);
-        if (oldItem.imageUrls && oldItem.imageUrls.length > 0) {
-          summary.push(`  - Had ${oldItem.imageUrls.length} image(s):`);
-          oldItem.imageUrls.forEach((url: string, imgIndex: number) => {
-            const fileName = url.split('/').pop() || url;
-            summary.push(`    - Image ${imgIndex + 1}: ${fileName}`);
-          });
-        }
-        
-      } else if (oldItem && newItem) {
-        // Item modified - track EVERY field change with maximum detail
-        const itemChanges: string[] = [];
-        let hasChanges = false;
-        
-
-        
-        // Quality changes
-        let qualityChanged = false;
-        if (oldItem.quality && newItem.quality) {
-          if (oldItem.quality._id && newItem.quality._id) {
-            qualityChanged = oldItem.quality._id.toString() !== newItem.quality._id.toString();
-          } else if (oldItem.quality.name && newItem.quality.name) {
-            qualityChanged = oldItem.quality.name !== newItem.quality.name;
-          } else {
-            qualityChanged = oldItem.quality !== newItem.quality;
-          }
-        } else if (oldItem.quality || newItem.quality) {
-          // One is null/undefined, the other exists - this is a change
-          qualityChanged = true;
-        }
-        
-        if (qualityChanged) {
-          const oldQuality = formatValue(oldItem.quality);
-          const newQuality = formatValue(newItem.quality);
-          itemChanges.push(`Quality: "${oldQuality}" → "${newQuality}"`);
-          hasChanges = true;
-        }
-        
-        // Quantity changes
-        if (oldItem.quantity !== newItem.quantity) {
-  
-          itemChanges.push(`Quantity: ${formatValue(oldItem.quantity)} → ${formatValue(newItem.quantity)}`);
-          hasChanges = true;
-        }
-        
-        // Description changes
-        let descriptionChanged = false;
-        if (oldItem.description && newItem.description) {
-          descriptionChanged = oldItem.description.trim() !== newItem.description.trim();
-        } else if (oldItem.description || newItem.description) {
-          // One is null/undefined/empty, the other exists - this is a change
-          descriptionChanged = true;
-        }
-        
-        if (descriptionChanged) {
-          itemChanges.push(`Description: "${formatValue(oldItem.description)}" → "${formatValue(newItem.description)}"`);
-          hasChanges = true;
-        }
-        
-        // Enhanced image tracking with 100% detail
-        const oldImages = oldItem.imageUrls || [];
-        const newImages = newItem.imageUrls || [];
-        
-        if (oldImages.length !== newImages.length) {
-          if (newImages.length > oldImages.length) {
-            const added = newImages.length - oldImages.length;
-            itemChanges.push(`Images: Added ${added} new image(s)`);
-            // Show the new images with file names
-            newImages.slice(oldImages.length).forEach((url: string, imgIndex: number) => {
-              const fileName = url.split('/').pop() || url;
-              itemChanges.push(`  - New Image: ${fileName}`);
-            });
-          } else {
-            const removed = oldImages.length - newImages.length;
-            itemChanges.push(`Images: Removed ${removed} image(s)`);
-            // Show which images were removed
-            oldImages.slice(newImages.length).forEach((url: string, imgIndex: number) => {
-              const fileName = url.split('/').pop() || url;
-              itemChanges.push(`  - Removed Image: ${fileName}`);
-            });
-          }
-          hasChanges = true;
-        } else if (oldImages.length > 0 && newImages.length > 0) {
-          // Check if any specific images changed
-          const oldUrls = oldImages.map((url: string) => url.split('/').pop() || url);
-          const newUrls = newImages.map((url: string) => url.split('/').pop() || url);
-          
-          if (JSON.stringify(oldUrls) !== JSON.stringify(newUrls)) {
-            itemChanges.push(`Images: Changed image files`);
-            // Show before and after image lists
-            itemChanges.push(`  - Before: ${oldUrls.join(', ')}`);
-            itemChanges.push(`  - After: ${newUrls.join(', ')}`);
-            hasChanges = true;
-          }
-        }
-        
-        if (hasChanges) {
-          summary.push(`✏️ Item ${i + 1}: ${itemChanges.join(', ')}`);
-        }
-      }
-    }
   }
+
   
   // Track party changes if present - but only if not already handled by main field comparison
   // The party field is already being logged in the main field comparison, so we skip it here
@@ -477,6 +280,7 @@ function getChangedFields(oldValues: any, newValues: any) {
   
 
   
+  console.log('🔍 Final summary from logger:', summary);
   return { changed, old, new: new_, summary };
 }
 
@@ -491,6 +295,10 @@ function formatValue(value: any): string {
     day: 'numeric'
   });
   if (typeof value === 'string') {
+    // Handle quality field - if it looks like an ObjectId, show as "Unknown Quality"
+    if (value.match(/^[0-9a-fA-F]{24}$/)) {
+      return 'Unknown Quality';
+    }
     // Remove quotes for cleaner display
     return value.trim() || 'Empty';
   }

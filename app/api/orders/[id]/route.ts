@@ -319,7 +319,11 @@ export async function PUT(
       const newPartyId = party && party !== '' && party !== 'null' && party !== 'undefined' ? party : null;
       
       if (currentPartyId !== newPartyId) {
-        oldValues.party = existingOrder.party?.name || existingOrder.party || 'Not set';
+        // Handle both populated and unpopulated party objects
+        const oldPartyName = typeof existingOrder.party === 'object' && existingOrder.party !== null && 'name' in existingOrder.party 
+          ? (existingOrder.party as any).name 
+          : existingOrder.party || 'Not set';
+        oldValues.party = oldPartyName;
         newValues.party = newPartyName || newPartyId || 'Not set';
         changedFields.push('party');
       }
@@ -403,7 +407,7 @@ export async function PUT(
     }
     if (items !== undefined) {
       const oldItems = existingOrder.items.map((item: any) => ({
-        quality: item.quality?.name || item.quality?.toString() || 'Not set',
+        quality: item.quality, // Keep the original quality structure for proper comparison
         quantity: item.quantity,
         imageUrls: item.imageUrls || [],
         description: item.description || '',
@@ -426,40 +430,116 @@ export async function PUT(
       
       const itemChanges: any[] = [];
       
-      oldItems.some((oldItem: any, index: number) => {
+      // Process all existing items for changes
+      for (let index = 0; index < oldItems.length; index++) {
+        const oldItem = oldItems[index];
         const newItem = newItems[index];
         if (!newItem) {
           itemChanges.push({ type: 'item_removed', index });
-          return true;
+          continue;
         }
         
         const changes: any = {};
         let hasItemChanges = false;
         
-        if (oldItem.quality !== newItem.quality) {
-          changes.quality = { old: oldItem.quality, new: newItem.quality };
+        // Compare quality values properly with debugging
+        const oldQualityValue = oldItem.quality;
+        const newQualityValue = newItem.quality;
+        
+        console.log(`🔍 Item ${index + 1} Quality Comparison:`, {
+          oldQualityValue,
+          newQualityValue,
+          oldType: typeof oldQualityValue,
+          newType: typeof newQualityValue
+        });
+        
+        // Check if quality actually changed
+        let qualityChanged = false;
+        let oldQualityName = 'Not set';
+        let newQualityName = 'Not set';
+        
+        // Extract old quality name
+        if (oldQualityValue) {
+          if (typeof oldQualityValue === 'object' && oldQualityValue.name) {
+            oldQualityName = oldQualityValue.name;
+          } else if (typeof oldQualityValue === 'string') {
+            oldQualityName = oldQualityValue;
+          }
+        }
+        
+        // Extract new quality name
+        if (newQualityValue) {
+          if (typeof newQualityValue === 'string' && newQualityValue.match(/^[0-9a-fA-F]{24}$/)) {
+            // It's an ID, fetch the name
+            try {
+              const Quality = (await import('@/models/Quality')).default;
+              const qualityDoc = await Quality.findById(newQualityValue).select('name');
+              if (qualityDoc) {
+                newQualityName = qualityDoc.name;
+              } else {
+                newQualityName = 'Unknown Quality';
+              }
+            } catch (error) {
+              console.error('Error fetching new quality name:', error);
+              newQualityName = 'Unknown Quality';
+            }
+          } else if (typeof newQualityValue === 'string') {
+            newQualityName = newQualityValue;
+          }
+        }
+        
+        // Compare the actual values
+        const oldQualityId = oldQualityValue?._id?.toString() || oldQualityValue?.toString() || null;
+        const newQualityId = newQualityValue?.toString() || null;
+        
+        qualityChanged = oldQualityId !== newQualityId;
+        
+        console.log(`🔍 Item ${index + 1} Quality Result:`, {
+          oldQualityId,
+          newQualityId,
+          oldQualityName,
+          newQualityName,
+          qualityChanged
+        });
+        
+        if (qualityChanged) {
+          changes.quality = { old: oldQualityName, new: newQualityName };
           hasItemChanges = true;
         }
         
+        // Compare quantity
         if (oldItem.quantity !== newItem.quantity) {
+          console.log(`🔍 Item ${index + 1} Quantity changed:`, { old: oldItem.quantity, new: newItem.quantity });
           changes.quantity = { old: oldItem.quantity, new: newItem.quantity };
           hasItemChanges = true;
         }
         
-        if (oldItem.description !== newItem.description) {
-          changes.description = { old: oldItem.description, new: newItem.description };
-          hasItemChanges = true;
-        }
+                 // Compare description
+         const oldDesc = oldItem.description || '';
+         const newDesc = newItem.description || '';
+         if (oldDesc !== newDesc) {
+           console.log(`🔍 Item ${index + 1} Description changed:`, { old: oldDesc, new: newDesc });
+           changes.description = { old: oldDesc, new: newDesc };
+           hasItemChanges = true;
+         }
         
-        if (oldItem.weaverSupplierName !== newItem.weaverSupplierName) {
-          changes.weaverSupplierName = { old: oldItem.weaverSupplierName, new: newItem.weaverSupplierName };
-          hasItemChanges = true;
-        }
+                 // Compare weaver supplier name
+         const oldWeaver = oldItem.weaverSupplierName || '';
+         const newWeaver = newItem.weaverSupplierName || '';
+         if (oldWeaver !== newWeaver) {
+           console.log(`🔍 Item ${index + 1} Weaver changed:`, { old: oldWeaver, new: newWeaver });
+           changes.weaverSupplierName = { old: oldWeaver, new: newWeaver };
+           hasItemChanges = true;
+         }
         
-        if (oldItem.purchaseRate !== newItem.purchaseRate) {
-          changes.purchaseRate = { old: oldItem.purchaseRate, new: newItem.purchaseRate };
-          hasItemChanges = true;
-        }
+                 // Compare purchase rate
+         const oldRate = oldItem.purchaseRate || 0;
+         const newRate = newItem.purchaseRate || 0;
+         if (oldRate !== newRate) {
+           console.log(`🔍 Item ${index + 1} Purchase rate changed:`, { old: oldRate, new: newRate });
+           changes.purchaseRate = { old: oldRate, new: newRate };
+           hasItemChanges = true;
+         }
         
         const oldImageUrls = oldItem.imageUrls || [];
         const newImageUrls = newItem.imageUrls || [];
@@ -481,18 +561,32 @@ export async function PUT(
         if (hasItemChanges) {
           itemChanges.push({ type: 'item_updated', index, changes });
         }
-        
-        return false;
-      });
+      }
       
       if (newItems.length > oldItems.length) {
         for (let i = oldItems.length; i < newItems.length; i++) {
           const newItem = newItems[i];
+          
+          // Fetch quality name for added items to show in logs
+          let qualityName = newItem.quality;
+          if (newItem.quality && newItem.quality !== 'Not set' && typeof newItem.quality === 'string') {
+            try {
+              const Quality = (await import('@/models/Quality')).default;
+              const qualityDoc = await Quality.findById(newItem.quality).select('name');
+              if (qualityDoc) {
+                qualityName = qualityDoc.name;
+              }
+            } catch (error) {
+              console.error('Error fetching quality name:', error);
+              qualityName = newItem.quality; // Fallback to ID if fetch fails
+            }
+          }
+          
           const itemDetail = {
             type: 'item_added',
             index: i,
             item: {
-              quality: newItem.quality,
+              quality: qualityName,
               quantity: newItem.quantity,
               description: newItem.description || '',
               weaverSupplierName: newItem.weaverSupplierName || '',
@@ -505,63 +599,13 @@ export async function PUT(
         }
       }
       
-      if (itemChanges.length > 0) {
-        oldValues.itemChanges = itemChanges.map(change => {
-          if (change.type === 'item_updated') {
-            const formattedChanges = Object.keys(change.changes).map(field => {
-              if (field === 'imageUrls' && change.changes[field].addedCount !== undefined) {
-                const imageChange = change.changes[field];
-                if (imageChange.addedCount > 0 && imageChange.removedCount > 0) {
-                  return {
-                    field: 'imageUrls',
-                    type: 'mixed',
-                    added: imageChange.addedCount,
-                    removed: imageChange.removedCount,
-                    addedUrls: imageChange.added,
-                    removedUrls: imageChange.removed,
-                    oldUrls: imageChange.old,
-                    newUrls: imageChange.new,
-                    message: `Added ${imageChange.addedCount} image(s), Removed ${imageChange.removedCount} image(s)`
-                  };
-                } else if (imageChange.addedCount > 0) {
-                  return {
-                    field: 'imageUrls',
-                    type: 'added',
-                    count: imageChange.addedCount,
-                    addedUrls: imageChange.added,
-                    oldUrls: imageChange.old,
-                    newUrls: imageChange.new,
-                    message: `Added ${imageChange.addedCount} image(s)`
-                  };
-                } else if (imageChange.removedCount > 0) {
-                  return {
-                    field: 'imageUrls',
-                    type: 'removed',
-                    count: imageChange.removedCount,
-                    removedUrls: imageChange.removed,
-                    oldUrls: imageChange.old,
-                    newUrls: imageChange.new,
-                    message: `Removed ${imageChange.removedCount} image(s)`
-                  };
-                }
-              }
-              return {
-                field,
-                old: change.changes[field].old,
-                new: change.changes[field].new
-              };
-            });
-            
-            return {
-              item: change.index + 1,
-              changes: formattedChanges
-            };
-          }
-          return change;
-        });
-        newValues.itemChanges = oldValues.itemChanges;
-        changedFields.push('itemChanges');
-      }
+             if (itemChanges.length > 0) {
+         console.log('🔍 Final itemChanges array:', JSON.stringify(itemChanges, null, 2));
+         // Store the itemChanges in both oldValues and newValues for the logger
+         oldValues.itemChanges = itemChanges;
+         newValues.itemChanges = itemChanges;
+         changedFields.push('items');
+       }
     }
 
     // Update the order
@@ -605,6 +649,8 @@ export async function PUT(
     // Log changes if any
     if (changedFields.length > 0) {
       console.log('🔍 Logging order changes:', changedFields);
+      
+      // Only pass the changed fields to the logger, not the entire order objects
       await logOrderChange('update', id, oldValues, newValues, req);
     } else {
       console.log('🔍 No changes detected, skipping log');
@@ -746,12 +792,12 @@ export async function PATCH(
     const { status } = await req.json();
 
     // Validate status
-    const validStatuses = ['pending', 'delivered'];
+    const validStatuses = ['Not selected', 'pending', 'delivered'];
     if (status && !validStatuses.includes(status)) {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "Invalid status. Must be one of: pending, delivered" 
+          message: "Invalid status. Must be one of: Not selected, pending, delivered" 
         }), 
         { status: 400 }
       );

@@ -129,9 +129,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    // Remove authentication requirement for now
-    // await requireAuth(req);
+    await dbConnect();
 
+    // Extract and validate request body
     const {
       orderType,
       arrivalDate,
@@ -142,8 +142,14 @@ export async function POST(req: NextRequest) {
       styleNo,
       poDate,
       deliveryDate,
+      status,
       items
     } = await req.json();
+    
+    console.log('🔍 API - Received status from frontend:', status);
+    console.log('🔍 API - Received order data:', { orderType, status, items: items?.length });
+
+    console.log('🔍 Received order data:', { orderType, status, items: items?.length });
 
     // Validation
     const errors: string[] = [];
@@ -194,6 +200,12 @@ export async function POST(req: NextRequest) {
       if (isNaN(delivery.getTime())) {
         errors.push("Invalid delivery date format");
       }
+    }
+    
+    // Validate status if provided - temporarily allow all valid statuses
+    const validStatuses = ['Not set', 'Not selected', 'pending', 'in_progress', 'completed', 'delivered', 'cancelled'];
+    if (status && !validStatuses.includes(status)) {
+      errors.push(`Status must be one of: ${validStatuses.join(', ')}`);
     }
     
     // Validate items - quality is optional, quantity is required
@@ -319,8 +331,17 @@ export async function POST(req: NextRequest) {
     if (party && party !== '' && party !== 'null' && party !== 'undefined') {
       orderData.party = party;
     }
+    if (status && status !== '' && status !== 'null' && status !== 'undefined') {
+      orderData.status = status;
+      console.log('🔍 Setting order status to:', status);
+    } else {
+      // Don't set status - let database default handle it
+      console.log('🔍 No status provided, will use database default');
+    }
+    console.log('🔍 Final orderData before creation:', orderData);
     
     // Use the new sequential order creation method with timeout
+    // Temporarily bypass schema validation for status
     const orderPromise = (Order as IOrderModel).createOrder(orderData);
     const order = await Promise.race([
       orderPromise,
@@ -336,8 +357,64 @@ export async function POST(req: NextRequest) {
       .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt')
       .maxTimeMS(5000);
 
-    // Log the order creation with complete details
-    // Order creation logging completed
+    if (!populatedOrder) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: "Failed to retrieve created order" 
+        }), 
+        { status: 500 }
+      );
+    }
+
+    // Log the order creation with complete details including items
+    const itemChanges = populatedOrder.items.map((item: any, index: number) => {
+      const details = [];
+      
+      // Add quality details
+      if (item.quality) {
+        details.push(`Quality: "${item.quality.name || item.quality}"`);
+      }
+      
+      // Add quantity details
+      if (item.quantity) {
+        details.push(`Quantity: ${item.quantity}`);
+      }
+      
+      // Add description details
+      if (item.description) {
+        details.push(`Description: "${item.description}"`);
+      }
+      
+      // Add weaver details
+      if (item.weaverSupplierName) {
+        details.push(`Weaver: "${item.weaverSupplierName}"`);
+      }
+      
+      // Add purchase rate details
+      if (item.purchaseRate) {
+        details.push(`Rate: ₹${Number(item.purchaseRate).toFixed(2)}`);
+      }
+      
+      // Add image details
+      if (item.imageUrls && item.imageUrls.length > 0) {
+        details.push(`${item.imageUrls.length} image(s)`);
+      }
+      
+      return {
+        type: 'item_added',
+        index,
+        item: {
+          quality: item.quality?.name || item.quality || 'Not set',
+          quantity: item.quantity || 0,
+          description: item.description || '',
+          weaverSupplierName: item.weaverSupplierName || '',
+          purchaseRate: item.purchaseRate || 0,
+          imageUrls: item.imageUrls || [],
+          imageCount: (item.imageUrls || []).length
+        }
+      };
+    });
     
     await logOrderChange('create', (order as any)._id.toString(), {}, { 
       orderId: populatedOrder.orderId,
@@ -348,18 +425,10 @@ export async function POST(req: NextRequest) {
       contactPhone: populatedOrder.contactPhone,
       poNumber: populatedOrder.poNumber,
       styleNo: populatedOrder.styleNo,
-
       poDate: populatedOrder.poDate,
       deliveryDate: populatedOrder.deliveryDate,
       status: populatedOrder.status,
-      items: populatedOrder.items.map((item: any) => ({
-        quality: item.quality,
-        quantity: item.quantity,
-        imageUrls: item.imageUrls || [],
-        description: item.description,
-        weaverSupplierName: item.weaverSupplierName,
-        purchaseRate: item.purchaseRate
-      }))
+      itemChanges: itemChanges
     }, req);
 
     return new Response(

@@ -714,6 +714,8 @@ function ImageUploadSection({
       return cameras;
     } catch (error) {
       console.error('Error getting cameras:', error);
+      // On mobile, camera enumeration might fail, but we can still try to access camera
+      // Return empty array to trigger fallback behavior
       return [];
     }
   };
@@ -722,24 +724,36 @@ function ImageUploadSection({
     try {
       setCameraError(null);
       
-      // Get available cameras first
-      const cameras = await getAvailableCameras();
-      if (cameras.length === 0) {
-        setCameraError('No cameras found');
+      // Check if getUserMedia is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError('Camera not supported in this browser');
         return;
       }
-
+      
+      // Get available cameras first
+      const cameras = await getAvailableCameras();
+      
       // Get current camera device
       const currentCamera = cameras[currentCameraIndex];
       
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
+      // Mobile-friendly camera constraints
+      const constraints = {
+        video: {
           deviceId: currentCamera ? { exact: currentCamera.deviceId } : undefined,
           facingMode: currentCameraIndex === 0 ? 'environment' : 'user',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        } 
-      });
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          // Mobile-specific constraints
+          frameRate: { ideal: 30, max: 60 }
+        }
+      };
+      
+      // If no specific camera, try with basic constraints for mobile
+      if (!currentCamera) {
+        delete constraints.video.deviceId;
+      }
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       
       setCameraStream(stream);
       setShowCamera(true);
@@ -754,14 +768,26 @@ function ImageUploadSection({
               // Try to play again after a short delay
               setTimeout(() => {
                 videoRef.current?.play().catch(e2 => console.log('Retry video play error:', e2));
-              }, 100);
+              }, 200);
             });
           };
         }
-      }, 100);
-    } catch (error) {
+      }, 200);
+    } catch (error: any) {
       console.error('Camera access denied:', error);
-      setCameraError('Camera access denied. Please allow camera access.');
+      
+      // More specific error messages for mobile
+      if (error.name === 'NotAllowedError') {
+        setCameraError('Camera access denied. Please allow camera access in your browser settings.');
+      } else if (error.name === 'NotFoundError') {
+        setCameraError('No camera found on this device.');
+      } else if (error.name === 'NotSupportedError') {
+        setCameraError('Camera not supported in this browser. Please use a modern browser.');
+      } else if (error.name === 'NotReadableError') {
+        setCameraError('Camera is already in use by another application.');
+      } else {
+        setCameraError(`Camera error: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -792,8 +818,9 @@ function ImageUploadSection({
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           deviceId: { exact: nextCamera.deviceId },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          frameRate: { ideal: 30, max: 60 }
         } 
       });
       
@@ -801,9 +828,9 @@ function ImageUploadSection({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error switching camera:', error);
-      setCameraError('Failed to switch camera');
+      setCameraError(`Failed to switch camera: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -864,7 +891,11 @@ function ImageUploadSection({
         <button
           type="button"
           onClick={startCamera}
-          className={`px-6 py-3 rounded-lg border-2 border-dashed transition-all duration-200 hover:scale-105 ${
+          onTouchStart={(e) => {
+            // Prevent double-tap zoom on mobile
+            e.preventDefault();
+          }}
+          className={`px-6 py-3 rounded-lg border-2 border-dashed transition-all duration-200 hover:scale-105 active:scale-95 ${
             isDarkMode 
               ? 'border-gray-600 hover:border-green-500 text-gray-300 hover:text-green-400' 
               : 'border-gray-300 hover:border-green-400 text-gray-600 hover:text-green-600'
@@ -998,7 +1029,8 @@ function ImageUploadSection({
                  autoPlay
                  playsInline
                  muted
-                     className="w-full h-96 object-cover rounded-lg bg-black"
+                 controls={false}
+                 className="w-full h-96 object-cover rounded-lg bg-black"
                  style={{ transform: 'scaleX(-1)' }}
                />
                <canvas ref={canvasRef} className="hidden" />
@@ -1011,11 +1043,15 @@ function ImageUploadSection({
                    {/* Camera Controls */}
                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
                      {/* Photo Button */}
-               <button
+                              <button
                  type="button"
                  onClick={capturePhoto}
-                       className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
-                     >
+                 onTouchStart={(e) => {
+                   // Prevent double-tap zoom on mobile
+                   e.preventDefault();
+                 }}
+                 className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-transform"
+                 >
                        <div className="w-12 h-12 bg-blue-500 rounded-full border-4 border-white flex items-center justify-center">
                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -1046,7 +1082,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   const { isDarkMode, mounted } = useDarkMode();
   const [formData, setFormData] = useState<OrderFormData>({
     orderType: undefined,
-    status: 'Not selected', // Default to "Not selected" instead of undefined
+    status: 'Not selected', // Default to "Not selected" for new orders
     arrivalDate: '',
     party: '',
     contactName: '',
@@ -1461,8 +1497,12 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       // For new orders, include all required fields
       if (!order) {
         cleanedFormData.orderType = formData.orderType;
-        // Handle "Not selected" case - convert to undefined for API
-        cleanedFormData.status = formData.status === 'Not selected' ? undefined : formData.status;
+        // For new orders, only include status if it's selected (not "Not set")
+        if (formData.status !== 'Not set') {
+          cleanedFormData.status = formData.status;
+        }
+        console.log('🔍 Frontend - Form status:', formData.status);
+        console.log('🔍 Frontend - Cleaned form data status:', cleanedFormData.status);
         cleanedFormData.arrivalDate = cleanDate(formData.arrivalDate);
         cleanedFormData.party = formData.party;
         cleanedFormData.contactName = formData.contactName;
@@ -1493,8 +1533,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         }
         
         if (formData.status !== order.status) {
-          // Handle "Not selected" case - convert to undefined for API
-          cleanedFormData.status = formData.status === 'Not selected' ? undefined : formData.status;
+          // For existing orders, handle "Not set" case
+          cleanedFormData.status = formData.status === 'Not set' ? undefined : formData.status;
           changedFields.push('status');
         }
         
