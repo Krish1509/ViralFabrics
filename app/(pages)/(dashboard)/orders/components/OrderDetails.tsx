@@ -22,7 +22,7 @@ import { Order } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { useState, useEffect } from 'react';
 import OrderLogsModal from './OrderLogsModal';
-import LabAddModal from './LabAddModal';
+import LabAddModal from './LabDataModal';  
 import DispatchForm from './DispatchForm';
 
 interface OrderDetailsProps {
@@ -1876,9 +1876,10 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                {/* Lab Add/Edit Modal */}
         {showLabModal && (
           <LabAddModal
+            isOpen={showLabModal}
             order={order}
             onClose={() => setShowLabModal(false)}
-            onSuccess={() => {
+            onLabDataUpdate={() => {
               // Refresh labs data after successful lab operation
               const fetchLabs = async () => {
                 try {

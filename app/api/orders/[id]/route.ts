@@ -33,6 +33,7 @@ export async function GET(
 
     // Fetch lab data for this order and attach to items
     if (order.items && order.items.length > 0) {
+      try {
       const Lab = (await import('@/models/Lab')).default;
       const itemIds = order.items.map((item: any) => item._id);
       
@@ -40,7 +41,10 @@ export async function GET(
         order: id,
         orderItemId: { $in: itemIds },
         softDeleted: { $ne: true }
-      }).lean().maxTimeMS(5000);
+        })
+        .select('orderItemId labSendDate labSendData labSendNumber status remarks')
+        .lean()
+        .maxTimeMS(3000);
       
       // Create a map of orderItemId to lab data
       const labMap = new Map();
@@ -51,18 +55,53 @@ export async function GET(
       // Attach lab data to order items
       order.items.forEach((item: any) => {
         const labData = labMap.get(item._id.toString());
-        if (labData) {
+          if (labData && labData.labSendData) {
           item.labData = {
-            color: labData.labSendData?.color,
-            shade: labData.labSendData?.shade,
-            notes: labData.labSendData?.notes,
+              color: labData.labSendData.color || '',
+              shade: labData.labSendData.shade || '',
+              notes: labData.labSendData.notes || '',
             labSendDate: labData.labSendDate,
-            approvalDate: labData.labSendData?.approvalDate,
-            sampleNumber: labData.labSendData?.sampleNumber,
-            imageUrl: labData.labSendData?.imageUrl
+              approvalDate: labData.labSendData.approvalDate,
+              sampleNumber: labData.labSendData.sampleNumber || '',
+              imageUrl: labData.labSendData.imageUrl || '',
+              labSendNumber: labData.labSendNumber || '',
+              status: labData.status || 'sent',
+              remarks: labData.remarks || ''
+            };
+          } else {
+            // Initialize empty lab data structure for items without lab data
+            item.labData = {
+              color: '',
+              shade: '',
+              notes: '',
+              labSendDate: null,
+              approvalDate: null,
+              sampleNumber: '',
+              imageUrl: '',
+              labSendNumber: '',
+              status: 'not_sent',
+              remarks: ''
           };
         }
       });
+      } catch (labError) {
+        console.error('Error fetching lab data for order:', labError);
+        // Initialize empty lab data for all items if there's an error
+        order.items.forEach((item: any) => {
+          item.labData = {
+            color: '',
+            shade: '',
+            notes: '',
+            labSendDate: null,
+            approvalDate: null,
+            sampleNumber: '',
+            imageUrl: '',
+            labSendNumber: '',
+            status: 'not_sent',
+            remarks: ''
+          };
+        });
+      }
     }
 
     // Log the order view
@@ -520,8 +559,8 @@ export async function PUT(
          if (oldDesc !== newDesc) {
            console.log(`🔍 Item ${index + 1} Description changed:`, { old: oldDesc, new: newDesc });
            changes.description = { old: oldDesc, new: newDesc };
-           hasItemChanges = true;
-         }
+          hasItemChanges = true;
+        }
         
                  // Compare weaver supplier name
          const oldWeaver = oldItem.weaverSupplierName || '';
@@ -529,8 +568,8 @@ export async function PUT(
          if (oldWeaver !== newWeaver) {
            console.log(`🔍 Item ${index + 1} Weaver changed:`, { old: oldWeaver, new: newWeaver });
            changes.weaverSupplierName = { old: oldWeaver, new: newWeaver };
-           hasItemChanges = true;
-         }
+          hasItemChanges = true;
+        }
         
                  // Compare purchase rate
          const oldRate = oldItem.purchaseRate || 0;
@@ -538,8 +577,8 @@ export async function PUT(
          if (oldRate !== newRate) {
            console.log(`🔍 Item ${index + 1} Purchase rate changed:`, { old: oldRate, new: newRate });
            changes.purchaseRate = { old: oldRate, new: newRate };
-           hasItemChanges = true;
-         }
+          hasItemChanges = true;
+        }
         
         const oldImageUrls = oldItem.imageUrls || [];
         const newImageUrls = newItem.imageUrls || [];
@@ -561,7 +600,7 @@ export async function PUT(
         if (hasItemChanges) {
           itemChanges.push({ type: 'item_updated', index, changes });
         }
-      }
+        }
       
       if (newItems.length > oldItems.length) {
         for (let i = oldItems.length; i < newItems.length; i++) {
@@ -599,13 +638,13 @@ export async function PUT(
         }
       }
       
-             if (itemChanges.length > 0) {
+      if (itemChanges.length > 0) {
          console.log('🔍 Final itemChanges array:', JSON.stringify(itemChanges, null, 2));
          // Store the itemChanges in both oldValues and newValues for the logger
          oldValues.itemChanges = itemChanges;
          newValues.itemChanges = itemChanges;
          changedFields.push('items');
-       }
+      }
     }
 
     // Update the order

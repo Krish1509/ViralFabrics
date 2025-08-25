@@ -44,15 +44,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(conflictResponse('A lab already exists for this order item'), { status: 409 });
     }
     
-    // Create the lab
+    // Create the lab with proper structure and defaults
     const lab = new Lab({
       order: orderId,
       orderItemId: orderItemId,
       labSendDate: new Date(labSendDate),
-      labSendNumber: labSendNumber?.trim(),
-      labSendData: labSendData || {},
+      labSendNumber: labSendNumber?.trim() || '',
+      labSendData: {
+        color: labSendData?.color || '',
+        shade: labSendData?.shade || '',
+        notes: labSendData?.notes || '',
+        sampleNumber: labSendData?.sampleNumber || '',
+        imageUrl: labSendData?.imageUrl || '',
+        approvalDate: labSendData?.approvalDate ? new Date(labSendData.approvalDate) : null,
+        specifications: labSendData?.specifications || {}
+      },
       status: status || 'sent',
-      remarks: remarks?.trim()
+      remarks: remarks?.trim() || ''
     });
     
     await lab.save();

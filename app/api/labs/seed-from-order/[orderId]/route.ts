@@ -47,8 +47,9 @@ export async function POST(
     
     // Process each order item
     for (let i = 0; i < order.items.length; i++) {
-      const orderItem = order.items[i];
-      const orderItemId = orderItem._id.toString();
+      const orderItem = order.items[i] as any;
+      // Use the item's _id if available, otherwise generate one based on index
+      const orderItemId = orderItem._id ? orderItem._id.toString() : `${orderId}-item-${i}`;
       
       // Check if lab already exists for this order item
       const existingLab = await Lab.findOne({
@@ -64,7 +65,7 @@ export async function POST(
       
       // Generate lab send number
       const counter = startIndex + i;
-      const labSendNumber = `${prefix}${order.orderNo || order.orderId}-${counter}`;
+      const labSendNumber = `${prefix}${order.orderId}-${counter}`;
       
       // Create lab data
       const labData = {
@@ -117,7 +118,6 @@ export async function POST(
       order: {
         _id: order._id,
         orderId: order.orderId,
-        orderNo: order.orderNo,
         orderType: order.orderType,
         itemsCount: order.items.length
       }

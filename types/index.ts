@@ -17,6 +17,7 @@ export interface Quality {
 }
 
 export interface OrderItem {
+  _id?: string; // Added _id property for item identification
   quality?: string | Quality;
   quantity: number | string; // Quantity can be string in form, number in final data
   imageUrls?: string[]; // Changed from imageUrl to imageUrls array
@@ -31,6 +32,9 @@ export interface OrderItem {
     labSendDate?: string;
     approvalDate?: string;
     sampleNumber?: string;
+    labSendNumber?: string;
+    status?: string;
+    remarks?: string;
   };
 }
 
@@ -49,7 +53,7 @@ export interface Order {
   deliveryDate?: string;
   // weaverSupplierName and purchaseRate moved to item level
   items: OrderItem[];
-  status?: "pending" | "delivered" | "Not selected";
+  status?: "Not set" | "Not selected" | "pending" | "delivered";
   labData?: any;
   createdAt: string;
   updatedAt: string;
@@ -57,7 +61,7 @@ export interface Order {
 
 export interface OrderFormData {
   orderType?: "Dying" | "Printing";
-  status?: "pending" | "delivered" | "Not selected";
+  status?: "Not set" | "Not selected" | "pending" | "delivered";
   arrivalDate?: string;
   party?: string;
   contactName?: string;

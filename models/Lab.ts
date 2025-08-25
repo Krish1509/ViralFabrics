@@ -84,8 +84,41 @@ const LabSchema = new Schema<ILab>({
     index: true
   },
   labSendData: {
-    type: Schema.Types.Mixed, // Can be string or object
-    default: null
+    type: {
+      color: {
+        type: String,
+        trim: true,
+        maxlength: [100, "Color cannot exceed 100 characters"]
+      },
+      shade: {
+        type: String,
+        trim: true,
+        maxlength: [100, "Shade cannot exceed 100 characters"]
+      },
+      notes: {
+        type: String,
+        trim: true,
+        maxlength: [500, "Notes cannot exceed 500 characters"]
+      },
+      sampleNumber: {
+        type: String,
+        trim: true,
+        maxlength: [50, "Sample number cannot exceed 50 characters"]
+      },
+      imageUrl: {
+        type: String,
+        trim: true,
+        maxlength: [500, "Image URL cannot exceed 500 characters"]
+      },
+      approvalDate: {
+        type: Date
+      },
+      specifications: {
+        type: Schema.Types.Mixed,
+        default: {}
+      }
+    },
+    default: {}
   },
   labSendNumber: {
     type: String,

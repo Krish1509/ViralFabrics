@@ -566,7 +566,7 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
       poNumber: 'PO Number',
       styleNo: 'Style Number',
       weaverSupplierName: 'Weaver / Supplier Name',
-      purchaseRate: 'Purchase Rate',
+              purchaseRate: 'Purchase Rate',
       poDate: 'PO Date',
       deliveryDate: 'Delivery Date',
       status: 'Status',

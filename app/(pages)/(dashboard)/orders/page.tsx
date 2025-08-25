@@ -26,8 +26,9 @@ import OrderForm from './components/OrderForm';
 import OrderDetails from './components/OrderDetails';
 import PartyModal from './components/PartyModal';
 import QualityModal from './components/QualityModal';
-import LabAddModal from './components/LabAddModal';
+import LabAddModal from './components/LabDataModal';
 import OrderLogsModal from './components/OrderLogsModal';
+import LabDataModal from './components/LabDataModal';
 // import MillInputModal from './components/MillInputModal';
 import MillInputForm from './components/MillInputForm';
 import MillOutputForm from './components/MillOutputForm';
@@ -66,6 +67,8 @@ export default function OrdersPage() {
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [selectedOrderForLogs, setSelectedOrderForLogs] = useState<Order | null>(null);
+  const [showLabDataModal, setShowLabDataModal] = useState(false);
+  const [selectedOrderForLabData, setSelectedOrderForLabData] = useState<Order | null>(null);
   const [showMillInputModal, setShowMillInputModal] = useState(false);
   const [selectedOrderForMillInput, setSelectedOrderForMillInput] = useState<Order | null>(null);
   const [showMillInputForm, setShowMillInputForm] = useState(false);
@@ -77,11 +80,11 @@ export default function OrdersPage() {
   const [mills, setMills] = useState<Mill[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const ordersPerPage = 12; // Increased for better UX
+  const ordersPerPage = 50; // Show 50 orders per page
 
   // Filters
   const [filters, setFilters] = useState({
-    orderFilter: 'latest_first', // latest_first, oldest_first - default to latest first
+    orderFilter: 'oldest_first', // latest_first, oldest_first - default to oldest first (by order ID)
     typeFilter: 'all' // all, Dying, Printing
   });
 
@@ -117,7 +120,7 @@ export default function OrdersPage() {
       const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced to 5s timeout
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/orders?limit=15', { // Further reduced limit for faster loading
+      const response = await fetch('/api/orders?limit=100', { // Increased limit to fetch more orders
         headers: {
           'Authorization': `Bearer ${token}`,
           'Cache-Control': 'max-age=30, must-revalidate', // Better caching
@@ -634,6 +637,11 @@ export default function OrdersPage() {
   const handleViewLogs = (order: Order) => {
     setSelectedOrderForLogs(order);
     setShowLogsModal(true);
+  };
+
+  const handleLabData = (order: Order) => {
+    setSelectedOrderForLabData(order);
+    setShowLabDataModal(true);
   };
 
   const handleMillInput = (order: Order) => {
@@ -1185,8 +1193,8 @@ export default function OrdersPage() {
                   paddingRight: '2.5rem'
                 }}
               >
-                <option value="latest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Latest First (Default)</option>
-                <option value="oldest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Oldest First</option>
+                <option value="oldest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Order ID (Default)</option>
+                <option value="latest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Latest Created</option>
               </select>
             </div>
 
@@ -1558,17 +1566,17 @@ export default function OrdersPage() {
                         </button>
                         {/* Lab Data Button */}
                         <button
-                          onClick={() => handleAddLab(order)}
+                          onClick={() => handleLabData(order)}
                           className={`p-1.5 rounded transition-all duration-300 ${
-                            order.labData
+                            order.items.some(item => item.labData?.sampleNumber)
                               ? isDarkMode
-                                ? 'text-purple-400 hover:bg-purple-500/20'
-                                : 'text-purple-600 hover:bg-purple-50'
+                                ? 'text-green-400 hover:bg-green-500/20'
+                                : 'text-green-600 hover:bg-green-50'
                               : isDarkMode
                                 ? 'text-orange-400 hover:bg-orange-500/20'
                                 : 'text-orange-600 hover:bg-orange-50'
                           }`}
-                          title={order.labData ? "Edit lab data" : "Add lab data"}
+                          title="Manage lab data"
                         >
                           <BeakerIcon className="h-4 w-4" />
                         </button>
@@ -1706,7 +1714,7 @@ export default function OrdersPage() {
                 <button
                   onClick={() => {
                     setSearchTerm('');
-                    setFilters({ orderFilter: 'latest_first', typeFilter: 'all' });
+                    setFilters({ orderFilter: 'oldest_first', typeFilter: 'all' });
                   }}
                   className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-colors ${
                     isDarkMode
@@ -1880,14 +1888,15 @@ export default function OrdersPage() {
         />
       )}
 
-             {showLabAddModal && (
+             {showLabAddModal && selectedOrderForLab && (
          <LabAddModal
+           isOpen={showLabAddModal}
            order={selectedOrderForLab}
            onClose={() => {
              setShowLabAddModal(false);
              setSelectedOrderForLab(null);
            }}
-           onSuccess={() => {
+           onLabDataUpdate={() => {
              setShowLabAddModal(false);
              setSelectedOrderForLab(null);
              fetchOrders(); // Refresh orders to show new lab data
@@ -2122,6 +2131,22 @@ export default function OrdersPage() {
           onClose={() => {
             setShowLogsModal(false);
             setSelectedOrderForLogs(null);
+          }}
+        />
+      )}
+
+      {/* Lab Data Modal */}
+      {showLabDataModal && selectedOrderForLabData && (
+        <LabDataModal
+          isOpen={showLabDataModal}
+          onClose={() => {
+            setShowLabDataModal(false);
+            setSelectedOrderForLabData(null);
+          }}
+          order={selectedOrderForLabData} //@ts-ignore  
+          onLabDataUpdate={() => {
+            fetchOrders();
+            showMessage('success', 'Lab data updated successfully!');
           }}
         />
       )}

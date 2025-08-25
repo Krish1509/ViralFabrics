@@ -57,43 +57,82 @@ export async function GET(request: NextRequest) {
 
     // Fetch lab data for all orders and attach to items
     if (orders.length > 0) {
-      const Lab = (await import('@/models/Lab')).default;
-      const orderIds = orders.map(order => order._id);
-      
-      const labs = await Lab.find({ 
-        order: { $in: orderIds },
-        softDeleted: { $ne: true }
-      })
-      .select('orderItemId labSendDate labSendData status') // Only select needed fields
-      .lean()
-      .maxTimeMS(1500); // Further reduced timeout for faster response
-      
-      // Create a map of orderItemId to lab data
-      const labMap = new Map();
-      labs.forEach(lab => {
-        labMap.set(lab.orderItemId.toString(), lab);
-      });
-      
-      // Attach lab data to order items
-      orders.forEach(order => {
-        if (order.items) {
-          order.items.forEach((item: any) => {
-            const labData = labMap.get(item._id.toString());
-            if (labData) {
+      try {
+        const Lab = (await import('@/models/Lab')).default;
+        const orderIds = orders.map(order => order._id);
+        
+        const labs = await Lab.find({ 
+          order: { $in: orderIds },
+          softDeleted: { $ne: true }
+        })
+        .select('orderItemId labSendDate labSendData labSendNumber status remarks')
+        .lean()
+        .maxTimeMS(2000);
+        
+        // Create a map of orderItemId to lab data
+        const labMap = new Map();
+        labs.forEach(lab => {
+          labMap.set(lab.orderItemId.toString(), lab);
+        });
+        
+        // Attach lab data to order items
+        orders.forEach(order => {
+          if (order.items) {
+            order.items.forEach((item: any) => {
+              const labData = labMap.get(item._id.toString());
+              if (labData && labData.labSendData) {
+                item.labData = {
+                  color: labData.labSendData.color || '',
+                  shade: labData.labSendData.shade || '',
+                  notes: labData.labSendData.notes || '',
+                  labSendDate: labData.labSendDate,
+                  approvalDate: labData.labSendData.approvalDate,
+                  sampleNumber: labData.labSendData.sampleNumber || '',
+                  imageUrl: labData.labSendData.imageUrl || '',
+                  labSendNumber: labData.labSendNumber || '',
+                  status: labData.status || 'sent',
+                  remarks: labData.remarks || ''
+                };
+              } else {
+                // Initialize empty lab data structure for items without lab data
+                item.labData = {
+                  color: '',
+                  shade: '',
+                  notes: '',
+                  labSendDate: null,
+                  approvalDate: null,
+                  sampleNumber: '',
+                  imageUrl: '',
+                  labSendNumber: '',
+                  status: 'not_sent',
+                  remarks: ''
+                };
+              }
+            });
+          }
+        });
+      } catch (labError) {
+        console.error('Error fetching lab data:', labError);
+        // Continue without lab data if there's an error
+        orders.forEach(order => {
+          if (order.items) {
+            order.items.forEach((item: any) => {
               item.labData = {
-                color: labData.labSendData?.color,
-                shade: labData.labSendData?.shade,
-                notes: labData.labSendData?.notes,
-                labSendDate: labData.labSendDate,
-                approvalDate: labData.labSendData?.approvalDate,
-                sampleNumber: labData.labSendData?.sampleNumber,
-                imageUrl: labData.labSendData?.imageUrl,
-                status: labData.status
+                color: '',
+                shade: '',
+                notes: '',
+                labSendDate: null,
+                approvalDate: null,
+                sampleNumber: '',
+                imageUrl: '',
+                labSendNumber: '',
+                status: 'not_sent',
+                remarks: ''
               };
-            }
-          });
-        }
-      });
+            });
+          }
+        });
+      }
     }
     
     const total = await Order.countDocuments(query).maxTimeMS(2000); // Further reduced timeout
