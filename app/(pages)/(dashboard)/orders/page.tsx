@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   PlusIcon,
   MagnifyingGlassIcon,
@@ -36,6 +36,16 @@ import DispatchForm from './components/DispatchForm';
 import { Order, Party, Quality, Mill, MillOutput } from '@/types';
 import { useDarkMode } from '../hooks/useDarkMode';
 
+// Enhanced message interface
+interface ValidationMessage {
+  id: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  text: string;
+  timestamp: number;
+  autoDismiss?: boolean;
+  dismissTime?: number;
+}
+
 export default function OrdersPage() {
   const { isDarkMode, mounted } = useDarkMode();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -52,7 +62,7 @@ export default function OrdersPage() {
   const [selectedOrderForLab, setSelectedOrderForLab] = useState<Order | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [messages, setMessages] = useState<ValidationMessage[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -79,6 +89,8 @@ export default function OrdersPage() {
   const [selectedOrderForDispatch, setSelectedOrderForDispatch] = useState<Order | null>(null);
   const [mills, setMills] = useState<Mill[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
+  const [isValidating, setIsValidating] = useState(false);
 
   const ordersPerPage = 50; // Show 50 orders per page
 
@@ -103,15 +115,81 @@ export default function OrdersPage() {
   const isMediumScreen = screenSize > 768;
   const isSmallScreen = screenSize > 640;
 
-  // Show message - moved up before fetchOrders
-  const showMessage = useCallback((type: 'success' | 'error', text: string) => {
-    setMessage({ type, text });
-    setTimeout(() => setMessage(null), 5000);
+  // Enhanced message system with better UX
+  const showMessage = useCallback((type: 'success' | 'error' | 'warning' | 'info', text: string, options?: { autoDismiss?: boolean; dismissTime?: number }) => {
+    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newMessage: ValidationMessage = {
+      id: messageId,
+      type,
+      text,
+      timestamp: Date.now(),
+      autoDismiss: options?.autoDismiss ?? true,
+      dismissTime: options?.dismissTime ?? 5000
+    };
+
+    setMessages(prev => [...prev, newMessage]);
+
+    // Auto dismiss if enabled
+    if (newMessage.autoDismiss) {
+      setTimeout(() => {
+        dismissMessage(messageId);
+      }, newMessage.dismissTime);
+    }
   }, []);
 
+  // Dismiss specific message
+  const dismissMessage = useCallback((messageId: string) => {
+    setMessages(prev => prev.filter(msg => msg.id !== messageId));
+  }, []);
 
+  // Dismiss all messages
+  const dismissAllMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
 
-  // Optimized fetch functions with useCallback and retry logic
+  // Validation helper functions
+  const validateSearchTerm = useCallback((term: string) => {
+    if (term.length > 0 && term.length < 2) {
+      return 'Search term must be at least 2 characters';
+    }
+    if (term.length > 50) {
+      return 'Search term is too long (max 50 characters)';
+    }
+    return null;
+  }, []);
+
+  const validateFilters = useCallback((currentFilters: any) => {
+    const errors: {[key: string]: string} = {};
+    
+    if (!currentFilters.orderFilter || !['latest_first', 'oldest_first'].includes(currentFilters.orderFilter)) {
+      errors.orderFilter = 'Invalid order filter';
+    }
+    
+    if (!currentFilters.typeFilter || !['all', 'Dying', 'Printing'].includes(currentFilters.typeFilter)) {
+      errors.typeFilter = 'Invalid type filter';
+    }
+    
+    return errors;
+  }, []);
+
+  // Real-time validation
+  useEffect(() => {
+    const errors: {[key: string]: string} = {};
+    
+    // Validate search term
+    const searchError = validateSearchTerm(searchTerm);
+    if (searchError) {
+      errors.searchTerm = searchError;
+    }
+    
+    // Validate filters
+    const filterErrors = validateFilters(filters);
+    Object.assign(errors, filterErrors);
+    
+    setValidationErrors(errors);
+  }, [searchTerm, filters, validateSearchTerm, validateFilters]);
+
+  // Optimized fetch functions with retry logic
   const fetchOrders = useCallback(async (retryCount = 0) => {
     const maxRetries = 3;
     
@@ -148,16 +226,16 @@ export default function OrdersPage() {
       if (error.name === 'AbortError') {
         if (retryCount < maxRetries) {
           // OrdersPage: Retry attempt for orders fetch
-          showMessage('error', `Loading timeout. Retrying... (${retryCount + 1}/${maxRetries + 1})`);
+          showMessage('warning', `Loading timeout. Retrying... (${retryCount + 1}/${maxRetries + 1})`, { autoDismiss: true, dismissTime: 3000 });
           await new Promise(resolve => setTimeout(resolve, 1000)); // Reduced wait time
           return fetchOrders(retryCount + 1);
         } else {
-          showMessage('error', 'Loading timeout. Please refresh the page.');
+          showMessage('error', 'Loading timeout. Please refresh the page.', { autoDismiss: false });
           setLoading(false); // Stop loading state
         }
       } else {
         console.error('Error fetching orders:', error);
-        showMessage('error', 'Failed to fetch orders');
+        showMessage('error', 'Failed to fetch orders. Please try again.', { autoDismiss: false });
         setLoading(false); // Stop loading state
       }
       throw error; // Re-throw to be caught by the useEffect
@@ -302,7 +380,7 @@ export default function OrdersPage() {
       } catch (error) {
         console.error('Error initializing data:', error);
         if (!ordersLoaded) {
-          showMessage('error', 'Failed to load orders. Please refresh the page.');
+          showMessage('error', 'Failed to load orders. Please refresh the page.', { autoDismiss: false });
         }
       } finally {
         setLoading(false);
@@ -316,7 +394,7 @@ export default function OrdersPage() {
     const timeoutId = setTimeout(() => {
       setLoading(false);
       setIsInitialized(true);
-      showMessage('error', 'Loading timeout. Please refresh the page.');
+      showMessage('error', 'Loading timeout. Please refresh the page.', { autoDismiss: false });
     }, 8000); // Reduced to 8 second timeout
     
     return () => clearTimeout(timeoutId);
@@ -341,13 +419,13 @@ export default function OrdersPage() {
           // OrdersPage: Successfully refreshed orders
           // Show success message for automatic refresh
           if (event.detail?.action === 'order_create') {
-            showMessage('success', 'New order added to table automatically!');
+            showMessage('success', 'New order added to table automatically!', { autoDismiss: true, dismissTime: 3000 });
           } else if (event.detail?.action === 'lab_add') {
-            showMessage('success', 'Lab data updated in table automatically!');
+            showMessage('success', 'Lab data updated in table automatically!', { autoDismiss: true, dismissTime: 3000 });
           }
         }).catch(error => {
           console.error('Error refreshing orders after', event.detail.action, ':', error);
-          showMessage('error', 'Failed to refresh orders automatically');
+          showMessage('error', 'Failed to refresh orders automatically', { autoDismiss: true, dismissTime: 3000 });
         });
       }
     };
@@ -370,7 +448,7 @@ export default function OrdersPage() {
     const attemptRefresh = async () => {
       try {
         await fetchOrders();
-        showMessage('success', 'Orders refreshed successfully');
+        showMessage('success', 'Orders refreshed successfully', { autoDismiss: true, dismissTime: 3000 });
         return true;
       } catch (error: any) {
         retryCount++;
@@ -379,7 +457,7 @@ export default function OrdersPage() {
           await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
           return await attemptRefresh();
         } else {
-          showMessage('error', 'Failed to refresh orders after multiple attempts');
+          showMessage('error', 'Failed to refresh orders after multiple attempts', { autoDismiss: false });
           return false;
         }
       }
@@ -392,7 +470,7 @@ export default function OrdersPage() {
   // Reset order counter function
   const handleResetCounter = useCallback(async () => {
     if (orders.length > 0) {
-      showMessage('error', 'Cannot reset counter when orders exist. Delete all orders first.');
+      showMessage('error', 'Cannot reset counter when orders exist. Delete all orders first.', { autoDismiss: true, dismissTime: 4000 });
       return;
     }
 
@@ -410,14 +488,14 @@ export default function OrdersPage() {
       const data = await response.json();
       
       if (data.success) {
-        showMessage('success', 'Order counter reset successfully. Next order will start with 001');
+        showMessage('success', 'Order counter reset successfully. Next order will start with 001', { autoDismiss: true, dismissTime: 4000 });
         setShowQuickActions(false);
       } else {
-        showMessage('error', data.message || 'Failed to reset order counter');
+        showMessage('error', data.message || 'Failed to reset order counter', { autoDismiss: true, dismissTime: 4000 });
       }
     } catch (error) {
       console.error('Error resetting counter:', error);
-      showMessage('error', 'Failed to reset order counter');
+      showMessage('error', 'Failed to reset order counter', { autoDismiss: true, dismissTime: 4000 });
     } finally {
       setResettingCounter(false);
     }
@@ -439,7 +517,7 @@ export default function OrdersPage() {
       const data = await response.json();
       
       if (data.success) {
-        showMessage('success', data.message);
+        showMessage('success', data.message, { autoDismiss: true, dismissTime: 4000 });
         setShowDeleteAllModal(false);
         
         // Trigger real-time update for Order Activity Log
@@ -453,10 +531,10 @@ export default function OrdersPage() {
         
         await fetchOrders(); // Refresh the orders list
       } else {
-        showMessage('error', data.message);
+        showMessage('error', data.message, { autoDismiss: true, dismissTime: 4000 });
       }
     } catch (error: any) {
-      showMessage('error', 'Failed to delete all orders');
+      showMessage('error', 'Failed to delete all orders', { autoDismiss: true, dismissTime: 4000 });
     } finally {
       setDeletingAll(false);
     }
@@ -482,7 +560,7 @@ export default function OrdersPage() {
         setOrders(prev => prev.map(order => 
           order._id === orderId ? { ...order, status: newStatus } : order
         ));
-        showMessage('success', 'Order status updated successfully');
+        showMessage('success', 'Order status updated successfully', { autoDismiss: true, dismissTime: 3000 });
         
         // Trigger real-time update for Order Activity Log
         const event = new CustomEvent('orderUpdated', { 
@@ -494,11 +572,11 @@ export default function OrdersPage() {
         });
         window.dispatchEvent(event);
       } else {
-        showMessage('error', data.message || 'Failed to update order status');
+        showMessage('error', data.message || 'Failed to update order status', { autoDismiss: true, dismissTime: 4000 });
       }
     } catch (error) {
       console.error('Error updating order status:', error);
-      showMessage('error', 'Failed to update order status');
+      showMessage('error', 'Failed to update order status', { autoDismiss: true, dismissTime: 4000 });
     }
   }, [showMessage]);
 
@@ -899,7 +977,110 @@ export default function OrdersPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <>
+      {/* Enhanced Message System Styles */}
+      <style jsx>{`
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        
+        @keyframes slideOutRight {
+          from {
+            transform: translateX(0);
+            opacity: 1;
+          }
+          to {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+        }
+        
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes glowPulse {
+          0%, 100% {
+            box-shadow: 0 0 5px rgba(59, 130, 246, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+          }
+        }
+        
+        @keyframes errorGlow {
+          0%, 100% {
+            box-shadow: 0 0 5px rgba(239, 68, 68, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+          }
+        }
+        
+        @keyframes successGlow {
+          0%, 100% {
+            box-shadow: 0 0 5px rgba(34, 197, 94, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.6);
+          }
+        }
+        
+        .message-enter {
+          animation: slideInRight 0.3s ease-out forwards;
+        }
+        
+        .message-exit {
+          animation: slideOutRight 0.3s ease-in forwards;
+        }
+        
+        .validation-error {
+          animation: fadeInUp 0.3s ease-out forwards;
+        }
+        
+        .glow-pulse {
+          animation: glowPulse 2s ease-in-out infinite;
+        }
+        
+        .error-glow {
+          animation: errorGlow 2s ease-in-out infinite;
+        }
+        
+        .success-glow {
+          animation: successGlow 2s ease-in-out infinite;
+        }
+        
+        /* Dark mode specific enhancements */
+        .dark .message-container {
+          backdrop-filter: blur(10px);
+          background: rgba(31, 41, 55, 0.95);
+        }
+        
+        .dark .validation-error {
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        
+        .dark .input-error {
+          box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+        }
+      `}</style>
+      
+      <div className="space-y-4">
       {/* Enhanced Header with Stats */}
       <div className="space-y-6">
         {/* Main Header */}
@@ -1029,7 +1210,7 @@ export default function OrdersPage() {
                     ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-500/40'
                     : 'bg-cyan-50 border-cyan-200 text-cyan-700 hover:bg-cyan-100 hover:border-cyan-300'
                 }`}
-              >
+              > gi
                 <BuildingOfficeIcon className="h-5 w-5 mx-auto mb-1 group-hover:scale-110 transition-transform" />
                 <div className="text-xs font-medium">Add Mill Input</div>
               </button>
@@ -1095,25 +1276,140 @@ export default function OrdersPage() {
 
       </div>
 
-      {/* Message */}
-      {message && (
-        <div className={`p-4 rounded-lg border ${
-          message.type === 'success'
-            ? isDarkMode
-              ? 'bg-green-900/20 border-green-500/30 text-green-400'
-              : 'bg-green-50 border-green-200 text-green-800'
-            : isDarkMode
-              ? 'bg-red-900/20 border-red-500/30 text-red-400'
-              : 'bg-red-50 border-red-200 text-red-800'
-        }`}>
-          <div className="flex items-center">
-            {message.type === 'success' ? (
-              <CheckIcon className="h-5 w-5 mr-2" />
-            ) : (
-              <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
-            )}
-            {message.text}
+      {/* Enhanced Message System */}
+      <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
+        {messages.map((message, index) => (
+          <div
+            key={message.id}
+            className={`transform transition-all duration-300 ease-out ${
+              isDarkMode ? 'bg-gray-800/95 border-gray-600 backdrop-blur-sm' : 'bg-white border-gray-200'
+            } rounded-lg border shadow-lg p-4 max-w-sm ${
+              message.type === 'success'
+                ? isDarkMode
+                  ? 'border-green-500/40 bg-green-900/30 shadow-green-500/20'
+                  : 'border-green-200 bg-green-50'
+                : message.type === 'warning'
+                ? isDarkMode
+                  ? 'border-yellow-500/40 bg-yellow-900/30 shadow-yellow-500/20'
+                  : 'border-yellow-200 bg-yellow-50'
+                : message.type === 'info'
+                ? isDarkMode
+                  ? 'border-blue-500/40 bg-blue-900/30 shadow-blue-500/20'
+                  : 'border-blue-200 bg-blue-50'
+                : isDarkMode
+                  ? 'border-red-500/40 bg-red-900/30 shadow-red-500/20'
+                  : 'border-red-200 bg-red-50'
+            } ${isDarkMode ? 'backdrop-blur-md' : ''}`}
+            style={{
+              transform: `translateX(${index * 10}px)`,
+              animation: 'slideInRight 0.3s ease-out',
+              boxShadow: isDarkMode ? 
+                message.type === 'success' ? '0 4px 20px rgba(34, 197, 94, 0.3)' :
+                message.type === 'warning' ? '0 4px 20px rgba(234, 179, 8, 0.3)' :
+                message.type === 'info' ? '0 4px 20px rgba(59, 130, 246, 0.3)' :
+                '0 4px 20px rgba(239, 68, 68, 0.3)' : undefined
+            }}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-start space-x-3">
+                <div className={`flex-shrink-0 ${
+                  message.type === 'success'
+                    ? isDarkMode ? 'text-green-400' : 'text-green-500'
+                    : message.type === 'warning'
+                    ? isDarkMode ? 'text-yellow-400' : 'text-yellow-500'
+                    : message.type === 'info'
+                    ? isDarkMode ? 'text-blue-400' : 'text-blue-500'
+                    : isDarkMode ? 'text-red-400' : 'text-red-500'
+                }`}>
+                  {message.type === 'success' ? (
+                    <CheckIcon className="h-5 w-5" />
+                  ) : message.type === 'warning' ? (
+                    <WarningIcon className="h-5 w-5" />
+                  ) : message.type === 'info' ? (
+                    <ChartBarIcon className="h-5 w-5" />
+                  ) : (
+                    <ExclamationTriangleIcon className="h-5 w-5" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className={`text-sm font-medium ${
+                    message.type === 'success'
+                      ? isDarkMode ? 'text-green-300' : 'text-green-800'
+                      : message.type === 'warning'
+                      ? isDarkMode ? 'text-yellow-300' : 'text-yellow-800'
+                      : message.type === 'info'
+                      ? isDarkMode ? 'text-blue-300' : 'text-blue-800'
+                      : isDarkMode ? 'text-red-300' : 'text-red-800'
+                  }`}>
+                    {message.text}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => dismissMessage(message.id)}
+                className={`flex-shrink-0 ml-3 p-1.5 rounded-full transition-all duration-200 hover:scale-110 ${
+                  message.type === 'success'
+                    ? isDarkMode ? 'hover:bg-green-500/20 text-green-400 hover:text-green-300' : 'hover:bg-green-100 text-green-500'
+                    : message.type === 'warning'
+                    ? isDarkMode ? 'hover:bg-yellow-500/20 text-yellow-400 hover:text-yellow-300' : 'hover:bg-yellow-100 text-yellow-500'
+                    : message.type === 'info'
+                    ? isDarkMode ? 'hover:bg-blue-500/20 text-blue-400 hover:text-blue-300' : 'hover:bg-blue-100 text-blue-500'
+                    : isDarkMode ? 'hover:bg-red-500/20 text-red-400 hover:text-red-300' : 'hover:bg-red-100 text-red-500'
+                }`}
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            </div>
           </div>
+        ))}
+      </div>
+
+      {/* Validation Errors Summary */}
+      {Object.keys(validationErrors).length > 0 && (
+        <div className={`p-4 rounded-lg border mb-4 transition-all duration-300 ${
+          isDarkMode 
+            ? 'bg-red-900/30 border-red-500/40 shadow-red-500/20 backdrop-blur-sm' 
+            : 'bg-red-50 border-red-200'
+        }`}
+        style={{
+          boxShadow: isDarkMode ? '0 4px 20px rgba(239, 68, 68, 0.2)' : undefined
+        }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center space-x-2">
+              <div className={`p-1.5 rounded-full ${
+                isDarkMode ? 'bg-red-500/20' : 'bg-red-100'
+              }`}>
+                <ExclamationTriangleIcon className={`h-5 w-5 ${
+                  isDarkMode ? 'text-red-400' : 'text-red-600'
+                }`} />
+              </div>
+              <span className={`font-semibold ${
+                isDarkMode ? 'text-red-300' : 'text-red-700'
+              }`}>
+                Validation Issues Found
+              </span>
+            </div>
+            <button
+              onClick={() => setValidationErrors({})}
+              className={`p-2 rounded-full transition-all duration-200 hover:scale-110 ${
+                isDarkMode ? 'hover:bg-red-500/20 text-red-400 hover:text-red-300' : 'hover:bg-red-100 text-red-600'
+              }`}
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          </div>
+          <ul className={`text-sm space-y-2 ${
+            isDarkMode ? 'text-red-200' : 'text-red-600'
+          }`}>
+            {Object.entries(validationErrors).map(([field, error]) => (
+              <li key={field} className="flex items-center p-2 rounded-lg transition-all duration-200 hover:bg-red-500/10">
+                <span className={`w-2 h-2 rounded-full mr-3 ${
+                  isDarkMode ? 'bg-red-400' : 'bg-red-500'
+                }`}></span>
+                <span className="flex-1">{error}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -1137,12 +1433,29 @@ export default function OrdersPage() {
                   placeholder="Search orders by ID, PO number, style, or party..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className={`w-full pl-10 pr-4 py-2 rounded-lg border transition-colors duration-300 ${
+                  className={`w-full pl-10 pr-4 py-2 rounded-lg border transition-all duration-300 ${
                     isDarkMode
-                      ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500'
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
-                  }`}
+                      ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+                  } ${validationErrors.searchTerm ? 
+                    isDarkMode 
+                      ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20 shadow-red-500/20' 
+                      : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+                    : ''}`}
+                  style={{
+                    boxShadow: validationErrors.searchTerm && isDarkMode ? '0 0 0 3px rgba(248, 113, 113, 0.1)' : undefined
+                  }}
                 />
+                {validationErrors.searchTerm && (
+                  <div className={`absolute -bottom-6 left-0 text-xs flex items-center p-1.5 rounded-md transition-all duration-200 ${
+                    isDarkMode 
+                      ? 'bg-red-900/50 text-red-300 border border-red-500/30' 
+                      : 'bg-red-50 text-red-600 border border-red-200'
+                  }`}>
+                    <ExclamationTriangleIcon className="h-3 w-3 mr-1.5 flex-shrink-0" />
+                    <span className="font-medium">{validationErrors.searchTerm}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1180,12 +1493,17 @@ export default function OrdersPage() {
               <select
                 value={filters.orderFilter}
                 onChange={(e) => setFilters({ ...filters, orderFilter: e.target.value })}
-                className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 appearance-none cursor-pointer ${
+                className={`w-full px-3 py-2 rounded-lg border transition-all duration-300 appearance-none cursor-pointer ${
                   isDarkMode
-                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:border-white/30'
-                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-                }`}
+                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 hover:border-white/30'
+                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+                } ${validationErrors.orderFilter ? 
+                  isDarkMode 
+                    ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20 shadow-red-500/20' 
+                    : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+                  : ''}`}
                 style={{
+                  boxShadow: validationErrors.orderFilter && isDarkMode ? '0 0 0 3px rgba(248, 113, 113, 0.1)' : undefined,
                   backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='${isDarkMode ? 'rgb(156 163 175)' : 'rgb(107 114 128)'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
                   backgroundPosition: 'right 0.5rem center',
                   backgroundRepeat: 'no-repeat',
@@ -1193,8 +1511,8 @@ export default function OrdersPage() {
                   paddingRight: '2.5rem'
                 }}
               >
-                <option value="oldest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Order ID (Default)</option>
-                <option value="latest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Latest Created</option>
+                <option value="oldest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Oldest First</option>
+                <option value="latest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Latest First</option>
               </select>
             </div>
 
@@ -1203,12 +1521,17 @@ export default function OrdersPage() {
               <select
                 value={filters.typeFilter}
                 onChange={(e) => setFilters({ ...filters, typeFilter: e.target.value })}
-                className={`w-full px-3 py-2 rounded-lg border transition-colors duration-300 appearance-none cursor-pointer ${
+                className={`w-full px-3 py-2 rounded-lg border transition-all duration-300 appearance-none cursor-pointer ${
                   isDarkMode
-                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:border-white/30'
-                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-                }`}
+                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 hover:border-white/30'
+                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+                } ${validationErrors.typeFilter ? 
+                  isDarkMode 
+                    ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20 shadow-red-500/20' 
+                    : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+                  : ''}`}
                 style={{
+                  boxShadow: validationErrors.typeFilter && isDarkMode ? '0 0 0 3px rgba(248, 113, 113, 0.1)' : undefined,
                   backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='${isDarkMode ? 'rgb(156 163 175)' : 'rgb(107 114 128)'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
                   backgroundPosition: 'right 0.5rem center',
                   backgroundRepeat: 'no-repeat',
@@ -2218,5 +2541,6 @@ export default function OrdersPage() {
         />
       )}
     </div>
+    </>
   );
 }
