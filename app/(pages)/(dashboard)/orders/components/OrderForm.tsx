@@ -1082,7 +1082,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   const { isDarkMode, mounted } = useDarkMode();
   const [formData, setFormData] = useState<OrderFormData>({
     orderType: undefined,
-    status: 'Not selected', // Default to "Not selected" for new orders
     arrivalDate: '',
     party: '',
     contactName: '',
@@ -1272,7 +1271,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       
       setFormData({
         orderType: order.orderType,
-        status: order.status || 'Not selected', // Default to "Not selected" if status is undefined
         arrivalDate: order.arrivalDate ? new Date(order.arrivalDate).toISOString().split('T')[0] : '',
         party: partyId,
         contactName: order.contactName || '',
@@ -1497,12 +1495,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       // For new orders, include all required fields
       if (!order) {
         cleanedFormData.orderType = formData.orderType;
-        // For new orders, only include status if it's selected (not "Not set")
-        if (formData.status !== 'Not set') {
-          cleanedFormData.status = formData.status;
-        }
-        console.log('🔍 Frontend - Form status:', formData.status);
-        console.log('🔍 Frontend - Cleaned form data status:', cleanedFormData.status);
         cleanedFormData.arrivalDate = cleanDate(formData.arrivalDate);
         cleanedFormData.party = formData.party;
         cleanedFormData.contactName = formData.contactName;
@@ -1530,12 +1522,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         if (formData.orderType !== order.orderType) {
           cleanedFormData.orderType = formData.orderType;
           changedFields.push('orderType');
-        }
-        
-        if (formData.status !== order.status) {
-          // For existing orders, handle "Not set" case
-          cleanedFormData.status = formData.status === 'Not set' ? undefined : formData.status;
-          changedFields.push('status');
         }
         
         // Compare dates properly by normalizing them to YYYY-MM-DD format
@@ -1875,30 +1861,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                 {errors.orderType && <p className="text-red-500 text-sm mt-2">{errors.orderType}</p>}
               </div>
 
-              {/* Status */}
-              <div>
-                <label className="block text-sm font-medium mb-3">Status</label>
-                <div className="relative">
-                <select
-                  value={formData.status || 'Not selected'}
-                  onChange={(e) => handleFieldChange('status', e.target.value)}
-                    className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${
-                    isDarkMode 
-                      ? 'bg-gray-800 border-gray-600 text-white' 
-                      : 'bg-white border-gray-300 text-gray-900'
-                  }`}
-                >
-                  <option value="Not selected">Not selected</option>
-                  <option value="pending">Pending</option>
-                  <option value="delivered">Delivered</option>
-                </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <svg className={`h-5 w-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
+
 
               {/* Arrival Date */}
               <div>

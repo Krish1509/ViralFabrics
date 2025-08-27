@@ -38,6 +38,11 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
   const { isDarkMode, mounted } = useDarkMode();
   const [screenSize, setScreenSize] = useState<number>(0);
 
+  // Debug current pathname
+  useEffect(() => {
+    console.log('Current pathname:', pathname);
+  }, [pathname]);
+
   // Memoize nav items to prevent recalculation on every render
   const navItems = useMemo(() => {
     const items: NavItem[] = [
@@ -101,10 +106,9 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
 
   // Memoize active state calculation
   const isActive = useCallback((href: string) => {
-    if (href === '/dashboard') {
-      return pathname === href;
-    }
-    return pathname.startsWith(href);
+    const result = href === '/dashboard' ? pathname === href : pathname.startsWith(href);
+    console.log(`isActive check for ${href}: pathname=${pathname}, result=${result}`);
+    return result;
   }, [pathname]);
 
   // Memoize screen size calculations
@@ -191,6 +195,9 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
           } ${shouldShowText ? 'p-6' : 'p-4'}`}>
             <Link 
               href="/dashboard" 
+              onClick={() => {
+                console.log('Logo clicked - redirecting to /dashboard');
+              }}
               className={`group cursor-pointer ${shouldShowText ? 'flex items-center space-x-3' : 'flex justify-center'}`}
             >
               <div className={`h-10 w-10 rounded-lg flex items-center justify-center shadow-lg transition-all duration-300 ${
@@ -231,6 +238,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
                 <Link
                   key={item.name}
                   href={item.href}
+                 
                   className={`group flex items-center transition-all duration-300 cursor-pointer rounded-xl ${
                     shouldShowText 
                       ? 'space-x-3 px-4 py-3 justify-start' 
@@ -317,6 +325,9 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
           }`}>
             <Link 
               href="/dashboard" 
+              onClick={() => {
+                console.log('Mobile logo clicked - redirecting to /dashboard');
+              }}
               className="flex items-center space-x-3 group cursor-pointer"
             >
               <div className={`h-10 w-10 rounded-lg flex items-center justify-center shadow-lg transition-all duration-300 ${

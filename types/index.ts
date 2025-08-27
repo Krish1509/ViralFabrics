@@ -61,7 +61,6 @@ export interface Order {
 
 export interface OrderFormData {
   orderType?: "Dying" | "Printing";
-  status?: "Not set" | "Not selected" | "pending" | "delivered";
   arrivalDate?: string;
   party?: string;
   contactName?: string;

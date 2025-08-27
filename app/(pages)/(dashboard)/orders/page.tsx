@@ -84,7 +84,7 @@ export default function OrdersPage() {
 
   // Filters
   const [filters, setFilters] = useState({
-    orderFilter: 'oldest_first', // latest_first, oldest_first - default to oldest first (by order ID)
+    orderFilter: 'latest_first', // latest_first, oldest_first - default to latest first (by creation date)
     typeFilter: 'all' // all, Dying, Printing
   });
 
@@ -463,7 +463,7 @@ export default function OrdersPage() {
   }, [fetchOrders, showMessage]);
 
   // Handle status change
-  const handleStatusChange = useCallback(async (orderId: string, newStatus: "Not selected" | "pending" | "delivered") => {
+  const handleStatusChange = useCallback(async (orderId: string, newStatus: "pending" | "delivered") => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`/api/orders/${orderId}`, {
@@ -1518,8 +1518,8 @@ export default function OrdersPage() {
                                                                                {/* Status Column */}
                      <td className="px-6 py-4">
                        <select
-                         value={order.status || 'Not set'}
-                          onChange={(e) => handleStatusChange(order._id, e.target.value as "Not selected" | "pending" | "delivered")}
+                         value={order.status || 'pending'}
+                          onChange={(e) => handleStatusChange(order._id, e.target.value as "pending" | "delivered")}
                          className={`text-xs px-3 py-2 rounded-lg border transition-colors appearance-none cursor-pointer ${
                            isDarkMode
                              ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:border-white/30'
@@ -1533,9 +1533,8 @@ export default function OrdersPage() {
                            paddingRight: '2.5rem'
                          }}
                        >
-                         <option value="Not set" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Not set</option>
                          <option value="pending" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Pending</option>
-                          <option value="delivered" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Delivered</option>
+                         <option value="delivered" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Delivered</option>
                        </select>
                      </td>
 
