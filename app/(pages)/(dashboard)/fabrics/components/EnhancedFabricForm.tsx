@@ -6,7 +6,8 @@ import {
   PlusIcon,
   CheckIcon,
   ExclamationTriangleIcon,
-  TrashIcon
+  TrashIcon,
+  PencilIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { Fabric, FabricFormData, FabricItem } from '@/types/fabric';

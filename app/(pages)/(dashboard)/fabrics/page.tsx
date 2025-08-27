@@ -556,7 +556,7 @@ export default function FabricsPage() {
             <div className={`w-full h-10 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
           ) : (
           <button
-            onClick={fetchFabrics}
+            onClick={() => fetchFabrics(false)}
             className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
               isDarkMode 
                 ? 'bg-blue-600 hover:bg-blue-700 text-white' 
