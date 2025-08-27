@@ -1,840 +1,991 @@
-'use client';
+// 'use client';
 
-import { useState, useEffect } from 'react';
-import { 
-  XMarkIcon,
-  PlusIcon,
-  CheckIcon,
-  ExclamationTriangleIcon
-} from '@heroicons/react/24/outline';
-import { useDarkMode } from '../../hooks/useDarkMode';
-import { Fabric, FabricFormData, QualityName, Weaver, WeaverQualityName } from '@/types/fabric';
+// import { useState, useEffect, useCallback, useRef } from 'react';
+// import { 
+//   XMarkIcon,
+//   PlusIcon,
+//   CheckIcon,
+//   ExclamationTriangleIcon,
+//   TrashIcon,
+//   InformationCircleIcon,
+//   PencilIcon
+// } from '@heroicons/react/24/outline';
+// import { useDarkMode } from '../../hooks/useDarkMode';
+// import { Fabric, FabricFormData, FabricItem, FabricValidationErrors } from '@/types/fabric';
 
-interface FabricFormProps {
-  fabric?: Fabric | null;
-  onClose: () => void;
-  onSuccess: () => void;
-}
+// interface FabricFormProps {
+//   fabric?: Fabric | null;
+//   onClose: () => void;
+//   onSuccess: () => void;
+// }
 
-interface ValidationErrors {
-  [key: string]: string;
-}
+// // Enhanced message interface
+// interface ValidationMessage {
+//   id: string;
+//   type: 'success' | 'error' | 'warning' | 'info';
+//   text: string;
+//   timestamp: number;
+//   autoDismiss?: boolean;
+//   dismissTime?: number;
+// }
 
-export default function FabricForm({ fabric, onClose, onSuccess }: FabricFormProps) {
-  const { isDarkMode, mounted } = useDarkMode();
-  const [formData, setFormData] = useState<FabricFormData>({
-    qualityCode: '',
-    qualityName: '',
-    weaver: '',
-    weaverQualityName: '',
-    greighWidth: '',
-    finishWidth: '',
-    weight: '',
-    gsm: '',
-    danier: '',
-    reed: '',
-    pick: '',
-    greighRate: ''
-  });
-  const [errors, setErrors] = useState<ValidationErrors>({});
-  const [loading, setLoading] = useState(false);
-  const [validationMessage, setValidationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+// // Validation state interface
+// interface ValidationState {
+//   errors: FabricValidationErrors;
+//   touched: Set<string>;
+//   isValidating: boolean;
+//   lastValidationTime: number;
+// }
+
+// export default function FabricForm({ fabric, onClose, onSuccess }: FabricFormProps) {
+//   const { isDarkMode, mounted } = useDarkMode();
+//   const [formData, setFormData] = useState<FabricFormData>({
+//     items: [{
+//       qualityCode: '',  
+//       qualityName: '',
+//       weaver: '',
+//       weaverQualityName: '',
+//       greighWidth: '',
+//       finishWidth: '',
+//       weight: '',
+//       gsm: '',
+//       danier: '',
+//       reed: '',
+//       pick: '',
+//       greighRate: ''
+//     }]
+//   });
   
-  // Dropdown data
-  const [qualityNames, setQualityNames] = useState<QualityName[]>([]);
+//   const [validationState, setValidationState] = useState<ValidationState>({
+//     errors: {},
+//     touched: new Set(),
+//     isValidating: false,
+//     lastValidationTime: 0
+//   });
   
-  // New item creation states
-  const [showNewQualityName, setShowNewQualityName] = useState(false);
-  const [newQualityName, setNewQualityName] = useState('');
-  const [creatingNew, setCreatingNew] = useState(false);
-  
-  // Searchable dropdown states
-  const [showQualityNameDropdown, setShowQualityNameDropdown] = useState(false);
-  const [qualityNameSearch, setQualityNameSearch] = useState('');
-  
-  // Filter quality names based on search and show "New" first
-  const filteredQualityNames = qualityNames
-    .filter(name => 
-      name.name.toLowerCase().includes(qualityNameSearch.toLowerCase())
-    )
-    .sort((a, b) => {
-      // Show "New" first
-      if (a.name.toLowerCase().includes('new')) return -1;
-      if (b.name.toLowerCase().includes('new')) return 1;
-      return a.name.localeCompare(b.name);
-    });
+//   const [loading, setLoading] = useState(false);
+//   const [messages, setMessages] = useState<ValidationMessage[]>([]);
+//   const [formInitialized, setFormInitialized] = useState(false);
+//   const formRef = useRef<HTMLFormElement>(null);
 
-  // Initialize form data
-  useEffect(() => {
-    if (fabric) {
-      setFormData({
-        qualityCode: fabric.qualityCode,
-        qualityName: fabric.qualityName,
-        weaver: fabric.weaver,
-        weaverQualityName: fabric.weaverQualityName,
-        greighWidth: fabric.greighWidth.toString(),
-        finishWidth: fabric.finishWidth.toString(),
-        weight: fabric.weight.toString(),
-        gsm: fabric.gsm.toString(),
-        danier: fabric.danier,
-        reed: fabric.reed.toString(),
-        pick: fabric.pick.toString(),
-        greighRate: fabric.greighRate.toString()
-      });
-    }
-  }, [fabric]);
+//   // Enhanced message system
+//   const showMessage = useCallback((type: 'success' | 'error' | 'warning' | 'info', text: string, options?: { autoDismiss?: boolean; dismissTime?: number }) => {
+//     const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+//     const newMessage: ValidationMessage = {
+//       id: messageId,
+//       type,
+//       text,
+//       timestamp: Date.now(),
+//       autoDismiss: options?.autoDismiss ?? true,
+//       dismissTime: options?.dismissTime ?? 5000
+//     };
 
-  // Fetch quality names
-  const fetchQualityNames = async () => {
-    try {
-      const response = await fetch('/api/fabrics/quality-names');
-      const data = await response.json();
-      if (data.success) {
-        setQualityNames(data.data.map((name: string) => ({ _id: name, name })));
-      }
-    } catch (error) {
-      console.error('Error fetching quality names:', error);
-    }
-  };
+//     setMessages(prev => [...prev, newMessage]);
 
-  // Fetch weavers based on quality name (no longer needed since weaver is now a text input)
-  const fetchWeavers = async (qualityName: string) => {
-    // This function is kept for compatibility but no longer needed
-    // Weaver is now a simple text input field
-  };
+//     if (newMessage.autoDismiss) {
+//       setTimeout(() => {
+//         dismissMessage(messageId);
+//       }, newMessage.dismissTime);
+//     }
+//   }, []);
 
-  // Fetch weaver quality names (no longer needed since weaver quality name is now a text input)
-  const fetchWeaverQualityNames = async (weaver: string) => {
-    // This function is kept for compatibility but no longer needed
-    // Weaver quality name is now a simple text input field
-  };
+//   const dismissMessage = useCallback((messageId: string) => {
+//     setMessages(prev => prev.filter(msg => msg.id !== messageId));
+//   }, []);
 
-  // Create new quality name
-  const createNewQualityName = async () => {
-    if (!newQualityName.trim()) return;
+//   // Validation helper functions
+//   const markFieldAsTouched = (field: string) => {
+//     setValidationState(prev => ({
+//       ...prev,
+//       touched: new Set([...prev.touched, field])
+//     }));
+//   };
+
+//   const getFieldError = (field: string): string => {
+//     return validationState.errors[field] || '';
+//   };
+
+//   const hasFieldError = (field: string): boolean => {
+//     return !!validationState.errors[field];
+//   };
+
+//   const getFieldValidationState = (field: string) => {
+//     const isTouched = validationState.touched.has(field);
+//     const hasError = hasFieldError(field);
+//     const error = getFieldError(field);
     
-    setCreatingNew(true);
-    try {
-      const response = await fetch('/api/quality-names', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newQualityName.trim() })
-      });
+//     return {
+//       isTouched,
+//       hasError,
+//       error,
+//       isValidating: validationState.isValidating && isTouched
+//     };
+//   };
+
+//   // Validation function
+//   const validateFormForSubmission = useCallback((): FabricValidationErrors => {
+//     const newErrors: FabricValidationErrors = {};
+//     if (!formInitialized) return newErrors;
+
+//     formData.items.forEach((item, index) => {
+//       const itemPrefix = `items.${index}`;
       
-      const data = await response.json();
-      if (data.success) {
-        await fetchQualityNames();
-        setFormData(prev => ({ ...prev, qualityName: newQualityName.trim() }));
-        setNewQualityName('');
-        setShowNewQualityName(false);
-        setValidationMessage({ type: 'success', text: 'Quality name created successfully!' });
-      } else {
-        setValidationMessage({ type: 'error', text: data.message });
-      }
-    } catch (error) {
-      setValidationMessage({ type: 'error', text: 'Failed to create quality name' });
-    } finally {
-      setCreatingNew(false);
-    }
-  };
+//       if (!item.qualityCode) {
+//         newErrors[`${itemPrefix}.qualityCode`] = 'Quality code is required';
+//       }
+      
+//       if (!item.qualityName) {
+//         newErrors[`${itemPrefix}.qualityName`] = 'Quality name is required';
+//       }
+      
+//       if (!item.weaver) {
+//         newErrors[`${itemPrefix}.weaver`] = 'Weaver is required';
+//       }
+      
+//       if (!item.weaverQualityName) {
+//         newErrors[`${itemPrefix}.weaverQualityName`] = 'Weaver quality name is required';
+//       }
+      
+//       // Validate numeric fields
+//       const numericFields = ['greighWidth', 'finishWidth', 'weight', 'gsm', 'reed', 'pick', 'greighRate'];
+//       numericFields.forEach(field => {
+//         const value = item[field as keyof FabricItem];
+//         if (value && (isNaN(Number(value)) || Number(value) <= 0)) {
+//           newErrors[`${itemPrefix}.${field}`] = `${field.charAt(0).toUpperCase() + field.slice(1)} must be a positive number`;
+//         }
+//       });
+//     });
 
-  // Create new weaver (no longer needed since weaver is now a text input)
-  const createNewWeaver = async () => {
-    // This function is kept for compatibility but no longer needed
-    // Weaver is now a simple text input field
-  };
+//     return newErrors;
+//   }, [formData, formInitialized]);
 
-  // Create new weaver quality name (no longer needed since weaver quality name is now a text input)
-  const createNewWeaverQualityName = async () => {
-    // This function is kept for compatibility but no longer needed
-    // Weaver quality name is now a simple text input field
-  };
+//   // Handle field changes
+//   const handleItemChange = (index: number, field: string, value: any) => {
+//     setFormData(prev => {
+//       const updatedItems = [...prev.items];
+//       if (!updatedItems[index]) {
+//         updatedItems[index] = {
+//           qualityCode: '', qualityName: '', weaver: '', weaverQualityName: '',
+//           greighWidth: '', finishWidth: '', weight: '', gsm: '', danier: '',
+//           reed: '', pick: '', greighRate: ''
+//         };
+//       }
+//       updatedItems[index] = { ...updatedItems[index], [field]: value };
+//       return { ...prev, items: updatedItems };
+//     });
 
-  useEffect(() => {
-    fetchQualityNames();
-  }, []);
-
-  // useEffect for weaver fetching is no longer needed since weaver is now a text input
-  // useEffect(() => {
-  //   if (formData.qualityName) {
-  //     fetchWeavers(formData.qualityName);
-  //   }
-  // }, [formData.qualityName]);
-
-  // useEffect for weaver quality names fetching is no longer needed since weaver quality name is now a text input
-  // useEffect(() => {
-  //   if (formData.weaver) {
-  //     fetchWeaverQualityNames(formData.weaver);
-  //   }
-  // }, [formData.weaver]);
-
-  // Validation
-  const validateForm = (): ValidationErrors => {
-    const newErrors: ValidationErrors = {};
-
-    if (!formData.qualityCode.trim()) {
-      newErrors.qualityCode = 'Quality code is required';
-    }
-
-    if (!formData.qualityName.trim()) {
-      newErrors.qualityName = 'Quality name is required';
-    }
-
-    if (!formData.weaver.trim()) {
-      newErrors.weaver = 'Weaver is required';
-    }
-
-    if (!formData.weaverQualityName.trim()) {
-      newErrors.weaverQualityName = 'Weaver quality name is required';
-    }
-
-    // Only validate numeric fields if they have values
-    if (formData.greighWidth && parseFloat(formData.greighWidth) <= 0) {
-      newErrors.greighWidth = 'Greigh width must be a positive number';
-    }
-
-    if (formData.finishWidth && parseFloat(formData.finishWidth) <= 0) {
-      newErrors.finishWidth = 'Finish width must be a positive number';
-    }
-
-    if (formData.weight && parseFloat(formData.weight) <= 0) {
-      newErrors.weight = 'Weight must be a positive number';
-    }
-
-    if (formData.gsm && parseFloat(formData.gsm) <= 0) {
-      newErrors.gsm = 'GSM must be a positive number';
-    }
-
-    if (formData.reed && parseFloat(formData.reed) <= 0) {
-      newErrors.reed = 'Reed must be a positive number';
-    }
-
-    if (formData.pick && parseFloat(formData.pick) <= 0) {
-      newErrors.pick = 'Pick must be a positive number';
-    }
-
-    if (formData.greighRate && parseFloat(formData.greighRate) <= 0) {
-      newErrors.greighRate = 'Greigh rate must be a positive number';
-    }
-
-    return newErrors;
-  };
-
-  // Handle field changes
-  const handleFieldChange = (field: keyof FabricFormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+//     const fieldKey = `items.${index}.${field}`;
+//     markFieldAsTouched(fieldKey);
     
-    // Clear dependent fields when parent field changes
-    if (field === 'qualityName') {
-      setFormData(prev => ({ 
-        ...prev, 
-        [field]: value
-      }));
-    }
+//     if (validationState.errors[fieldKey]) {
+//       setValidationState(prev => ({
+//         ...prev,
+//         errors: { ...prev.errors, [fieldKey]: '' }
+//       }));
+//     }
+//   };
 
-    // Clear error for this field
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
+//   // Add/Remove items
+//   const addItem = () => {
+//     setFormData(prev => ({
+//       ...prev,
+//       items: [...prev.items, {
+//         qualityCode: '', qualityName: '', weaver: '', weaverQualityName: '',
+//         greighWidth: '', finishWidth: '', weight: '', gsm: '', danier: '',
+//         reed: '', pick: '', greighRate: ''
+//       }]
+//     }));
+    
+//     setTimeout(() => {
+//       if (formRef.current) {
+//         formRef.current.scrollTo({ top: formRef.current.scrollHeight, behavior: 'smooth' });
+//       }
+//     }, 300);
+//   };
 
-  // Form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const newErrors = validateForm();
-    setErrors(newErrors);
+//   const removeItem = (index: number) => {
+//     if (formData.items.length > 1) {
+//       setFormData(prev => ({
+//         ...prev,
+//         items: prev.items.filter((_, i) => i !== index)
+//       }));
+//     }
+//   };
 
-    if (Object.keys(newErrors).length > 0) {
-      setValidationMessage({ type: 'error', text: 'Please fill all required fields' });
-      return;
-    }
+//   // Form submission
+//   const handleSubmit = async (e: React.FormEvent) => {
+//     e.preventDefault();
+    
+//     // Mark all fields as touched for comprehensive validation
+//     const allFields = new Set<string>();
+//     formData.items.forEach((_, index) => {
+//       ['qualityCode', 'qualityName', 'weaver', 'weaverQualityName', 'greighWidth', 'finishWidth', 'weight', 'gsm', 'reed', 'pick', 'greighRate'].forEach(field => {
+//         allFields.add(`items.${index}.${field}`);
+//       });
+//     });
+    
+//     setValidationState(prev => ({
+//       ...prev,
+//       touched: new Set([...prev.touched, ...allFields])
+//     }));
 
-    setLoading(true);
-    try {
-      const url = fabric ? `/api/fabrics/${fabric._id}` : '/api/fabrics';
-      const method = fabric ? 'PUT' : 'POST';
+//     await new Promise(resolve => setTimeout(resolve, 100));
+    
+//     const newErrors = validateFormForSubmission();
+//     setValidationState(prev => ({
+//       ...prev,
+//       errors: newErrors
+//     }));
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
-
-      const data = await response.json();
+//     if (Object.keys(newErrors).length > 0) {
+//       showMessage('error', 'Please fix the validation errors below', { autoDismiss: false });
       
-      if (data.success) {
-        setValidationMessage({ 
-          type: 'success', 
-          text: fabric ? 'Fabric updated successfully!' : 'Fabric created successfully!' 
-        });
-        setTimeout(() => {
-          onSuccess();
-          onClose();
-        }, 1500);
-      } else {
-        setValidationMessage({ type: 'error', text: data.message || 'Operation failed' });
-      }
-    } catch (error) {
-      setValidationMessage({ type: 'error', text: 'An error occurred' });
-    } finally {
-      setLoading(false);
-    }
-  };
+//       const firstErrorField = Object.keys(newErrors)[0];
+//       const errorElement = document.querySelector(`[data-field="${firstErrorField}"]`);
+//       if (errorElement) {
+//         errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+//       }
+      
+//       return;
+//     }
 
-  // Auto-dismiss validation message
-  useEffect(() => {
-    if (validationMessage) {
-      const timer = setTimeout(() => {
-        setValidationMessage(null);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [validationMessage]);
+//     setLoading(true);
+//     try {
+//       // Convert form data to API format
+//       const apiData = formData.items.map(item => ({
+//         qualityCode: item.qualityCode,
+//         qualityName: item.qualityName,
+//         weaver: item.weaver,
+//         weaverQualityName: item.weaverQualityName,
+//         greighWidth: parseFloat(item.greighWidth) || 0,
+//         finishWidth: parseFloat(item.finishWidth) || 0,
+//         weight: parseFloat(item.weight) || 0,
+//         gsm: parseFloat(item.gsm) || 0,
+//         danier: item.danier,
+//         reed: parseInt(item.reed) || 0,
+//         pick: parseInt(item.pick) || 0,
+//         greighRate: parseFloat(item.greighRate) || 0
+//       }));
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
-      if (!target.closest('.quality-name-dropdown')) {
-        setShowQualityNameDropdown(false);
-        setQualityNameSearch('');
-      }
-    };
+//       const token = localStorage.getItem('token');
+//       const url = fabric ? `/api/fabrics/${fabric._id}` : '/api/fabrics';
+//       const method = fabric ? 'PUT' : 'POST';
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+//       const response = await fetch(url, {
+//         method,
+//         headers: {
+//           'Content-Type': 'application/json',
+//           'Authorization': `Bearer ${token}`
+//         },
+//         body: JSON.stringify(apiData)
+//       });
 
-  if (!mounted) return null;
+//       const data = await response.json();
+      
+//       if (data.success) {
+//         showMessage('success', fabric ? 'Fabric updated successfully!' : 'Fabric created successfully!', { autoDismiss: true, dismissTime: 3000 });
+//         onSuccess();
+//         onClose();
+//       } else {
+//         showMessage('error', data.message || 'Operation failed', { autoDismiss: false });
+//       }
+//     } catch (error) {
+//       console.error('Form submission error:', error);
+//       showMessage('error', 'An error occurred', { autoDismiss: false });
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
 
-  return (
-    <>
-             {/* Enhanced Validation Message */}
-       {validationMessage && (
-         <div className={`fixed top-6 right-6 z-[9999] max-w-md transform transition-all duration-500 ease-in-out animate-slide-in-right`}>
-          <div className={`relative p-6 rounded-2xl border-2 shadow-2xl backdrop-blur-sm ${
-            validationMessage.type === 'success' 
-              ? isDarkMode
-                ? 'bg-gradient-to-r from-green-900/90 to-emerald-900/90 border-green-500/50 text-green-100 shadow-green-500/20'
-                : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 text-green-800 shadow-green-200/50'
-              : isDarkMode
-                ? 'bg-gradient-to-r from-red-900/90 to-rose-900/90 border-red-500/50 text-red-100 shadow-red-500/20'
-                : 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300 text-red-800 shadow-red-200/50'
-          }`}>
-            <div className="relative flex items-start space-x-4">
-              <div className={`flex-shrink-0 p-3 rounded-xl ${
-                validationMessage.type === 'success'
-                  ? isDarkMode
-                    ? 'bg-green-500/20 border border-green-400/30'
-                    : 'bg-green-100 border border-green-200'
-                  : isDarkMode
-                    ? 'bg-red-500/20 border border-red-400/30'
-                    : 'bg-red-100 border border-red-200'
-              }`}>
-                {validationMessage.type === 'success' ? (
-                  <CheckIcon className={`h-6 w-6 ${
-                    isDarkMode ? 'text-green-300' : 'text-green-600'
-                  }`} />
-                ) : (
-                  <ExclamationTriangleIcon className={`h-6 w-6 ${
-                    isDarkMode ? 'text-red-300' : 'text-red-600'
-                  }`} />
-                )}
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                <h3 className={`text-lg font-bold mb-1 ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
-                }`}>
-                  {validationMessage.type === 'success' ? 'Success!' : 'Error'}
-                </h3>
-                <p className={`text-sm leading-relaxed ${
-                  isDarkMode 
-                    ? validationMessage.type === 'success' ? 'text-green-200' : 'text-red-200'
-                    : validationMessage.type === 'success' ? 'text-green-700' : 'text-red-700'
-                }`}>
-                  {validationMessage.text}
-                </p>
-              </div>
-              
-              <button
-                onClick={() => setValidationMessage(null)}
-                className={`flex-shrink-0 p-2 rounded-xl transition-all duration-200 hover:scale-110 ${
-                  validationMessage.type === 'success'
-                    ? isDarkMode
-                      ? 'text-green-300 hover:bg-green-500/20 hover:text-green-200'
-                      : 'text-green-600 hover:bg-green-100 hover:text-green-700'
-                    : isDarkMode
-                      ? 'text-red-300 hover:bg-red-500/20 hover:text-red-200'
-                      : 'text-red-600 hover:bg-red-100 hover:text-red-700'
-                }`}
-                title="Close notification"
-              >
-                <XMarkIcon className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+//   // Initialize form data
+//   useEffect(() => {
+//     if (fabric) {
+//       setFormData({
+//         items: [{
+//           qualityCode: fabric.qualityCode,
+//           qualityName: fabric.qualityName,
+//           weaver: fabric.weaver,
+//           weaverQualityName: fabric.weaverQualityName,
+//           greighWidth: fabric.greighWidth.toString(),
+//           finishWidth: fabric.finishWidth.toString(),
+//           weight: fabric.weight.toString(),
+//           gsm: fabric.gsm.toString(),
+//           danier: fabric.danier,
+//           reed: fabric.reed.toString(),
+//           pick: fabric.pick.toString(),
+//           greighRate: fabric.greighRate.toString()
+//         }]
+//       });
+//     }
+//     setFormInitialized(true);
+//   }, [fabric]);
 
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className={`relative w-full max-w-4xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
-          isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
-        }`}>
-          {/* Header */}
-          <div className={`flex items-center justify-between p-6 border-b ${
-            isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
-          }`}>
-            <div className="flex items-center space-x-4">
-              <div className={`p-3 rounded-xl ${
-                isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
-              }`}>
-                <PlusIcon className={`h-6 w-6 ${
-                  isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                }`} />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold">
-                  {fabric ? 'Edit Fabric' : 'Add New Fabric'}
-                </h2>
-                <p className={`text-sm ${
-                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                  {fabric ? 'Update fabric specifications' : 'Create a new fabric entry'}
-                </p>
-              </div>
-            </div>
-            <button 
-              onClick={onClose} 
-              className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
-                isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
-              }`}
-            >
-              <XMarkIcon className="h-6 w-6" />
-            </button>
-          </div>
+//   if (!mounted) return null;
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(95vh-140px)]">
-            <div className="p-6 space-y-8">
-              {/* Basic Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Quality Code */}
-                <div>
-                  <label className="block text-sm font-medium mb-3">
-                    Quality Code <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.qualityCode}
-                    onChange={(e) => handleFieldChange('qualityCode', e.target.value)}
-                    placeholder="e.g., 1001 - WL"
-                    className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    } ${errors.qualityCode ? 'border-red-500' : ''}`}
-                  />
-                  {errors.qualityCode && (
-                    <p className="text-red-500 text-sm mt-2">{errors.qualityCode}</p>
-                  )}
-                </div>
-
-                                 {/* Quality Name */}
-                 <div>
-                   <label className="block text-sm font-medium mb-3">
-                     Quality Name <span className="text-red-500">*</span>
-                   </label>
-                   <div className="relative">
-                     <div className="relative">
-                       <input
-                         type="text"
-                         value={formData.qualityName}
-                         onChange={(e) => handleFieldChange('qualityName', e.target.value)}
-                         onFocus={() => setShowQualityNameDropdown(true)}
-                         placeholder="Search or select quality name"
-                         className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                           isDarkMode 
-                             ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                             : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                         } ${errors.qualityName ? 'border-red-500' : ''}`}
-                       />
-                       <button
-                         type="button"
-                         onClick={() => setShowNewQualityName(!showNewQualityName)}
-                         className={`absolute right-2 top-1/2 transform -translate-y-1/2 p-1 rounded ${
-                           isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-                         }`}
-                       >
-                         <PlusIcon className="h-4 w-4" />
-                       </button>
-                     </div>
-                     
-                     {/* Dropdown */}
-                     {showQualityNameDropdown && (
-                       <div className={`quality-name-dropdown absolute z-50 w-full mt-1 rounded-lg border shadow-lg max-h-60 overflow-y-auto ${
-                         isDarkMode 
-                           ? 'bg-gray-800 border-gray-600' 
-                           : 'bg-white border-gray-300'
-                       }`}>
-                         <div className="p-2">
-                           <input
-                             type="text"
-                             placeholder="Search quality names..."
-                             value={qualityNameSearch}
-                             onChange={(e) => setQualityNameSearch(e.target.value)}
-                             className={`w-full p-2 rounded border text-sm ${
-                               isDarkMode 
-                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                                 : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500'
-                             }`}
-                           />
-                         </div>
-                         <div className="max-h-48 overflow-y-auto custom-scrollbar">
-                           {filteredQualityNames.map((name) => (
-                             <button
-                               key={name._id}
-                               type="button"
-                               onClick={() => {
-                                 handleFieldChange('qualityName', name.name);
-                                 setShowQualityNameDropdown(false);
-                                 setQualityNameSearch('');
-                               }}
-                               className={`w-full text-left px-3 py-2 hover:bg-blue-50 hover:text-blue-700 transition-colors ${
-                                 isDarkMode 
-                                   ? 'text-gray-300 hover:bg-gray-700 hover:text-blue-400' 
-                                   : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700'
-                               } ${formData.qualityName === name.name ? 'bg-blue-100 text-blue-700' : ''}`}
-                             >
-                               {name.name}
-                             </button>
-                           ))}
-                           {filteredQualityNames.length === 0 && (
-                             <div className={`px-3 py-2 text-sm ${
-                               isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                             }`}>
-                               No quality names found
-                             </div>
-                           )}
-                         </div>
-                       </div>
-                     )}
-                   </div>
-                  {showNewQualityName && (
-                    <div className="mt-2 flex space-x-2">
-                      <input
-                        type="text"
-                        value={newQualityName}
-                        onChange={(e) => setNewQualityName(e.target.value)}
-                        placeholder="Enter new quality name"
-                        className={`flex-1 p-2 rounded border ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white' 
-                            : 'bg-white border-gray-300 text-gray-900'
-                        }`}
-                      />
-                      <button
-                        type="button"
-                        onClick={createNewQualityName}
-                        disabled={creatingNew || !newQualityName.trim()}
-                        className={`px-3 py-2 rounded text-sm ${
-                          creatingNew || !newQualityName.trim()
-                            ? 'bg-gray-400 cursor-not-allowed'
-                            : isDarkMode
-                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                              : 'bg-blue-500 hover:bg-blue-600 text-white'
-                        }`}
-                      >
-                        {creatingNew ? 'Adding...' : 'Add'}
-                      </button>
-                    </div>
-                  )}
-                  {errors.qualityName && (
-                    <p className="text-red-500 text-sm mt-2">{errors.qualityName}</p>
-                  )}
-                </div>
-
-                {/* Weaver */}
-                <div>
-                  <label className="block text-sm font-medium mb-3">
-                    Weaver <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.weaver}
-                    onChange={(e) => handleFieldChange('weaver', e.target.value)}
-                    placeholder="Enter weaver name"
-                    className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    } ${errors.weaver ? 'border-red-500' : ''}`}
-                  />
-                  {errors.weaver && (
-                    <p className="text-red-500 text-sm mt-2">{errors.weaver}</p>
-                  )}
-                </div>
-
-                {/* Weaver Quality Name */}
-                <div>
-                  <label className="block text-sm font-medium mb-3">
-                    Weaver Quality Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.weaverQualityName}
-                    onChange={(e) => handleFieldChange('weaverQualityName', e.target.value)}
-                    placeholder="Enter weaver quality name"
-                    className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    } ${errors.weaverQualityName ? 'border-red-500' : ''}`}
-                  />
-                  {errors.weaverQualityName && (
-                    <p className="text-red-500 text-sm mt-2">{errors.weaverQualityName}</p>
-                  )}
-                </div>
-
-                {/* Greigh Width */}
-                <div>
-                  <label className="block text-sm font-medium mb-3">
-                    Greigh Width (inches)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.greighWidth}
-                    onChange={(e) => handleFieldChange('greighWidth', e.target.value)}
-                    placeholder="e.g., 58.5"
-                    className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    } ${errors.greighWidth ? 'border-red-500' : ''}`}
-                  />
-                  {errors.greighWidth && (
-                    <p className="text-red-500 text-sm mt-2">{errors.greighWidth}</p>
-                  )}
-                </div>
-
-                {/* Finish Width */}
-                <div>
-                  <label className="block text-sm font-medium mb-3">
-                    Finish Width (inches)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.finishWidth}
-                    onChange={(e) => handleFieldChange('finishWidth', e.target.value)}
-                    placeholder="e.g., 56.0"
-                    className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    } ${errors.finishWidth ? 'border-red-500' : ''}`}
-                  />
-                  {errors.finishWidth && (
-                    <p className="text-red-500 text-sm mt-2">{errors.finishWidth}</p>
-                  )}
-                </div>
-
-                {/* Weight */}
-                <div>
-                  <label className="block text-sm font-medium mb-3">
-                    Weight (KG)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.weight}
-                    onChange={(e) => handleFieldChange('weight', e.target.value)}
-                    placeholder="e.g., 8.0"
-                    className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    } ${errors.weight ? 'border-red-500' : ''}`}
-                  />
-                  {errors.weight && (
-                    <p className="text-red-500 text-sm mt-2">{errors.weight}</p>
-                  )}
-                </div>
-
-                {/* GSM */}
-                <div>
-                  <label className="block text-sm font-medium mb-3">
-                    GSM
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.gsm}
-                    onChange={(e) => handleFieldChange('gsm', e.target.value)}
-                    placeholder="e.g., 72.5"
-                    className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    } ${errors.gsm ? 'border-red-500' : ''}`}
-                  />
-                  {errors.gsm && (
-                    <p className="text-red-500 text-sm mt-2">{errors.gsm}</p>
-                  )}
-                </div>
-
-                {/* Danier */}
-                <div>
-                  <label className="block text-sm font-medium mb-3">
-                    Danier
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.danier}
-                    onChange={(e) => handleFieldChange('danier', e.target.value)}
-                    placeholder="e.g., 55*22D"
-                    className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    } ${errors.danier ? 'border-red-500' : ''}`}
-                  />
-                  {errors.danier && (
-                    <p className="text-red-500 text-sm mt-2">{errors.danier}</p>
-                  )}
-                </div>
-
-                {/* Reed */}
-                <div>
-                  <label className="block text-sm font-medium mb-3">
-                    Reed
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.reed}
-                    onChange={(e) => handleFieldChange('reed', e.target.value)}
-                    placeholder="e.g., 120"
-                    className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    } ${errors.reed ? 'border-red-500' : ''}`}
-                  />
-                  {errors.reed && (
-                    <p className="text-red-500 text-sm mt-2">{errors.reed}</p>
-                  )}
-                </div>
-
-                {/* Pick */}
-                <div>
-                  <label className="block text-sm font-medium mb-3">
-                    Pick
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.pick}
-                    onChange={(e) => handleFieldChange('pick', e.target.value)}
-                    placeholder="e.g., 80"
-                    className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    } ${errors.pick ? 'border-red-500' : ''}`}
-                  />
-                  {errors.pick && (
-                    <p className="text-red-500 text-sm mt-2">{errors.pick}</p>
-                  )}
-                </div>
-
-                {/* Greigh Rate */}
-                <div>
-                  <label className="block text-sm font-medium mb-3">
-                    Greigh Rate (₹)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.greighRate}
-                    onChange={(e) => handleFieldChange('greighRate', e.target.value)}
-                    placeholder="e.g., 85.50"
-                    className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    } ${errors.greighRate ? 'border-red-500' : ''}`}
-                  />
-                  {errors.greighRate && (
-                    <p className="text-red-500 text-sm mt-2">{errors.greighRate}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </form>
-
-          {/* Footer */}
-          <div className={`sticky bottom-0 left-0 right-0 p-6 border-t shadow-lg ${
-            isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'
-          }`}>
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className={`px-8 py-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
-                  isDarkMode 
-                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
-                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                onClick={handleSubmit}
-                className={`px-10 py-3 rounded-lg text-white font-medium transition-all duration-200 hover:scale-105 ${
-                  loading 
-                    ? 'bg-gray-400 cursor-not-allowed' 
-                    : isDarkMode 
-                      ? 'bg-blue-600 hover:bg-blue-700 shadow-lg' 
-                      : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
-                }`}
-              >
-                {loading ? 'Saving...' : (fabric ? 'Update Fabric' : 'Create Fabric')}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Animation Styles */}
-      <style jsx>{`
-        @keyframes slideInRight {
-          from {
-            transform: translateX(100%);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
+//   return (
+//     <>
+//       {/* Enhanced Message System Styles */}
+//       <style jsx>{`
+//         @keyframes slideInRight {
+//           from {
+//             transform: translateX(100%);
+//             opacity: 0;
+//           }
+//           to {
+//             transform: translateX(0);
+//             opacity: 1;
+//           }
+//         }
         
-        .animate-slide-in-right {
-          animation: slideInRight 0.5s ease-out forwards;
-        }
-      `}</style>
-    </>
-  );
-}
+//         @keyframes fadeInUp {
+//           from {
+//             opacity: 0;
+//             transform: translateY(10px);
+//           }
+//           to {
+//             opacity: 1;
+//             transform: translateY(0);
+//           }
+//         }
+        
+//         .message-enter {
+//           animation: slideInRight 0.3s ease-out forwards;
+//         }
+        
+//         .validation-error {
+//           animation: fadeInUp 0.3s ease-out forwards;
+//         }
+//       `}</style>
+      
+//       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+//         <div className={`relative w-full max-w-6xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
+//           isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
+//         }`}>
+//           {/* Header */}
+//           <div className={`flex items-center justify-between p-6 border-b ${
+//             isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+//           }`}>
+//             <div className="flex items-center space-x-4">
+//               <div className="flex items-center space-x-3">
+//                 {fabric ? (
+//                   <PencilIcon className="h-8 w-8 text-blue-500" />
+//                 ) : (
+//                   <PlusIcon className="h-8 w-8 text-green-500" />
+//                 )}
+//                 <h2 className="text-2xl font-bold">{fabric ? 'Edit Fabric' : 'Create New Fabric'}</h2>
+//               </div>
+//               <div className="flex items-center space-x-2">
+//                 <span className={`text-sm px-2 py-1 rounded-full ${
+//                   isDarkMode 
+//                     ? 'bg-blue-900/30 text-blue-300 border border-blue-700' 
+//                     : 'bg-blue-100 text-blue-700 border border-blue-200'
+//                 }`}>
+//                   {formData.items.length} Item{formData.items.length !== 1 ? 's' : ''}
+//                 </span>
+//               </div>
+//             </div>
+//             <button 
+//               onClick={onClose} 
+//               className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+//                 isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+//               }`}
+//             >
+//               <XMarkIcon className="h-6 w-6" />
+//             </button>
+//           </div>
+
+//           {/* Enhanced Message System */}
+//           <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
+//             {messages.map((message, index) => (
+//               <div
+//                 key={message.id}
+//                 className={`transform transition-all duration-300 ease-out ${
+//                   isDarkMode ? 'bg-gray-800/95 border-gray-600 backdrop-blur-sm' : 'bg-white border-gray-200'
+//                 } rounded-lg border shadow-lg p-4 max-w-sm ${
+//                   message.type === 'success'
+//                     ? isDarkMode
+//                       ? 'border-green-500/40 bg-green-900/30 shadow-green-500/20'
+//                       : 'border-green-200 bg-green-50'
+//                     : message.type === 'warning'
+//                     ? isDarkMode
+//                       ? 'border-yellow-500/40 bg-yellow-900/30 shadow-yellow-500/20'
+//                       : 'border-yellow-200 bg-yellow-50'
+//                     : message.type === 'info'
+//                     ? isDarkMode
+//                       ? 'border-blue-500/40 bg-blue-900/30 shadow-blue-500/20'
+//                       : 'border-blue-200 bg-blue-50'
+//                     : isDarkMode
+//                       ? 'border-red-500/40 bg-red-900/30 shadow-red-500/20'
+//                       : 'border-red-200 bg-red-50'
+//                 } ${isDarkMode ? 'backdrop-blur-md' : ''}`}
+//                 style={{
+//                   transform: `translateX(${index * 10}px)`,
+//                   animation: 'slideInRight 0.3s ease-out',
+//                   boxShadow: isDarkMode ? 
+//                     message.type === 'success' ? '0 4px 20px rgba(34, 197, 94, 0.3)' :
+//                     message.type === 'warning' ? '0 4px 20px rgba(234, 179, 8, 0.3)' :
+//                     message.type === 'info' ? '0 4px 20px rgba(59, 130, 246, 0.3)' :
+//                     '0 4px 20px rgba(239, 68, 68, 0.3)' : undefined
+//                 }}
+//               >
+//                 <div className="flex items-start justify-between">
+//                   <div className="flex items-start space-x-3">
+//                     <div className={`flex-shrink-0 ${
+//                       message.type === 'success'
+//                         ? isDarkMode ? 'text-green-400' : 'text-green-500'
+//                         : message.type === 'warning'
+//                         ? isDarkMode ? 'text-yellow-400' : 'text-yellow-500'
+//                         : message.type === 'info'
+//                         ? isDarkMode ? 'text-blue-400' : 'text-blue-500'
+//                         : isDarkMode ? 'text-red-400' : 'text-red-500'
+//                     }`}>
+//                       {message.type === 'success' ? (
+//                         <CheckIcon className="h-5 w-5" />
+//                       ) : message.type === 'warning' ? (
+//                         <ExclamationTriangleIcon className="h-5 w-5" />
+//                       ) : message.type === 'info' ? (
+//                         <InformationCircleIcon className="h-5 w-5" />
+//                       ) : (
+//                         <ExclamationTriangleIcon className="h-5 w-5" />
+//                       )}
+//                     </div>
+//                     <div className="flex-1">
+//                       <p className={`text-sm font-medium ${
+//                         message.type === 'success'
+//                           ? isDarkMode ? 'text-green-300' : 'text-green-800'
+//                           : message.type === 'warning'
+//                           ? isDarkMode ? 'text-yellow-300' : 'text-yellow-800'
+//                           : message.type === 'info'
+//                           ? isDarkMode ? 'text-blue-300' : 'text-blue-800'
+//                           : isDarkMode ? 'text-red-300' : 'text-red-800'
+//                       }`}>
+//                         {message.text}
+//                       </p>
+//                     </div>
+//                   </div>
+//                   <button
+//                     onClick={() => dismissMessage(message.id)}
+//                     className={`flex-shrink-0 ml-3 p-1.5 rounded-full transition-all duration-200 hover:scale-110 ${
+//                       message.type === 'success'
+//                         ? isDarkMode ? 'hover:bg-green-500/20 text-green-400 hover:text-green-300' : 'hover:bg-green-100 text-green-500'
+//                         : message.type === 'warning'
+//                         ? isDarkMode ? 'hover:bg-yellow-500/20 text-yellow-400 hover:text-yellow-300' : 'hover:bg-yellow-100 text-yellow-500'
+//                         : message.type === 'info'
+//                         ? isDarkMode ? 'hover:bg-blue-500/20 text-blue-400 hover:text-blue-300' : 'hover:bg-blue-100 text-blue-500'
+//                         : isDarkMode ? 'hover:bg-red-500/20 text-red-400 hover:text-red-300' : 'hover:bg-red-100 text-red-500'
+//                     }`}
+//                   >
+//                     <XMarkIcon className="h-4 w-4" />
+//                   </button>
+//                 </div>
+//               </div>
+//             ))}
+//           </div>
+
+//           {/* Validation Errors Summary */}
+//           {Object.keys(validationState.errors).length > 0 && (
+//             <div className={`p-4 rounded-lg border mb-4 ${
+//               isDarkMode 
+//                 ? 'bg-red-900/30 border-red-500/40 shadow-red-500/20 backdrop-blur-sm' 
+//                 : 'bg-red-50 border-red-200'
+//             }`}
+//             style={{
+//               boxShadow: isDarkMode ? '0 4px 20px rgba(239, 68, 68, 0.2)' : undefined
+//             }}>
+//               <div className="flex items-center justify-between mb-3">
+//                 <div className="flex items-center space-x-2">
+//                   <div className={`p-1.5 rounded-full ${
+//                     isDarkMode ? 'bg-red-500/20' : 'bg-red-100'
+//                   }`}>
+//                     <ExclamationTriangleIcon className={`h-5 w-5 ${
+//                       isDarkMode ? 'text-red-400' : 'text-red-600'
+//                     }`} />
+//                   </div>
+//                   <span className={`font-semibold ${
+//                     isDarkMode ? 'text-red-300' : 'text-red-700'
+//                   }`}>
+//                     Validation Issues Found
+//                   </span>
+//                 </div>
+//                 <button
+//                   onClick={() => setValidationState(prev => ({ ...prev, errors: {} }))}
+//                   className={`p-2 rounded-full transition-all duration-200 hover:scale-110 ${
+//                     isDarkMode ? 'hover:bg-red-500/20 text-red-400 hover:text-red-300' : 'hover:bg-red-100 text-red-600'
+//                   }`}
+//                 >
+//                   <XMarkIcon className="h-4 w-4" />
+//                 </button>
+//               </div>
+//               <ul className={`text-sm space-y-2 ${
+//                 isDarkMode ? 'text-red-200' : 'text-red-600'
+//               }`}>
+//                 {Object.entries(validationState.errors).map(([field, error]) => (
+//                   <li key={field} className="flex items-center p-2 rounded-lg transition-all duration-200 hover:bg-red-500/10">
+//                     <span className={`w-2 h-2 rounded-full mr-3 ${
+//                       isDarkMode ? 'bg-red-400' : 'bg-red-500'
+//                     }`}></span>
+//                     <span className="flex-1">{error}</span>
+//                   </li>
+//                 ))}
+//               </ul>
+//             </div>
+//           )}
+
+//           {/* Form */}
+//           <form ref={formRef} onSubmit={handleSubmit} className={`overflow-y-auto max-h-[calc(95vh-200px)] ${
+//             isDarkMode 
+//               ? 'scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-800' 
+//               : 'scrollbar-thin scrollbar-thumb-blue-400 scrollbar-track-gray-100'
+//           }`}>
+//             <div className="p-6 space-y-8 pb-24">
+//               {/* Fabric Items */}
+//               <div>
+//                 <div className="flex items-center justify-between mb-6">
+//                   <h3 className="text-xl font-semibold">Fabric Items</h3>
+//                   <button
+//                     type="button"
+//                     onClick={addItem}
+//                     className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
+//                       isDarkMode
+//                         ? 'bg-blue-600 hover:bg-blue-700 text-white'
+//                         : 'bg-blue-600 hover:bg-blue-700 text-white'
+//                     }`}
+//                   >
+//                     <PlusIcon className="h-4 w-4 mr-2" />
+//                     Add Item
+//                   </button>
+//                 </div>
+
+//                 <div className="space-y-6">
+//                   {formData.items.map((item, index) => (
+//                     <div key={index} className={`p-6 rounded-xl border transition-all duration-200 hover:shadow-lg ${
+//                       isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+//                     }`}>
+//                       <div className="flex items-center justify-between mb-4">
+//                         <h4 className="text-lg font-medium">Item {index + 1}</h4>
+//                         {formData.items.length > 1 && (
+//                           <button
+//                             type="button"
+//                             onClick={() => removeItem(index)}
+//                             className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+//                               isDarkMode 
+//                                 ? 'text-red-400 hover:bg-red-500/20' 
+//                                 : 'text-red-600 hover:bg-red-100'
+//                             }`}
+//                           >
+//                             <TrashIcon className="h-5 w-5" />
+//                           </button>
+//                         )}
+//                       </div>
+
+//                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+//                         {/* Quality Code */}
+//                         <div data-field={`items.${index}.qualityCode`}>
+//                           <label className="block text-sm font-medium mb-2">
+//                             Quality Code <span className="text-red-500">*</span>
+//                           </label>
+//                           <input
+//                             type="text"
+//                             value={item.qualityCode}
+//                             onChange={(e) => handleItemChange(index, 'qualityCode', e.target.value)}
+//                             placeholder="e.g., 1001 - WL"
+//                             className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+//                               isDarkMode 
+//                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+//                                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+//                             } ${getFieldValidationState(`items.${index}.qualityCode`).hasError ? 
+//                               isDarkMode 
+//                                 ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
+//                                 : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+//                               : ''}`}
+//                           />
+//                           {getFieldValidationState(`items.${index}.qualityCode`).hasError && (
+//                             <p className="text-red-500 text-sm mt-2 error-message flex items-center">
+//                               <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+//                               {getFieldValidationState(`items.${index}.qualityCode`).error}
+//                             </p>
+//                           )}
+//                         </div>
+
+//                         {/* Quality Name */}
+//                         <div data-field={`items.${index}.qualityName`}>
+//                           <label className="block text-sm font-medium mb-2">
+//                             Quality Name <span className="text-red-500">*</span>
+//                           </label>
+//                           <input
+//                             type="text"
+//                             value={item.qualityName}
+//                             onChange={(e) => handleItemChange(index, 'qualityName', e.target.value)}
+//                             placeholder="Enter quality name"
+//                             className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+//                               isDarkMode 
+//                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+//                                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+//                             } ${getFieldValidationState(`items.${index}.qualityName`).hasError ? 
+//                               isDarkMode 
+//                                 ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
+//                                 : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+//                               : ''}`}
+//                           />
+//                           {getFieldValidationState(`items.${index}.qualityName`).hasError && (
+//                             <p className="text-red-500 text-sm mt-2 error-message flex items-center">
+//                               <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+//                               {getFieldValidationState(`items.${index}.qualityName`).error}
+//                             </p>
+//                           )}
+//                         </div>
+
+//                         {/* Weaver */}
+//                         <div data-field={`items.${index}.weaver`}>
+//                           <label className="block text-sm font-medium mb-2">
+//                             Weaver <span className="text-red-500">*</span>
+//                           </label>
+//                           <input
+//                             type="text"
+//                             value={item.weaver}
+//                             onChange={(e) => handleItemChange(index, 'weaver', e.target.value)}
+//                             placeholder="Enter weaver name"
+//                             className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+//                               isDarkMode 
+//                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+//                                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+//                             } ${getFieldValidationState(`items.${index}.weaver`).hasError ? 
+//                               isDarkMode 
+//                                 ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
+//                                 : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+//                               : ''}`}
+//                           />
+//                           {getFieldValidationState(`items.${index}.weaver`).hasError && (
+//                             <p className="text-red-500 text-sm mt-2 error-message flex items-center">
+//                               <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+//                               {getFieldValidationState(`items.${index}.weaver`).error}
+//                             </p>
+//                           )}
+//                         </div>
+
+//                         {/* Weaver Quality Name */}
+//                         <div data-field={`items.${index}.weaverQualityName`}>
+//                           <label className="block text-sm font-medium mb-2">
+//                             Weaver Quality Name <span className="text-red-500">*</span>
+//                           </label>
+//                           <input
+//                             type="text"
+//                             value={item.weaverQualityName}
+//                             onChange={(e) => handleItemChange(index, 'weaverQualityName', e.target.value)}
+//                             placeholder="Enter weaver quality name"
+//                             className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+//                               isDarkMode 
+//                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+//                                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+//                             } ${getFieldValidationState(`items.${index}.weaverQualityName`).hasError ? 
+//                               isDarkMode 
+//                                 ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
+//                                 : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+//                               : ''}`}
+//                           />
+//                           {getFieldValidationState(`items.${index}.weaverQualityName`).hasError && (
+//                             <p className="text-red-500 text-sm mt-2 error-message flex items-center">
+//                               <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+//                               {getFieldValidationState(`items.${index}.weaverQualityName`).error}
+//                             </p>
+//                           )}
+//                         </div>
+
+//                         {/* Greigh Width */}
+//                         <div data-field={`items.${index}.greighWidth`}>
+//                           <label className="block text-sm font-medium mb-2">
+//                             Greigh Width (inches)
+//                           </label>
+//                           <input
+//                             type="number"
+//                             step="0.1"
+//                             value={item.greighWidth}
+//                             onChange={(e) => handleItemChange(index, 'greighWidth', e.target.value)}
+//                             placeholder="e.g., 58.5"
+//                             className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+//                               isDarkMode 
+//                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+//                                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+//                             } ${getFieldValidationState(`items.${index}.greighWidth`).hasError ? 
+//                               isDarkMode 
+//                                 ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
+//                                 : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+//                               : ''}`}
+//                           />
+//                           {getFieldValidationState(`items.${index}.greighWidth`).hasError && (
+//                             <p className="text-red-500 text-sm mt-2 error-message flex items-center">
+//                               <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+//                               {getFieldValidationState(`items.${index}.greighWidth`).error}
+//                             </p>
+//                           )}
+//                         </div>
+
+//                         {/* Finish Width */}
+//                         <div data-field={`items.${index}.finishWidth`}>
+//                           <label className="block text-sm font-medium mb-2">
+//                             Finish Width (inches)
+//                           </label>
+//                           <input
+//                             type="number"
+//                             step="0.1"
+//                             value={item.finishWidth}
+//                             onChange={(e) => handleItemChange(index, 'finishWidth', e.target.value)}
+//                             placeholder="e.g., 56.0"
+//                             className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+//                               isDarkMode 
+//                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+//                                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+//                             } ${getFieldValidationState(`items.${index}.finishWidth`).hasError ? 
+//                               isDarkMode 
+//                                 ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
+//                                 : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+//                               : ''}`}
+//                           />
+//                           {getFieldValidationState(`items.${index}.finishWidth`).hasError && (
+//                             <p className="text-red-500 text-sm mt-2 error-message flex items-center">
+//                               <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+//                               {getFieldValidationState(`items.${index}.finishWidth`).error}
+//                             </p>
+//                           )}
+//                         </div>
+
+//                         {/* Weight */}
+//                         <div data-field={`items.${index}.weight`}>
+//                           <label className="block text-sm font-medium mb-2">
+//                             Weight (KG)
+//                           </label>
+//                           <input
+//                             type="number"
+//                             step="0.1"
+//                             value={item.weight}
+//                             onChange={(e) => handleItemChange(index, 'weight', e.target.value)}
+//                             placeholder="e.g., 8.0"
+//                             className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+//                               isDarkMode 
+//                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+//                                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+//                             } ${getFieldValidationState(`items.${index}.weight`).hasError ? 
+//                               isDarkMode 
+//                                 ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
+//                                 : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+//                               : ''}`}
+//                           />
+//                           {getFieldValidationState(`items.${index}.weight`).hasError && (
+//                             <p className="text-red-500 text-sm mt-2 error-message flex items-center">
+//                               <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+//                               {getFieldValidationState(`items.${index}.weight`).error}
+//                             </p>
+//                           )}
+//                         </div>
+
+//                         {/* GSM */}
+//                         <div data-field={`items.${index}.gsm`}>
+//                           <label className="block text-sm font-medium mb-2">
+//                             GSM
+//                           </label>
+//                           <input
+//                             type="number"
+//                             step="0.1"
+//                             value={item.gsm}
+//                             onChange={(e) => handleItemChange(index, 'gsm', e.target.value)}
+//                             placeholder="e.g., 72.5"
+//                             className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+//                               isDarkMode 
+//                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+//                                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+//                             } ${getFieldValidationState(`items.${index}.gsm`).hasError ? 
+//                               isDarkMode 
+//                                 ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
+//                                 : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+//                               : ''}`}
+//                           />
+//                           {getFieldValidationState(`items.${index}.gsm`).hasError && (
+//                             <p className="text-red-500 text-sm mt-2 error-message flex items-center">
+//                               <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+//                               {getFieldValidationState(`items.${index}.gsm`).error}
+//                             </p>
+//                           )}
+//                         </div>
+
+//                         {/* Danier */}
+//                         <div data-field={`items.${index}.danier`}>
+//                           <label className="block text-sm font-medium mb-2">
+//                             Danier
+//                           </label>
+//                           <input
+//                             type="text"
+//                             value={item.danier}
+//                             onChange={(e) => handleItemChange(index, 'danier', e.target.value)}
+//                             placeholder="e.g., 55*22D"
+//                             className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+//                               isDarkMode 
+//                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+//                                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+//                             }`}
+//                           />
+//                         </div>
+
+//                         {/* Reed */}
+//                         <div data-field={`items.${index}.reed`}>
+//                           <label className="block text-sm font-medium mb-2">
+//                             Reed
+//                           </label>
+//                           <input
+//                             type="number"
+//                             value={item.reed}
+//                             onChange={(e) => handleItemChange(index, 'reed', e.target.value)}
+//                             placeholder="e.g., 120"
+//                             className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+//                               isDarkMode 
+//                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+//                                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+//                             } ${getFieldValidationState(`items.${index}.reed`).hasError ? 
+//                               isDarkMode 
+//                                 ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
+//                                 : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+//                               : ''}`}
+//                           />
+//                           {getFieldValidationState(`items.${index}.reed`).hasError && (
+//                             <p className="text-red-500 text-sm mt-2 error-message flex items-center">
+//                               <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+//                               {getFieldValidationState(`items.${index}.reed`).error}
+//                             </p>
+//                           )}
+//                         </div>
+
+//                         {/* Pick */}
+//                         <div data-field={`items.${index}.pick`}>
+//                           <label className="block text-sm font-medium mb-2">
+//                             Pick
+//                           </label>
+//                           <input
+//                             type="number"
+//                             value={item.pick}
+//                             onChange={(e) => handleItemChange(index, 'pick', e.target.value)}
+//                             placeholder="e.g., 80"
+//                             className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+//                               isDarkMode 
+//                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+//                                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+//                             } ${getFieldValidationState(`items.${index}.pick`).hasError ? 
+//                               isDarkMode 
+//                                 ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
+//                                 : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+//                               : ''}`}
+//                           />
+//                           {getFieldValidationState(`items.${index}.pick`).hasError && (
+//                             <p className="text-red-500 text-sm mt-2 error-message flex items-center">
+//                               <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+//                               {getFieldValidationState(`items.${index}.pick`).error}
+//                             </p>
+//                           )}
+//                         </div>
+
+//                         {/* Greigh Rate */}
+//                         <div data-field={`items.${index}.greighRate`}>
+//                           <label className="block text-sm font-medium mb-2">
+//                             Greigh Rate (₹)
+//                           </label>
+//                           <input
+//                             type="number"
+//                             step="0.01"
+//                             value={item.greighRate}
+//                             onChange={(e) => handleItemChange(index, 'greighRate', e.target.value)}
+//                             placeholder="e.g., 150.00"
+//                             className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+//                               isDarkMode 
+//                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+//                                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+//                             } ${getFieldValidationState(`items.${index}.greighRate`).hasError ? 
+//                               isDarkMode 
+//                                 ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
+//                                 : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
+//                               : ''}`}
+//                           />
+//                           {getFieldValidationState(`items.${index}.greighRate`).hasError && (
+//                             <p className="text-red-500 text-sm mt-2 error-message flex items-center">
+//                               <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+//                               {getFieldValidationState(`items.${index}.greighRate`).error}
+//                             </p>
+//                           )}
+//                         </div>
+//                       </div>
+//                     </div>
+//                   ))}
+//                 </div>
+//               </div>
+//             </div>
+//           </form>
+
+//           {/* Sticky Submit Button */}
+//           <div className={`sticky bottom-0 left-0 right-0 p-6 border-t shadow-lg ${
+//             isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'
+//           }`}>
+//             <div className="flex items-center justify-between">
+//               {/* Validation Status */}
+//               {Object.keys(validationState.errors).length > 0 && (
+//                 <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm ${
+//                   isDarkMode 
+//                     ? 'bg-red-900/20 text-red-400 border border-red-500/30' 
+//                     : 'bg-red-50 text-red-700 border border-red-200'
+//                 }`}>
+//                   <ExclamationTriangleIcon className="h-4 w-4" />
+//                   <span>{Object.keys(validationState.errors).length} validation error{Object.keys(validationState.errors).length !== 1 ? 's' : ''}</span>
+//                 </div>
+//               )}
+              
+//               <div className="flex space-x-4">
+//                 <button
+//                   type="button"
+//                   onClick={onClose}
+//                   className={`px-8 py-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
+//                     isDarkMode 
+//                       ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+//                       : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+//                   }`}
+//                 >
+//                   Cancel
+//                 </button>
+//                 <button
+//                   type="submit"
+//                   disabled={loading || Object.keys(validationState.errors).length > 0}
+//                   onClick={handleSubmit}
+//                   className={`px-10 py-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 flex items-center space-x-2 ${
+//                     loading || Object.keys(validationState.errors).length > 0
+//                       ? 'opacity-50 cursor-not-allowed'
+//                       : ''
+//                   } ${
+//                     Object.keys(validationState.errors).length > 0
+//                       ? isDarkMode
+//                         ? 'bg-gray-600 text-gray-400'
+//                         : 'bg-gray-400 text-gray-600'
+//                       : isDarkMode 
+//                         ? 'bg-blue-600 hover:bg-blue-700 shadow-lg text-white' 
+//                         : 'bg-blue-500 hover:bg-blue-600 shadow-lg text-white'
+//                   }`}
+//                 >
+//                   {loading ? (
+//                     <>
+//                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+//                       <span>Saving...</span>
+//                     </>
+//                   ) : Object.keys(validationState.errors).length > 0 ? (
+//                     <>
+//                       <ExclamationTriangleIcon className="h-5 w-5" />
+//                       <span>Fix Errors</span>
+//                     </>
+//                   ) : (
+//                     <>
+//                       <CheckIcon className="h-5 w-5" />
+//                       <span>{fabric ? 'Update Fabric' : 'Create Fabric'}</span>
+//                     </>
+//                   )}
+//                 </button>
+//               </div>
+//             </div>
+//           </div>
+//         </div>
+//       </div>
+//     </>
+//   );
+// }

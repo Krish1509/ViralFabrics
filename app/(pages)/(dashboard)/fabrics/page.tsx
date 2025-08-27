@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   PlusIcon, 
   MagnifyingGlassIcon, 
@@ -9,19 +9,22 @@ import {
   TrashIcon,
   EyeIcon,
   DocumentTextIcon,
-  CubeIcon
+  CubeIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
+import { useRouter } from 'next/navigation';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { Fabric, FabricFilters } from '@/types/fabric';
-import FabricForm from './components/FabricForm';
+
 import FabricDetails from './components/FabricDetails';
 import DeleteConfirmation from './components/DeleteConfirmation';
 
 export default function FabricsPage() {
   const { isDarkMode, mounted } = useDarkMode();
+  const router = useRouter();
   const [fabrics, setFabrics] = useState<Fabric[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+
   const [showDetails, setShowDetails] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [selectedFabric, setSelectedFabric] = useState<Fabric | null>(null);
@@ -39,14 +42,15 @@ export default function FabricsPage() {
   const [weavers, setWeavers] = useState<string[]>([]);
   const [weaverQualityNames, setWeaverQualityNames] = useState<string[]>([]);
   const [filtersLoading, setFiltersLoading] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
   // Fetch fabrics
-  const fetchFabrics = async () => {
+  const fetchFabrics = async (forceRefresh = false) => {
     setLoading(true);
     setFiltersLoading(true);
     
     // Add a small delay to show skeleton for better UX
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     try {
       const controller = new AbortController();
@@ -57,10 +61,11 @@ export default function FabricsPage() {
       if (filters.qualityName) params.append('qualityName', filters.qualityName);
       if (filters.weaver) params.append('weaver', filters.weaver);
       if (filters.weaverQualityName) params.append('weaverQualityName', filters.weaverQualityName);
+      if (forceRefresh) params.append('refresh', Date.now().toString());
 
       const response = await fetch(`/api/fabrics?${params}&limit=50`, { // Limit for faster loading
         headers: {
-          'Cache-Control': 'max-age=30' // Cache for 30 seconds
+          'Cache-Control': forceRefresh ? 'no-cache' : 'max-age=30' // Force refresh if needed
         },
         signal: controller.signal
       });
@@ -73,11 +78,16 @@ export default function FabricsPage() {
       
       const data = await response.json();
       
-      if (data.success) {
-        setFabrics(data.data);
-      } else {
-        throw new Error(data.message || 'Failed to fetch fabrics');
-      }
+             if (data.success) {
+         setFabrics(data.data);
+         // Only show refresh message when user manually clicks refresh button (not on initial load)
+         if (forceRefresh && fabrics.length > 0) {
+           setRefreshMessage('Data refreshed successfully!');
+           setTimeout(() => setRefreshMessage(null), 3000);
+         }
+       } else {
+         throw new Error(data.message || 'Failed to fetch fabrics');
+       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.error('Request timeout');
@@ -194,8 +204,26 @@ export default function FabricsPage() {
 
   useEffect(() => {
     setFiltersLoading(true);
-    fetchFabrics();
+    // Load data without any refresh message
+    fetchFabrics(false);
     fetchQualityNames();
+  }, []);
+
+  // Only keyboard shortcuts for manual refresh
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // F5 or Ctrl+R to refresh
+      if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+        e.preventDefault();
+        fetchFabrics(true);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   useEffect(() => {
@@ -207,13 +235,13 @@ export default function FabricsPage() {
   }, [filters.weaver]);
 
   const handleCreate = () => {
-    setSelectedFabric(null);
-    setShowForm(true);
+    router.push('/fabrics/create');
   };
 
   const handleEdit = (fabric: Fabric) => {
+    // For now, just show details. Edit functionality can be added later
     setSelectedFabric(fabric);
-    setShowForm(true);
+    setShowDetails(true);
   };
 
   const handleView = (fabric: Fabric) => {
@@ -287,10 +315,21 @@ export default function FabricsPage() {
     setIsLoadingDependencies(false);
   };
 
-  const handleFormSuccess = () => {
-    setShowForm(false);
-    fetchFabrics();
-  };
+
+
+  // Group fabrics by Quality Code and Quality Name
+  const groupedFabrics = fabrics.reduce((groups, fabric) => {
+    const key = `${fabric.qualityCode}-${fabric.qualityName}`;
+    if (!groups[key]) {
+      groups[key] = {
+        qualityCode: fabric.qualityCode,
+        qualityName: fabric.qualityName,
+        items: []
+      };
+    }
+    groups[key].items.push(fabric);
+    return groups;
+  }, {} as Record<string, { qualityCode: string; qualityName: string; items: Fabric[] }>);
 
   const clearFilters = () => {
     setFilters({
@@ -341,22 +380,52 @@ export default function FabricsPage() {
               </p>
             </div>
           </div>
-          <button
-            onClick={handleCreate}
-            className={`px-6 py-3 rounded-lg text-white font-medium transition-all duration-200 hover:scale-105 ${
-              isDarkMode 
-                ? 'bg-blue-600 hover:bg-blue-700 shadow-lg' 
-                : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
-            }`}
-          >
-            <PlusIcon className="h-5 w-5 inline mr-2" />
-            Add Fabric
-          </button>
+                     <div className="flex items-center space-x-3">
+             <button
+               onClick={() => fetchFabrics(true)}
+               disabled={loading}
+               className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
+                 loading ? 'opacity-50 cursor-not-allowed' : ''
+               } ${
+                 isDarkMode 
+                   ? 'bg-gray-600 hover:bg-gray-700 text-white shadow-lg' 
+                   : 'bg-gray-500 hover:bg-gray-600 text-white shadow-lg'
+               }`}
+               title="Refresh Data"
+             >
+               <ArrowPathIcon className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+             </button>
+             <button
+               onClick={handleCreate}
+               className={`px-6 py-3 rounded-lg text-white font-medium transition-all duration-200 hover:scale-105 ${
+                 isDarkMode 
+                   ? 'bg-blue-600 hover:bg-blue-700 shadow-lg' 
+                   : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
+               }`}
+             >
+               <PlusIcon className="h-5 w-5 inline mr-2" />
+               Add Fabric
+             </button>
+           </div>
         </div>
         )}
-      </div>
+             </div>
 
-      {/* Filters */}
+       {/* Refresh Message */}
+       {refreshMessage && (
+         <div className={`mb-4 p-3 rounded-lg border ${
+           isDarkMode 
+             ? 'border-green-500/40 bg-green-900/30 text-green-300' 
+             : 'border-green-200 bg-green-50 text-green-800'
+         }`}>
+           <div className="flex items-center space-x-2">
+             <ArrowPathIcon className="h-4 w-4" />
+             <span>{refreshMessage}</span>
+           </div>
+         </div>
+       )}
+
+       {/* Filters */}
       <div className={`mb-6 p-6 rounded-xl border ${
         isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
       } shadow-lg`}>
@@ -607,90 +676,120 @@ export default function FabricsPage() {
               <tbody className={`divide-y ${
                 isDarkMode ? 'divide-gray-700' : 'divide-gray-200'
               }`}>
-                {fabrics.map((fabric) => (
-                  <tr key={fabric._id} className={`hover:${
-                    isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
-                  } transition-colors duration-200`}>
-                    <td className="px-6 py-4">
-                      <span className={`font-mono font-semibold ${
-                        isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                      }`}>
-                        {fabric.qualityCode}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`font-medium ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {fabric.qualityName}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        {fabric.weaver}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        {fabric.weaverQualityName}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm space-y-1">
-                        <div className={`${
-                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                        }`}>
-                          Width: {fabric.finishWidth}" | Weight: {fabric.weight} KG
+                {Object.values(groupedFabrics).map((group, groupIndex) => (
+                  <React.Fragment key={`${group.qualityCode}-${group.qualityName}`}>
+                    {/* Group Header Row */}
+                    <tr className={`${
+                      isDarkMode ? 'bg-gray-800/50' : 'bg-gray-100'
+                    } border-b-2 border-gray-300`}>
+                      <td className="px-6 py-4" colSpan={6}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4">
+                            <span className={`font-mono font-bold text-lg ${
+                              isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                            }`}>
+                              {group.qualityCode}
+                            </span>
+                            <span className={`font-semibold text-lg ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              {group.qualityName}
+                            </span>
+                            <span className={`text-sm ${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              ({group.items.length} item{group.items.length > 1 ? 's' : ''})
+                            </span>
+                          </div>
                         </div>
-                        <div className={`${
-                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                        }`}>
-                          GSM: {fabric.gsm} | Rate: ₹{fabric.greighRate}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleView(fabric)}
-                          className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
-                            isDarkMode 
-                              ? 'text-blue-400 hover:bg-blue-500/20' 
-                              : 'text-blue-600 hover:bg-blue-100'
-                          }`}
-                          title="View Details"
-                        >
-                          <EyeIcon className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleEdit(fabric)}
-                          className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
-                            isDarkMode 
-                              ? 'text-green-400 hover:bg-green-500/20' 
-                              : 'text-green-600 hover:bg-green-100'
-                          }`}
-                          title="Edit Fabric"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(fabric)}
-                          className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
-                            isDarkMode 
-                              ? 'text-red-400 hover:bg-red-500/20' 
-                              : 'text-red-600 hover:bg-red-100'
-                          }`}
-                          title="Delete Fabric"
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
+                    
+                    {/* Individual Items */}
+                    {group.items.map((fabric, itemIndex) => (
+                      <tr key={fabric._id} className={`hover:${
+                        isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                      } transition-colors duration-200 ${
+                        isDarkMode ? 'bg-gray-800/30' : 'bg-gray-50/50'
+                      }`}>
+                        <td className="px-6 py-4 pl-12">
+                          <span className={`text-sm ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            Item {itemIndex + 1}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {/* Empty for grouped items */}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                          }`}>
+                            {fabric.weaver}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                          }`}>
+                            {fabric.weaverQualityName}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm space-y-1">
+                            <div className={`${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              Width: {fabric.finishWidth}" | Weight: {fabric.weight} KG
+                            </div>
+                            <div className={`${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              GSM: {fabric.gsm} | Rate: ₹{fabric.greighRate}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => handleView(fabric)}
+                              className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+                                isDarkMode 
+                                  ? 'text-blue-400 hover:bg-blue-500/20' 
+                                  : 'text-blue-600 hover:bg-blue-100'
+                              }`}
+                              title="View Details"
+                            >
+                              <EyeIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleEdit(fabric)}
+                              className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+                                isDarkMode 
+                                  ? 'text-green-400 hover:bg-green-500/20' 
+                                  : 'text-green-600 hover:bg-green-100'
+                              }`}
+                              title="Edit Fabric"
+                            >
+                              <PencilIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(fabric)}
+                              className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+                                isDarkMode 
+                                  ? 'text-red-400 hover:bg-red-500/20' 
+                                  : 'text-red-600 hover:bg-red-100'
+                              }`}
+                              title="Delete Fabric"
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -698,14 +797,7 @@ export default function FabricsPage() {
         )}
       </div>
 
-      {/* Fabric Form Modal */}
-      {showForm && (
-        <FabricForm
-          fabric={selectedFabric}
-          onClose={() => setShowForm(false)}
-          onSuccess={handleFormSuccess}
-        />
-      )}
+      
 
       {/* Fabric Details Modal */}
       {showDetails && selectedFabric && (

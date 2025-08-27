@@ -22,7 +22,6 @@ const FabricSchema = new Schema<IFabric>({
   qualityCode: {
     type: String,
     required: true,
-    unique: true,
     trim: true,
     maxlength: 50
   },
@@ -108,6 +107,12 @@ const FabricSchema = new Schema<IFabric>({
 FabricSchema.index({ qualityName: 1 });
 FabricSchema.index({ weaver: 1 });
 FabricSchema.index({ weaverQualityName: 1 });
+
+// Compound unique index to prevent duplicate combinations
+FabricSchema.index(
+  { qualityCode: 1, weaver: 1, weaverQualityName: 1 }, 
+  { unique: true }
+);
 
 // Auto-generate label before saving
 FabricSchema.pre('save', function(next) {

@@ -1,6 +1,157 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+
+// Custom CSS for sun glow animation and theme transition
+const sunGlowStyles = `
+  @keyframes sunGlow {
+    0%, 100% { 
+      filter: drop-shadow(0 0 3px rgba(255, 255, 0, 0.2)) 
+              drop-shadow(0 0 6px rgba(255, 255, 0, 0.3)) 
+              drop-shadow(0 0 9px rgba(255, 255, 0, 0.2));
+    }
+    50% { 
+      filter: drop-shadow(0 0 5px rgba(255, 255, 0, 0.4)) 
+              drop-shadow(0 0 10px rgba(255, 255, 0, 0.6)) 
+              drop-shadow(0 0 15px rgba(255, 255, 0, 0.4));
+    }
+  }
+
+  @keyframes rippleExpand {
+    0% {
+      transform: scale(0);
+      opacity: 1;
+      background: #1D293D;
+    }
+    25% {
+      transform: scale(25);
+      opacity: 0.9;
+      background: #1D293D;
+    }
+    50% {
+      transform: scale(50);
+      opacity: 0.8;
+      background: #1D293D;
+    }
+    75% {
+      transform: scale(75);
+      opacity: 0.6;
+      background: #1D293D;
+    }
+    100% {
+      transform: scale(150);
+      opacity: 0;
+      background: #1D293D;
+    }
+  }
+
+  @keyframes rippleContract {
+    0% {
+      transform: scale(150);
+      opacity: 0;
+      background: #1D293D;
+    }
+    25% {
+      transform: scale(75);
+      opacity: 0.6;
+      background: #1D293D;
+    }
+    50% {
+      transform: scale(50);
+      opacity: 0.8;
+      background: #1D293D;
+    }
+    75% {
+      transform: scale(25);
+      opacity: 0.9;
+      background: #1D293D;
+    }
+    100% {
+      transform: scale(0);
+      opacity: 1;
+      background: #1D293D;
+    }
+  }
+
+  .theme-ripple {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    animation: rippleExpand 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    transform-origin: center;
+    will-change: transform;
+  }
+
+  .theme-ripple.dark-to-light {
+    animation: rippleContract 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .theme-transition {
+    overflow: hidden !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  .theme-transition::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .theme-transition * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  .theme-transition *::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  body.theme-transition {
+    overflow: hidden !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  body.theme-transition::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  body.theme-transition * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  body.theme-transition *::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  html.theme-transition {
+    overflow: hidden !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  html.theme-transition::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .theme-transition {
+    overflow: hidden;
+  }
+
+  .theme-transition * {
+    transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  }
+
+  .theme-transition {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .theme-transition::-webkit-scrollbar {
+    display: none;
+  }
+`;
 import Link from 'next/link';
 import { 
   CogIcon,
@@ -59,6 +210,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
     address: '',
     password: ''
   });
+  const [isThemeTransitioning, setIsThemeTransitioning] = useState(false);
 
   // Track screen size with debouncing
   useEffect(() => {
@@ -127,6 +279,15 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
     };
   }, [isProfileDropdownOpen]);
 
+  // Cleanup theme transition on unmount
+  useEffect(() => {
+    return () => {
+      // Ensure scrollbars are restored when component unmounts
+      document.documentElement.classList.remove('theme-transition');
+      document.body.classList.remove('theme-transition');
+    };
+  }, []);
+
   // Memoize screen size calculations
   const screenConfig = useMemo(() => {
     const isLargeScreen = screenSize >= 1400;
@@ -172,6 +333,65 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
       console.error('Fullscreen toggle failed:', error);
     }
   }, []);
+
+  const handleThemeToggle = useCallback((event: React.MouseEvent) => {
+    setIsThemeTransitioning(true);
+    
+    // Get button position for ripple effect
+    const button = event.currentTarget as HTMLElement;
+    const rect = button.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    // Create ripple element
+    const ripple = document.createElement('div');
+    ripple.className = 'theme-ripple';
+    
+    // Set ripple position and size - ensure it covers the entire screen
+    const screenWidth = Math.max(window.innerWidth, document.documentElement.clientWidth);
+    const screenHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
+    const maxDimension = Math.max(screenWidth, screenHeight);
+    
+    ripple.style.left = `${centerX - 10}px`;
+    ripple.style.top = `${centerY - 10}px`;
+    ripple.style.width = '20px';
+    ripple.style.height = '20px';
+    ripple.style.transformOrigin = 'center';
+    
+    // Set ripple direction based on current theme
+    const isCurrentlyDark = isDarkMode;
+    if (isCurrentlyDark) {
+      ripple.classList.add('dark-to-light');
+    }
+    
+    // Add ripple to body
+    document.body.appendChild(ripple);
+    
+    // Add theme transition class to html and body
+    document.documentElement.classList.add('theme-transition');
+    document.body.classList.add('theme-transition');
+    
+    // Toggle dark mode
+    toggleDarkMode();
+    
+    // Remove ripple and transition class after animation completes
+    setTimeout(() => {
+      try {
+        if (document.body.contains(ripple)) {
+          document.body.removeChild(ripple);
+        }
+        document.documentElement.classList.remove('theme-transition');
+        document.body.classList.remove('theme-transition');
+        setIsThemeTransitioning(false);
+      } catch (error) {
+        console.error('Error cleaning up theme transition:', error);
+        // Force cleanup even if there's an error
+        document.documentElement.classList.remove('theme-transition');
+        document.body.classList.remove('theme-transition');
+        setIsThemeTransitioning(false);
+      }
+    }, 500);
+  }, [toggleDarkMode, isDarkMode]);
 
   // Helper functions
   const getUserInitials = useCallback((name: string) => {
@@ -298,6 +518,9 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
 
   return (
     <>
+      {/* Inject custom CSS */}
+      <style dangerouslySetInnerHTML={{ __html: sunGlowStyles }} />
+      
       {/* Desktop Navbar */}
       <nav className={`hidden min-[800px]:block sticky top-0 z-30 transition-all duration-300 ${
         isDarkMode 
@@ -335,15 +558,32 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
 
               {/* Theme Toggle */}
               <button
-                onClick={toggleDarkMode}
-                className={`p-3 rounded-lg transition-all duration-300 cursor-pointer ${
+                onClick={handleThemeToggle}
+                disabled={isThemeTransitioning}
+                className={`p-3 rounded-lg transition-all duration-500 cursor-pointer relative overflow-hidden ${
                   isDarkMode 
                     ? 'bg-white/10 text-white hover:bg-white/20' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                } shadow-lg backdrop-blur-sm`}
+                } shadow-lg backdrop-blur-sm group ${isThemeTransitioning ? 'opacity-50 cursor-not-allowed' : ''}`}
                 aria-label="Toggle dark mode"
               >
-                {isDarkMode ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
+                {/* Icon with rotation animation */}
+                <div className={`relative transition-all duration-500 ease-in-out ${
+                  isDarkMode ? 'rotate-180 scale-110' : 'rotate-0 scale-100'
+                }`}>
+                  {isDarkMode ? (
+                    <SunIcon className="h-5 w-5 animate-[sunGlow_3s_ease-in-out_infinite]" />
+                  ) : (
+                    <MoonIcon className="h-5 w-5" />
+                  )}
+                </div>
+                
+                {/* Ripple effect */}
+                <div className={`absolute inset-0 rounded-lg transition-all duration-300 ${
+                  isDarkMode 
+                    ? 'bg-white/5 scale-0 group-hover:scale-100' 
+                    : 'bg-gray-400/10 scale-0 group-hover:scale-100'
+                }`}></div>
               </button>
 
               {/* Profile Dropdown */}
@@ -543,15 +783,32 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
 
               {/* Theme Toggle */}
               <button
-                onClick={toggleDarkMode}
-                className={`p-2 rounded-lg transition-all duration-300 cursor-pointer ${
+                onClick={handleThemeToggle}
+                disabled={isThemeTransitioning}
+                className={`p-2 rounded-lg transition-all duration-500 cursor-pointer relative overflow-hidden ${
                   isDarkMode 
                     ? 'bg-white/10 text-white hover:bg-white/20' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                } shadow-lg backdrop-blur-sm`}
+                } shadow-lg backdrop-blur-sm group ${isThemeTransitioning ? 'opacity-50 cursor-not-allowed' : ''}`}
                 aria-label="Toggle dark mode"
               >
-                {isDarkMode ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
+                {/* Icon with rotation animation */}
+                <div className={`relative transition-all duration-500 ease-in-out ${
+                  isDarkMode ? 'rotate-180 scale-110' : 'rotate-0 scale-100'
+                }`}>
+                  {isDarkMode ? (
+                    <SunIcon className="h-5 w-5 animate-[sunGlow_3s_ease-in-out_infinite]" />
+                  ) : (
+                    <MoonIcon className="h-5 w-5" />
+                  )}
+                </div>
+                
+                {/* Ripple effect */}
+                <div className={`absolute inset-0 rounded-lg transition-all duration-300 ${
+                  isDarkMode 
+                    ? 'bg-white/5 scale-0 group-hover:scale-100' 
+                    : 'bg-gray-400/10 scale-0 group-hover:scale-100'
+                }`}></div>
               </button>
 
               {/* Mobile Profile Button */}
@@ -1176,9 +1433,9 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                 </label>
                 <div className="space-y-2">
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
                       // Set dark mode
-                      if (!isDarkMode) toggleDarkMode();
+                      if (!isDarkMode) handleThemeToggle(e);
                       setShowThemeModal(false);
                     }}
                     className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
@@ -1196,9 +1453,9 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                   </button>
                   
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
                       // Set light mode
-                      if (isDarkMode) toggleDarkMode();
+                      if (isDarkMode) handleThemeToggle(e);
                       setShowThemeModal(false);
                     }}
                     className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
