@@ -43,8 +43,9 @@ export default function PWADebug() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Only show on localhost for debugging
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+  // Show debug panel on both localhost and production for troubleshooting
+  // You can remove this later once PWA is working
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== 'viral-fabrics.vercel.app') {
     return null;
   }
 

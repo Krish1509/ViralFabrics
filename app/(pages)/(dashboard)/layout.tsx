@@ -11,6 +11,7 @@ import GlobalSkeleton from './components/GlobalSkeleton';
 import PerformanceMonitor from './components/PerformanceMonitor';
 import PWARegistration from './components/PWARegistration';
 import PWADebug from './components/PWADebug';
+import PWAStatus from './components/PWAStatus';
 
 interface User {
   _id: string;
@@ -257,6 +258,9 @@ export default function SuperAdminLayout({
       
       {/* PWA Debug Panel - Only shows on localhost */}
       <PWADebug />
+      
+      {/* PWA Status Panel - Shows on both localhost and production */}
+      <PWAStatus />
       
       {/* Sidebar - Fixed on left */}
       <Sidebar 

@@ -113,10 +113,45 @@ export default function PWAInstallButton() {
     return null;
   }
 
-  // For testing on localhost, always show the button
-  // In production, you might want to keep the original condition
-  if (!showInstallPrompt && !deferredPrompt && window.location.hostname !== 'localhost') {
-    return null;
+  // Always show the button for testing (both localhost and production)
+  // This ensures the install button is always visible
+  if (!showInstallPrompt && !deferredPrompt) {
+    // Still show the button, but it will show manual instructions
+    return (
+      <button
+        onClick={() => setShowInstallPrompt(true)}
+        className={`group flex items-center space-x-3 p-4 rounded-xl shadow-lg transition-all duration-300 ${
+          isDarkMode 
+            ? 'bg-slate-800 border border-slate-700 hover:bg-slate-700 hover:border-blue-500/50' 
+            : 'bg-white border border-gray-200 hover:bg-gray-50 hover:border-blue-300'
+        }`}
+      >
+        <div className={`p-3 rounded-xl ${
+          isDarkMode ? 'bg-purple-500/20 group-hover:bg-purple-500/30' : 'bg-purple-100 group-hover:bg-purple-200'
+        }`}>
+          <DevicePhoneMobileIcon className="h-8 w-8 text-purple-600 group-hover:text-purple-700" />
+        </div>
+        
+        <div className="flex-1 text-left">
+          <h3 className={`text-lg font-medium transition-colors duration-300 ${
+            isDarkMode ? 'text-white group-hover:text-purple-400' : 'text-gray-900 group-hover:text-purple-600'
+          }`}>
+            Install App
+          </h3>
+          <p className={`text-sm transition-colors duration-300 ${
+            isDarkMode ? 'text-gray-300' : 'text-gray-500'
+          }`}>
+            Download as mobile/desktop app
+          </p>
+        </div>
+
+        <div className={`p-2 rounded-lg ${
+          isDarkMode ? 'text-gray-400 group-hover:text-purple-400' : 'text-gray-500 group-hover:text-purple-600'
+        }`}>
+          <ComputerDesktopIcon className="h-5 w-5" />
+        </div>
+      </button>
+    );
   }
 
   return (
