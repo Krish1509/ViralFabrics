@@ -98,15 +98,15 @@ export default function PWADebug() {
         </div>
       </div>
       
-      <div className={`mt-3 pt-2 border-t ${
-        isDarkMode ? 'border-slate-600' : 'border-gray-200'
-      }`}>
-        <p className={`text-xs ${
-          isDarkMode ? 'text-gray-400' : 'text-gray-500'
-        }`}>
-          This debug panel only shows on localhost
-        </p>
-      </div>
+             <div className={`mt-3 pt-2 border-t ${
+         isDarkMode ? 'border-slate-600' : 'border-gray-200'
+       }`}>
+         <p className={`text-xs ${
+           isDarkMode ? 'text-gray-400' : 'text-gray-500'
+         }`}>
+           Debug panel for troubleshooting PWA
+         </p>
+       </div>
     </div>
   );
 }

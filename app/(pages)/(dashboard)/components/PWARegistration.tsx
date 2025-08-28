@@ -85,10 +85,13 @@ export default function PWARegistration() {
   // Add PWA meta tags to head
   useEffect(() => {
     const addPWAMetaTags = () => {
-      // Check if meta tags already exist
-      if (document.querySelector('meta[name="theme-color"]')) {
+      // Check if manifest link already exists
+      if (document.querySelector('link[rel="manifest"]')) {
+        console.log('Manifest link already exists');
         return;
       }
+
+      console.log('Adding PWA meta tags...');
 
       // Add theme color meta tag
       const themeColorMeta = document.createElement('meta');
@@ -125,6 +128,7 @@ export default function PWARegistration() {
       manifestLink.rel = 'manifest';
       manifestLink.href = '/manifest.json';
       document.head.appendChild(manifestLink);
+      console.log('Manifest link added:', manifestLink.href);
 
       // Add apple touch icons
       const appleTouchIcon = document.createElement('link');

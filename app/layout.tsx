@@ -72,6 +72,10 @@ export default function RootLayout({
             `,
           }}
         />
+        
+        {/* PWA Manifest */}
+        <link rel="manifest" href="/manifest.json" />
+        
         {/* Optimized styles for better performance */}
         <style
           dangerouslySetInnerHTML={{
