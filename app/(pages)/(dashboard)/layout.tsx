@@ -9,6 +9,8 @@ import PageVisitLogger from './components/PageVisitLogger';
 import LoadingOptimizer from './components/LoadingOptimizer';
 import GlobalSkeleton from './components/GlobalSkeleton';
 import PerformanceMonitor from './components/PerformanceMonitor';
+import PWARegistration from './components/PWARegistration';
+import PWADebug from './components/PWADebug';
 
 interface User {
   _id: string;
@@ -249,6 +251,12 @@ export default function SuperAdminLayout({
       
       {/* Silent Performance Monitor - No UI */}
       <PerformanceMonitor />
+      
+      {/* PWA Registration - Handles service worker and PWA setup */}
+      <PWARegistration />
+      
+      {/* PWA Debug Panel - Only shows on localhost */}
+      <PWADebug />
       
       {/* Sidebar - Fixed on left */}
       <Sidebar 

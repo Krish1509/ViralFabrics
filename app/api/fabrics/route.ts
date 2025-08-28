@@ -202,3 +202,50 @@ export async function POST(req: NextRequest) {
     }), { status: 500 });
   }
 }
+
+// DELETE /api/fabrics - Delete multiple fabrics by quality code
+export async function DELETE(req: NextRequest) {
+  try {
+    await dbConnect();
+    
+    const { searchParams } = new URL(req.url);
+    const qualityCode = searchParams.get('qualityCode');
+    
+    if (!qualityCode) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        message: "Quality code is required for bulk deletion" 
+      }), { status: 400 });
+    }
+    
+    // Find all fabrics with the specified quality code
+    const fabricsToDelete = await Fabric.find({
+      qualityCode: qualityCode
+    });
+    
+    if (fabricsToDelete.length === 0) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        message: "No fabrics found with the specified quality code" 
+      }), { status: 404 });
+    }
+    
+    // Delete all matching fabrics
+    const deleteResult = await Fabric.deleteMany({
+      qualityCode: qualityCode
+    });
+    
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: `Successfully deleted ${deleteResult.deletedCount} fabric(s)`,
+      deletedCount: deleteResult.deletedCount
+    }), { status: 200 });
+    
+  } catch (error) {
+    console.error('Fabrics DELETE error:', error);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      message: "Failed to delete fabrics" 
+    }), { status: 500 });
+  }
+}

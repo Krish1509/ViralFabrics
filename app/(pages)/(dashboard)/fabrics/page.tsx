@@ -18,6 +18,7 @@ import { Fabric, FabricFilters } from '@/types/fabric';
 
 import FabricDetails from './components/FabricDetails';
 import DeleteConfirmation from './components/DeleteConfirmation';
+import BulkDeleteConfirmation from './components/BulkDeleteConfirmation';
 
 export default function FabricsPage() {
   const { isDarkMode, mounted } = useDarkMode();
@@ -32,6 +33,9 @@ export default function FabricsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteDependencies, setDeleteDependencies] = useState<string[]>([]);
   const [isLoadingDependencies, setIsLoadingDependencies] = useState(false);
+  const [showBulkDeleteConfirmation, setShowBulkDeleteConfirmation] = useState(false);
+  const [bulkDeleteGroup, setBulkDeleteGroup] = useState<{ qualityCode: string; items: Fabric[] } | null>(null);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [filters, setFilters] = useState<FabricFilters>({
     qualityName: '',
     weaver: '',
@@ -315,21 +319,55 @@ export default function FabricsPage() {
     setIsLoadingDependencies(false);
   };
 
+  const handleBulkDelete = (group: { qualityCode: string; items: Fabric[] }) => {
+    setBulkDeleteGroup(group);
+    setShowBulkDeleteConfirmation(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    if (!bulkDeleteGroup) return;
+    
+    setIsBulkDeleting(true);
+    try {
+      const response = await fetch(`/api/fabrics?qualityCode=${encodeURIComponent(bulkDeleteGroup.qualityCode)}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        fetchFabrics();
+        setShowBulkDeleteConfirmation(false);
+        setBulkDeleteGroup(null);
+      } else {
+        console.error('Failed to delete fabrics:', data.message);
+      }
+    } catch (error) {
+      console.error('Error deleting fabrics:', error);
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const cancelBulkDelete = () => {
+    setShowBulkDeleteConfirmation(false);
+    setBulkDeleteGroup(null);
+    setIsBulkDeleting(false);
+  };
 
 
-  // Group fabrics by Quality Code and Quality Name
+
+  // Group fabrics by Quality Code only
   const groupedFabrics = fabrics.reduce((groups, fabric) => {
-    const key = `${fabric.qualityCode}-${fabric.qualityName}`;
+    const key = fabric.qualityCode;
     if (!groups[key]) {
       groups[key] = {
         qualityCode: fabric.qualityCode,
-        qualityName: fabric.qualityName,
         items: []
       };
     }
     groups[key].items.push(fabric);
     return groups;
-  }, {} as Record<string, { qualityCode: string; qualityName: string; items: Fabric[] }>);
+  }, {} as Record<string, { qualityCode: string; items: Fabric[] }>);
 
   const clearFilters = () => {
     setFilters({
@@ -676,34 +714,43 @@ export default function FabricsPage() {
               <tbody className={`divide-y ${
                 isDarkMode ? 'divide-gray-700' : 'divide-gray-200'
               }`}>
-                {Object.values(groupedFabrics).map((group, groupIndex) => (
-                  <React.Fragment key={`${group.qualityCode}-${group.qualityName}`}>
-                    {/* Group Header Row */}
-                    <tr className={`${
-                      isDarkMode ? 'bg-gray-800/50' : 'bg-gray-100'
-                    } border-b-2 border-gray-300`}>
-                      <td className="px-6 py-4" colSpan={6}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-4">
-                            <span className={`font-mono font-bold text-lg ${
-                              isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                            }`}>
-                              {group.qualityCode}
-                            </span>
-                            <span className={`font-semibold text-lg ${
-                              isDarkMode ? 'text-white' : 'text-gray-900'
-                            }`}>
-                              {group.qualityName}
-                            </span>
-                            <span className={`text-sm ${
-                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                            }`}>
-                              ({group.items.length} item{group.items.length > 1 ? 's' : ''})
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
+                                  {Object.values(groupedFabrics).map((group, groupIndex) => (
+                    <React.Fragment key={group.qualityCode}>
+                                         {/* Group Header Row */}
+                     <tr className={`${
+                       isDarkMode ? 'bg-gray-800/50' : 'bg-gray-100'
+                     } border-b-2 border-gray-300`}>
+                       <td className="px-6 py-4" colSpan={6}>
+                         <div className="flex items-center justify-between">
+                           <div className="flex items-center space-x-4">
+                             <span className={`font-mono font-bold text-lg ${
+                               isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                             }`}>
+                               Quality Code: {group.qualityCode}
+                             </span>
+                             <span className={`text-sm ${
+                               isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                             }`}>
+                               ({group.items.length} item{group.items.length > 1 ? 's' : ''})
+                             </span>
+                           </div>
+                           {group.items.length > 1 && (
+                             <button
+                               onClick={() => handleBulkDelete(group)}
+                               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 flex items-center space-x-1 ${
+                                 isDarkMode 
+                                   ? 'bg-red-600 hover:bg-red-700 text-white' 
+                                   : 'bg-red-500 hover:bg-red-600 text-white'
+                               }`}
+                               title={`Delete all ${group.items.length} fabrics with quality code ${group.qualityCode}`}
+                             >
+                               <TrashIcon className="h-3 w-3" />
+                               <span>Delete All</span>
+                             </button>
+                           )}
+                         </div>
+                       </td>
+                     </tr>
                     
                     {/* Individual Items */}
                     {group.items.map((fabric, itemIndex) => (
@@ -719,9 +766,13 @@ export default function FabricsPage() {
                             Item {itemIndex + 1}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
-                          {/* Empty for grouped items */}
-                        </td>
+                                                 <td className="px-6 py-4">
+                           <span className={`${
+                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                           }`}>
+                             {fabric.qualityName}
+                           </span>
+                         </td>
                         <td className="px-6 py-4">
                           <span className={`${
                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
@@ -822,6 +873,17 @@ export default function FabricsPage() {
             isLoadingDependencies={isLoadingDependencies}
           />
         )}
+
+             {/* Bulk Delete Confirmation Modal */}
+       {showBulkDeleteConfirmation && bulkDeleteGroup && (
+         <BulkDeleteConfirmation
+           fabrics={bulkDeleteGroup.items}
+           qualityCode={bulkDeleteGroup.qualityCode}
+           onConfirm={confirmBulkDelete}
+           onCancel={cancelBulkDelete}
+           isDeleting={isBulkDeleting}
+         />
+       )}
     </div>
   );
 }

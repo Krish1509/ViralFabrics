@@ -15,6 +15,7 @@ import {
 import { Order, Party } from '@/types';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { BRAND_NAME, BRAND_SHORT_NAME } from '@/lib/config';
+import PWAInstallButton from '../components/PWAInstallButton';
 
 // Cache for dashboard data
 const dashboardCache = {
@@ -602,6 +603,9 @@ export default function DashboardPage() {
               </div>
             </div>
           </Link>
+
+          {/* PWA Install Button */}
+          <PWAInstallButton />
         </div>
 
         {/* Recent Orders */}

@@ -16,7 +16,8 @@
     "fix-indexes": "tsx scripts/fix-order-indexes.ts",
     "migrate-all": "tsx scripts/migrate-schemas.ts",
     "health-check": "curl -f http://localhost:3000/api/health || exit 1",
-    "test-api": "curl http://localhost:3000/api/health"
+    "test-api": "curl http://localhost:3000/api/health",
+    "generate-pwa-icons": "node scripts/generate-pwa-icons.js"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
