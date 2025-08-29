@@ -794,23 +794,49 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                           </div>
                         </button>
                       ) : (
-                        <button
-                          className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
-                            isDarkMode 
-                              ? 'text-purple-300 hover:bg-purple-500/10' 
-                              : 'text-purple-600 hover:bg-purple-50'
-                          }`}
-                          onClick={() => {
-                            closeProfileDropdown();
-                            handleInstallClick();
-                          }}
-                          disabled={isInstalling}
-                        >
-                          <div className="flex items-center space-x-2">
-                            <DevicePhoneMobileIcon className="h-4 w-4" />
-                            <span>{isInstalling ? 'Installing...' : 'Install App'}</span>
+                        <div className={`px-4 py-3 rounded-lg transition-colors duration-200 ${
+                          isDarkMode 
+                            ? 'bg-purple-500/10 border border-purple-500/20' 
+                            : 'bg-purple-50 border border-purple-200'
+                        }`}>
+                          <div className="flex items-start space-x-3">
+                            <div className={`p-2 rounded-lg ${
+                              isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                            }`}>
+                              <DevicePhoneMobileIcon className="h-5 w-5 text-purple-600" />
+                            </div>
+                            
+                            <div className="flex-1 min-w-0">
+                              <h4 className={`text-sm font-semibold ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                Install {BRAND_NAME}
+                              </h4>
+                              <p className={`text-xs mt-1 ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Get quick access to your CRM dashboard on your device
+                              </p>
+                              
+                              <button
+                                onClick={() => {
+                                  closeProfileDropdown();
+                                  handleInstallClick();
+                                }}
+                                disabled={isInstalling}
+                                className={`mt-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                                  isInstalling
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    : isDarkMode
+                                      ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                                      : 'bg-purple-600 hover:bg-purple-700 text-white'
+                                }`}
+                              >
+                                {isInstalling ? 'Installing...' : 'Install'}
+                              </button>
+                            </div>
                           </div>
-                        </button>
+                        </div>
                       )}
                       
                       <div className={`border-t transition-colors duration-300 ${
@@ -1046,23 +1072,49 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                           </div>
                         </button>
                       ) : (
-                        <button
-                          className={`w-full text-left px-3 py-2 text-sm transition-colors duration-200 ${
-                            isDarkMode 
-                              ? 'text-purple-300 hover:bg-purple-500/10' 
-                              : 'text-purple-600 hover:bg-purple-50'
-                          }`}
-                          onClick={() => {
-                            closeProfileDropdown();
-                            handleInstallClick();
-                          }}
-                          disabled={isInstalling}
-                        >
-                          <div className="flex items-center space-x-2">
-                            <DevicePhoneMobileIcon className="h-4 w-4" />
-                            <span>{isInstalling ? 'Installing...' : 'Install App'}</span>
+                        <div className={`px-3 py-2 rounded-lg transition-colors duration-200 ${
+                          isDarkMode 
+                            ? 'bg-purple-500/10 border border-purple-500/20' 
+                            : 'bg-purple-50 border border-purple-200'
+                        }`}>
+                          <div className="flex items-start space-x-2">
+                            <div className={`p-1.5 rounded-lg ${
+                              isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                            }`}>
+                              <DevicePhoneMobileIcon className="h-4 w-4 text-purple-600" />
+                            </div>
+                            
+                            <div className="flex-1 min-w-0">
+                              <h4 className={`text-xs font-semibold ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                Install {BRAND_NAME}
+                              </h4>
+                              <p className={`text-xs mt-0.5 ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                Get quick access to your CRM dashboard
+                              </p>
+                              
+                              <button
+                                onClick={() => {
+                                  closeProfileDropdown();
+                                  handleInstallClick();
+                                }}
+                                disabled={isInstalling}
+                                className={`mt-1.5 px-2 py-1 text-xs font-medium rounded transition-colors ${
+                                  isInstalling
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    : isDarkMode
+                                      ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                                      : 'bg-purple-600 hover:bg-purple-700 text-white'
+                                }`}
+                              >
+                                {isInstalling ? 'Installing...' : 'Install'}
+                              </button>
+                            </div>
                           </div>
-                        </button>
+                        </div>
                       )}
                       
                       <div className={`border-t transition-colors duration-300 ${
