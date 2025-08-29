@@ -204,7 +204,7 @@ async function doBackgroundSync() {
 // Push notification handling
 self.addEventListener('push', (event) => {
   const options = {
-    body: event.data ? event.data.text() : 'New notification from CRM Admin',
+            body: event.data ? event.data.text() : 'New notification from Viral Fabrics',
     icon: '/icons/icon-192x192.svg',
     badge: '/icons/icon-72x72.svg',
     vibrate: [100, 50, 100],
@@ -227,7 +227,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification('CRM Admin Panel', options)
+    self.registration.showNotification('Viral Fabrics', options)
   );
 });
 

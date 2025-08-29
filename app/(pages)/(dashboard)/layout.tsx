@@ -10,7 +10,6 @@ import LoadingOptimizer from './components/LoadingOptimizer';
 import GlobalSkeleton from './components/GlobalSkeleton';
 import PerformanceMonitor from './components/PerformanceMonitor';
 import PWARegistration from './components/PWARegistration';
-import PWAStatus from './components/PWAStatus';
 
 interface User {
   _id: string;
@@ -254,9 +253,6 @@ export default function SuperAdminLayout({
       
       {/* PWA Registration - Handles service worker and PWA setup */}
       <PWARegistration />
-      
-      {/* PWA Status Panel - Shows on both localhost and production */}
-      <PWAStatus />
       
       {/* Sidebar - Fixed on left */}
       <Sidebar 

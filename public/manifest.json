@@ -1,7 +1,7 @@
 {
-  "name": "CRM Admin Panel",
-  "short_name": "CRM Admin",
-  "description": "Complete CRM Management System for Order Tracking, Party Management, and Business Operations",
+  "name": "Viral Fabrics",
+  "short_name": "Viral",
+  "description": "Premium Fabric Solutions - Complete CRM Management System for Order Tracking, Party Management, and Business Operations",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1D293D",

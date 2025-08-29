@@ -114,7 +114,7 @@ export default function PWARegistration() {
       // Add apple-mobile-web-app-title meta tag
       const appleTitleMeta = document.createElement('meta');
       appleTitleMeta.name = 'apple-mobile-web-app-title';
-      appleTitleMeta.content = 'CRM Admin';
+              appleTitleMeta.content = 'Viral Fabrics';
       document.head.appendChild(appleTitleMeta);
 
       // Add viewport meta tag for PWA

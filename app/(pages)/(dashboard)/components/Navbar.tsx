@@ -166,7 +166,8 @@ import {
   PencilIcon,
   CheckIcon,
   ArrowsPointingOutIcon,
-  ArrowsPointingInIcon
+  ArrowsPointingInIcon,
+  DevicePhoneMobileIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { BRAND_NAME } from '@/lib/config';
@@ -211,6 +212,10 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
     password: ''
   });
   const [isThemeTransitioning, setIsThemeTransitioning] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
 
   // Track screen size with debouncing
   useEffect(() => {
@@ -287,6 +292,83 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
       document.body.classList.remove('theme-transition');
     };
   }, []);
+
+  // PWA Install functionality
+  useEffect(() => {
+    // Check if app is already installed
+    const checkIfInstalled = () => {
+      if (window.matchMedia('(display-mode: standalone)').matches || 
+          (window.navigator as any).standalone === true) {
+        setIsInstalled(true);
+        return true;
+      }
+      return false;
+    };
+
+    // Listen for beforeinstallprompt event
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    // Listen for appinstalled event
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setShowInstallPrompt(false);
+    };
+
+    // Check if already installed
+    if (!checkIfInstalled()) {
+      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.addEventListener('appinstalled', handleAppInstalled);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) {
+      // Show manual installation instructions
+      setShowInstallPrompt(true);
+      return;
+    }
+
+    setIsInstalling(true);
+
+    try {
+      // Show the install prompt
+      await deferredPrompt.prompt();
+
+      // Wait for the user to respond to the prompt
+      const { outcome } = await deferredPrompt.userChoice;
+
+      if (outcome === 'accepted') {
+        console.log('User accepted the install prompt');
+      } else {
+        console.log('User dismissed the install prompt');
+      }
+    } catch (error) {
+      console.error('Error during installation:', error);
+    } finally {
+      setIsInstalling(false);
+      setDeferredPrompt(null);
+    }
+  };
+
+  const handleOpenInApp = () => {
+    // If app is installed, try to open it in standalone mode
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      // Already in app mode, do nothing
+      return;
+    }
+    
+    // Try to open in app mode by redirecting to the same URL
+    // This will trigger the browser to open in app mode if installed
+    window.location.href = window.location.href;
+  };
 
   // Memoize screen size calculations
   const screenConfig = useMemo(() => {
@@ -688,6 +770,44 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                         </div>
                       </button>
                       
+                      {/* Install App / Open in App Button */}
+                      {!isInstalled ? (
+                        <button
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                            isDarkMode 
+                              ? 'text-purple-300 hover:bg-purple-500/10' 
+                              : 'text-purple-600 hover:bg-purple-50'
+                          }`}
+                          onClick={() => {
+                            closeProfileDropdown();
+                            handleInstallClick();
+                          }}
+                          disabled={isInstalling}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <DevicePhoneMobileIcon className="h-4 w-4" />
+                            <span>{isInstalling ? 'Installing...' : 'Install App'}</span>
+                          </div>
+                        </button>
+                      ) : (
+                        <button
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                            isDarkMode 
+                              ? 'text-green-300 hover:bg-green-500/10' 
+                              : 'text-green-600 hover:bg-green-50'
+                          }`}
+                          onClick={() => {
+                            closeProfileDropdown();
+                            handleOpenInApp();
+                          }}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <DevicePhoneMobileIcon className="h-4 w-4" />
+                            <span>Open in App</span>
+                          </div>
+                        </button>
+                      )}
+                      
                       <div className={`border-t transition-colors duration-300 ${
                         isDarkMode ? 'border-slate-700' : 'border-gray-200'
                       }`}>
@@ -901,6 +1021,44 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                           <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
                         </div>
                       </button>
+                      
+                      {/* Install App / Open in App Button */}
+                      {!isInstalled ? (
+                        <button
+                          className={`w-full text-left px-3 py-2 text-sm transition-colors duration-200 ${
+                            isDarkMode 
+                              ? 'text-purple-300 hover:bg-purple-500/10' 
+                              : 'text-purple-600 hover:bg-purple-50'
+                          }`}
+                          onClick={() => {
+                            closeProfileDropdown();
+                            handleInstallClick();
+                          }}
+                          disabled={isInstalling}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <DevicePhoneMobileIcon className="h-4 w-4" />
+                            <span>{isInstalling ? 'Installing...' : 'Install App'}</span>
+                          </div>
+                        </button>
+                      ) : (
+                        <button
+                          className={`w-full text-left px-3 py-2 text-sm transition-colors duration-200 ${
+                            isDarkMode 
+                              ? 'text-green-300 hover:bg-green-500/10' 
+                              : 'text-green-600 hover:bg-green-50'
+                          }`}
+                          onClick={() => {
+                            closeProfileDropdown();
+                            handleOpenInApp();
+                          }}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <DevicePhoneMobileIcon className="h-4 w-4" />
+                            <span>Open in App</span>
+                          </div>
+                        </button>
+                      )}
                       
                       <div className={`border-t transition-colors duration-300 ${
                         isDarkMode ? 'border-slate-700' : 'border-gray-200'
