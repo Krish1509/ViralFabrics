@@ -46,13 +46,14 @@ export default async function dbConnect(): Promise<Mongoose> {
   if (!cached.promise) {
     const opts = {
       bufferCommands: true, // Enable buffering to prevent connection errors
-      maxPoolSize: 10, // Maintain up to 10 socket connections
-      serverSelectionTimeoutMS: 10000, // Increased to 10 seconds
-      socketTimeoutMS: 60000, // Increased to 60 seconds
+      maxPoolSize: 20, // Increased to 20 socket connections
+      serverSelectionTimeoutMS: 15000, // Increased to 15 seconds
+      socketTimeoutMS: 90000, // Increased to 90 seconds
       family: 4, // Use IPv4, skip trying IPv6
       retryWrites: true,
       retryReads: true,
-      connectTimeoutMS: 10000, // Connection timeout
+      connectTimeoutMS: 15000, // Increased connection timeout
+      maxIdleTimeMS: 30000, // Keep connections alive longer
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts);

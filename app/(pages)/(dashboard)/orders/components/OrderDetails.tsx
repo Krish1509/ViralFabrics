@@ -3,6 +3,7 @@
 import { 
   XMarkIcon,
   PencilIcon,
+  TrashIcon,
   CalendarIcon,
   PhoneIcon,
   MapPinIcon,
@@ -281,6 +282,42 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
   const handleImageClick = (imageUrl: string, alt: string) => {
     setPreviewImage({ url: imageUrl, alt });
     setShowImagePreview(true);
+  };
+
+  // Handle edit mill input
+  const handleEditMillInput = (millInput: any) => {
+    // TODO: Implement edit functionality
+    console.log('Edit mill input:', millInput);
+    // You can open a modal or navigate to edit page
+  };
+
+  // Handle delete mill input
+  const handleDeleteMillInput = async (millInputId: string) => {
+    if (!confirm('Are you sure you want to delete this mill input?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/mill-inputs/${millInputId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Refresh mill inputs
+        const updatedMillInputs = millInputs.filter(input => input._id !== millInputId);
+        setMillInputs(updatedMillInputs);
+      } else {
+        alert('Failed to delete mill input: ' + data.message);
+      }
+    } catch (error) {
+      console.error('Error deleting mill input:', error);
+      alert('Failed to delete mill input');
+    }
   };
 
   // Handle ESC key to close image preview
@@ -1257,13 +1294,13 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                   </div>
                 )}
 
-                {/* Mill Inputs Card */}
+                {/* Mill Inputs Card - Simplified */}
                 <div className={`mt-8 p-6 rounded-xl border ${
                   isDarkMode 
                     ? 'bg-white/5 border-white/10' 
                     : 'bg-white border-gray-200 shadow-sm'
                 }`}>
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center">
                       <BuildingOfficeIcon className={`h-5 w-5 mr-2 ${
                         isDarkMode ? 'text-cyan-400' : 'text-cyan-600'
@@ -1289,115 +1326,195 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                       </p>
                     </div>
                   ) : millInputs.length > 0 ? (
-                    <div className="space-y-4">
-                      {millInputs.map((millInput, index) => (
-                        <div key={millInput._id || index} className={`p-4 rounded-lg border-l-4 ${
-                          isDarkMode 
-                            ? 'bg-white/5 border-cyan-500/50' 
-                            : 'bg-gray-50 border-cyan-500'
-                        }`}>
-                          <div className="flex justify-between items-start mb-3">
-                            <h4 className={`font-semibold ${
+                    <div className="space-y-6">
+                      {/* Summary Stats */}
+                      <div className={`p-4 rounded-xl border-2 ${
+                        isDarkMode 
+                          ? 'bg-gradient-to-r from-cyan-900/20 to-blue-900/20 border-cyan-500/30' 
+                          : 'bg-gradient-to-r from-cyan-50 to-blue-50 border-cyan-300'
+                      }`}>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div className="text-center">
+                            <span className={`text-xs font-medium ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                            }`}>
+                              Total Entries
+                            </span>
+                            <p className={`text-xl font-bold ${
                               isDarkMode ? 'text-white' : 'text-gray-900'
                             }`}>
-                              Mill Input #{index + 1}
-                            </h4>
-                            <span className={`text-sm font-medium px-2 py-1 rounded-full ${
-                              isDarkMode 
-                                ? 'bg-cyan-900/20 text-cyan-400' 
-                                : 'bg-cyan-100 text-cyan-700'
-                            }`}>
-                              {millInput.mill?.name || 'Unknown Mill'}
-                            </span>
+                              {millInputs.length}
+                            </p>
                           </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div>
-                              <span className={`text-sm font-medium ${
-                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                              }`}>
-                                Mill Name
-                              </span>
-                              <p className={`text-sm font-semibold ${
-                                isDarkMode ? 'text-white' : 'text-gray-900'
-                              }`}>
-                                {millInput.mill?.name || 'Not specified'}
-                              </p>
-                            </div>
-                            
-                            <div>
-                              <span className={`text-sm font-medium ${
-                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                              }`}>
-                                Mill Date
-                              </span>
-                              <p className={`text-sm font-semibold ${
-                                isDarkMode ? 'text-white' : 'text-gray-900'
-                              }`}>
-                                {millInput.millDate ? new Date(millInput.millDate).toLocaleDateString('en-US', {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric'
-                                }) : 'Not specified'}
-                              </p>
-                            </div>
-                            
-                            <div>
-                              <span className={`text-sm font-medium ${
-                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                              }`}>
-                                Chalan No
-                              </span>
-                              <p className={`text-sm font-semibold ${
-                                isDarkMode ? 'text-white' : 'text-gray-900'
-                              }`}>
-                                {millInput.chalanNo || 'Not specified'}
-                              </p>
-                            </div>
-                            
-                            <div>
-                              <span className={`text-sm font-medium ${
-                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                              }`}>
-                                Greigh Meters
-                              </span>
-                              <p className={`text-sm font-semibold ${
-                                isDarkMode ? 'text-white' : 'text-gray-900'
-                              }`}>
-                                {millInput.greighMtr ? `${millInput.greighMtr.toLocaleString()} mtr` : 'Not specified'}
-                              </p>
-                            </div>
-                            
-                            <div>
-                              <span className={`text-sm font-medium ${
-                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                              }`}>
-                                Pieces
-                              </span>
-                              <p className={`text-sm font-semibold ${
-                                isDarkMode ? 'text-white' : 'text-gray-900'
-                              }`}>
-                                {millInput.pcs ? millInput.pcs.toLocaleString() : 'Not specified'}
-                              </p>
-                            </div>
-                            
-                            {millInput.notes && (
-                              <div className="md:col-span-2 lg:col-span-3">
-                                <span className={`text-sm font-medium ${
-                                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                                }`}>
-                                  Notes
-                                </span>
-                                <p className={`text-sm ${
-                                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                                }`}>
-                                  {millInput.notes}
-                                </p>
-                              </div>
-                            )}
+                          <div className="text-center">
+                            <span className={`text-xs font-medium ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                            }`}>
+                              Total Meters
+                            </span>
+                            <p className={`text-xl font-bold ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              {millInputs.reduce((total: number, input: any) => total + (input.greighMtr || 0), 0).toLocaleString()} mtr
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <span className={`text-xs font-medium ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                            }`}>
+                              Total Pieces
+                            </span>
+                            <p className={`text-xl font-bold ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              {millInputs.reduce((total: number, input: any) => total + (input.pcs || 0), 0).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <span className={`text-xs font-medium ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                            }`}>
+                              Order ID
+                            </span>
+                            <p className={`text-xl font-bold ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              {order.orderId}
+                            </p>
                           </div>
                         </div>
-                      ))}
+                      </div>
+
+                      {/* Consolidated Mill Inputs Table */}
+                      <div className={`rounded-xl border-2 ${
+                        isDarkMode 
+                          ? 'bg-white/5 border-cyan-500/30' 
+                          : 'bg-gray-50 border-cyan-200'
+                      } overflow-hidden`}>
+                        <div className={`p-4 border-b ${
+                          isDarkMode ? 'border-gray-700' : 'border-gray-200'
+                        }`}>
+                          <h4 className={`text-lg font-semibold ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}>
+                            All Mill Input Entries
+                          </h4>
+                        </div>
+                        
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className={`${
+                              isDarkMode ? 'bg-gray-800/50' : 'bg-gray-100'
+                            }`}>
+                              <tr>
+                                <th className={`px-4 py-3 text-left text-xs font-medium ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                }`}>
+                                  #
+                                </th>
+                                <th className={`px-4 py-3 text-left text-xs font-medium ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                }`}>
+                                  Mill Name
+                                </th>
+                                <th className={`px-4 py-3 text-left text-xs font-medium ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                }`}>
+                                  Date
+                                </th>
+                                <th className={`px-4 py-3 text-left text-xs font-medium ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                }`}>
+                                  Chalan No
+                                </th>
+                                <th className={`px-4 py-3 text-left text-xs font-medium ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                }`}>
+                                  Meters
+                                </th>
+                                <th className={`px-4 py-3 text-left text-xs font-medium ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                }`}>
+                                  Pieces
+                                </th>
+                                <th className={`px-4 py-3 text-left text-xs font-medium ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                }`}>
+                                  Actions
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                              {millInputs.map((millInput: any, index: number) => (
+                                <tr key={millInput._id || index} className={`hover:${
+                                  isDarkMode ? 'bg-white/5' : 'bg-gray-50'
+                                } transition-colors`}>
+                                  <td className={`px-4 py-3 text-sm font-medium ${
+                                    isDarkMode ? 'text-white' : 'text-gray-900'
+                                  }`}>
+                                    {index + 1}
+                                  </td>
+                                  <td className={`px-4 py-3 text-sm ${
+                                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                  }`}>
+                                    {millInput.mill?.name || 'Unknown Mill'}
+                                  </td>
+                                  <td className={`px-4 py-3 text-sm ${
+                                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                  }`}>
+                                    {millInput.millDate ? new Date(millInput.millDate).toLocaleDateString('en-US', {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric'
+                                    }) : 'No Date'}
+                                  </td>
+                                  <td className={`px-4 py-3 text-sm font-medium ${
+                                    isDarkMode ? 'text-white' : 'text-gray-900'
+                                  }`}>
+                                    {millInput.chalanNo || '-'}
+                                  </td>
+                                  <td className={`px-4 py-3 text-sm font-medium ${
+                                    isDarkMode ? 'text-white' : 'text-gray-900'
+                                  }`}>
+                                    {millInput.greighMtr ? `${millInput.greighMtr.toLocaleString()} mtr` : '-'}
+                                  </td>
+                                  <td className={`px-4 py-3 text-sm font-medium ${
+                                    isDarkMode ? 'text-white' : 'text-gray-900'
+                                  }`}>
+                                    {millInput.pcs ? millInput.pcs.toLocaleString() : '-'}
+                                  </td>
+                                  <td className={`px-4 py-3 text-sm`}>
+                                    <div className="flex items-center space-x-2">
+                                      <button
+                                        onClick={() => handleEditMillInput(millInput)}
+                                        className={`p-1.5 rounded-lg transition-all duration-200 ${
+                                          isDarkMode 
+                                            ? 'text-blue-400 hover:text-blue-300 hover:bg-blue-900/20' 
+                                            : 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                                        }`}
+                                        title="Edit"
+                                      >
+                                        <PencilIcon className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteMillInput(millInput._id)}
+                                        className={`p-1.5 rounded-lg transition-all duration-200 ${
+                                          isDarkMode 
+                                            ? 'text-red-400 hover:text-red-300 hover:bg-red-900/20' 
+                                            : 'text-red-600 hover:text-red-700 hover:bg-red-50'
+                                        }`}
+                                        title="Delete"
+                                      >
+                                        <TrashIcon className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className={`p-6 rounded-2xl border-2 border-dashed ${

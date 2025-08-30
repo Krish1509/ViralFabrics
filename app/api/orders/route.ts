@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .skip((page - 1) * limit)
       .lean()
-      .maxTimeMS(3000); // Further reduced to 3 second timeout for faster response
+      .maxTimeMS(10000); // Increased to 10 second timeout for better reliability
 
     // Fetch lab data for all orders and attach to items
     if (orders.length > 0) {
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
         })
         .select('orderItemId labSendDate labSendData labSendNumber status remarks')
         .lean()
-        .maxTimeMS(2000);
+        .maxTimeMS(5000);
         
         // Create a map of orderItemId to lab data
         const labMap = new Map();

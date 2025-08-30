@@ -1,17 +1,25 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeftIcon, PlusIcon, TrashIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { 
+  ArrowLeftIcon, 
+  PlusIcon, 
+  TrashIcon, 
+  CheckIcon,
+  PhotoIcon,
+  XMarkIcon,
+  CloudArrowUpIcon,
+  EyeIcon
+} from '@heroicons/react/24/outline';
 import { useDarkMode } from '../../hooks/useDarkMode';
-import { FabricFormData, FabricItem } from '@/types/fabric';
+import { FabricFormData } from '@/types/fabric';
 
 export default function CreateFabricPage() {
-  const { isDarkMode, mounted } = useDarkMode();
+  const { isDarkMode } = useDarkMode();
   const router = useRouter();
-  const formRef = useRef<HTMLFormElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Multiple items
   const [formData, setFormData] = useState<FabricFormData>({
     items: [{
       qualityCode: '',
@@ -25,18 +33,25 @@ export default function CreateFabricPage() {
       danier: '',
       reed: '',
       pick: '',
-      greighRate: ''
+      greighRate: '',
+      images: []
     }]
   });
   
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-    const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [showImagePreview, setShowImagePreview] = useState<{ url: string; index: number } | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+  const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Handle single field changes (for shared Quality Code and Quality Name)
-  const handleSingleFieldChange = (field: string, value: string) => {
-    // Update all items with the same value
+  const handleSharedFieldChange = (field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
       items: prev.items.map(item => ({
@@ -44,90 +59,37 @@ export default function CreateFabricPage() {
         [field]: value
       }))
     }));
-    
-    // Clear error for this field
-    if (errors[`items.0.${field}`]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[`items.0.${field}`];
-        return newErrors;
-      });
-    }
   };
 
-  // Handle item field changes
   const handleItemChange = (index: number, field: string, value: string) => {
     setFormData(prev => {
       const updatedItems = [...prev.items];
-      if (!updatedItems[index]) {
-        updatedItems[index] = {
-          qualityCode: '', qualityName: '',
-          weaver: '', weaverQualityName: '',
-          greighWidth: '', finishWidth: '', weight: '', gsm: '', danier: '',
-          reed: '', pick: '', greighRate: ''
-        };
-      }
       updatedItems[index] = { ...updatedItems[index], [field]: value };
       return { ...prev, items: updatedItems };
     });
-
-    // Clear error for this field
-    const fieldKey = `items.${index}.${field}`;
-    if (errors[fieldKey]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[fieldKey];
-        return newErrors;
-      });
-    }
   };
 
-  // Add new item
   const addItem = () => {
     setFormData(prev => ({
       ...prev,
       items: [...prev.items, {
-        qualityCode: prev.items[0]?.qualityCode || '', // Copy quality code from first item
-        qualityName: prev.items[0]?.qualityName || '', // Copy quality name from first item
-        weaver: '', // Leave weaver empty for new item
-        weaverQualityName: '', // Leave weaver quality name empty for new item
-        greighWidth: prev.items[0]?.greighWidth || '',
-        finishWidth: prev.items[0]?.finishWidth || '',
-        weight: prev.items[0]?.weight || '',
-        gsm: prev.items[0]?.gsm || '',
-        danier: prev.items[0]?.danier || '',
-        reed: prev.items[0]?.reed || '',
-        pick: prev.items[0]?.pick || '',
-        greighRate: prev.items[0]?.greighRate || ''
+        qualityCode: '',
+        qualityName: '',
+        weaver: '',
+        weaverQualityName: '',
+        greighWidth: '',
+        finishWidth: '',
+        weight: '',
+        gsm: '',
+        danier: '',
+        reed: '',
+        pick: '',
+        greighRate: '',
+        images: []
       }]
     }));
-    
-    // Scroll to the newly added item with smooth animation
-    setTimeout(() => {
-      if (formRef.current) {
-        // Get the last item element
-        const items = formRef.current.querySelectorAll('[data-item-index]');
-        const lastItem = items[items.length - 1];
-        
-        if (lastItem) {
-          // Scroll to the last item with offset for better visibility
-          lastItem.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center',
-            inline: 'nearest'
-          });
-        } else {
-          // Fallback: scroll to bottom
-          formRef.current.scrollTo({ 
-            top: formRef.current.scrollHeight, 
-            behavior: 'smooth' 
-          });
-        }
-      }
-    }, 100);
   };
 
-  // Remove item
   const removeItem = (index: number) => {
     if (formData.items.length > 1) {
       setFormData(prev => ({
@@ -137,78 +99,223 @@ export default function CreateFabricPage() {
     }
   };
 
-  // Validation
-  const validateForm = (): { isValid: boolean; errorCount: number } => {
-    const newErrors: {[key: string]: string} = {};
-
-    // Log current values for debugging
-    console.log('Current form values:', {
-      items: formData.items.map(item => ({
-        qualityCode: `"${item.qualityCode}"`,
-        qualityName: `"${item.qualityName}"`,
-        weaver: `"${item.weaver}"`,
-        weaverQualityName: `"${item.weaverQualityName}"`
-      }))
-    });
-
-    // Validate items
-    formData.items.forEach((item, index) => {
-      const itemPrefix = `items.${index}`;
-      
-      if (!item.qualityCode || item.qualityCode.trim() === '') {
-        newErrors[`${itemPrefix}.qualityCode`] = 'Quality code is required';
-        console.log(`Quality code validation failed for item ${index}:`, item.qualityCode);
-      }
-      
-      if (!item.qualityName || item.qualityName.trim() === '') {
-        newErrors[`${itemPrefix}.qualityName`] = 'Quality name is required';
-        console.log(`Quality name validation failed for item ${index}:`, item.qualityName);
-      }
-      
-      if (!item.weaver || item.weaver.trim() === '') {
-        newErrors[`${itemPrefix}.weaver`] = 'Weaver is required';
-        console.log(`Weaver validation failed for item ${index}:`, item.weaver);
-      }
-      
-      if (!item.weaverQualityName || item.weaverQualityName.trim() === '') {
-        newErrors[`${itemPrefix}.weaverQualityName`] = 'Weaver quality name is required';
-        console.log(`Weaver quality name validation failed for item ${index}:`, item.weaverQualityName);
-      }
-    });
-
-    setErrors(newErrors);
-    
-    const errorCount = Object.keys(newErrors).length;
-    
-    // Log validation results for debugging
-    if (errorCount > 0) {
-      console.log('Validation errors:', newErrors);
-    } else {
-      console.log('Form is valid!');
+  // Image upload functions for shared quality images
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
     }
-    
-    return { isValid: errorCount === 0, errorCount };
   };
 
-  // Form submission
-  const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
     
-    // Add a small delay to ensure state updates are complete
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    const validationResult = validateForm();
-    if (!validationResult.isValid) {
-      setMessage({ 
-        type: 'error', 
-        text: `Please fix ${validationResult.errorCount} validation error${validationResult.errorCount > 1 ? 's' : ''}. Required fields: Quality Code, Quality Name, Weaver, and Weaver Quality Name.` 
-      });
-      return;
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFiles(e.dataTransfer.files);
     }
+  };
 
-    setLoading(true);
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleFiles(e.target.files);
+    }
+  };
+
+  const handleFiles = async (files: FileList) => {
+    setUploadingImages(true);
     try {
-      // Convert form data to API format
+      const uploadedUrls: string[] = [];
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.startsWith('image/')) {
+          // Convert to base64 for demo (in production, upload to cloud storage)
+          const base64 = await fileToBase64(file);
+          uploadedUrls.push(base64);
+        }
+      }
+      
+      setFormData(prev => ({
+        ...prev,
+        items: prev.items.map(item => ({
+          ...item,
+          images: [...(item.images || []), ...uploadedUrls]
+        }))
+      }));
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      setMessage({ type: 'error', text: 'Failed to upload images' });
+    } finally {
+      setUploadingImages(false);
+    }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const removeImage = (imageIndex: number) => {
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map(item => ({
+        ...item,
+        images: item.images?.filter((_, i) => i !== imageIndex) || []
+      }))
+    }));
+  };
+
+  // Camera functions
+  const getAvailableCameras = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cameras = devices.filter(device => device.kind === 'videoinput');
+      setAvailableCameras(cameras);
+      return cameras;
+    } catch (error) {
+      console.error('Error getting cameras:', error);
+      return [];
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      setCameraError(null);
+      
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError('Camera not supported in this browser');
+        return;
+      }
+      
+      const cameras = await getAvailableCameras();
+      const currentCamera = cameras[currentCameraIndex];
+      
+      const constraints = {
+        video: {
+          deviceId: currentCamera ? { exact: currentCamera.deviceId } : undefined,
+          facingMode: currentCameraIndex === 0 ? 'environment' : 'user',
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          frameRate: { ideal: 30, max: 60 }
+        }
+      };
+      
+      if (!currentCamera) {
+        delete constraints.video.deviceId;
+      }
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setCameraStream(stream);
+      setShowCamera(true);
+      
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(e => {
+              console.log('Video play error:', e);
+              setTimeout(() => {
+                videoRef.current?.play().catch(e2 => console.log('Retry video play error:', e2));
+              }, 200);
+            });
+          };
+        }
+      }, 200);
+    } catch (error: any) {
+      console.error('Camera access denied:', error);
+      
+      if (error.name === 'NotAllowedError') {
+        setCameraError('Camera access denied. Please allow camera access in your browser settings.');
+      } else if (error.name === 'NotFoundError') {
+        setCameraError('No camera found on this device.');
+      } else if (error.name === 'NotSupportedError') {
+        setCameraError('Camera not supported in this browser. Please use a modern browser.');
+      } else if (error.name === 'NotReadableError') {
+        setCameraError('Camera is already in use by another application.');
+      } else {
+        setCameraError(`Camera error: ${error.message || 'Unknown error'}`);
+      }
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setShowCamera(false);
+    setCameraError(null);
+  };
+
+  const switchCamera = async () => {
+    if (availableCameras.length <= 1) return;
+    
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+    
+    const nextIndex = (currentCameraIndex + 1) % availableCameras.length;
+    setCurrentCameraIndex(nextIndex);
+    
+    try {
+      const nextCamera = availableCameras[nextIndex];
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          deviceId: { exact: nextCamera.deviceId },
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          frameRate: { ideal: 30, max: 60 }
+        } 
+      });
+      
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (error: any) {
+      console.error('Error switching camera:', error);
+      setCameraError(`Failed to switch camera: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+      
+      if (context) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        context.scale(-1, 1);
+        context.drawImage(video, -canvas.width, 0);
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], `camera-photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+            handleFiles(new FileList([file]));
+            stopCamera();
+          }
+        }, 'image/jpeg', 0.8);
+      }
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
       const apiData = formData.items.map(item => ({
         qualityCode: item.qualityCode,
         qualityName: item.qualityName,
@@ -221,11 +328,9 @@ export default function CreateFabricPage() {
         danier: item.danier,
         reed: parseInt(item.reed) || 0,
         pick: parseInt(item.pick) || 0,
-        greighRate: parseFloat(item.greighRate) || 0
+        greighRate: parseFloat(item.greighRate) || 0,
+        images: item.images || []
       }));
-
-      // Debug: Log the data being sent to API
-      console.log('Sending data to API:', JSON.stringify(apiData, null, 2));
 
       const token = localStorage.getItem('token');
       const response = await fetch('/api/fabrics', {
@@ -239,15 +344,11 @@ export default function CreateFabricPage() {
 
       const data = await response.json();
       
-      // Debug: Log the API response
-      console.log('API Response:', data);
-      
       if (data.success) {
-        setMessage({ type: 'success', text: 'Fabric created successfully!' });
+        setMessage({ type: 'success', text: 'Fabric created successfully! Redirecting...' });
         setTimeout(() => {
-          // Use normal navigation, user can manually refresh if needed
-          router.push('/fabrics');
-        }, 1500);
+          router.push('/fabrics?refresh=' + Date.now());
+        }, 2000);
       } else {
         setMessage({ type: 'error', text: data.message || 'Operation failed' });
       }
@@ -259,36 +360,6 @@ export default function CreateFabricPage() {
     }
   };
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + Enter to submit
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        handleSubmit();
-      }
-      // Alt + N to add new item (avoid browser conflicts)
-      if (e.altKey && e.key === 'n') {
-        e.preventDefault();
-        addItem();
-      }
-      // Escape to close
-      if (e.key === 'Escape') {
-        router.push('/fabrics');
-      }
-      // F1 to show keyboard shortcuts
-      if (e.key === 'F1') {
-        e.preventDefault();
-        setShowKeyboardShortcuts(!showKeyboardShortcuts);
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showKeyboardShortcuts]);
-
-  if (!mounted) return null;
-
   return (
     <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
       {/* Header */}
@@ -298,7 +369,7 @@ export default function CreateFabricPage() {
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => router.push('/fabrics')}
-                className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+                className={`p-2 rounded-lg transition-colors ${
                   isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
                 }`}
               >
@@ -307,43 +378,25 @@ export default function CreateFabricPage() {
               <div>
                 <h1 className="text-2xl font-bold">Create New Fabric</h1>
                 <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Add multiple fabric items in a single form
+                  Add fabric items to your inventory
                 </p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <span className={`text-sm px-2 py-1 rounded-full ${
+              <span className={`text-sm px-3 py-1 rounded-full ${
                 isDarkMode 
                   ? 'bg-blue-900/30 text-blue-300 border border-blue-700' 
                   : 'bg-blue-100 text-blue-700 border border-blue-200'
               }`}>
                 {formData.items.length} Item{formData.items.length !== 1 ? 's' : ''}
               </span>
-              <button
-                onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
-                className={`px-3 py-1 text-xs rounded-full border transition-all duration-200 hover:scale-105 ${
-                  isDarkMode 
-                    ? 'border-gray-600 text-gray-300 hover:border-blue-500 hover:text-blue-400' 
-                    : 'border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600'
-                }`}
-                title="Keyboard Shortcuts (F1)"
-              >
-                ⌨️ Shortcuts
-              </button>
             </div>
           </div>
         </div>
       </div>
 
-             {/* Main Content */}
-       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mb-8 mr-4">
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold mb-2">Fabric Creation Form</h2>
-          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            Fill in the details below to create new fabric items. You can add multiple items using the "Add Item" button.
-          </p>
-        </div>
-
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Message */}
         {message && (
           <div className={`p-4 rounded-lg border mb-6 ${
@@ -367,115 +420,165 @@ export default function CreateFabricPage() {
         )}
 
         {/* Form */}
-        <form ref={formRef} onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit}>
           {/* Shared Fabric Information */}
           <div className={`p-6 rounded-xl border mb-8 ${
-            isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+            isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
           }`}>
-            <h3 className="text-lg font-semibold mb-6">Fabric Information</h3>
+            <h3 className="text-lg font-semibold mb-6">Shared Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Quality Code */}
               <div>
-                <label className="block text-sm font-medium mb-3">
-                  Quality Code <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium mb-2">
+                  Quality Code
                 </label>
-                <p className={`text-xs mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  This quality code will be used for all fabric items below
-                </p>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.items[0]?.qualityCode || ''}
-                    onChange={(e) => handleSingleFieldChange('qualityCode', e.target.value)}
-                    placeholder="e.g., 1001 - WL"
-                    className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    } ${errors['items.0.qualityCode'] ? 
-                      isDarkMode 
-                        ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
-                        : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
-                      : ''}`}
-                  />
-                  {formData.items[0]?.qualityCode && (
-                    <button
-                      type="button"
-                      onClick={() => handleSingleFieldChange('qualityCode', '')}
-                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
-                        isDarkMode 
-                          ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
-                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                      }`}
-                      title="Clear quality code"
-                    >
-                      <XMarkIcon className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                {errors['items.0.qualityCode'] && (
-                  <p className="text-red-500 text-sm mt-2">⚠️ {errors['items.0.qualityCode']}</p>
-                )}
+                <input
+                  type="text"
+                  value={formData.items[0]?.qualityCode || ''}
+                  onChange={(e) => handleSharedFieldChange('qualityCode', e.target.value)}
+                  placeholder="e.g., 1001-WL"
+                  className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    isDarkMode 
+                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                  }`}
+                />
               </div>
 
               {/* Quality Name */}
               <div>
-                <label className="block text-sm font-medium mb-3">
-                  Quality Name <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium mb-2">
+                  Quality Name
                 </label>
-                <p className={`text-xs mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  This quality name will be used for all fabric items below
-                </p>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.items[0]?.qualityName || ''}
-                    onChange={(e) => handleSingleFieldChange('qualityName', e.target.value)}
-                    placeholder="Enter quality name"
-                    className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                    } ${errors['items.0.qualityName'] ? 
-                      isDarkMode 
-                        ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
-                        : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
-                      : ''}`}
-                  />
-                  {formData.items[0]?.qualityName && (
-                    <button
-                      type="button"
-                      onClick={() => handleSingleFieldChange('qualityName', '')}
-                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
-                        isDarkMode 
-                          ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
-                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                      }`}
-                      title="Clear quality name"
-                    >
-                      <XMarkIcon className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                {errors['items.0.qualityName'] && (
-                  <p className="text-red-500 text-sm mt-2">⚠️ {errors['items.0.qualityName']}</p>
+                <input
+                  type="text"
+                  value={formData.items[0]?.qualityName || ''}
+                  onChange={(e) => handleSharedFieldChange('qualityName', e.target.value)}
+                  placeholder="Enter quality name"
+                  className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    isDarkMode 
+                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                  }`}
+                />
+              </div>
+            </div>
+
+            {/* Quality Images Section */}
+            <div className="mt-8">
+              <label className="block text-sm font-medium mb-4">Quality Images</label>
+              
+              {/* Image Upload Area */}
+              <div className="flex items-center space-x-4 mb-4">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileInput}
+                  className="hidden"
+                  id="quality-image-upload"
+                />
+                <label
+                  htmlFor="quality-image-upload"
+                  className={`px-6 py-3 rounded-lg border-2 border-dashed cursor-pointer transition-all duration-200 hover:scale-105 ${
+                    isDarkMode 
+                      ? 'border-gray-600 hover:border-blue-500 text-gray-300 hover:text-blue-400' 
+                      : 'border-gray-300 hover:border-blue-400 text-gray-600 hover:text-blue-600'
+                  }`}
+                >
+                  <CloudArrowUpIcon className="h-5 w-5 inline mr-2" />
+                  Upload Image
+                </label>
+                
+                {/* Camera Button */}
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  onTouchStart={(e) => {
+                    e.preventDefault();
+                  }}
+                  className={`px-6 py-3 rounded-lg border-2 border-dashed transition-all duration-200 hover:scale-105 active:scale-95 ${
+                    isDarkMode 
+                      ? 'border-gray-600 hover:border-green-500 text-gray-300 hover:text-green-400' 
+                      : 'border-gray-300 hover:border-green-400 text-gray-600 hover:text-green-600'
+                  }`}
+                >
+                  <PhotoIcon className="h-5 w-5 inline mr-2" />
+                  Camera
+                </button>
+                
+                {uploadingImages && (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                    <span className={`text-sm ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>Uploading...</span>
+                  </div>
                 )}
               </div>
+              
+              {/* Image Previews */}
+              {formData.items[0]?.images && formData.items[0].images.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {formData.items[0].images.map((image, imageIndex) => (
+                    <div key={imageIndex} className="relative group">
+                      <div className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-lg transition-all duration-200 bg-gray-100 dark:bg-gray-700">
+                        <img
+                          src={image}
+                          alt={`Quality image ${imageIndex + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                          onLoad={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            if (target) {
+                              target.style.opacity = '1';
+                            }
+                          }}
+                          style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
+                        />
+                        
+                        {/* Preview Button - Shows on Hover */}
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200">
+                          <button
+                            type="button"
+                            onClick={() => setShowImagePreview({ url: image, index: imageIndex })}
+                            className="bg-white/90 hover:bg-white text-gray-800 rounded-full p-3 shadow-lg hover:scale-110 transition-all duration-200"
+                            title="Preview Image"
+                          >
+                            <EyeIcon className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Remove Button */}
+                      <button
+                        type="button"
+                        onClick={() => removeImage(imageIndex)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 transition-all duration-200 opacity-0 group-hover:opacity-100 z-10 hover:scale-110"
+                        title="Remove Image"
+                      >
+                        <XMarkIcon className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Multiple Items Section */}
-          <div className="space-y-8">
+          {/* Fabric Items */}
+          <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-semibold">Fabric Items</h3>
             </div>
 
             {formData.items.map((item, index) => (
               <div 
-                key={index} 
-                data-item-index={index}
-                className={`p-6 rounded-xl border transition-all duration-200 hover:shadow-lg ${
-                  isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+                key={index}
+                className={`p-6 rounded-xl border ${
+                  isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
                 }`}
               >
                 <div className="flex items-center justify-between mb-6">
@@ -484,511 +587,425 @@ export default function CreateFabricPage() {
                     <button
                       type="button"
                       onClick={() => removeItem(index)}
-                      className={`p-3 rounded-lg border-2 transition-all duration-200 hover:scale-110 ${
+                      className={`p-2 rounded-lg transition-colors ${
                         isDarkMode 
-                          ? 'border-red-500 text-red-400 hover:bg-red-500 hover:text-white' 
-                          : 'border-red-300 text-red-600 hover:bg-red-500 hover:text-white'
+                          ? 'text-red-400 hover:bg-red-500 hover:text-white' 
+                          : 'text-red-600 hover:bg-red-500 hover:text-white'
                       }`}
-                      title="Remove Item"
                     >
                       <TrashIcon className="h-5 w-5" />
                     </button>
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
-
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {/* Weaver */}
                   <div>
-                    <label className="block text-sm font-medium mb-3">
-                      Weaver <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium mb-2">
+                      Weaver
                     </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={item.weaver}
-                        onChange={(e) => handleItemChange(index, 'weaver', e.target.value)}
-                        placeholder="Enter weaver name"
-                        className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        } ${errors[`items.${index}.weaver`] ? 
-                          isDarkMode 
-                            ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
-                            : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
-                          : ''}`}
-                      />
-                      {item.weaver && (
-                        <button
-                          type="button"
-                          onClick={() => handleItemChange(index, 'weaver', '')}
-                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
-                            isDarkMode 
-                              ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                          }`}
-                          title="Clear weaver"
-                        >
-                          <XMarkIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                    {errors[`items.${index}.weaver`] && (
-                      <p className="text-red-500 text-sm mt-2">⚠️ {errors[`items.${index}.weaver`]}</p>
-                    )}
+                    <input
+                      type="text"
+                      value={item.weaver}
+                      onChange={(e) => handleItemChange(index, 'weaver', e.target.value)}
+                      placeholder="Enter weaver name"
+                      className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                   </div>
 
                   {/* Weaver Quality Name */}
                   <div>
-                    <label className="block text-sm font-medium mb-3">
-                      Weaver Quality Name <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium mb-2">
+                      Weaver Quality Name
                     </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={item.weaverQualityName}
-                        onChange={(e) => handleItemChange(index, 'weaverQualityName', e.target.value)}
-                        placeholder="Enter weaver quality name"
-                        className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        } ${errors[`items.${index}.weaverQualityName`] ? 
-                          isDarkMode 
-                            ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20' 
-                            : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
-                          : ''}`}
-                      />
-                      {item.weaverQualityName && (
-                        <button
-                          type="button"
-                          onClick={() => handleItemChange(index, 'weaverQualityName', '')}
-                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
-                            isDarkMode 
-                              ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                          }`}
-                          title="Clear weaver quality name"
-                        >
-                          <XMarkIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                    {errors[`items.${index}.weaverQualityName`] && (
-                      <p className="text-red-500 text-sm mt-2">⚠️ {errors[`items.${index}.weaverQualityName`]}</p>
-                    )}
+                    <input
+                      type="text"
+                      value={item.weaverQualityName}
+                      onChange={(e) => handleItemChange(index, 'weaverQualityName', e.target.value)}
+                      placeholder="Enter weaver quality name"
+                      className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                   </div>
 
                   {/* Greigh Width */}
                   <div>
-                    <label className="block text-sm font-medium mb-3">
+                    <label className="block text-sm font-medium mb-2">
                       Greigh Width (inches)
                     </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={item.greighWidth}
-                        onChange={(e) => handleItemChange(index, 'greighWidth', e.target.value)}
-                        placeholder="e.g., 58.5"
-                        className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
-                      {item.greighWidth && (
-                        <button
-                          type="button"
-                          onClick={() => handleItemChange(index, 'greighWidth', '')}
-                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
-                            isDarkMode 
-                              ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                          }`}
-                          title="Clear greigh width"
-                        >
-                          <XMarkIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={item.greighWidth}
+                      onChange={(e) => handleItemChange(index, 'greighWidth', e.target.value)}
+                      placeholder="e.g., 58.5"
+                      className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                   </div>
 
                   {/* Finish Width */}
                   <div>
-                    <label className="block text-sm font-medium mb-3">
+                    <label className="block text-sm font-medium mb-2">
                       Finish Width (inches)
                     </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={item.finishWidth}
-                        onChange={(e) => handleItemChange(index, 'finishWidth', e.target.value)}
-                        placeholder="e.g., 56.0"
-                        className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
-                      {item.finishWidth && (
-                        <button
-                          type="button"
-                          onClick={() => handleItemChange(index, 'finishWidth', '')}
-                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
-                            isDarkMode 
-                              ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                          }`}
-                          title="Clear finish width"
-                        >
-                          <XMarkIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={item.finishWidth}
+                      onChange={(e) => handleItemChange(index, 'finishWidth', e.target.value)}
+                      placeholder="e.g., 56.0"
+                      className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                   </div>
 
                   {/* Weight */}
                   <div>
-                    <label className="block text-sm font-medium mb-3">
+                    <label className="block text-sm font-medium mb-2">
                       Weight (KG)
                     </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={item.weight}
-                        onChange={(e) => handleItemChange(index, 'weight', e.target.value)}
-                        placeholder="e.g., 8.0"
-                        className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
-                      {item.weight && (
-                        <button
-                          type="button"
-                          onClick={() => handleItemChange(index, 'weight', '')}
-                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
-                            isDarkMode 
-                              ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                          }`}
-                          title="Clear weight"
-                        >
-                          <XMarkIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={item.weight}
+                      onChange={(e) => handleItemChange(index, 'weight', e.target.value)}
+                      placeholder="e.g., 8.0"
+                      className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                   </div>
 
                   {/* GSM */}
                   <div>
-                    <label className="block text-sm font-medium mb-3">
+                    <label className="block text-sm font-medium mb-2">
                       GSM
                     </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={item.gsm}
-                        onChange={(e) => handleItemChange(index, 'gsm', e.target.value)}
-                        placeholder="e.g., 72.5"
-                        className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
-                      {item.gsm && (
-                        <button
-                          type="button"
-                          onClick={() => handleItemChange(index, 'gsm', '')}
-                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
-                            isDarkMode 
-                              ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                          }`}
-                          title="Clear GSM"
-                        >
-                          <XMarkIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={item.gsm}
+                      onChange={(e) => handleItemChange(index, 'gsm', e.target.value)}
+                      placeholder="e.g., 72.5"
+                      className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                   </div>
 
                   {/* Danier */}
                   <div>
-                    <label className="block text-sm font-medium mb-3">
+                    <label className="block text-sm font-medium mb-2">
                       Danier
                     </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={item.danier}
-                        onChange={(e) => handleItemChange(index, 'danier', e.target.value)}
-                        placeholder="e.g., 55*22D"
-                        className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
-                      {item.danier && (
-                        <button
-                          type="button"
-                          onClick={() => handleItemChange(index, 'danier', '')}
-                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
-                            isDarkMode 
-                              ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                          }`}
-                          title="Clear danier"
-                        >
-                          <XMarkIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    <input
+                      type="text"
+                      value={item.danier}
+                      onChange={(e) => handleItemChange(index, 'danier', e.target.value)}
+                      placeholder="e.g., 55*22D"
+                      className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                   </div>
 
                   {/* Reed */}
                   <div>
-                    <label className="block text-sm font-medium mb-3">
+                    <label className="block text-sm font-medium mb-2">
                       Reed
                     </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        value={item.reed}
-                        onChange={(e) => handleItemChange(index, 'reed', e.target.value)}
-                        placeholder="e.g., 120"
-                        className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
-                      {item.reed && (
-                        <button
-                          type="button"
-                          onClick={() => handleItemChange(index, 'reed', '')}
-                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
-                            isDarkMode 
-                              ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                          }`}
-                          title="Clear reed"
-                        >
-                          <XMarkIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    <input
+                      type="number"
+                      value={item.reed}
+                      onChange={(e) => handleItemChange(index, 'reed', e.target.value)}
+                      placeholder="e.g., 120"
+                      className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                   </div>
 
                   {/* Pick */}
                   <div>
-                    <label className="block text-sm font-medium mb-3">
+                    <label className="block text-sm font-medium mb-2">
                       Pick
                     </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        value={item.pick}
-                        onChange={(e) => handleItemChange(index, 'pick', e.target.value)}
-                        placeholder="e.g., 80"
-                        className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
-                      {item.pick && (
-                        <button
-                          type="button"
-                          onClick={() => handleItemChange(index, 'pick', '')}
-                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
-                            isDarkMode 
-                              ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                          }`}
-                          title="Clear pick"
-                        >
-                          <XMarkIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    <input
+                      type="number"
+                      value={item.pick}
+                      onChange={(e) => handleItemChange(index, 'pick', e.target.value)}
+                      placeholder="e.g., 80"
+                      className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                   </div>
 
                   {/* Greigh Rate */}
                   <div>
-                    <label className="block text-sm font-medium mb-3">
+                    <label className="block text-sm font-medium mb-2">
                       Greigh Rate (₹)
                     </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={item.greighRate}
-                        onChange={(e) => handleItemChange(index, 'greighRate', e.target.value)}
-                        placeholder="e.g., 150.00"
-                        className={`w-full p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
-                      {item.greighRate && (
-                        <button
-                          type="button"
-                          onClick={() => handleItemChange(index, 'greighRate', '')}
-                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full transition-all duration-200 hover:scale-110 ${
-                            isDarkMode 
-                              ? 'text-gray-400 hover:text-white hover:bg-gray-600' 
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
-                          }`}
-                          title="Clear greigh rate"
-                        >
-                          <XMarkIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={item.greighRate}
+                      onChange={(e) => handleItemChange(index, 'greighRate', e.target.value)}
+                      placeholder="e.g., 150.00"
+                      className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                   </div>
                 </div>
               </div>
             ))}
-            
-            {/* Add Item Card */}
-            <div className={`p-4 rounded-xl border-2 border-dashed transition-all duration-200 hover:shadow-lg cursor-pointer ${
-              isDarkMode 
-                ? 'border-gray-600 bg-gray-800/50 hover:border-blue-500 hover:bg-gray-800' 
-                : 'border-gray-300 bg-gray-50/50 hover:border-blue-400 hover:bg-gray-50'
-            }`} onClick={addItem}>
-              <div className="flex items-center justify-center space-x-3 py-4">
-                <div className={`p-2 rounded-full ${
-                  isDarkMode 
-                    ? 'bg-blue-600/20 text-blue-400' 
-                    : 'bg-blue-100 text-blue-600'
-                }`}>
-                  <PlusIcon className="h-5 w-5" />
-                </div>
-                <div className="text-center">
-                  <h4 className={`font-semibold ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    Add New Item
-                  </h4>
-                </div>
-              </div>
-            </div>
+          </div>
+
+          {/* Add Item Button at Bottom */}
+          <div className="mt-8 flex justify-center">
+            <button
+              type="button"
+              onClick={addItem}
+              className={`px-6 py-3 rounded-lg border-2 border-dashed transition-colors flex items-center space-x-2 ${
+                isDarkMode 
+                  ? 'border-gray-600 hover:border-blue-500 text-gray-300 hover:text-blue-400' 
+                  : 'border-gray-300 hover:border-blue-400 text-gray-600 hover:text-blue-600'
+              }`}
+            >
+              <PlusIcon className="h-5 w-5" />
+              <span>Add Another Item</span>
+            </button>
+          </div>
+
+          {/* Submit Buttons */}
+          <div className="mt-8 flex justify-end space-x-4">
+            <button
+              type="button"
+              onClick={() => router.push('/fabrics')}
+              className={`px-6 py-3 rounded-lg border transition-colors ${
+                isDarkMode 
+                  ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`px-8 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
+                loading 
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : ''
+              } ${
+                isDarkMode 
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <CheckIcon className="h-5 w-5" />
+                  <span>Create Fabric{formData.items.length > 1 ? 's' : ''}</span>
+                </>
+              )}
+            </button>
           </div>
         </form>
       </div>
 
-             {/* Submit Button */}
-       <div className="mt-12 mb-8 flex justify-end space-x-6">
-         <button
-           type="button"
-           onClick={() => router.push('/fabrics')}
-           className={`px-10 py-4 rounded-xl border-2 transition-all duration-300 hover:scale-105 font-medium ${
-             isDarkMode 
-               ? 'border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-gray-500 bg-gray-800 shadow-lg' 
-               : 'border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 bg-white shadow-lg'
-           }`}
-         >
-           Cancel
-         </button>
-         <button
-           onClick={handleSubmit}
-           disabled={loading}
-           className={`px-12 py-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 flex items-center space-x-3 shadow-xl ${
-             loading ? 'opacity-50 cursor-not-allowed' : ''
-           } ${
-             isDarkMode 
-               ? 'bg-blue-600 hover:bg-blue-700 hover:shadow-blue-500/25 text-white' 
-               : 'bg-blue-500 hover:bg-blue-600 hover:shadow-blue-500/25 text-white'
-           }`}
-         >
-           {loading ? (
-             <>
-               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-               <span>Saving...</span>
-             </>
-           ) : (
-             <>
-               <CheckIcon className="h-6 w-6" />
-               <span>Create Fabric{formData.items.length > 1 ? 's' : ''}</span>
-             </>
-           )}
-         </button>
-       </div>
-
-      {/* Keyboard Shortcuts Modal */}
-      {showKeyboardShortcuts && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-60 p-4">
-          <div className={`relative max-w-md w-full rounded-xl shadow-2xl ${
-            isDarkMode ? 'bg-gray-800 border border-gray-600' : 'bg-white border border-gray-200'
+      {/* Camera Modal */}
+      {showCamera && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-60 p-4">
+          <div className={`relative max-w-4xl w-full rounded-xl overflow-hidden ${
+            isDarkMode ? 'bg-gray-800' : 'bg-white'
           }`}>
-            <div className={`flex items-center justify-between p-4 border-b ${
-              isDarkMode ? 'border-gray-600' : 'border-gray-200'
-            }`}>
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <h3 className={`text-lg font-semibold ${
                 isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                ⌨️ Keyboard Shortcuts
-              </h3>
+              }`}>📸 Camera</h3>
+              <div className="flex items-center space-x-2">
+                {availableCameras.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={switchCamera}
+                    className={`p-2 rounded-lg transition-colors ${
+                      isDarkMode 
+                        ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    }`}
+                    title="Switch Camera"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={stopCamera}
+                  className={`p-2 rounded-lg transition-colors ${
+                    isDarkMode 
+                      ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-4">
+              {cameraError ? (
+                <div className="flex items-center justify-center h-64 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                  <div className="text-center">
+                    <svg className="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>{cameraError}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    controls={false}
+                    className="w-full h-96 object-cover rounded-lg bg-black"
+                    style={{ transform: 'scaleX(-1)' }}
+                  />
+                  <canvas ref={canvasRef} className="hidden" />
+                  
+                  {/* Camera Info */}
+                  <div className="absolute top-4 left-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                    {availableCameras[currentCameraIndex]?.label || `Camera ${currentCameraIndex + 1}`}
+                  </div>
+                  
+                  {/* Camera Controls */}
+                  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+                    <button
+                      type="button"
+                      onClick={capturePhoto}
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                      }}
+                      className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-transform"
+                    >
+                      <div className="w-12 h-12 bg-blue-500 rounded-full border-4 border-white flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
+              <div className="flex items-center justify-between text-sm">
+                <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  {availableCameras.length > 0 ? `${currentCameraIndex + 1} of ${availableCameras.length} cameras` : 'No cameras available'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Preview Modal */}
+      {showImagePreview && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-60 p-4">
+          <div className="relative max-w-6xl max-h-[90vh]">
+            <img
+              src={showImagePreview.url}
+              alt="Preview"
+              className="max-w-full max-h-full object-contain rounded-lg"
+            />
+            
+            {/* Action Buttons */}
+            <div className="absolute top-4 right-4 flex items-center space-x-2">
+              {/* Download Button */}
               <button
-                onClick={() => setShowKeyboardShortcuts(false)}
-                className={`p-1 rounded-full transition-colors ${
-                  isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
-                }`}
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = showImagePreview.url;
+                  link.download = `quality-image-${showImagePreview.index + 1}.jpg`;
+                  link.target = '_blank';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+                className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
+                title="Download Image"
               >
-                <XMarkIcon className="h-5 w-5" />
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </button>
+              
+              {/* Open in New Tab Button */}
+              <button
+                onClick={() => {
+                  window.open(showImagePreview.url, '_blank');
+                }}
+                className="p-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
+                title="Open in New Tab"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </button>
+              
+              {/* Close Button */}
+              <button
+                onClick={() => setShowImagePreview(null)}
+                className="p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+                title="Close"
+              >
+                <XMarkIcon className="h-6 w-6" />
               </button>
             </div>
-            <div className="p-4 space-y-3">
-              <div className="flex justify-between items-center">
-                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  Submit Form
-                </span>
-                <kbd className={`px-2 py-1 text-xs rounded ${
-                  isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                }`}>
-                  Ctrl + Enter
-                </kbd>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  Add New Item
-                </span>
-                <kbd className={`px-2 py-1 text-xs rounded ${
-                  isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                }`}>
-                  Alt + N
-                </kbd>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  Close Form
-                </span>
-                <kbd className={`px-2 py-1 text-xs rounded ${
-                  isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                }`}>
-                  Esc
-                </kbd>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  Show Shortcuts
-                </span>
-                <kbd className={`px-2 py-1 text-xs rounded ${
-                  isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                }`}>
-                  F1
-                </kbd>
-              </div>
+            
+            {/* Image Info */}
+            <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-2 rounded-lg text-sm">
+              <p>Quality Image {showImagePreview.index + 1}</p>
+              <p className="text-xs text-gray-300 truncate max-w-xs">{showImagePreview.url}</p>
             </div>
           </div>
         </div>

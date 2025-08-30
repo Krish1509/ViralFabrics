@@ -1,102 +1,78 @@
 import { NextRequest } from 'next/server';
-import cloudinary from '@/lib/cloudinary';
-import { Readable } from 'stream';
+import { v2 as cloudinary } from 'cloudinary';
 
-export async function POST(request: NextRequest) {
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+export async function POST(req: NextRequest) {
   try {
-    // Check environment variables first
-    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-      console.error('Missing Cloudinary environment variables');
-      return new Response(
-        JSON.stringify({ 
-          message: 'Cloudinary configuration is incomplete. Please check your environment variables.',
-          details: {
-            cloudName: !!process.env.CLOUDINARY_CLOUD_NAME,
-            apiKey: !!process.env.CLOUDINARY_API_KEY,
-            apiSecret: !!process.env.CLOUDINARY_API_SECRET,
-          }
-        }),
-        { status: 500 }
-      );
-    }
-
-    const formData = await request.formData();
-    const file = formData.get('image') as File;
+    const formData = await req.formData();
+    const file = formData.get('file') as File;
+    const folder = formData.get('folder') as string || 'general';
 
     if (!file) {
-      return new Response(
-        JSON.stringify({ message: 'No file uploaded' }),
-        { status: 400 }
-      );
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'No file provided'
+      }), { status: 400 });
     }
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      return new Response(
-        JSON.stringify({ message: 'Only image files are allowed' }),
-        { status: 400 }
-      );
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'Only image files are allowed'
+      }), { status: 400 });
     }
 
-    // Validate file size (max 10MB for Cloudinary)
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
-      return new Response(
-        JSON.stringify({ message: 'File size must be less than 10MB' }),
-        { status: 400 }
-      );
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'File size must be less than 10MB'
+      }), { status: 400 });
     }
-
-    // Starting Cloudinary upload for file
 
     // Convert file to buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Create a readable stream from buffer
-    const stream = Readable.from(buffer);
-
-    // Upload to Cloudinary with minimal configuration
-    const uploadPromise = new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
+    // Upload to Cloudinary
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
         {
-          folder: 'crm-orders',
-          resource_type: 'image'
+          folder: folder,
+          resource_type: 'image',
+          transformation: [
+            { width: 1200, height: 1200, crop: 'limit' }, // Resize if too large
+            { quality: 'auto', fetch_format: 'auto' } // Optimize
+          ]
         },
         (error, result) => {
           if (error) {
-            console.error('Cloudinary upload error:', error);
             reject(error);
           } else {
-            // Cloudinary upload success
             resolve(result);
           }
         }
-      );
-
-      stream.pipe(uploadStream);
+      ).end(buffer);
     });
 
-    const result = await uploadPromise as any;
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        imageUrl: result.secure_url,
-        publicId: result.public_id,
-        message: 'Image uploaded successfully to Cloudinary' 
-      }),
-      { status: 200 }
-    );
+    return new Response(JSON.stringify({
+      success: true,
+      url: (result as any).secure_url,
+      public_id: (result as any).public_id
+    }), { status: 200 });
 
   } catch (error) {
-    console.error('Cloudinary upload error:', error);
-    return new Response(
-      JSON.stringify({ 
-        message: 'Failed to upload image to Cloudinary',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      }),
-      { status: 500 }
-    );
+    console.error('Upload error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      message: 'Failed to upload file'
+    }), { status: 500 });
   }
 }

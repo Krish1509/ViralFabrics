@@ -29,7 +29,6 @@ import QualityModal from './components/QualityModal';
 import LabAddModal from './components/LabDataModal';
 import OrderLogsModal from './components/OrderLogsModal';
 import LabDataModal from './components/LabDataModal';
-// import MillInputModal from './components/MillInputModal';
 import MillInputForm from './components/MillInputForm';
 import MillOutputForm from './components/MillOutputForm';
 import DispatchForm from './components/DispatchForm';
@@ -79,8 +78,8 @@ export default function OrdersPage() {
   const [selectedOrderForLogs, setSelectedOrderForLogs] = useState<Order | null>(null);
   const [showLabDataModal, setShowLabDataModal] = useState(false);
   const [selectedOrderForLabData, setSelectedOrderForLabData] = useState<Order | null>(null);
-  const [showMillInputModal, setShowMillInputModal] = useState(false);
-  const [selectedOrderForMillInput, setSelectedOrderForMillInput] = useState<Order | null>(null);
+
+
   const [showMillInputForm, setShowMillInputForm] = useState(false);
   const [selectedOrderForMillInputForm, setSelectedOrderForMillInputForm] = useState<Order | null>(null);
   const [showMillOutputForm, setShowMillOutputForm] = useState(false);
@@ -195,10 +194,10 @@ export default function OrdersPage() {
     
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced to 5s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased to 15s timeout
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/orders?limit=100', { // Increased limit to fetch more orders
+      const response = await fetch('/api/orders?limit=50', { // Reduced limit for faster loading
         headers: {
           'Authorization': `Bearer ${token}`,
           'Cache-Control': 'max-age=30, must-revalidate', // Better caching
@@ -245,10 +244,10 @@ export default function OrdersPage() {
   const fetchParties = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // Reduced to 3s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10s timeout
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/parties?limit=8', { // Further reduced limit for faster loading
+      const response = await fetch('/api/parties?limit=10', { // Slightly increased limit
         headers: {
           'Authorization': `Bearer ${token}`,
           'Cache-Control': 'max-age=60, must-revalidate', // Better caching
@@ -279,10 +278,10 @@ export default function OrdersPage() {
   const fetchQualities = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // Reduced to 3s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10s timeout
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/qualities?limit=15', { // Further reduced limit for faster loading
+      const response = await fetch('/api/qualities?limit=20', { // Slightly increased limit
         headers: {
           'Authorization': `Bearer ${token}`,
           'Cache-Control': 'max-age=60, must-revalidate', // Better caching
@@ -723,8 +722,16 @@ export default function OrdersPage() {
   };
 
   const handleMillInput = (order: Order) => {
-    setSelectedOrderForMillInput(order);
-    setShowMillInputModal(true);
+    // Clear cache before opening form
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('millInputFormCache');
+      window.localStorage.removeItem('millInputFormData');
+      window.localStorage.removeItem('millInputFormState');
+      window.localStorage.setItem('millInputFormVersion', '2.0');
+      window.localStorage.setItem('millInputFormForceNew', 'true');
+    }
+    setSelectedOrderForMillInputForm(order);
+    setShowMillInputForm(true);
   };
 
   const handleImagePreview = (url: string, alt: string) => {
@@ -1202,8 +1209,8 @@ export default function OrdersPage() {
               <button
                 onClick={() => {
                   setShowQuickActions(false);
-                  setSelectedOrderForMillInputForm(orders[0]); // Use first order or you can add a selection mechanism
-                  setShowMillInputForm(true);
+                  // Show a message to select a specific order
+                  showMessage('info', 'Please select a specific order to add mill input', { autoDismiss: true, dismissTime: 3000 });
                 }}
                 className={`group p-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
                   isDarkMode
@@ -1915,6 +1922,14 @@ export default function OrdersPage() {
                         </button>
                         <button
                           onClick={() => {
+                            // Clear cache before opening form
+                            if (typeof window !== 'undefined') {
+                              window.localStorage.removeItem('millInputFormCache');
+                              window.localStorage.removeItem('millInputFormData');
+                              window.localStorage.removeItem('millInputFormState');
+                              window.localStorage.setItem('millInputFormVersion', '2.0');
+                              window.localStorage.setItem('millInputFormForceNew', 'true');
+                            }
                             setSelectedOrderForMillInputForm(order);
                             setShowMillInputForm(true);
                           }}
@@ -2473,29 +2488,22 @@ export default function OrdersPage() {
         />
       )}
 
-      {/* Mill Input Modal */}
-      {/* {showMillInputModal && selectedOrderForMillInput && (
-        <MillInputModal
-          order={selectedOrderForMillInput}
-          onClose={() => {
-            setShowMillInputModal(false);
-            setSelectedOrderForMillInput(null);
-          }}
-          onSuccess={() => {
-            // Refresh orders to show any updates
-            fetchOrders();
-          }}
-        />
-      )} */}
+
 
       {/* Mill Input Form */}
       {showMillInputForm && selectedOrderForMillInputForm && (
         <MillInputForm
+          key={`mill-input-form-v2-${selectedOrderForMillInputForm.orderId}-${Date.now()}`}
           order={selectedOrderForMillInputForm}
           mills={mills}
           onClose={() => {
             setShowMillInputForm(false);
             setSelectedOrderForMillInputForm(null);
+            // Clear cache when closing
+            if (typeof window !== 'undefined') {
+              window.localStorage.removeItem('millInputFormCache');
+              window.localStorage.removeItem('millInputFormData');
+            }
           }}
           onSuccess={() => {
             // Refresh orders to show any updates
@@ -2506,7 +2514,7 @@ export default function OrdersPage() {
             // This will be handled within the form
           }}
           onRefreshMills={fetchMills}
-                />
+        />
       )}
 
       {/* Mill Output Form */}

@@ -15,14 +15,18 @@ export async function POST(request: NextRequest) {
 
     let pathname = '/dashboard'; // Default pathname
     
-    try {
-      const body = await request.json();
-      if (body && body.pathname) {
-        pathname = body.pathname;
+    // Check if request has content
+    const contentType = request.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        const body = await request.json();
+        if (body && body.pathname) {
+          pathname = body.pathname;
+        }
+      } catch (error) {
+        // Silently continue with default pathname for malformed JSON
+        console.debug('Using default pathname due to JSON parse error');
       }
-    } catch (error) {
-      console.warn('Could not parse request body, using default pathname:', error);
-      // Continue with default pathname
     }
 
     // Determine the resource type based on the pathname

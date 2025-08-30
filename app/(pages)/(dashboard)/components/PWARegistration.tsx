@@ -21,7 +21,7 @@ export default function PWARegistration() {
           window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             (window as any).deferredPrompt = e;
-            console.log('PWA install prompt available');
+            // PWA install prompt available (debug disabled)
           });
 
           // Handle service worker updates
@@ -30,8 +30,7 @@ export default function PWARegistration() {
             if (newWorker) {
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // New service worker available
-                  console.log('New service worker available');
+                  // New service worker available (debug disabled)
                   
                   // Show update notification
                   if (confirm('A new version of the app is available. Would you like to update?')) {
@@ -45,10 +44,10 @@ export default function PWARegistration() {
 
           // Handle service worker controller change
           navigator.serviceWorker.addEventListener('controllerchange', () => {
-            console.log('Service worker controller changed');
+            // Service worker controller changed (debug disabled)
           });
 
-          console.log('Service Worker registered successfully:', registration);
+          // Service Worker registered successfully (debug disabled)
         } catch (error) {
           console.error('Service Worker registration failed:', error);
         }
@@ -58,12 +57,12 @@ export default function PWARegistration() {
     // Handle online/offline status
     const handleOnline = () => {
       setIsOnline(true);
-      console.log('App is online');
+      // App is online (debug disabled)
     };
 
     const handleOffline = () => {
       setIsOnline(false);
-      console.log('App is offline');
+      // App is offline (debug disabled)
     };
 
     // Register service worker
@@ -87,11 +86,11 @@ export default function PWARegistration() {
     const addPWAMetaTags = () => {
       // Check if manifest link already exists
       if (document.querySelector('link[rel="manifest"]')) {
-        console.log('Manifest link already exists');
+        // Manifest link already exists (debug disabled)
         return;
       }
 
-      console.log('Adding PWA meta tags...');
+      // Adding PWA meta tags (debug disabled)
 
       // Add theme color meta tag
       const themeColorMeta = document.createElement('meta');
@@ -128,7 +127,7 @@ export default function PWARegistration() {
       manifestLink.rel = 'manifest';
       manifestLink.href = '/manifest.json';
       document.head.appendChild(manifestLink);
-      console.log('Manifest link added:', manifestLink.href);
+      // Manifest link added (debug disabled)
 
       // Add apple touch icons
       const appleTouchIcon = document.createElement('link');

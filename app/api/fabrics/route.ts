@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean()
-      .maxTimeMS(3000); // 3 second timeout
+      .maxTimeMS(10000); // 10 second timeout - increased from 3s
     
     // Add cache headers
     const headers = {
@@ -93,79 +93,32 @@ export async function POST(req: NextRequest) {
         reed,
         pick,
         greighRate,
-        label
+        label,
+        images
       } = fabricData;
       
-      // Validation for each fabric
-      const fabricErrors: string[] = [];
+      // No validation required - all fields are optional and can be any value
       
-      if (!qualityCode?.trim()) {
-        fabricErrors.push("Quality code is required");
+      // Quality code validation - must be unique across all fabrics
+      let finalQualityCode = qualityCode?.trim() || '';
+      if (!finalQualityCode) {
+        // Generate unique code if empty
+        finalQualityCode = `FAB_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+      } else {
+        // Check if quality code exists in database
+        const existingFabric = await Fabric.findOne({ qualityCode: finalQualityCode });
+        if (existingFabric) {
+          errors.push(`Item ${i + 1}: Quality code "${finalQualityCode}" already exists. Please use a different code.`);
+          continue;
+        }
       }
-      
-      if (!qualityName?.trim()) {
-        fabricErrors.push("Quality name is required");
-      }
-      
-      if (!weaver?.trim()) {
-        fabricErrors.push("Weaver is required");
-      }
-      
-      if (!weaverQualityName?.trim()) {
-        fabricErrors.push("Weaver quality name is required");
-      }
-      
-      // Only validate numeric fields if they have values
-      if (greighWidth && parseFloat(greighWidth) <= 0) {
-        fabricErrors.push("Greigh width must be a positive number");
-      }
-      
-      if (finishWidth && parseFloat(finishWidth) <= 0) {
-        fabricErrors.push("Finish width must be a positive number");
-      }
-      
-      if (weight && parseFloat(weight) <= 0) {
-        fabricErrors.push("Weight must be a positive number");
-      }
-      
-      if (gsm && parseFloat(gsm) <= 0) {
-        fabricErrors.push("GSM must be a positive number");
-      }
-      
-      if (reed && parseFloat(reed) <= 0) {
-        fabricErrors.push("Reed must be a positive number");
-      }
-      
-      if (pick && parseFloat(pick) <= 0) {
-        fabricErrors.push("Pick must be a positive number");
-      }
-      
-      if (greighRate && parseFloat(greighRate) <= 0) {
-        fabricErrors.push("Greigh rate must be a positive number");
-      }
-      
-      if (fabricErrors.length > 0) {
-        errors.push(`Item ${i + 1}: ${fabricErrors.join(", ")}`);
-        continue;
-      }
-      
-             // Check if combination of quality code + weaver + weaver quality name already exists in database
-       const existingFabric = await Fabric.findOne({ 
-         qualityCode: qualityCode.trim(),
-         weaver: weaver.trim(),
-         weaverQualityName: weaverQualityName.trim()
-       });
-       if (existingFabric) {
-         errors.push(`Item ${i + 1}: A fabric with quality code "${qualityCode.trim()}", weaver "${weaver.trim()}", and weaver quality "${weaverQualityName.trim()}" already exists in database`);
-         continue;
-       }
       
       // Create fabric
       const fabric = new Fabric({
-        qualityCode: qualityCode.trim(),
-        qualityName: qualityName.trim(),
-        weaver: weaver.trim(),
-        weaverQualityName: weaverQualityName.trim(),
+        qualityCode: finalQualityCode,
+        qualityName: qualityName?.trim() || '',
+        weaver: weaver?.trim() || '',
+        weaverQualityName: weaverQualityName?.trim() || '',
         greighWidth: greighWidth ? parseFloat(greighWidth) : 0,
         finishWidth: finishWidth ? parseFloat(finishWidth) : 0,
         weight: weight ? parseFloat(weight) : 0,
@@ -174,7 +127,8 @@ export async function POST(req: NextRequest) {
         reed: reed ? parseFloat(reed) : 0,
         pick: pick ? parseFloat(pick) : 0,
         greighRate: greighRate ? parseFloat(greighRate) : 0,
-        label: label?.trim() || ''
+        label: label?.trim() || '',
+        images: images || []
       });
       
       await fabric.save();

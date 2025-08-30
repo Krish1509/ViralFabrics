@@ -14,6 +14,7 @@ export interface IFabric extends Document {
   pick: number;
   greighRate: number;
   label: string;
+  images: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,50 +22,50 @@ export interface IFabric extends Document {
 const FabricSchema = new Schema<IFabric>({
   qualityCode: {
     type: String,
-    required: true,
+    required: false,
     trim: true,
-    maxlength: 50
+    maxlength: 50,
+    default: ''
   },
   qualityName: {
     type: String,
-    required: true,
+    required: false,
     trim: true,
-    maxlength: 100
+    maxlength: 100,
+    default: ''
   },
   weaver: {
     type: String,
-    required: true,
+    required: false,
     trim: true,
-    maxlength: 100
+    maxlength: 100,
+    default: ''
   },
   weaverQualityName: {
     type: String,
-    required: true,
+    required: false,
     trim: true,
-    maxlength: 100
+    maxlength: 100,
+    default: ''
   },
   greighWidth: {
     type: Number,
     required: false,
-    min: 0,
     default: 0
   },
   finishWidth: {
     type: Number,
     required: false,
-    min: 0,
     default: 0
   },
   weight: {
     type: Number,
     required: false,
-    min: 0,
     default: 0
   },
   gsm: {
     type: Number,
     required: false,
-    min: 0,
     default: 0
   },
   danier: {
@@ -77,19 +78,16 @@ const FabricSchema = new Schema<IFabric>({
   reed: {
     type: Number,
     required: false,
-    min: 0,
     default: 0
   },
   pick: {
     type: Number,
     required: false,
-    min: 0,
     default: 0
   },
   greighRate: {
     type: Number,
     required: false,
-    min: 0,
     default: 0
   },
   label: {
@@ -98,21 +96,21 @@ const FabricSchema = new Schema<IFabric>({
     trim: true,
     maxlength: 500,
     default: ''
+  },
+  images: {
+    type: [String],
+    required: false,
+    default: []
   }
 }, {
   timestamps: true
 });
 
-// Create indexes for better performance
-FabricSchema.index({ qualityName: 1 });
-FabricSchema.index({ weaver: 1 });
-FabricSchema.index({ weaverQualityName: 1 });
-
-// Compound unique index to prevent duplicate combinations
-FabricSchema.index(
-  { qualityCode: 1, weaver: 1, weaverQualityName: 1 }, 
-  { unique: true }
-);
+// No indexes to avoid conflicts - all fields are optional
+// FabricSchema.index({ qualityName: 1 });
+// FabricSchema.index({ weaver: 1 });
+// FabricSchema.index({ weaverQualityName: 1 });
+// FabricSchema.index({ qualityCode: 1 }, { unique: true, sparse: true });
 
 // Auto-generate label before saving
 FabricSchema.pre('save', function(next) {
@@ -122,4 +120,15 @@ FabricSchema.pre('save', function(next) {
   next();
 });
 
-export default mongoose.models.Fabric || mongoose.model<IFabric>('Fabric', FabricSchema);
+// Force model reset to ensure schema changes take effect
+const modelName = 'Fabric';
+if (mongoose.models[modelName]) {
+  delete mongoose.models[modelName];
+}
+
+  // Also clear the model from the connection
+  if (mongoose.connection.models[modelName]) {
+    delete (mongoose.connection.models as any)[modelName];
+  }
+
+export default mongoose.model<IFabric>(modelName, FabricSchema);

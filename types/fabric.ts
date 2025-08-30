@@ -13,6 +13,7 @@ export interface Fabric {
   pick: number;
   greighRate: number;
   label: string;
+  images: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -31,6 +32,7 @@ export interface FabricItem {
   reed: string;
   pick: string;
   greighRate: string;
+  images?: string[];
 }
 
 // New interface for fabric form with multiple items

@@ -124,14 +124,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(notFoundResponse('Mill'), { status: 404 });
     }
 
-    // Check if chalan number already exists for this order
-    const existingChalan = await MillInput.findOne({ 
-      orderId, 
-      chalanNo: chalanNo.trim() 
-    });
-    if (existingChalan) {
-      return NextResponse.json(validationErrorResponse('Chalan number already exists for this order'), { status: 400 });
-    }
+    // Note: Chalan numbers can be repeated within the same order
+    // as multiple mill inputs can share the same chalan number
 
     // Create new mill input
     const millInput = new MillInput({
