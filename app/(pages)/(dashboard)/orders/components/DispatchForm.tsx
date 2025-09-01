@@ -14,6 +14,20 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline';
 
+interface AdditionalQualityMtr {
+  quality: string;
+  finishMtr: string;
+}
+
+interface DispatchItem {
+  id: string;
+  dispatchDate: string;
+  billNo: string;
+  quality: string;
+  finishMtr: string;
+  additionalQualityMtr: AdditionalQualityMtr[];
+}
+
 interface DispatchFormProps {
   orderId: string;
   onClose: () => void;
@@ -32,9 +46,9 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
         billNo: '',
         quality: '',
         finishMtr: '',
-        additionalQualityMtr: [],
+        additionalQualityMtr: [] as AdditionalQualityMtr[],
       },
-    ],
+    ] as DispatchItem[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -251,10 +265,10 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
         <div className={`relative w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
           isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
         }`}>
-          {/* Header */}
+        {/* Header */}
           <div className={`flex items-center justify-between p-6 border-b ${
             isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
-          }`}>
+        }`}>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
                 <TruckIcon className="h-8 w-8 text-orange-500" />
@@ -262,7 +276,7 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
               </div>
               <div className="flex items-center space-x-2">
                 <span className={`text-sm px-2 py-1 rounded-full ${
-                  isDarkMode 
+                isDarkMode 
                     ? 'bg-orange-900/30 text-orange-300 border border-orange-700' 
                     : 'bg-orange-100 text-orange-700 border border-orange-200'
                 }`}>
@@ -278,9 +292,9 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
             >
               <XMarkIcon className="h-6 w-6" />
             </button>
-          </div>
+        </div>
 
-          {/* Form */}
+        {/* Form */}
           <form onSubmit={handleSubmit} className={`overflow-y-auto max-h-[calc(95vh-140px)] custom-scrollbar ${
             isDarkMode 
               ? 'scrollbar-thin scrollbar-thumb-orange-500 scrollbar-track-gray-800' 
@@ -303,24 +317,24 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
 
               {/* Order No (Auto) - Full Width */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div>
+            <div>
                   <label className={`block text-sm font-medium mb-3 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Order No
-                  </label>
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                Order No
+              </label>
                   <input
                     type="text"
                     value={orderId}
                     disabled
                     className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 ${
-                      isDarkMode 
+                isDarkMode 
                         ? 'bg-gray-800 border-gray-600 text-gray-400' 
                         : 'bg-gray-100 border-gray-300 text-gray-500'
                     } font-mono text-sm`}
                   />
-                </div>
               </div>
+            </div>
 
               {/* Dispatch Items */}
               <div>
@@ -334,16 +348,16 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
                       isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
                     }`}>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                        {/* Dispatch Date */}
-                        <div>
+            {/* Dispatch Date */}
+            <div>
                           <label className={`block text-sm font-medium mb-3 ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                          }`}>
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
                             Dispatch Date <span className="text-red-500">*</span>
-                          </label>
+              </label>
                           <div className="relative">
-                            <input
-                              type="date"
+              <input
+                type="date"
                               value={item.dispatchDate}
                               onChange={(e) => updateDispatchItem(item.id, 'dispatchDate', e.target.value)}
                               className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
@@ -351,7 +365,7 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
                                   ? isDarkMode
                                     ? 'border-red-500 bg-gray-800 text-white'
                                     : 'border-red-500 bg-white text-gray-900'
-                                  : isDarkMode
+                    : isDarkMode
                                     ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
                                     : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
                               }`}
@@ -366,28 +380,28 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
                             }`}>
                               {errors[`dispatchDate_${item.id}`]}
                             </p>
-                          )}
-                        </div>
+              )}
+            </div>
 
-                        {/* Bill No */}
-                        <div>
+            {/* Bill No */}
+            <div>
                           <label className={`block text-sm font-medium mb-3 ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                          }`}>
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
                             Bill No <span className="text-red-500">*</span>
-                          </label>
+              </label>
                           <div className="relative">
-                            <input
-                              type="text"
+              <input
+                type="text"
                               value={item.billNo}
                               onChange={(e) => updateDispatchItem(item.id, 'billNo', e.target.value)}
-                              placeholder="Enter bill number"
+                placeholder="Enter bill number"
                               className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
                                 errors[`billNo_${item.id}`]
                                   ? isDarkMode
                                     ? 'border-red-500 bg-gray-800 text-white'
                                     : 'border-red-500 bg-white text-gray-900'
-                                  : isDarkMode
+                    : isDarkMode
                                     ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
                                     : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
                               }`}
@@ -438,29 +452,29 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
                             }`}>
                               {errors[`quality_${item.id}`]}
                             </p>
-                          )}
-                        </div>
+              )}
+            </div>
 
                         {/* Finish Mtr */}
-                        <div>
+            <div>
                           <label className={`block text-sm font-medium mb-3 ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                          }`}>
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
                             Finish Mtr <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="number"
+              </label>
+              <input
+                type="number"
                             value={item.finishMtr}
                             onChange={(e) => updateDispatchItem(item.id, 'finishMtr', e.target.value)}
-                            placeholder="Enter finish meters"
+                placeholder="Enter finish meters"
                             step="0.01"
-                            min="0"
+                min="0"
                             className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
                               errors[`finishMtr_${item.id}`]
                                 ? isDarkMode
                                   ? 'border-red-500 bg-gray-800 text-white'
                                   : 'border-red-500 bg-white text-gray-900'
-                                : isDarkMode
+                    : isDarkMode
                                   ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
                                   : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
                             }`}
@@ -473,7 +487,7 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
                             </p>
                           )}
                         </div>
-                      </div>
+            </div>
 
                       {/* Additional Quality & Meters */}
                       {item.additionalQualityMtr.length > 0 && (
@@ -512,19 +526,19 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
                                     <option value="3">Quality C</option>
                                   </select>
                                 </div>
-                                <div>
-                                  <label className={`block text-sm font-medium mb-2 ${
-                                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                                  }`}>
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
                                     Finish Mtr M{index + 1} <span className="text-red-500">*</span>
-                                  </label>
-                                  <input
-                                    type="number"
+              </label>
+              <input
+                type="number"
                                     value={additional.finishMtr}
                                     onChange={(e) => updateAdditionalQualityMtr(item.id, index, 'finishMtr', e.target.value)}
                                     placeholder="Enter finish meters"
                                     step="0.01"
-                                    min="0"
+                min="0"
                                     className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
                                       isDarkMode
                                         ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
@@ -580,8 +594,8 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
                             <TrashIcon className="h-5 w-5" />
                           </button>
                         </div>
-                      )}
-                    </div>
+              )}
+            </div>
                   ))}
                   
                   {/* Add Item Card */}
@@ -621,7 +635,7 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
                 type="button"
                 onClick={onClose}
                 className={`px-8 py-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
-                  isDarkMode 
+                  isDarkMode
                     ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
                     : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                 }`}
@@ -633,9 +647,9 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
                 disabled={loading}
                 onClick={handleSubmit}
                 className={`px-10 py-3 rounded-lg text-white font-medium transition-all duration-200 hover:scale-105 ${
-                  loading 
-                    ? 'bg-gray-400 cursor-not-allowed' 
-                    : isDarkMode 
+                  loading
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : isDarkMode
                       ? 'bg-orange-600 hover:bg-orange-700 shadow-lg' 
                       : 'bg-orange-500 hover:bg-orange-600 shadow-lg'
                 }`}
@@ -643,9 +657,9 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
                 {loading ? 'Saving...' : 'Add Dispatch'}
               </button>
             </div>
-          </div>
         </div>
       </div>
+    </div>
     </>
   );
 }

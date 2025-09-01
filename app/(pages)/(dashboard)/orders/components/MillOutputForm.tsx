@@ -47,9 +47,9 @@ export default function MillOutputForm({
     orderId: order?.orderId || '',
     millOutputItems: [{
       id: '1',
-      recdDate: '',
-      millBillNo: '',
-      finishedMtr: '',
+    recdDate: '',
+    millBillNo: '',
+    finishedMtr: '',
       millRate: '',
       additionalFinishedMtr: []
     }]
@@ -64,9 +64,9 @@ export default function MillOutputForm({
         orderId: order.orderId,
         millOutputItems: [{
           id: '1',
-          recdDate: '',
-          millBillNo: '',
-          finishedMtr: '',
+        recdDate: '',
+        millBillNo: '',
+        finishedMtr: '',
           millRate: '',
           additionalFinishedMtr: []
         }]
@@ -223,10 +223,10 @@ export default function MillOutputForm({
 
          allMillOutputPromises.push(
            fetch('/api/mill-outputs', {
-             method: 'POST',
-             headers: {
-               'Content-Type': 'application/json',
-             },
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
              body: JSON.stringify(millOutputData)
            }).then(response => response.json())
          );
@@ -234,7 +234,7 @@ export default function MillOutputForm({
          // Additional finished meters and rates
          item.additionalFinishedMtr.forEach((additional) => {
            const additionalMillOutputData = {
-             orderId: formData.orderId,
+          orderId: formData.orderId,
              recdDate: item.recdDate,
              millBillNo: item.millBillNo.trim(),
              finishedMtr: parseFloat(additional.meters),
@@ -304,7 +304,7 @@ export default function MillOutputForm({
         <div className={`relative w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
           isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
         }`}>
-          {/* Header */}
+        {/* Header */}
           <div className={`flex items-center justify-between p-6 border-b ${
             isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
           }`}>
@@ -323,17 +323,17 @@ export default function MillOutputForm({
                 </span>
               </div>
             </div>
-            <button 
-              onClick={onClose} 
+          <button
+            onClick={onClose}
               className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
                 isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
               }`}
             >
               <XMarkIcon className="h-6 w-6" />
-            </button>
-          </div>
+          </button>
+        </div>
 
-          {/* Form */}
+        {/* Form */}
           <form onSubmit={handleSubmit} className={`overflow-y-auto max-h-[calc(95vh-140px)] custom-scrollbar ${
             isDarkMode 
               ? 'scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-800' 
@@ -354,25 +354,25 @@ export default function MillOutputForm({
                 </div>
               )}
 
-              {/* Order No (Auto) - Full Width */}
+          {/* Order No (Auto) - Full Width */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div>
+          <div>
                   <label className={`block text-sm font-medium mb-3 ${
                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
-                    Order No
-                  </label>
-                  <input
-                    type="text"
-                    value={order.orderId}
-                    disabled
+              Order No
+            </label>
+            <input
+              type="text"
+              value={order.orderId}
+              disabled
                     className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 ${
-                      isDarkMode 
+                isDarkMode 
                         ? 'bg-gray-800 border-gray-600 text-gray-400' 
                         : 'bg-gray-100 border-gray-300 text-gray-500'
-                    } font-mono text-sm`}
-                  />
-                </div>
+              } font-mono text-sm`}
+            />
+          </div>
               </div>
 
               {/* Mill Output Items */}
@@ -387,16 +387,16 @@ export default function MillOutputForm({
                       isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
                     }`}>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                        {/* RECD DATE */}
-                        <div>
+            {/* RECD DATE */}
+            <div>
                           <label className={`block text-sm font-medium mb-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
                           }`}>
                             RECD DATE <span className="text-red-500">*</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="date"
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
                               value={item.recdDate}
                               onChange={(e) => updateMillOutputItem(item.id, 'recdDate', e.target.value)}
                               className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
@@ -412,29 +412,29 @@ export default function MillOutputForm({
                             <CalendarIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
                               isDarkMode ? 'text-gray-400' : 'text-gray-500'
                             }`} />
-                          </div>
+              </div>
                           {errors[`recdDate_${item.id}`] && (
                             <p className={`text-sm mt-1 ${
                               isDarkMode ? 'text-red-400' : 'text-red-600'
                             }`}>
                               {errors[`recdDate_${item.id}`]}
-                            </p>
-                          )}
-                        </div>
+                </p>
+              )}
+            </div>
 
-                        {/* Mill Bill No */}
-                        <div>
+            {/* Mill Bill No */}
+            <div>
                           <label className={`block text-sm font-medium mb-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
                           }`}>
                             Mill Bill No <span className="text-red-500">*</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="text"
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
                               value={item.millBillNo}
                               onChange={(e) => updateMillOutputItem(item.id, 'millBillNo', e.target.value)}
-                              placeholder="Enter mill bill number"
+                  placeholder="Enter mill bill number"
                               className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                 errors[`millBillNo_${item.id}`]
                                   ? isDarkMode
@@ -448,30 +448,30 @@ export default function MillOutputForm({
                             <DocumentTextIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
                               isDarkMode ? 'text-gray-400' : 'text-gray-500'
                             }`} />
-                          </div>
+              </div>
                           {errors[`millBillNo_${item.id}`] && (
                             <p className={`text-sm mt-1 ${
                               isDarkMode ? 'text-red-400' : 'text-red-600'
                             }`}>
                               {errors[`millBillNo_${item.id}`]}
-                            </p>
-                          )}
-                        </div>
+                </p>
+              )}
+            </div>
 
-                        {/* Finished Mtr */}
-                        <div>
+            {/* Finished Mtr */}
+            <div>
                           <label className={`block text-sm font-medium mb-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
                           }`}>
                             Finished Mtr <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="number"
+              </label>
+              <input
+                type="number"
                             value={item.finishedMtr}
                             onChange={(e) => updateMillOutputItem(item.id, 'finishedMtr', e.target.value)}
-                            placeholder="Enter finished meters"
-                            step="0.01"
-                            min="0"
+                placeholder="Enter finished meters"
+                step="0.01"
+                min="0"
                             className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                               errors[`finishedMtr_${item.id}`]
                                 ? isDarkMode
@@ -487,24 +487,24 @@ export default function MillOutputForm({
                               isDarkMode ? 'text-red-400' : 'text-red-600'
                             }`}>
                               {errors[`finishedMtr_${item.id}`]}
-                            </p>
-                          )}
-                        </div>
+                </p>
+              )}
+            </div>
 
-                        {/* Mill Rate */}
-                        <div>
+            {/* Mill Rate */}
+            <div>
                           <label className={`block text-sm font-medium mb-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
                           }`}>
                             Mill Rate <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="number"
+              </label>
+              <input
+                type="number"
                             value={item.millRate}
                             onChange={(e) => updateMillOutputItem(item.id, 'millRate', e.target.value)}
-                            placeholder="Enter mill rate"
-                            step="0.01"
-                            min="0"
+                placeholder="Enter mill rate"
+                step="0.01"
+                min="0"
                             className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                               errors[`millRate_${item.id}`]
                                 ? isDarkMode
@@ -520,10 +520,10 @@ export default function MillOutputForm({
                               isDarkMode ? 'text-red-400' : 'text-red-600'
                             }`}>
                               {errors[`millRate_${item.id}`]}
-                            </p>
-                          )}
-                                                 </div>
-                       </div>
+                </p>
+              )}
+            </div>
+          </div>
 
                        {/* Additional Finished Meters & Rates */}
                        {item.additionalFinishedMtr.length > 0 && (
@@ -593,8 +593,8 @@ export default function MillOutputForm({
                                </div>
                              ))}
                            </div>
-                         </div>
-                       )}
+            </div>
+          )}
 
                        {/* Add More Finished Meters & Rates Button */}
                        <div className="mt-4">
@@ -664,20 +664,20 @@ export default function MillOutputForm({
             isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'
           }`}>
             <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={onClose}
+            <button
+              type="button"
+              onClick={onClose}
                 className={`px-8 py-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
-                  isDarkMode 
+                isDarkMode 
                     ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
                     : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
                 onClick={handleSubmit}
                 className={`px-10 py-3 rounded-lg text-white font-medium transition-all duration-200 hover:scale-105 ${
                   saving 
@@ -688,11 +688,11 @@ export default function MillOutputForm({
                 }`}
               >
                 {saving ? 'Saving...' : 'Add Mill Output'}
-              </button>
-            </div>
+            </button>
           </div>
-        </div>
+          </div>
       </div>
+    </div>
     </>
   );
 }

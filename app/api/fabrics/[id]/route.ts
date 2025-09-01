@@ -53,10 +53,11 @@ export async function PUT(
       danier,
       reed,
       pick,
-      greighRate
+      greighRate,
+      images
     } = await req.json();
     
-    // Validation
+    // Basic validation for required fields
     const errors: string[] = [];
     
     if (!qualityCode?.trim()) {
@@ -75,38 +76,6 @@ export async function PUT(
       errors.push("Weaver quality name is required");
     }
     
-    if (!greighWidth || greighWidth <= 0) {
-      errors.push("Greigh width must be a positive number");
-    }
-    
-    if (!finishWidth || finishWidth <= 0) {
-      errors.push("Finish width must be a positive number");
-    }
-    
-    if (!weight || weight <= 0) {
-      errors.push("Weight must be a positive number");
-    }
-    
-    if (!gsm || gsm <= 0) {
-      errors.push("GSM must be a positive number");
-    }
-    
-    if (!danier?.trim()) {
-      errors.push("Danier is required");
-    }
-    
-    if (!reed || reed <= 0) {
-      errors.push("Reed must be a positive number");
-    }
-    
-    if (!pick || pick <= 0) {
-      errors.push("Pick must be a positive number");
-    }
-    
-    if (!greighRate || greighRate <= 0) {
-      errors.push("Greigh rate must be a positive number");
-    }
-    
     if (errors.length > 0) {
       return new Response(JSON.stringify({ 
         success: false, 
@@ -114,20 +83,22 @@ export async function PUT(
       }), { status: 400 });
     }
     
-    // Check if quality code already exists (excluding current fabric)
+    // Check if this exact combination already exists (excluding current fabric)
     const existingFabric = await Fabric.findOne({ 
       qualityCode: qualityCode.trim(),
+      weaver: weaver.trim(),
+      weaverQualityName: weaverQualityName.trim(),
       _id: { $ne: id }
     });
     
     if (existingFabric) {
       return new Response(JSON.stringify({ 
         success: false, 
-        message: "Quality code already exists" 
+        message: "This exact fabric combination already exists" 
       }), { status: 400 });
     }
     
-    // Update fabric
+    // Update fabric with flexible validation
     const fabric = await Fabric.findByIdAndUpdate(
       id,
       {
@@ -135,14 +106,15 @@ export async function PUT(
         qualityName: qualityName.trim(),
         weaver: weaver.trim(),
         weaverQualityName: weaverQualityName.trim(),
-        greighWidth: parseFloat(greighWidth),
-        finishWidth: parseFloat(finishWidth),
-        weight: parseFloat(weight),
-        gsm: parseFloat(gsm),
-        danier: danier.trim(),
-        reed: parseFloat(reed),
-        pick: parseFloat(pick),
-        greighRate: parseFloat(greighRate)
+        greighWidth: greighWidth || 0,
+        finishWidth: finishWidth || 0,
+        weight: weight || 0,
+        gsm: gsm || 0,
+        danier: danier?.trim() || '',
+        reed: reed || 0,
+        pick: pick || 0,
+        greighRate: greighRate || 0,
+        images: images || []
       },
       { new: true, runValidators: true }
     );

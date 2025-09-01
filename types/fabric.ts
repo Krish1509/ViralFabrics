@@ -86,6 +86,17 @@ export interface FabricFilters {
   weaver: string;
   weaverQualityName: string;
   search: string;
+  minGsm: string;
+  maxGsm: string;
+  minWeight: string;
+  maxWeight: string;
+  minRate: string;
+  maxRate: string;
+  minWidth: string;
+  maxWidth: string;
+  hasImages: boolean;
+  sortBy: 'createdAt' | 'createdAt_asc' | 'qualityName' | 'weaver' | 'gsm' | 'weight' | 'greighRate';
+  sortOrder: 'asc' | 'desc';
 }
 
 // Validation errors interface

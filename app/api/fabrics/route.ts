@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean()
-      .maxTimeMS(10000); // 10 second timeout - increased from 3s
+      .maxTimeMS(3000); // 3 second timeout
     
     // Add cache headers
     const headers = {
@@ -97,28 +97,76 @@ export async function POST(req: NextRequest) {
         images
       } = fabricData;
       
-      // No validation required - all fields are optional and can be any value
+      // Validation for each fabric
+      const fabricErrors: string[] = [];
       
-      // Quality code validation - must be unique across all fabrics
-      let finalQualityCode = qualityCode?.trim() || '';
-      if (!finalQualityCode) {
-        // Generate unique code if empty
-        finalQualityCode = `FAB_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-      } else {
-        // Check if quality code exists in database
-        const existingFabric = await Fabric.findOne({ qualityCode: finalQualityCode });
-        if (existingFabric) {
-          errors.push(`Item ${i + 1}: Quality code "${finalQualityCode}" already exists. Please use a different code.`);
-          continue;
-        }
+      if (!qualityCode?.trim()) {
+        fabricErrors.push("Quality code is required");
       }
+      
+      if (!qualityName?.trim()) {
+        fabricErrors.push("Quality name is required");
+      }
+      
+      if (!weaver?.trim()) {
+        fabricErrors.push("Weaver is required");
+      }
+      
+      if (!weaverQualityName?.trim()) {
+        fabricErrors.push("Weaver quality name is required");
+      }
+      
+      // Only validate numeric fields if they have values
+      if (greighWidth && parseFloat(greighWidth) <= 0) {
+        fabricErrors.push("Greigh width must be a positive number");
+      }
+      
+      if (finishWidth && parseFloat(finishWidth) <= 0) {
+        fabricErrors.push("Finish width must be a positive number");
+      }
+      
+      if (weight && parseFloat(weight) <= 0) {
+        fabricErrors.push("Weight must be a positive number");
+      }
+      
+      if (gsm && parseFloat(gsm) <= 0) {
+        fabricErrors.push("GSM must be a positive number");
+      }
+      
+      if (reed && parseFloat(reed) <= 0) {
+        fabricErrors.push("Reed must be a positive number");
+      }
+      
+      if (pick && parseFloat(pick) <= 0) {
+        fabricErrors.push("Pick must be a positive number");
+      }
+      
+      if (greighRate && parseFloat(greighRate) <= 0) {
+        fabricErrors.push("Greigh rate must be a positive number");
+      }
+      
+      if (fabricErrors.length > 0) {
+        errors.push(`Item ${i + 1}: ${fabricErrors.join(", ")}`);
+        continue;
+      }
+      
+       // Check if this exact combination already exists
+       const existingFabric = await Fabric.findOne({ 
+         qualityCode: qualityCode.trim(),
+         weaver: weaver.trim(),
+         weaverQualityName: weaverQualityName.trim()
+       });
+       if (existingFabric) {
+         errors.push(`Item ${i + 1}: A fabric with quality code "${qualityCode.trim()}", weaver "${weaver.trim()}", and weaver quality "${weaverQualityName.trim()}" already exists`);
+         continue;
+       }
       
       // Create fabric
       const fabric = new Fabric({
-        qualityCode: finalQualityCode,
-        qualityName: qualityName?.trim() || '',
-        weaver: weaver?.trim() || '',
-        weaverQualityName: weaverQualityName?.trim() || '',
+        qualityCode: qualityCode.trim(),
+        qualityName: qualityName.trim(),
+        weaver: weaver.trim(),
+        weaverQualityName: weaverQualityName.trim(),
         greighWidth: greighWidth ? parseFloat(greighWidth) : 0,
         finishWidth: finishWidth ? parseFloat(finishWidth) : 0,
         weight: weight ? parseFloat(weight) : 0,
@@ -157,36 +205,64 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/fabrics - Delete multiple fabrics by quality code
+// DELETE /api/fabrics - Delete multiple fabrics by quality code and quality name OR by fabric IDs
 export async function DELETE(req: NextRequest) {
   try {
     await dbConnect();
     
     const { searchParams } = new URL(req.url);
     const qualityCode = searchParams.get('qualityCode');
+    const qualityName = searchParams.get('qualityName');
     
-    if (!qualityCode) {
+    // Check if we're deleting by fabric IDs (from request body)
+    const contentType = req.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        const body = await req.json();
+        const { fabricIds } = body;
+        
+        if (fabricIds && Array.isArray(fabricIds) && fabricIds.length > 0) {
+          // Delete by fabric IDs
+          const deleteResult = await Fabric.deleteMany({
+            _id: { $in: fabricIds }
+          });
+          
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: `Successfully deleted ${deleteResult.deletedCount} fabric(s)`,
+            deletedCount: deleteResult.deletedCount
+          }), { status: 200 });
+        }
+      } catch (parseError) {
+        console.error('Error parsing request body:', parseError);
+      }
+    }
+    
+    // Fallback to quality code and quality name deletion
+    if (!qualityCode || !qualityName) {
       return new Response(JSON.stringify({ 
         success: false, 
-        message: "Quality code is required for bulk deletion" 
+        message: "Quality code and quality name are required for bulk deletion, or fabric IDs must be provided in request body" 
       }), { status: 400 });
     }
     
-    // Find all fabrics with the specified quality code
+    // Find all fabrics with the specified quality code and quality name
     const fabricsToDelete = await Fabric.find({
-      qualityCode: qualityCode
+      qualityCode: qualityCode,
+      qualityName: qualityName
     });
     
     if (fabricsToDelete.length === 0) {
       return new Response(JSON.stringify({ 
         success: false, 
-        message: "No fabrics found with the specified quality code" 
+        message: "No fabrics found with the specified quality code and quality name" 
       }), { status: 404 });
     }
     
     // Delete all matching fabrics
     const deleteResult = await Fabric.deleteMany({
-      qualityCode: qualityCode
+      qualityCode: qualityCode,
+      qualityName: qualityName
     });
     
     return new Response(JSON.stringify({ 

@@ -8,6 +8,7 @@ import { Fabric } from '@/types/fabric';
 interface BulkDeleteConfirmationProps {
   fabrics: Fabric[];
   qualityCode: string;
+  qualityName: string;
   onConfirm: () => void;
   onCancel: () => void;
   isDeleting: boolean;
@@ -16,6 +17,7 @@ interface BulkDeleteConfirmationProps {
 export default function BulkDeleteConfirmation({
   fabrics,
   qualityCode,
+  qualityName,
   onConfirm,
   onCancel,
   isDeleting
@@ -79,11 +81,11 @@ export default function BulkDeleteConfirmation({
                   }`}>
                     Warning: Bulk Deletion
                   </h4>
-                                     <p className={`text-sm mt-1 ${
-                     isDarkMode ? 'text-red-200' : 'text-red-700'
-                   }`}>
-                     You are about to delete all {fabrics.length} fabric(s) with quality code "{qualityCode}". This action is permanent and cannot be undone.
-                   </p>
+                  <p className={`text-sm mt-1 ${
+                    isDarkMode ? 'text-red-200' : 'text-red-700'
+                  }`}>
+                    You are about to delete all {fabrics.length} fabric(s) with quality code "{qualityCode}" and quality name "{qualityName}". This action is permanent and cannot be undone.
+                  </p>
                 </div>
               </div>
             </div>
@@ -134,16 +136,24 @@ export default function BulkDeleteConfirmation({
             }`}>
               Quality Details:
             </h4>
-                         <div className="grid grid-cols-1 gap-4 text-sm">
-               <div>
-                 <span className={`font-medium ${
-                   isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                 }`}>Quality Code:</span>
-                 <span className={`ml-2 font-mono ${
-                   isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                 }`}>{qualityCode}</span>
-               </div>
-             </div>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className={`font-medium ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>Quality Code:</span>
+                <span className={`ml-2 font-mono ${
+                  isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                }`}>{qualityCode}</span>
+              </div>
+              <div>
+                <span className={`font-medium ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>Quality Name:</span>
+                <span className={`ml-2 ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>{qualityName}</span>
+              </div>
+            </div>
           </div>
         </div>
 

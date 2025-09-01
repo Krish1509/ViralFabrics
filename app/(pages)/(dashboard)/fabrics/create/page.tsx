@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   ArrowLeftIcon, 
   PlusIcon, 
@@ -18,7 +18,12 @@ import { FabricFormData } from '@/types/fabric';
 export default function CreateFabricPage() {
   const { isDarkMode } = useDarkMode();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Check if we're in edit mode
+  const editId = searchParams.get('edit');
+  const isEditMode = !!editId;
   
   const [formData, setFormData] = useState<FabricFormData>({
     items: [{
@@ -48,8 +53,149 @@ export default function CreateFabricPage() {
   const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
   const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [checkingQualityCode, setCheckingQualityCode] = useState(false);
+  const [validationMessage, setValidationMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Load fabric data for editing
+  const loadFabricForEdit = async () => {
+    if (!editId) return;
+    
+    try {
+      setLoading(true);
+      // First get the main fabric
+      const response = await fetch(`/api/fabrics/${editId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        const fabric = data.data;
+        
+        // Then get all fabrics with the same quality code
+        const allFabricsResponse = await fetch(`/api/fabrics?search=${encodeURIComponent(fabric.qualityCode)}`);
+        const allFabricsData = await allFabricsResponse.json();
+        
+        if (allFabricsData.success) {
+          // Filter to get exact quality code matches
+          const sameQualityFabrics = allFabricsData.data.filter((f: any) => 
+            f.qualityCode === fabric.qualityCode && f.qualityName === fabric.qualityName
+          );
+          
+          console.log('Loading fabrics for edit:', sameQualityFabrics.length, 'items');
+          
+          // Convert all fabrics to form items
+          const items = sameQualityFabrics.map((f: any) => ({
+            qualityCode: f.qualityCode || '',
+            qualityName: f.qualityName || '',
+            weaver: f.weaver || '',
+            weaverQualityName: f.weaverQualityName || '',
+            greighWidth: f.greighWidth?.toString() || '',
+            finishWidth: f.finishWidth?.toString() || '',
+            weight: f.weight?.toString() || '',
+            gsm: f.gsm?.toString() || '',
+            danier: f.danier || '',
+            reed: f.reed?.toString() || '',
+            pick: f.pick?.toString() || '',
+            greighRate: f.greighRate?.toString() || '',
+            images: f.images || []
+          }));
+          
+          setFormData({ items });
+        } else {
+          // Fallback to single item if search fails
+          setFormData({
+            items: [{
+              qualityCode: fabric.qualityCode || '',
+              qualityName: fabric.qualityName || '',
+              weaver: fabric.weaver || '',
+              weaverQualityName: fabric.weaverQualityName || '',
+              greighWidth: fabric.greighWidth?.toString() || '',
+              finishWidth: fabric.finishWidth?.toString() || '',
+              weight: fabric.weight?.toString() || '',
+              gsm: fabric.gsm?.toString() || '',
+              danier: fabric.danier || '',
+              reed: fabric.reed?.toString() || '',
+              pick: fabric.pick?.toString() || '',
+              greighRate: fabric.greighRate?.toString() || '',
+              images: fabric.images || []
+            }]
+          });
+        }
+      } else {
+        setMessage({ type: 'error', text: 'Failed to load fabric data' });
+      }
+    } catch (error) {
+      console.error('Error loading fabric:', error);
+      setMessage({ type: 'error', text: 'Error loading fabric data' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load fabric data for editing
+  useEffect(() => {
+    if (isEditMode && editId) {
+      loadFabricForEdit();
+    }
+  }, [isEditMode, editId]);
+
+  // Auto-sync shared fields when items change
+  useEffect(() => {
+    if (formData.items.length > 1) {
+      syncSharedFields();
+    }
+  }, [formData.items.length]);
+
+  // Function to sync shared fields across all items
+  const syncSharedFields = () => {
+    setFormData(prev => {
+      if (prev.items.length === 0) return prev;
+      
+      const sharedQualityCode = prev.items[0]?.qualityCode || '';
+      const sharedQualityName = prev.items[0]?.qualityName || '';
+      const sharedImages = prev.items[0]?.images || [];
+      
+      return {
+        ...prev,
+        items: prev.items.map(item => ({
+          ...item,
+          qualityCode: sharedQualityCode,
+          qualityName: sharedQualityName,
+          images: sharedImages // Sync images across all items
+        }))
+      };
+    });
+  };
+
+  // Check if quality code already exists when creating new fabric
+  const checkQualityCodeExists = async (qualityCode: string) => {
+    if (!qualityCode.trim() || isEditMode) return; // Skip if editing or empty
+    
+    setCheckingQualityCode(true);
+    try {
+      const response = await fetch(`/api/fabrics?search=${encodeURIComponent(qualityCode.trim())}&limit=1`);
+      const data = await response.json();
+      
+      if (data.success && data.data.length > 0) {
+        // Check if any fabric has exact quality code match
+        const exactMatch = data.data.find((fabric: any) => 
+          fabric.qualityCode.toLowerCase() === qualityCode.trim().toLowerCase()
+        );
+        
+        if (exactMatch) {
+          setErrors(prev => ({ 
+            ...prev, 
+            qualityCode: `Quality code "${qualityCode}" already exists. You can add items to existing quality codes.` 
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error checking quality code:', error);
+    } finally {
+      setCheckingQualityCode(false);
+    }
+  };
 
   const handleSharedFieldChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -59,6 +205,28 @@ export default function CreateFabricPage() {
         [field]: value
       }))
     }));
+    
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+    
+    // Check quality code uniqueness after user stops typing
+    if (field === 'qualityCode' && value.trim() && !isEditMode) {
+      // Debounce the API call
+      setTimeout(() => {
+        checkQualityCodeExists(value);
+      }, 1000);
+    }
+    
+    // Also clear any item-specific errors for this field
+    const newErrors = { ...errors };
+    Object.keys(newErrors).forEach(key => {
+      if (key.startsWith('items.') && key.includes(`.${field}`)) {
+        delete newErrors[key];
+      }
+    });
+    setErrors(newErrors);
   };
 
   const handleItemChange = (index: number, field: string, value: string) => {
@@ -67,27 +235,59 @@ export default function CreateFabricPage() {
       updatedItems[index] = { ...updatedItems[index], [field]: value };
       return { ...prev, items: updatedItems };
     });
+    
+    // Clear error when user starts typing
+    const errorKey = `items.${index}.${field}`;
+    if (errors[errorKey]) {
+      setErrors(prev => ({ ...prev, [errorKey]: '' }));
+    }
+  };
+
+  // Show validation message with auto-hide
+  const showValidationMessage = (type: 'success' | 'error' | 'info', text: string, duration = 4000) => {
+    setValidationMessage({ type, text });
+    setTimeout(() => {
+      setValidationMessage(null);
+    }, duration);
   };
 
   const addItem = () => {
-    setFormData(prev => ({
-      ...prev,
-      items: [...prev.items, {
-        qualityCode: '',
-        qualityName: '',
-        weaver: '',
-        weaverQualityName: '',
-        greighWidth: '',
-        finishWidth: '',
-        weight: '',
-        gsm: '',
-        danier: '',
-        reed: '',
-        pick: '',
-        greighRate: '',
-        images: []
-      }]
-    }));
+    setFormData(prev => {
+      // Get the shared values from the first item
+      const sharedQualityCode = prev.items[0]?.qualityCode || '';
+      const sharedQualityName = prev.items[0]?.qualityName || '';
+      const sharedImages = prev.items[0]?.images || []; // Share images across all items
+      
+      return {
+        ...prev,
+        items: [...prev.items, {
+          qualityCode: sharedQualityCode,
+          qualityName: sharedQualityName,
+          weaver: '',
+          weaverQualityName: '',
+          greighWidth: '',
+          finishWidth: '',
+          weight: '',
+          gsm: '',
+          danier: '',
+          reed: '',
+          pick: '',
+          greighRate: '',
+          images: sharedImages // New items get same images
+        }]
+      };
+    });
+    
+    // Clear any existing errors when adding new item
+    setErrors({});
+
+    // Scroll down smoothly to show the new item after it's added
+    setTimeout(() => {
+      window.scrollBy({
+        top: 400, // Scroll down 400px to show new item
+        behavior: 'smooth'
+      });
+    }, 100); // Small delay to ensure the new item is rendered
   };
 
   const removeItem = (index: number) => {
@@ -116,40 +316,60 @@ export default function CreateFabricPage() {
     setDragActive(false);
     
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFiles(e.dataTransfer.files);
+      handleFiles(Array.from(e.dataTransfer.files));
     }
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      handleFiles(e.target.files);
+      handleFiles(Array.from(e.target.files));
     }
   };
 
-  const handleFiles = async (files: FileList) => {
+  const handleFiles = async (files: FileList | File[]) => {
+    console.log('handleFiles called with:', files.length, 'files');
     setUploadingImages(true);
     try {
       const uploadedUrls: string[] = [];
       
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        console.log('Processing file:', file.name, 'Type:', file.type, 'Size:', file.size);
+        
         if (file.type.startsWith('image/')) {
           // Convert to base64 for demo (in production, upload to cloud storage)
           const base64 = await fileToBase64(file);
+          console.log('Base64 generated, length:', base64.length);
           uploadedUrls.push(base64);
+        } else {
+          console.warn('Skipping non-image file:', file.name, file.type);
         }
       }
       
-      setFormData(prev => ({
-        ...prev,
-        items: prev.items.map(item => ({
-          ...item,
-          images: [...(item.images || []), ...uploadedUrls]
-        }))
-      }));
+      console.log('Total images processed:', uploadedUrls.length);
+      
+      // Add images to ALL items (shared across all items of same quality)
+      setFormData(prev => {
+        const existingImages = prev.items[0]?.images || [];
+        const newImages = [...existingImages, ...uploadedUrls];
+        
+        const newFormData = {
+          ...prev,
+          items: prev.items.map(item => ({
+            ...item,
+            images: newImages // All items get the same images
+          }))
+        };
+        console.log('Updated images for ALL items:', newImages.length, 'images');
+        return newFormData;
+      });
+      
+      if (uploadedUrls.length > 0) {
+        showValidationMessage('success', `${uploadedUrls.length} image(s) uploaded successfully!`);
+      }
     } catch (error) {
       console.error('Error uploading images:', error);
-      setMessage({ type: 'error', text: 'Failed to upload images' });
+      showValidationMessage('error', 'Failed to upload images');
     } finally {
       setUploadingImages(false);
     }
@@ -303,7 +523,7 @@ export default function CreateFabricPage() {
         canvas.toBlob((blob) => {
           if (blob) {
             const file = new File([blob], `camera-photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
-            handleFiles(new FileList([file]));
+            handleFiles([file]);
             stopCamera();
           }
         }, 'image/jpeg', 0.8);
@@ -311,8 +531,43 @@ export default function CreateFabricPage() {
     }
   };
 
+  // Validation function
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {};
+    
+    // Validate shared fields (Quality Code and Quality Name)
+    const qualityCode = formData.items[0]?.qualityCode?.trim();
+    const qualityName = formData.items[0]?.qualityName?.trim();
+    
+    if (!qualityCode) {
+      newErrors.qualityCode = 'Quality Code is required';
+    }
+    
+    if (!qualityName) {
+      newErrors.qualityName = 'Quality Name is required';
+    }
+    
+    // Validate each item's weaver field
+    formData.items.forEach((item, index) => {
+      if (!item.weaver?.trim()) {
+        newErrors[`items.${index}.weaver`] = 'Weaver is required';
+      }
+    });
+    
+    return newErrors;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      showValidationMessage('error', 'Please fill all required fields');
+      return;
+    }
+    
     setLoading(true);
     
     try {
@@ -333,37 +588,120 @@ export default function CreateFabricPage() {
       }));
 
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/fabrics', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(apiData)
-      });
-
-      const data = await response.json();
       
-      if (data.success) {
-        setMessage({ type: 'success', text: 'Fabric created successfully! Redirecting...' });
-        setTimeout(() => {
-          router.push('/fabrics?refresh=' + Date.now());
-        }, 2000);
+      if (isEditMode && editId) {
+        // For edit mode, first delete all existing items with same quality code, then create new ones
+        try {
+          const qualityCode = formData.items[0]?.qualityCode;
+          const qualityName = formData.items[0]?.qualityName;
+          
+          console.log('Deleting existing fabrics with quality code:', qualityCode);
+          
+          // Delete all existing fabrics with same quality code and name
+          const deleteResponse = await fetch(`/api/fabrics?qualityCode=${encodeURIComponent(qualityCode)}&qualityName=${encodeURIComponent(qualityName)}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          const deleteData = await deleteResponse.json();
+          
+          if (!deleteData.success) {
+            console.warn('Failed to delete existing items:', deleteData.message);
+            // Continue anyway - might be a new quality code
+          }
+
+          // Create all new items
+          const createResponse = await fetch('/api/fabrics', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(apiData)
+          });
+
+          const createData = await createResponse.json();
+          
+          if (createData.success) {
+            showValidationMessage('success', `Fabric updated successfully with ${formData.items.length} item(s)!`);
+            setTimeout(() => {
+              router.push('/fabrics');
+            }, 1000);
+          } else {
+            showValidationMessage('error', createData.message || 'Update failed');
+          }
+        } catch (error) {
+          console.error('Error in edit mode:', error);
+                    showValidationMessage('error', 'An error occurred while updating fabric');
+        }
       } else {
-        setMessage({ type: 'error', text: data.message || 'Operation failed' });
+        // Create new fabric(s) - each item becomes a separate record but with same quality code
+        const response = await fetch('/api/fabrics', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(apiData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          showValidationMessage('success', `Fabric created successfully with ${formData.items.length} item(s)!`);
+          setTimeout(() => {
+            router.push('/fabrics');
+          }, 1000);
+        } else {
+          showValidationMessage('error', data.message || 'Operation failed');
+        }
       }
     } catch (error) {
       console.error('Form submission error:', error);
-      setMessage({ type: 'error', text: 'An error occurred' });
+      showValidationMessage('error', 'An error occurred');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className="min-h-screen text-white" style={{ backgroundColor: '#1D293D' }}>
+      {/* Floating Validation Message */}
+      {validationMessage && (
+        <div className={`fixed top-4 right-4 z-50 min-w-80 max-w-md p-4 rounded-lg shadow-2xl border-l-4 backdrop-blur-sm transform transition-all duration-300 ${
+          validationMessage.type === 'success'
+            ? 'bg-green-900/90 border-green-500 text-green-100'
+            : validationMessage.type === 'error'
+            ? 'bg-red-900/90 border-red-500 text-red-100'
+            : 'bg-blue-900/90 border-blue-500 text-blue-100'
+        }`}>
+          <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0">
+              {validationMessage.type === 'success' ? (
+                <CheckIcon className="h-6 w-6 text-green-400" />
+              ) : validationMessage.type === 'error' ? (
+                <XMarkIcon className="h-6 w-6 text-red-400" />
+              ) : (
+                <PhotoIcon className="h-6 w-6 text-blue-400" />
+              )}
+            </div>
+            <div className="flex-1">
+              <p className="font-medium">{validationMessage.text}</p>
+            </div>
+            <button
+              onClick={() => setValidationMessage(null)}
+              className="flex-shrink-0 text-gray-400 hover:text-white transition-colors"
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <div className={`border-b ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
+      <div className="border-b border-gray-600" style={{ backgroundColor: '#253649' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
@@ -376,9 +714,11 @@ export default function CreateFabricPage() {
                 <ArrowLeftIcon className="h-6 w-6" />
               </button>
               <div>
-                <h1 className="text-2xl font-bold">Create New Fabric</h1>
+                <h1 className="text-2xl font-bold">
+                  {isEditMode ? 'Edit Fabric' : 'Create New Fabric'}
+                </h1>
                 <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Add fabric items to your inventory
+                  {isEditMode ? 'Update fabric information' : 'Add fabric items to your inventory'}
                 </p>
               </div>
             </div>
@@ -396,31 +736,13 @@ export default function CreateFabricPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Message */}
-        {message && (
-          <div className={`p-4 rounded-lg border mb-6 ${
-            message.type === 'success'
-              ? isDarkMode
-                ? 'border-green-500/40 bg-green-900/30 text-green-300'
-                : 'border-green-200 bg-green-50 text-green-800'
-              : isDarkMode
-                ? 'border-red-500/40 bg-red-900/30 text-red-300'
-                : 'border-red-200 bg-red-50 text-red-800'
-          }`}>
-            <div className="flex items-center space-x-2">
-              {message.type === 'success' ? (
-                <CheckIcon className="h-5 w-5" />
-              ) : (
-                <span>⚠️</span>
-              )}
-              <span>{message.text}</span>
-            </div>
-          </div>
-        )}
+      <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-8">
+
 
         {/* Form */}
         <form onSubmit={handleSubmit}>
+           
+           
           {/* Shared Fabric Information */}
           <div className={`p-6 rounded-xl border mb-8 ${
             isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
@@ -430,25 +752,40 @@ export default function CreateFabricPage() {
               {/* Quality Code */}
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Quality Code
+                   Quality Code <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={formData.items[0]?.qualityCode || ''}
-                  onChange={(e) => handleSharedFieldChange('qualityCode', e.target.value)}
-                  placeholder="e.g., 1001-WL"
-                  className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    isDarkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                  }`}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.items[0]?.qualityCode || ''}
+                    onChange={(e) => handleSharedFieldChange('qualityCode', e.target.value)}
+                    placeholder="e.g., 1001-WL"
+                    className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                     } ${errors.qualityCode ? 'border-red-500' : ''}`}
+                  />
+                  {checkingQualityCode && (
+                    <div className="absolute right-3 top-3">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                    </div>
+                  )}
+                </div>
+                 {errors.qualityCode && (
+                   <p className="text-red-500 text-sm mt-1">{errors.qualityCode}</p>
+                 )}
+                 {!isEditMode && (
+                   <p className="text-xs text-gray-500 mt-1">
+                     Quality code will be checked for uniqueness. Multiple items can share the same quality code.
+                   </p>
+                 )}
               </div>
 
               {/* Quality Name */}
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Quality Name
+                   Quality Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -459,14 +796,24 @@ export default function CreateFabricPage() {
                     isDarkMode 
                       ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
                       : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                  }`}
-                />
-              </div>
+                   } ${errors.qualityName ? 'border-red-500' : ''}`}
+                 />
+                 {errors.qualityName && (
+                   <p className="text-red-500 text-sm mt-1">{errors.qualityName}</p>
+                 )}
+               </div>
             </div>
 
             {/* Quality Images Section */}
             <div className="mt-8">
-              <label className="block text-sm font-medium mb-4">Quality Images</label>
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-sm font-medium">Quality Images</label>
+                <span className={`text-xs px-2 py-1 rounded ${
+                  isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {formData.items[0]?.images?.length || 0} image(s)
+                </span>
+              </div>
               
               {/* Image Upload Area */}
               <div className="flex items-center space-x-4 mb-4">
@@ -527,16 +874,27 @@ export default function CreateFabricPage() {
                           alt={`Quality image ${imageIndex + 1}`}
                           className="w-full h-full object-cover"
                           onError={(e) => {
+                            console.error('Image failed to load:', image);
                             const target = e.target as HTMLImageElement;
                             target.style.display = 'none';
-                          }}
-                          onLoad={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            if (target) {
-                              target.style.opacity = '1';
+                            // Show fallback
+                            const parent = target.parentElement;
+                            if (parent) {
+                              parent.innerHTML = `
+                                <div class="w-full h-full flex items-center justify-center ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}">
+                                  <div class="text-center">
+                                    <svg class="h-8 w-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <p class="text-xs">Image Error</p>
+                                  </div>
+                                </div>
+                              `;
                             }
                           }}
-                          style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
+                          onLoad={(e) => {
+                            console.log('Image loaded successfully:', image);
+                          }}
                         />
                         
                         {/* Preview Button - Shows on Hover */}
@@ -549,7 +907,7 @@ export default function CreateFabricPage() {
                           >
                             <EyeIcon className="h-5 w-5" />
                           </button>
-                        </div>
+              </div>
                       </div>
                       
                       {/* Remove Button */}
@@ -569,7 +927,7 @@ export default function CreateFabricPage() {
           </div>
 
           {/* Fabric Items */}
-          <div className="space-y-6">
+          <div className="space-y-8">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-semibold">Fabric Items</h3>
             </div>
@@ -577,9 +935,8 @@ export default function CreateFabricPage() {
             {formData.items.map((item, index) => (
               <div 
                 key={index}
-                className={`p-6 rounded-xl border ${
-                  isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
-                }`}
+                className="p-8 rounded-2xl border border-gray-600 shadow-lg"
+                style={{ backgroundColor: '#253649' }}
               >
                 <div className="flex items-center justify-between mb-6">
                   <h4 className="text-lg font-semibold">Item {index + 1}</h4>
@@ -598,23 +955,22 @@ export default function CreateFabricPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                   {/* Weaver */}
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      Weaver
+                       Weaver <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={item.weaver}
                       onChange={(e) => handleItemChange(index, 'weaver', e.target.value)}
                       placeholder="Enter weaver name"
-                      className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                        isDarkMode 
-                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                      }`}
+                      className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400 ${errors[`items.${index}.weaver`] ? 'border-red-500 focus:ring-red-400' : ''}`}
                     />
+                     {errors[`items.${index}.weaver`] && (
+                       <p className="text-red-500 text-sm mt-1">{errors[`items.${index}.weaver`]}</p>
+                     )}
                   </div>
 
                   {/* Weaver Quality Name */}
@@ -641,8 +997,7 @@ export default function CreateFabricPage() {
                       Greigh Width (inches)
                     </label>
                     <input
-                      type="number"
-                      step="0.1"
+                      type="text"
                       value={item.greighWidth}
                       onChange={(e) => handleItemChange(index, 'greighWidth', e.target.value)}
                       placeholder="e.g., 58.5"
@@ -660,8 +1015,7 @@ export default function CreateFabricPage() {
                       Finish Width (inches)
                     </label>
                     <input
-                      type="number"
-                      step="0.1"
+                      type="text"
                       value={item.finishWidth}
                       onChange={(e) => handleItemChange(index, 'finishWidth', e.target.value)}
                       placeholder="e.g., 56.0"
@@ -679,8 +1033,7 @@ export default function CreateFabricPage() {
                       Weight (KG)
                     </label>
                     <input
-                      type="number"
-                      step="0.1"
+                      type="text"
                       value={item.weight}
                       onChange={(e) => handleItemChange(index, 'weight', e.target.value)}
                       placeholder="e.g., 8.0"
@@ -698,8 +1051,7 @@ export default function CreateFabricPage() {
                       GSM
                     </label>
                     <input
-                      type="number"
-                      step="0.1"
+                      type="text"
                       value={item.gsm}
                       onChange={(e) => handleItemChange(index, 'gsm', e.target.value)}
                       placeholder="e.g., 72.5"
@@ -735,7 +1087,7 @@ export default function CreateFabricPage() {
                       Reed
                     </label>
                     <input
-                      type="number"
+                      type="text"
                       value={item.reed}
                       onChange={(e) => handleItemChange(index, 'reed', e.target.value)}
                       placeholder="e.g., 120"
@@ -753,7 +1105,7 @@ export default function CreateFabricPage() {
                       Pick
                     </label>
                     <input
-                      type="number"
+                      type="text"
                       value={item.pick}
                       onChange={(e) => handleItemChange(index, 'pick', e.target.value)}
                       placeholder="e.g., 80"
@@ -771,8 +1123,7 @@ export default function CreateFabricPage() {
                       Greigh Rate (₹)
                     </label>
                     <input
-                      type="number"
-                      step="0.01"
+                      type="text"
                       value={item.greighRate}
                       onChange={(e) => handleItemChange(index, 'greighRate', e.target.value)}
                       placeholder="e.g., 150.00"
@@ -788,19 +1139,15 @@ export default function CreateFabricPage() {
             ))}
           </div>
 
-          {/* Add Item Button at Bottom */}
-          <div className="mt-8 flex justify-center">
+          {/* Add Item Button - Full Width */}
+          <div className="mt-8">
             <button
               type="button"
               onClick={addItem}
-              className={`px-6 py-3 rounded-lg border-2 border-dashed transition-colors flex items-center space-x-2 ${
-                isDarkMode 
-                  ? 'border-gray-600 hover:border-blue-500 text-gray-300 hover:text-blue-400' 
-                  : 'border-gray-300 hover:border-blue-400 text-gray-600 hover:text-blue-600'
-              }`}
+              className="w-full px-6 py-4 rounded-xl border-2 border-dashed border-gray-500 hover:border-blue-400 text-gray-300 hover:text-blue-300 transition-all duration-300 flex items-center justify-center space-x-3 hover:bg-blue-500/10 group"
             >
-              <PlusIcon className="h-5 w-5" />
-              <span>Add Another Item</span>
+              <PlusIcon className="h-6 w-6 group-hover:scale-110 transition-transform" />
+              <span className="text-lg font-medium">Add Another Item</span>
             </button>
           </div>
 
@@ -838,7 +1185,7 @@ export default function CreateFabricPage() {
               ) : (
                 <>
                   <CheckIcon className="h-5 w-5" />
-                  <span>Create Fabric{formData.items.length > 1 ? 's' : ''}</span>
+                  <span>{isEditMode ? 'Update Fabric' : `Create Fabric${formData.items.length > 1 ? 's' : ''}`}</span>
                 </>
               )}
             </button>

@@ -78,6 +78,7 @@ export default function RootLayout({
         
         {/* Optimized styles for better performance */}
         <style
+          type="text/css"
           dangerouslySetInnerHTML={{
             __html: `
               /* Prevent layout shift during theme transition */
