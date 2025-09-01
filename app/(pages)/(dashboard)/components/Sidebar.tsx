@@ -37,6 +37,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
   const pathname = usePathname();
   const { isDarkMode, mounted } = useDarkMode();
   const [screenSize, setScreenSize] = useState<number>(0);
+  const [hasInitialized, setHasInitialized] = useState<boolean>(false);
 
   // Debug current pathname
   useEffect(() => {
@@ -104,6 +105,24 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
     };
   }, []);
 
+  // Set initial collapse state based on screen size (only once)
+  useEffect(() => {
+    if (screenSize > 0 && !hasInitialized) {
+      const isLargeScreen = screenSize >= 1600;
+      
+      // Set default states based on screen size:
+      // Large screens (1600px+): should be expanded (full text + icon)
+      // Medium and small screens (< 1600px): should be collapsed (icon-only)
+      if (isLargeScreen && isCollapsed) {
+        onToggleCollapse(); // Expand to full text + icon
+      } else if (!isLargeScreen && !isCollapsed) {
+        onToggleCollapse(); // Collapse to icon-only
+      }
+      
+      setHasInitialized(true); // Mark as initialized to prevent future auto-adjustments
+    }
+  }, [screenSize, isCollapsed, onToggleCollapse, hasInitialized]);
+
   // Memoize active state calculation
   const isActive = useCallback((href: string) => {
     const result = href === '/dashboard' ? pathname === href : pathname.startsWith(href);
@@ -113,8 +132,8 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
 
   // Memoize screen size calculations
   const screenConfig = useMemo(() => {
-    const isLargeScreen = screenSize >= 1400;
-    const isMediumScreen = screenSize >= 800 && screenSize < 1400;
+    const isLargeScreen = screenSize >= 1600;
+    const isMediumScreen = screenSize >= 800 && screenSize < 1600;
     const isSmallScreen = screenSize < 800;
 
     return {
@@ -142,10 +161,10 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
   const sidebarWidth = useMemo(() => {
     if (screenConfig.isSmallScreen) return 'w-80'; // Mobile overlay
     if (screenConfig.isMediumScreen) {
-      return isCollapsed ? 'w-20' : 'w-64'; // Icons-only by default, toggle to full
+      return isCollapsed ? 'w-20' : 'w-64'; // Icons-only by default, allow toggle for medium screens (800px - 1599px)
     }
     if (screenConfig.isLargeScreen) {
-      return isCollapsed ? 'w-20' : 'w-64'; // Full by default, toggle to icons-only
+      return isCollapsed ? 'w-20' : 'w-64'; // Full by default, toggle to icons-only for large screens (1600px+)
     }
     return 'w-64';
   }, [screenConfig, isCollapsed]);
@@ -153,7 +172,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
   // Memoize text visibility
   const shouldShowText = useMemo(() => {
     if (screenConfig.isSmallScreen) return true; // Always show text in mobile overlay
-    if (screenConfig.isMediumScreen) return !isCollapsed; // Show text when not collapsed (toggle)
+    if (screenConfig.isMediumScreen) return !isCollapsed; // Allow toggle for medium screens (800px - 1599px)
     if (screenConfig.isLargeScreen) return !isCollapsed; // Show text when not collapsed (toggle)
     return true;
   }, [screenConfig, isCollapsed]);

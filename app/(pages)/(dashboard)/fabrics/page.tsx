@@ -963,17 +963,24 @@ export default function FabricsPage() {
           </div>
         ) : (
         <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4-8-4m16 0v10l-8 4-8-4V7" />
+                </svg>
+            </div>
             <div>
-            <h1 className={`text-3xl font-bold ${
-              isDarkMode ? 'text-white' : 'text-gray-900'
-            }`}>
+                <h1 className={`text-4xl font-bold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>
                 Fabric Management
               </h1>
-            <p className={`text-lg mt-1 ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                <p className={`text-xl mt-2 ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
               }`}>
                 Manage fabric inventory and specifications with advanced filtering
               </p>
+            </div>
           </div>
                      <div className="flex items-center space-x-3">
              <button
@@ -1296,7 +1303,7 @@ export default function FabricsPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className={`${
-                  isDarkMode ? 'bg-gray-900 border-b border-gray-700' : 'bg-gray-50 border-b border-gray-200'
+                  isDarkMode ? 'bg-gray-900 border-b border-gray-600' : 'bg-gray-50 border-b border-gray-300'
                 }`}>
                   <tr>
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
@@ -1796,51 +1803,51 @@ export default function FabricsPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className={`${
-                  isDarkMode ? 'bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700' : 'bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200'
+                  isDarkMode ? 'bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-600' : 'bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-300'
                 }`}>
                   <tr>
-                    <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
-                      isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
                       Quality Information
                     </th>
-                    <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
-                      isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
                       Images
                     </th>
-                    <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
-                      isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
                       Items
                     </th>
-                    <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
-                      isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
                       Weaver Information
                     </th>
-                    <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
-                      isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
                       Dimensions
                     </th>
-                    <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
-                      isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
                       Specifications
                     </th>
-                    <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
-                      isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
                       Technical Details
                     </th>
-                    <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
-                      isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
                       Pricing
                     </th>
-                    <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
-                      isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
                       Actions
                     </th>
@@ -1878,44 +1885,50 @@ export default function FabricsPage() {
                         <tr key={qualityCode} className={`hover:${
                           isDarkMode ? 'bg-gray-700/30' : 'bg-gray-50'
                         } transition-all duration-200 border-b ${
-                          isDarkMode ? 'border-gray-700' : 'border-gray-100'
+                          isDarkMode ? 'border-gray-600' : 'border-gray-300'
                         }`}>
                           {/* Quality Information */}
-                          <td className={`px-4 py-4 ${
+                          <td className={`px-6 py-5 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
-                            <div className="space-y-1">
-                              <div className="text-sm">
-                                <span className={`font-medium ${
+                            <div className="space-y-3">
+                              <div className="text-base">
+                                <span className={`font-semibold ${
                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
                                 }`}>Quality Code:</span>
-                                <span className={`ml-1 font-bold ${
+                                <span className={`ml-2 font-bold text-lg ${
                                   isDarkMode ? 'text-blue-400' : 'text-blue-600'
                                 }`}>
                                   {mainFabric.qualityCode}
                                 </span>
                               </div>
-                              <div className="text-sm">
-                                <span className={`font-medium ${
+                              <div className="text-base">
+                                <span className={`font-semibold ${
                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
                                 }`}>Quality Name:</span>
-                                <span className="ml-1">
+                                <span className={`ml-2 font-bold ${
+                                  isDarkMode ? 'text-purple-300' : 'text-purple-600'
+                                }`}>
                                   {mainFabric.qualityName}
                                 </span>
                               </div>
+                              <div className="pt-3 border-t border-gray-400/15">
                               <div className="text-sm">
                                 <span className={`font-medium ${
-                                  isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                 }`}>Created:</span>
-                                <span className="ml-1">
+                                  <span className={`ml-2 font-semibold ${
+                                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                  }`}>
                                   {new Date(mainFabric.createdAt).toLocaleString()}
                                 </span>
+                                </div>
                               </div>
                               <div className="text-sm">
                                 <span className={`font-medium ${
-                                  isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                 }`}>Total Items:</span>
-                                <span className={`ml-1 font-bold ${
+                                <span className={`ml-2 font-bold text-lg ${
                                   isDarkMode ? 'text-green-400' : 'text-green-600'
                                 }`}>
                                   {fabrics.length}
@@ -1925,7 +1938,7 @@ export default function FabricsPage() {
                           </td>
                           
                           {/* Images - Show only once per quality group */}
-                          <td className="px-4 py-4">
+                          <td className="px-4 py-3">
                             {mainFabric.images && mainFabric.images.length > 0 ? (
                               <div className="flex items-center space-x-2">
                                    <div className="relative">
@@ -1980,190 +1993,147 @@ export default function FabricsPage() {
                           </td>
                           
                           {/* Items Column - Show Item 1, Item 2 labels */}
-                          <td className={`px-4 py-4 ${
+                          <td className={`px-4 py-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
-                               <div>
+                                                          <div className="space-y-1">
                               {fabrics.map((fabric, index) => (
-                                   <div key={fabric._id} className="py-3">
-                                  <div className={`text-sm font-bold ${
-                                    isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                                  <div key={fabric._id} className={`text-sm min-h-[4rem] flex items-center ${
+                                    index > 0 ? `mt-3 pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
+                                  }`}>
+                                                                  <div className={`text-base font-bold ${
+                                   isDarkMode ? 'text-blue-300' : 'text-blue-600'
                                   }`}>
                                     Item {index + 1}
                                   </div>
-                                     {index < fabrics.length - 1 && (
-                                       <div className={`mt-3 border-b ${
-                                         isDarkMode ? 'border-gray-600/30' : 'border-gray-200/50'
-                                       }`}></div>
-                                     )}
                                 </div>
                               ))}
                             </div>
                           </td>
                           
                           {/* Weaver Information - Show all weavers */}
-                          <td className={`px-4 py-4 ${
+                          <td className={`px-4 py-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
-                               <div>
+                              <div className="space-y-1">
                               {fabrics.map((fabric, index) => (
-                                   <div key={fabric._id} className="py-3">
-                                     <div className="text-sm space-y-1">
-                                    <div>
-                                      <span className="font-medium">Weaver:</span>
-                                      <span className="ml-1">{fabric.weaver}</span>
+                                                                    <div key={fabric._id} className={`text-base ${
+                                    index > 0 ? `mt-3 pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
+                                  }`}>
+                                   <div className={`mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     Weaver: <span className={`font-bold ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>{fabric.weaver}</span>
                                     </div>
-                                    <div>
-                                      <span className="font-medium">Quality:</span>
-                                      <span className="ml-1">{fabric.weaverQualityName}</span>
-                                    </div>
+                                   <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     Quality: <span className={`font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-600'}`}>{fabric.weaverQualityName || '-'}</span>
                                   </div>
-                                     {index < fabrics.length - 1 && (
-                                       <div className={`mt-3 border-b ${
-                                         isDarkMode ? 'border-gray-600/30' : 'border-gray-200/50'
-                                       }`}></div>
-                                     )}
                                 </div>
                               ))}
                             </div>
                           </td>
                           
                           {/* Dimensions - Show all dimensions */}
-                          <td className={`px-4 py-4 ${
+                          <td className={`px-4 py-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
-                               <div>
+                                                            <div className="space-y-1">
                               {fabrics.map((fabric, index) => (
-                                   <div key={fabric._id} className="py-3">
-                                     <div className="text-sm space-y-1">
-                                    <div>
-                                      <span className="font-medium">Greigh:</span>
-                                      <span className="ml-1">
-                                        {fabric.greighWidth > 0 ? `${fabric.greighWidth}"` : '-'}
-                                      </span>
+                                  <div key={fabric._id} className={`text-base ${
+                                    index > 0 ? `mt-3 pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
+                                  }`}>
+                                   <div className={`mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     Greigh: <span className={`font-bold ${isDarkMode ? 'text-green-300' : 'text-green-600'}`}>{fabric.greighWidth > 0 ? `${fabric.greighWidth}"` : '-'}</span>
                                     </div>
-                                    <div>
-                                      <span className="font-medium">Finish:</span>
-                                      <span className="ml-1">
-                                        {fabric.finishWidth > 0 ? `${fabric.finishWidth}"` : '-'}
-                                      </span>
-                                    </div>
+                                   <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     Finish: <span className={`font-bold ${isDarkMode ? 'text-teal-300' : 'text-teal-600'}`}>{fabric.finishWidth > 0 ? `${fabric.finishWidth}"` : '-'}</span>
                                   </div>
-                                     {index < fabrics.length - 1 && (
-                                       <div className={`mt-3 border-b ${
-                                         isDarkMode ? 'border-gray-600/30' : 'border-gray-200/50'
-                                       }`}></div>
-                                     )}
                                 </div>
                               ))}
                             </div>
                           </td>
                           
                           {/* Specifications - Show all specifications */}
-                          <td className={`px-4 py-4 ${
+                          <td className={`px-4 py-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
-                               <div>
+                                                            <div className="space-y-1">
                               {fabrics.map((fabric, index) => (
-                                   <div key={fabric._id} className="py-3">
-                                     <div className="text-sm space-y-1">
-                                    <div>
-                                      <span className="font-medium">Weight:</span>
-                                      <span className="ml-1">
-                                        {fabric.weight > 0 ? `${fabric.weight} KG` : '-'}
-                                      </span>
+                                  <div key={fabric._id} className={`text-base ${
+                                    index > 0 ? `mt-3 pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
+                                  }`}>
+                                   <div className={`mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     Weight: <span className={`font-bold ${isDarkMode ? 'text-orange-300' : 'text-orange-600'}`}>{fabric.weight > 0 ? `${fabric.weight} KG` : '-'}</span>
                                     </div>
-                                    <div>
-                                      <span className="font-medium">GSM:</span>
-                                      <span className="ml-1">
-                                        {fabric.gsm > 0 ? fabric.gsm : '-'}
-                                      </span>
-                                    </div>
+                                   <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     GSM: <span className={`font-bold ${isDarkMode ? 'text-pink-300' : 'text-pink-600'}`}>{fabric.gsm > 0 ? fabric.gsm : '-'}</span>
                                   </div>
-                                     {index < fabrics.length - 1 && (
-                                       <div className={`mt-3 border-b ${
-                                         isDarkMode ? 'border-gray-600/30' : 'border-gray-200/50'
-                                       }`}></div>
-                                     )}
                                 </div>
                               ))}
                             </div>
                           </td>
                           
                           {/* Technical Details - Show all technical details */}
-                          <td className={`px-4 py-4 ${
+                          <td className={`px-4 py-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
-                               <div>
+                                                            <div className="space-y-1">
                               {fabrics.map((fabric, index) => (
-                                   <div key={fabric._id} className="py-3">
-                                     <div className="text-sm space-y-1">
-                                    <div>
-                                      <span className="font-medium">Danier:</span>
-                                      <span className="ml-1">
-                                        {fabric.danier || '-'}
-                                      </span>
+                                  <div key={fabric._id} className={`text-base ${
+                                    index > 0 ? `mt-3 pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
+                                  }`}>
+                                   <div className={`mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     Danier: <span className={`font-bold ${isDarkMode ? 'text-yellow-300' : 'text-yellow-600'}`}>{fabric.danier || '-'}</span>
                                     </div>
-                                    <div>
-                                      <span className="font-medium">Reed:</span>
-                                      <span className="ml-1">
-                                        {fabric.reed > 0 ? fabric.reed : '-'}
-                                      </span>
+                                   <div className={`mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     Reed: <span className={`font-bold ${isDarkMode ? 'text-cyan-300' : 'text-cyan-600'}`}>{fabric.reed > 0 ? fabric.reed : '-'}</span>
                                     </div>
-                                    <div>
-                                      <span className="font-medium">Pick:</span>
-                                      <span className="ml-1">
-                                        {fabric.pick > 0 ? fabric.pick : '-'}
-                                      </span>
-                                    </div>
+                                   <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     Pick: <span className={`font-bold ${isDarkMode ? 'text-rose-300' : 'text-rose-600'}`}>{fabric.pick > 0 ? fabric.pick : '-'}</span>
                                   </div>
-                                     {index < fabrics.length - 1 && (
-                                       <div className={`mt-3 border-b ${
-                                         isDarkMode ? 'border-gray-600/30' : 'border-gray-200/50'
-                                       }`}></div>
-                                     )}
                                 </div>
                               ))}
                             </div>
                           </td>
                           
                           {/* Pricing - Show all rates with delete buttons */}
-                          <td className={`px-4 py-4 ${
+                          <td className={`px-4 py-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
-                               <div>
+                                                              <div className="space-y-1">
                               {fabrics.map((fabric, index) => (
-                                   <div key={fabric._id} className="py-3">
-                                  <div className="flex items-center justify-between">
-                                    <div className={`text-lg font-bold ${
-                                      isDarkMode ? 'text-green-400' : 'text-green-600'
+                                   <div key={fabric._id} className={`text-base flex items-center justify-between ${
+                                    index > 0 ? `mt-3 pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
+                                   }`}>
+                                  <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                    Price: <span className={`font-bold text-xl ${
+                                      fabric.greighRate > 0 
+                                        ? isDarkMode 
+                                          ? 'text-green-400' 
+                                          : 'text-green-600'
+                                        : isDarkMode 
+                                          ? 'text-red-400' 
+                                          : 'text-red-600'
                                     }`}>
                                       {fabric.greighRate > 0 ? `₹${fabric.greighRate}` : '-'}
+                                    </span>
                                     </div>
                                     <button
                                       onClick={() => handleDelete(fabric)}
-                                      className={`p-1.5 rounded-md transition-all duration-200 hover:scale-110 ${
+                                    className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
                                         isDarkMode 
-                                          ? 'text-red-400 hover:text-red-300 hover:bg-red-900/20' 
-                                          : 'text-red-600 hover:text-red-700 hover:bg-red-50'
+                                        ? 'text-red-400 hover:text-red-300 hover:bg-red-900/20 border border-red-500/30' 
+                                        : 'text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-300'
                                       }`}
                                       title={`Delete Item ${index + 1}`}
                                     >
                                       <TrashIcon className="h-4 w-4" />
                                     </button>
-                                  </div>
-                                     {index < fabrics.length - 1 && (
-                                       <div className={`mt-3 border-b ${
-                                         isDarkMode ? 'border-gray-600/30' : 'border-gray-200/50'
-                                       }`}></div>
-                                     )}
                                 </div>
                               ))}
                             </div>
                           </td>
                           
                                                          {/* Actions - Vertical button layout with subtle colors */}
-                          <td className="px-4 py-4">
+                          <td className="px-4 py-3">
                                <div className="space-y-2">
                               <button
                                 onClick={() => handleView(mainFabric)}
@@ -2217,7 +2187,7 @@ export default function FabricsPage() {
 
           {/* Bottom Pagination Controls */}
           {itemsPerPage !== 'All' && totalPages > 1 && (
-            <div className={`px-4 py-4 border-t flex justify-center items-center ${
+            <div className={`px-4 py-3 border-t flex justify-center items-center ${
               isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
             }`}>
             <div className="flex items-center space-x-2">
@@ -2393,7 +2363,7 @@ export default function FabricsPage() {
             
             {/* Modal Footer */}
             {showImageModal.fabric.images && showImageModal.fabric.images.length > 1 && (
-              <div className={`p-4 border-t ${
+              <div className={`border-t ${
                 isDarkMode ? 'border-gray-700' : 'border-gray-200'
               }`}>
                 <div className="flex justify-center space-x-2">

@@ -377,8 +377,8 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
 
   // Memoize screen size calculations
   const screenConfig = useMemo(() => {
-    const isLargeScreen = screenSize >= 1400;
-    const isMediumScreen = screenSize >= 800 && screenSize < 1400;
+    const isLargeScreen = screenSize >= 1600;
+    const isMediumScreen = screenSize >= 800 && screenSize < 1600;
     const isSmallScreen = screenSize < 800;
 
     return {
@@ -577,7 +577,9 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
         </button>
       );
     } else {
-      // Desktop: Toggle collapse button
+      // Desktop: Toggle collapse button with responsive text
+      const isLargeScreen = screenSize >= 1600;
+      
       return (
         <button
           onClick={handleToggleCollapse}
@@ -588,15 +590,23 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
           } shadow-lg backdrop-blur-sm`}
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {isCollapsed ? (
-            <ChevronRightIcon className="h-5 w-5" />
-          ) : (
-            <ChevronLeftIcon className="h-5 w-5" />
-          )}
+          <div className="flex items-center space-x-2">
+            {isCollapsed ? (
+              <ChevronRightIcon className="h-5 w-5" />
+            ) : (
+              <ChevronLeftIcon className="h-5 w-5" />
+            )}
+            {/* Show text only on large screens (1600px+) */}
+            {isLargeScreen && (
+              <span className="text-sm font-medium">
+                {isCollapsed ? "Expand" : "Collapse"}
+              </span>
+            )}
+          </div>
         </button>
       );
     }
-  }, [screenConfig.isSmallScreen, isDarkMode, isCollapsed, handleToggleSidebar, handleToggleCollapse]);
+  }, [screenConfig.isSmallScreen, isDarkMode, isCollapsed, handleToggleSidebar, handleToggleCollapse, screenSize]);
 
   // Show skeleton while not mounted
   if (!mounted) {

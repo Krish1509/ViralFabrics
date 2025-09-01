@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   ArrowLeftIcon, 
@@ -59,14 +59,65 @@ export default function CreateFabricPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Load fabric data for editing
-  const loadFabricForEdit = async () => {
+  // Keyboard shortcuts - Desktop only
+  useEffect(() => {
+    // Only enable keyboard shortcuts on desktop (not mobile/tablet)
+    const isMobile = window.innerWidth < 768; // md breakpoint
+    if (isMobile) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Alt + N: Add new item
+      if (e.altKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        addItem();
+        showValidationMessage('info', 'New item added! (Alt+N)');
+      }
+      
+      // Ctrl + Enter: Submit form
+      if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        const form = document.querySelector('form');
+        if (form) {
+          form.requestSubmit();
+          showValidationMessage('info', 'Form submitted! (Ctrl+Enter)');
+        }
+      }
+      
+      // Escape: Go back to fabrics list
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        router.push('/fabrics');
+      }
+      
+      // Ctrl + S: Save (same as submit)
+      if (e.ctrlKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        const form = document.querySelector('form');
+        if (form) {
+          form.requestSubmit();
+          showValidationMessage('info', 'Saving... (Ctrl+S)');
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Optimized load fabric data for editing
+  const loadFabricForEdit = useCallback(async () => {
     if (!editId) return;
     
     try {
       setLoading(true);
-      // First get the main fabric
-      const response = await fetch(`/api/fabrics/${editId}`);
+      // First get the main fabric with timeout for faster feedback
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      
+      const response = await fetch(`/api/fabrics/${editId}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
       const data = await response.json();
       
       if (data.success) {
@@ -104,34 +155,37 @@ export default function CreateFabricPage() {
           setFormData({ items });
         } else {
           // Fallback to single item if search fails
-          setFormData({
-            items: [{
-              qualityCode: fabric.qualityCode || '',
-              qualityName: fabric.qualityName || '',
-              weaver: fabric.weaver || '',
-              weaverQualityName: fabric.weaverQualityName || '',
-              greighWidth: fabric.greighWidth?.toString() || '',
-              finishWidth: fabric.finishWidth?.toString() || '',
-              weight: fabric.weight?.toString() || '',
-              gsm: fabric.gsm?.toString() || '',
-              danier: fabric.danier || '',
-              reed: fabric.reed?.toString() || '',
-              pick: fabric.pick?.toString() || '',
-              greighRate: fabric.greighRate?.toString() || '',
-              images: fabric.images || []
-            }]
-          });
+        setFormData({
+          items: [{
+            qualityCode: fabric.qualityCode || '',
+            qualityName: fabric.qualityName || '',
+            weaver: fabric.weaver || '',
+            weaverQualityName: fabric.weaverQualityName || '',
+            greighWidth: fabric.greighWidth?.toString() || '',
+            finishWidth: fabric.finishWidth?.toString() || '',
+            weight: fabric.weight?.toString() || '',
+            gsm: fabric.gsm?.toString() || '',
+            danier: fabric.danier || '',
+            reed: fabric.reed?.toString() || '',
+            pick: fabric.pick?.toString() || '',
+            greighRate: fabric.greighRate?.toString() || '',
+            images: fabric.images || []
+          }]
+        });
         }
       } else {
         setMessage({ type: 'error', text: 'Failed to load fabric data' });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading fabric:', error);
-      setMessage({ type: 'error', text: 'Error loading fabric data' });
+      showValidationMessage('error', 'Error loading fabric data');
+      if (error.name === 'AbortError') {
+        showValidationMessage('error', 'Request timed out');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [editId]);
 
   // Load fabric data for editing
   useEffect(() => {
@@ -251,6 +305,27 @@ export default function CreateFabricPage() {
     }, duration);
   };
 
+  // Real-time validation for quality code
+  const validateQualityCodeRealTime = async (qualityCode: string) => {
+    if (!qualityCode.trim()) return;
+    
+    try {
+      setCheckingQualityCode(true);
+      const response = await fetch(`/api/fabrics?qualityCode=${encodeURIComponent(qualityCode)}`);
+      const data = await response.json();
+      
+      if (data.success && data.data.length > 0 && !isEditMode) {
+        setErrors(prev => ({ ...prev, qualityCode: 'Quality code already exists' }));
+      } else {
+        setErrors(prev => ({ ...prev, qualityCode: '' }));
+      }
+    } catch (error) {
+      console.error('Error checking quality code:', error);
+    } finally {
+      setCheckingQualityCode(false);
+    }
+  };
+
   const addItem = () => {
     setFormData(prev => {
       // Get the shared values from the first item
@@ -354,9 +429,9 @@ export default function CreateFabricPage() {
         const newImages = [...existingImages, ...uploadedUrls];
         
         const newFormData = {
-          ...prev,
-          items: prev.items.map(item => ({
-            ...item,
+        ...prev,
+        items: prev.items.map(item => ({
+          ...item,
             images: newImages // All items get the same images
           }))
         };
@@ -615,21 +690,21 @@ export default function CreateFabricPage() {
           // Create all new items
           const createResponse = await fetch('/api/fabrics', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
             body: JSON.stringify(apiData)
-          });
+        });
 
           const createData = await createResponse.json();
-          
+        
           if (createData.success) {
             showValidationMessage('success', `Fabric updated successfully with ${formData.items.length} item(s)!`);
-            setTimeout(() => {
+          setTimeout(() => {
               router.push('/fabrics');
             }, 1000);
-          } else {
+        } else {
             showValidationMessage('error', createData.message || 'Update failed');
           }
         } catch (error) {
@@ -646,7 +721,7 @@ export default function CreateFabricPage() {
           },
           body: JSON.stringify(apiData)
         });
-        
+
         const data = await response.json();
         
         if (data.success) {
@@ -668,9 +743,81 @@ export default function CreateFabricPage() {
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#1D293D' }}>
+      {/* Enhanced Keyboard Shortcuts Card - Floating Top Right (Desktop Only) */}
+      <div className="hidden lg:block fixed top-6 right-6 z-[60]">
+        <div className="relative group">
+          <button className={`p-3 rounded-2xl backdrop-blur-md transition-all duration-300 hover:scale-105 shadow-lg border ${
+            isDarkMode 
+              ? 'bg-gray-800/90 border-gray-600 text-gray-300 hover:bg-gray-700/95 shadow-gray-900/50' 
+              : 'bg-white/90 border-gray-300 text-gray-600 hover:bg-white/95 shadow-gray-500/20'
+          }`}>
+            <div className="flex items-center space-x-2">
+              <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span className="text-sm font-bold">Shortcuts</span>
+            </div>
+          </button>
+          
+          {/* Enhanced Tooltip */}
+          <div className={`absolute top-full right-0 mt-3 p-5 rounded-2xl shadow-2xl border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 min-w-[320px] backdrop-blur-md ${
+            isDarkMode 
+              ? 'bg-gray-900/95 border-gray-600 text-gray-200 shadow-gray-900/50' 
+              : 'bg-white/95 border-gray-300 text-gray-700 shadow-gray-500/20'
+          }`}>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2 pb-2 border-b border-gray-500/20">
+                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <h3 className="font-bold text-base">Keyboard Shortcuts</h3>
+              </div>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between items-center py-2 px-3 rounded-lg hover:bg-gray-500/10 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-green-500 text-lg">➕</span>
+                    <span className="font-medium">Add New Item</span>
+                  </div>
+                  <kbd className={`px-3 py-2 rounded-lg text-xs font-mono font-bold ${
+                    isDarkMode ? 'bg-gray-800 text-green-400 border border-gray-700' : 'bg-gray-100 text-green-600 border border-gray-200'
+                  }`}>Alt + N</kbd>
+                </div>
+                <div className="flex justify-between items-center py-2 px-3 rounded-lg hover:bg-gray-500/10 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-blue-500 text-lg">💾</span>
+                    <span className="font-medium">Save Fabric</span>
+                  </div>
+                  <kbd className={`px-3 py-2 rounded-lg text-xs font-mono font-bold ${
+                    isDarkMode ? 'bg-gray-800 text-blue-400 border border-gray-700' : 'bg-gray-100 text-blue-600 border border-gray-200'
+                  }`}>Ctrl + Enter</kbd>
+                </div>
+                <div className="flex justify-between items-center py-2 px-3 rounded-lg hover:bg-gray-500/10 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-orange-500 text-lg">↩️</span>
+                    <span className="font-medium">Go Back</span>
+                  </div>
+                  <kbd className={`px-3 py-2 rounded-lg text-xs font-mono font-bold ${
+                    isDarkMode ? 'bg-gray-800 text-orange-400 border border-gray-700' : 'bg-gray-100 text-orange-600 border border-gray-200'
+                  }`}>Esc</kbd>
+                </div>
+                <div className="flex justify-between items-center py-2 px-3 rounded-lg hover:bg-gray-500/10 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-purple-500 text-lg">⚡</span>
+                    <span className="font-medium">Quick Save</span>
+                  </div>
+                  <kbd className={`px-3 py-2 rounded-lg text-xs font-mono font-bold ${
+                    isDarkMode ? 'bg-gray-800 text-purple-400 border border-gray-700' : 'bg-gray-100 text-purple-600 border border-gray-200'
+                  }`}>Ctrl + S</kbd>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Floating Validation Message */}
       {validationMessage && (
-        <div className={`fixed top-4 right-4 z-50 min-w-80 max-w-md p-4 rounded-lg shadow-2xl border-l-4 backdrop-blur-sm transform transition-all duration-300 ${
+        <div className={`fixed top-4 left-4 z-50 min-w-80 max-w-md p-4 rounded-lg shadow-2xl border-l-4 backdrop-blur-sm transform transition-all duration-300 ${
           validationMessage.type === 'success'
             ? 'bg-green-900/90 border-green-500 text-green-100'
             : validationMessage.type === 'error'
@@ -700,43 +847,49 @@ export default function CreateFabricPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="border-b border-gray-600" style={{ backgroundColor: '#253649' }}>
+      {/* Enhanced Header */}
+      <div className="border-b border-gray-600/50 shadow-lg" style={{ backgroundColor: '#253649' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
+          <div className="flex items-center justify-between h-20">
+            <div className="flex items-center space-x-6">
               <button
                 onClick={() => router.push('/fabrics')}
-                className={`p-2 rounded-lg transition-colors ${
-                  isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-                }`}
+                className="p-3 rounded-xl transition-all duration-200 hover:scale-110 bg-gray-700/50 hover:bg-gray-600/70 border border-gray-600 hover:border-gray-500"
               >
-                <ArrowLeftIcon className="h-6 w-6" />
+                <ArrowLeftIcon className="h-6 w-6 text-gray-300" />
               </button>
+              <div className="flex items-center space-x-4">
+                <div className="p-3 rounded-xl bg-blue-500/20 border border-blue-500/30">
+                  <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                </div>
               <div>
-                <h1 className="text-2xl font-bold">
+                  <h1 className="text-3xl font-bold text-white">
                   {isEditMode ? 'Edit Fabric' : 'Create New Fabric'}
                 </h1>
-                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {isEditMode ? 'Update fabric information' : 'Add fabric items to your inventory'}
+                  <p className="text-base text-gray-300 mt-1">
+                    {isEditMode ? 'Update fabric information and properties' : 'Add fabric items to your inventory with detailed specifications'}
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className={`text-sm px-3 py-1 rounded-full ${
-                isDarkMode 
-                  ? 'bg-blue-900/30 text-blue-300 border border-blue-700' 
-                  : 'bg-blue-100 text-blue-700 border border-blue-200'
-              }`}>
+            </div>
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-3 px-4 py-2 rounded-xl bg-gray-700/50 border border-gray-600">
+                <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4-8-4m16 0v10l-8 4-8-4V7" />
+                </svg>
+                <span className="text-lg font-semibold text-white">
                 {formData.items.length} Item{formData.items.length !== 1 ? 's' : ''}
               </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
 
 
         {/* Form */}
@@ -755,16 +908,17 @@ export default function CreateFabricPage() {
                    Quality Code <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.items[0]?.qualityCode || ''}
-                    onChange={(e) => handleSharedFieldChange('qualityCode', e.target.value)}
-                    placeholder="e.g., 1001-WL"
-                    className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                     } ${errors.qualityCode ? 'border-red-500' : ''}`}
+                <input
+                  type="text"
+                  value={formData.items[0]?.qualityCode || ''}
+                    onChange={(e) => {
+                      handleSharedFieldChange('qualityCode', e.target.value);
+                      // Debounced real-time validation
+                      setTimeout(() => validateQualityCodeRealTime(e.target.value), 500);
+                    }}
+                    onBlur={(e) => validateQualityCodeRealTime(e.target.value)}
+                  placeholder="e.g., 1001-WL"
+                    className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400 ${errors.qualityCode ? 'border-red-500 focus:ring-red-400' : ''}`}
                   />
                   {checkingQualityCode && (
                     <div className="absolute right-3 top-3">
@@ -773,7 +927,12 @@ export default function CreateFabricPage() {
                   )}
                 </div>
                  {errors.qualityCode && (
-                   <p className="text-red-500 text-sm mt-1">{errors.qualityCode}</p>
+                   <div className="mt-2 p-2 bg-red-900/20 border border-red-500/30 rounded-lg">
+                     <p className="text-red-400 text-sm flex items-center">
+                       <XMarkIcon className="h-4 w-4 mr-2" />
+                       {errors.qualityCode}
+                     </p>
+                   </div>
                  )}
                  {!isEditMode && (
                    <p className="text-xs text-gray-500 mt-1">
@@ -1141,14 +1300,15 @@ export default function CreateFabricPage() {
 
           {/* Add Item Button - Full Width */}
           <div className="mt-8">
-            <button
-              type="button"
-              onClick={addItem}
+              <button
+                type="button"
+                onClick={addItem}
               className="w-full px-6 py-4 rounded-xl border-2 border-dashed border-gray-500 hover:border-blue-400 text-gray-300 hover:text-blue-300 transition-all duration-300 flex items-center justify-center space-x-3 hover:bg-blue-500/10 group"
+
             >
               <PlusIcon className="h-6 w-6 group-hover:scale-110 transition-transform" />
               <span className="text-lg font-medium">Add Another Item</span>
-            </button>
+              </button>
           </div>
 
           {/* Submit Buttons */}
@@ -1161,6 +1321,7 @@ export default function CreateFabricPage() {
                   ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
                   : 'border-gray-300 text-gray-700 hover:bg-gray-50'
               }`}
+
             >
               Cancel
             </button>
@@ -1176,6 +1337,7 @@ export default function CreateFabricPage() {
                   ? 'bg-blue-600 hover:bg-blue-700 text-white' 
                   : 'bg-blue-500 hover:bg-blue-600 text-white'
               }`}
+
             >
               {loading ? (
                 <>

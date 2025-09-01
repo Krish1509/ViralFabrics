@@ -23,7 +23,7 @@ import { Fabric } from '@/types/fabric';
 interface FabricDetailsProps {
   fabric: Fabric;
   onClose: () => void;
-  onEdit: () => void;
+  onEdit: (fabric: Fabric) => void;
 }
 
 export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetailsProps) {
@@ -77,7 +77,7 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
                     Quality Code
                   </span>
                   <span className={`text-2xl font-bold font-mono ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  isDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
                     {fabric.qualityCode}
                   </span>
@@ -111,7 +111,7 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
             </div>
             <div className="flex items-center space-x-3">
               <button
-                onClick={onEdit}
+                onClick={() => onEdit(fabric)}
                 className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-300 shadow-md hover:shadow-lg ${
                   isDarkMode
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
@@ -145,26 +145,26 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
               } shadow-lg`}>
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center">
-                    <div className={`p-3 rounded-xl ${
-                      isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
-                    }`}>
-                      <PhotoIcon className={`h-6 w-6 ${
-                        isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                      }`} />
-                    </div>
-                    <div className="ml-4">
-                      <h3 className={`text-xl font-bold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        Fabric Images
-                      </h3>
-                      <p className={`text-sm ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        {fabric.images.length} image{fabric.images.length !== 1 ? 's' : ''} uploaded
-                      </p>
-                    </div>
+                  <div className={`p-3 rounded-xl ${
+                    isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
+                  }`}>
+                    <PhotoIcon className={`h-6 w-6 ${
+                      isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                    }`} />
                   </div>
+                  <div className="ml-4">
+                    <h3 className={`text-xl font-bold ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Fabric Images
+                    </h3>
+                    <p className={`text-sm ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      {fabric.images.length} image{fabric.images.length !== 1 ? 's' : ''} uploaded
+                    </p>
+                  </div>
+                </div>
                   {fabric.images.length > 1 && (
                     <div className={`text-sm ${
                       isDarkMode ? 'text-gray-400' : 'text-gray-600'
@@ -178,7 +178,7 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
                 {fabric.images.length > 0 && (
                   <div className="mb-4">
                     <div className={`relative rounded-lg overflow-hidden border ${
-                      isDarkMode ? 'border-gray-600 bg-gray-800' : 'border-gray-200 bg-white'
+                         isDarkMode ? 'border-gray-600 bg-gray-800' : 'border-gray-200 bg-white'
                     } shadow-md group`}>
                       <img
                         src={fabric.images[currentImageIndex]}
@@ -212,21 +212,21 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
                         }`}>
                           Unable to load image
                         </span>
-                      </div>
+                         </div>
                       
                       {/* Overlay with expand button */}
                       <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
                         <button
                           onClick={() => setShowImagePreview({ url: fabric.images[currentImageIndex], index: currentImageIndex })}
                           className={`p-3 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 transform scale-90 group-hover:scale-100 ${
-                            isDarkMode
+                           isDarkMode
                               ? 'bg-gray-800/80 hover:bg-gray-700/90 text-white'
                               : 'bg-white/90 hover:bg-white text-gray-700'
                           } shadow-lg`}
                         >
                           <ArrowsPointingOutIcon className="h-6 w-6" />
                         </button>
-                      </div>
+                         </div>
 
                       {/* Navigation arrows for multiple images */}
                       {fabric.images.length > 1 && (
@@ -267,7 +267,7 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
                           : 'bg-white/90 text-gray-700 border border-gray-200'
                       } shadow-lg`}>
                         {currentImageIndex + 1} / {fabric.images.length}
-                      </div>
+                       </div>
                     </div>
                   </div>
                 )}
@@ -308,8 +308,8 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
                           {index + 1}
                         </div>
                       </button>
-                    ))}
-                  </div>
+                  ))}
+                </div>
                 )}
               </div>
             )}
@@ -432,9 +432,9 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
                         {fabric.weaverQualityName}
                       </span>
                     </div>
+                    </div>
                   </div>
                 </div>
-              </div>
 
               {/* Column 2 - Dimensions & Specifications */}
               <div className="space-y-4">
@@ -446,9 +446,9 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
                     <div className={`p-3 rounded-xl ${
                       isDarkMode ? 'bg-green-500/20' : 'bg-green-100'
                     }`}>
-                      <Square3Stack3DIcon className={`h-6 w-6 ${
-                        isDarkMode ? 'text-green-400' : 'text-green-600'
-                      }`} />
+                                             <Square3Stack3DIcon className={`h-6 w-6 ${
+                         isDarkMode ? 'text-green-400' : 'text-green-600'
+                       }`} />
                     </div>
                     <div className="ml-4">
                       <h3 className={`text-xl font-bold ${
@@ -491,9 +491,9 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
                       }`}>
                         {fabric.finishWidth || '-'}"
                       </span>
-                    </div>
                   </div>
                 </div>
+              </div>
 
                 {/* Specifications */}
                 <div className={`p-4 sm:p-6 rounded-xl sm:rounded-2xl border ${
@@ -591,9 +591,9 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
                         {fabric.pick || '-'}
                       </span>
                     </div>
+                    </div>
                   </div>
                 </div>
-              </div>
 
               {/* Column 3 - Pricing & Timestamps */}
               <div className="space-y-4">
@@ -674,10 +674,10 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
                             isDarkMode ? 'text-white' : 'text-gray-900'
                           }`}>
                             {formatDateTime(fabric.createdAt)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
                     <div className={`p-3 rounded-lg ${
                       isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
                     }`}>
@@ -690,7 +690,7 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
                             isDarkMode ? 'text-gray-400' : 'text-gray-600'
                           }`}>
                             Updated
-                          </div>
+                </div>
                           <div className={`text-sm font-semibold ${
                             isDarkMode ? 'text-white' : 'text-gray-900'
                           }`}>
@@ -720,7 +720,7 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
              >
                <XMarkIcon className="h-6 w-6" />
              </button>
-
+             
              {/* Navigation Buttons */}
              {fabric.images.length > 1 && (
                <>
@@ -750,9 +750,9 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
              {/* Main Image */}
              <div className="relative bg-gray-900 rounded-lg">
                {showImagePreview.url ? (
-                 <img
-                   src={showImagePreview.url}
-                   alt={`Fabric image ${showImagePreview.index + 1}`}
+             <img
+               src={showImagePreview.url}
+               alt={`Fabric image ${showImagePreview.index + 1}`}
                    className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl"
                    onError={(e) => {
                      const target = e.target as HTMLImageElement;
@@ -799,11 +799,11 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
                          src={image}
                          alt={`Thumbnail ${index + 1}`}
                          className="w-16 h-16 object-cover"
-                         onError={(e) => {
-                           const target = e.target as HTMLImageElement;
-                           target.src = '/placeholder-image.svg';
-                         }}
-                       />
+               onError={(e) => {
+                 const target = e.target as HTMLImageElement;
+                 target.src = '/placeholder-image.svg';
+               }}
+             />
                        <div className={`absolute top-1 right-1 w-4 h-4 rounded-full text-xs flex items-center justify-center font-bold ${
                          index === showImagePreview.index
                            ? 'bg-white text-black'
@@ -814,7 +814,7 @@ export default function FabricDetails({ fabric, onClose, onEdit }: FabricDetails
                      </button>
                    ))}
                  </div>
-               </div>
+             </div>
              )}
            </div>
          </div>
