@@ -10,7 +10,7 @@ import {
   Download, 
   RefreshCw, 
   User, 
-  Activity, 
+  ActivityIcon, 
   CheckCircle, 
   XCircle, 
   AlertTriangle,
@@ -32,7 +32,7 @@ import {
   Key,
   Home,
   BarChart3,
-  Bell,
+  BellIcon, 
   Mail,
   Phone,
   MapPin,
@@ -44,7 +44,7 @@ import {
   Clipboard,
   Calculator,
   CalendarDays,
-  Clock,
+  ClockIcon, 
   Star,
   Heart,
   Zap,
@@ -404,7 +404,7 @@ export default function LogsPage() {
     }
     
     // Default action icon
-    return <Activity className="w-4 h-4 text-purple-600 dark:text-purple-400" />;
+    return <ActivityIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />;
   };
 
   // Get resource icon based on resource type
@@ -462,7 +462,7 @@ export default function LogsPage() {
       return <Phone className="w-4 h-4 text-green-600 dark:text-green-400" />;
     }
     if (resourceLower.includes('notification') || resourceLower.includes('alert')) {
-      return <Bell className="w-4 h-4 text-orange-600 dark:text-orange-400" />;
+      return <BellIcon className="w-4 h-4 text-orange-600 dark:text-orange-400" />;
     }
     
     // Location and shipping
@@ -756,7 +756,7 @@ export default function LogsPage() {
             <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90 backdrop-blur-sm'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} p-6 hover:shadow-xl transition-all duration-300`}>
               <div className="flex items-center">
                 <div className={`w-12 h-12 rounded-xl ${isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100'} flex items-center justify-center mr-4`}>
-                  <Activity className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                  <ActivityIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
                   <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total Logs</p>
@@ -1161,7 +1161,7 @@ export default function LogsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className={`w-8 h-8 ${isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100'} rounded-lg flex items-center justify-center mr-3`}>
-                          <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          <ClockIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div>
                           <div className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -1242,7 +1242,7 @@ export default function LogsPage() {
           {displayLogs.length === 0 && (
             <div className="text-center py-16">
               <div className={`w-16 h-16 mx-auto ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-2xl flex items-center justify-center mb-4`}>
-                <Activity className="h-8 w-8 text-gray-400" />
+                <ActivityIcon className="h-8 w-8 text-gray-400" />
               </div>
               <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'} mb-2`}>No logs found</h3>
               <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>

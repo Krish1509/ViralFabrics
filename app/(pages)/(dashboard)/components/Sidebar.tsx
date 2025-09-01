@@ -111,10 +111,10 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
       const isLargeScreen = screenSize >= 1600;
       
       // Set default states based on screen size:
-      // Large screens (1600px+): should be expanded (full text + icon)
+      // Large screens (1600px+): should be expanded (icon + text)
       // Medium and small screens (< 1600px): should be collapsed (icon-only)
       if (isLargeScreen && isCollapsed) {
-        onToggleCollapse(); // Expand to full text + icon
+        onToggleCollapse(); // Expand to icon + text
       } else if (!isLargeScreen && !isCollapsed) {
         onToggleCollapse(); // Collapse to icon-only
       }
@@ -122,6 +122,22 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
       setHasInitialized(true); // Mark as initialized to prevent future auto-adjustments
     }
   }, [screenSize, isCollapsed, onToggleCollapse, hasInitialized]);
+
+  // Responsive behavior: Auto-adjust sidebar when screen size changes
+  useEffect(() => {
+    if (hasInitialized && screenSize > 0) {
+      const isLargeScreen = screenSize >= 1600;
+      
+      // Auto-adjust based on screen size changes
+      if (isLargeScreen && isCollapsed) {
+        // If screen becomes large and sidebar is collapsed, expand it
+        onToggleCollapse();
+      } else if (!isLargeScreen && !isCollapsed) {
+        // If screen becomes small and sidebar is expanded, collapse it
+        onToggleCollapse();
+      }
+    }
+  }, [screenSize, hasInitialized, isCollapsed, onToggleCollapse]);
 
   // Memoize active state calculation
   const isActive = useCallback((href: string) => {

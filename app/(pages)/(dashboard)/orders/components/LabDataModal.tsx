@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, Hash, CheckCircle, Trash2, Plus, Edit3, Beaker } from 'lucide-react';
+import { X, Calendar, Hash, CheckCircle, Trash2, Plus, Edit3, BeakerIcon } from 'lucide-react';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { OrderItem } from '@/types';
 
@@ -264,7 +264,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-white/20 rounded-lg">
-                <Beaker size={24} />
+                <BeakerIcon size={24} />
               </div>
               <div>
                 <h2 className="text-xl font-bold">Lab Data Management</h2>
