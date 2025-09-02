@@ -77,6 +77,9 @@ export default function FabricsPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'recent' | 'popular' | 'trending'>('all');
   const [showIndividualFabrics, setShowIndividualFabrics] = useState(false);
   
+  // Track current image index for each card
+  const [cardImageIndices, setCardImageIndices] = useState<Record<string, number>>({});
+  
   // Auto-switch view mode based on screen size (only on mount and resize, not on manual changes)
   useEffect(() => {
     const handleResize = () => {
@@ -105,6 +108,29 @@ export default function FabricsPage() {
     setViewMode(newMode);
     // Store timestamp of manual change
     localStorage.setItem('lastViewModeChange', Date.now().toString());
+  };
+
+  // Handle image navigation in cards
+  const handleCardImageNavigation = (qualityCode: string, direction: 'prev' | 'next') => {
+    setCardImageIndices(prev => {
+      const currentIndex = prev[qualityCode] || 0;
+      const fabric = fabrics.find(f => f.qualityCode === qualityCode);
+      if (!fabric || !fabric.images || fabric.images.length === 0) return prev;
+      
+      let newIndex;
+      if (direction === 'prev') {
+        newIndex = currentIndex === 0 ? fabric.images.length - 1 : currentIndex - 1;
+      } else {
+        newIndex = currentIndex === fabric.images.length - 1 ? 0 : currentIndex + 1;
+      }
+      
+      return { ...prev, [qualityCode]: newIndex };
+    });
+  };
+
+  const getCurrentCardImage = (fabric: Fabric, qualityCode: string) => {
+    const currentIndex = cardImageIndices[qualityCode] || 0;
+    return fabric.images && fabric.images.length > 0 ? fabric.images[currentIndex] : null;
   };
   
 
@@ -994,7 +1020,7 @@ export default function FabricsPage() {
         ) : (
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-4">
-              <div className="p-1.5 sm:p-2 lg:p-3 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg">
+              <div className="p-1.5 sm:p-2 lg:p-3 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-blue-600 via-blue-500 to-purple-600 shadow-lg">
                 <svg className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4-8-4m16 0v10l-8 4-8-4V7" />
                 </svg>
@@ -1072,7 +1098,7 @@ export default function FabricsPage() {
        } shadow-lg`}>
                   <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Top row - Search Bar */}
-          <div className="flex-1 max-w-full sm:max-w-xs lg:max-w-sm xl:max-w-md">
+          <div className="flex-1 w-full mr-3 sm:mr-5 lg:mr-5 ">
             <div className="relative">
               <MagnifyingGlassIcon className={`absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 ${
                 isDarkMode ? 'text-gray-400' : 'text-gray-500'
@@ -1102,7 +1128,7 @@ export default function FabricsPage() {
           </div>
 
            {/* Bottom row - Controls Grid for small screens */}
-          <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:items-center sm:space-x-3 lg:space-x-4 xl:space-x-6 gap-2 sm:gap-0">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:items-center sm:space-x-3 lg:space-x-4 xl:space-x-6 gap-2 sm:gap-0 ml-2 sm:ml-3 lg:ml-4">
             {/* Sort Controls */}
             <div className="flex items-center justify-center sm:justify-start space-x-1.5 sm:space-x-2">
              <span className={`text-xs sm:text-sm font-medium ${
@@ -1214,7 +1240,7 @@ export default function FabricsPage() {
        {/* Selection Toolbar */}
        {showSelectionToolbar && (
          <div className={`mb-3 sm:mb-4 p-2.5 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl border ${
-           isDarkMode ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200'
+           isDarkMode ? 'bg-blue-800/30 border-blue-600' : 'bg-blue-100 border-blue-300'
          } shadow-lg`}>
                                                <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
               <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:space-x-3 lg:space-x-4 xl:space-x-6">
@@ -1555,17 +1581,17 @@ export default function FabricsPage() {
                     
                     return (
                       <div key={qualityCode} className={`rounded-lg sm:rounded-xl border ${
-                        isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-300'
+                        isDarkMode ? 'bg-blue-900/30 border-blue-600' : 'bg-blue-50 border-blue-300'
                       }`}>
                         {/* Image Section - Responsive */}
-                        <div className="relative h-28 sm:h-32 md:h-36 lg:h-40 xl:h-48 overflow-hidden rounded-t-lg sm:rounded-t-xl">
+                        <div className="relative h-28 sm:h-32 md:h-36 lg:h-40 xl:h-48 overflow-hidden rounded-t-lg sm:rounded-t-xl group">
                           {mainFabric.images && mainFabric.images.length > 0 ? (
                             <div className="relative w-full h-full">
                               <img 
-                                src={mainFabric.images[0]} 
+                                src={getCurrentCardImage(mainFabric, qualityCode) || mainFabric.images[0]} 
                                 alt="Fabric"
                                 className="w-full h-full object-cover cursor-pointer transition-transform duration-200 hover:scale-105"
-                                onClick={() => handleImageClick(mainFabric, 0)}
+                                onClick={() => handleImageClick(mainFabric, cardImageIndices[qualityCode] || 0)}
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   target.style.display = 'none';
@@ -1582,6 +1608,45 @@ export default function FabricsPage() {
                                   isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                 }`} />
                               </div>
+                              
+                              {/* Navigation buttons for multiple images */}
+                              {mainFabric.images.length > 1 && (
+                                <>
+                                  {/* Left arrow */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCardImageNavigation(qualityCode, 'prev');
+                                    }}
+                                    className={`absolute left-2 top-1/2 -translate-y-1/2 p-1.5 sm:p-2 rounded-full transition-all duration-200 ${
+                                      isDarkMode
+                                        ? 'bg-gray-800/80 hover:bg-gray-700/90 text-white'
+                                        : 'bg-white/90 hover:bg-white text-gray-700'
+                                    } shadow-lg opacity-0 group-hover:opacity-100 hover:scale-110`}
+                                  >
+                                    <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                  </button>
+                                  
+                                  {/* Right arrow */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCardImageNavigation(qualityCode, 'next');
+                                    }}
+                                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 sm:p-2 rounded-full transition-all duration-200 ${
+                                      isDarkMode
+                                        ? 'bg-gray-800/80 hover:bg-gray-700/90 text-white'
+                                        : 'bg-white/90 hover:bg-white text-gray-700'
+                                    } shadow-lg opacity-0 group-hover:opacity-100 hover:scale-110`}
+                                  >
+                                    <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </button>
+                                </>
+                              )}
                             </div>
                                                      ) : (
                              <div className={`w-full h-full flex flex-col items-center justify-center ${
@@ -1864,56 +1929,56 @@ export default function FabricsPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[600px] sm:min-w-[800px]">
                 <thead className={`${
-                  isDarkMode ? 'bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-600' : 'bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-300'
+                  isDarkMode ? 'bg-gradient-to-r from-blue-800/30 to-blue-900/30 border-b border-blue-600' : 'bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-300'
                 }`}>
                   <tr>
                     <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
+                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Quality Information</span>
                       <span className="sm:hidden">Quality</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
+                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       Images
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
+                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       Items
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
+                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Weaver Information</span>
                       <span className="sm:hidden">Weaver</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
+                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Dimensions</span>
                       <span className="sm:hidden">Size</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
+                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Specifications</span>
                       <span className="sm:hidden">Specs</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
+                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Technical Details</span>
                       <span className="sm:hidden">Tech</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
+                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       Pricing
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
+                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       Actions
                     </th>
@@ -2413,7 +2478,7 @@ export default function FabricsPage() {
             {/* Modal Content */}
             <div className="relative">
               <img 
-                src={showImageModal.fabric.images?.[selectedImageIndex]} 
+                src={showImageModal.fabric.images?.[selectedImageIndex]}  aria-hidden={true}
                 alt="Fabric"
                 className="max-w-full max-h-[70vh] object-contain mx-auto"
               />

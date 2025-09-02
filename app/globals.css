@@ -101,12 +101,12 @@ body {
   background: #64748b;
 }
 
-.scrollbar-thumb-slate-400::-webkit-scrollbar-thumb {
-  background: #94a3b8;
-}
-
 .scrollbar-thumb-gray-600::-webkit-scrollbar-thumb {
   background: #4b5563;
+}
+
+.scrollbar-thumb-slate-400::-webkit-scrollbar-thumb {
+  background: #94a3b8;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
