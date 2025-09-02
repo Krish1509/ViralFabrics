@@ -46,10 +46,10 @@ export default function SuperAdminLayout({
         setScreenSize(newScreenSize);
         
         // Set default collapsed state based on screen size
-        if (newScreenSize >= 800 && newScreenSize < 1400) {
+        if (newScreenSize >= 800 && newScreenSize < 1600) {
           // Medium screens: icons-only by default
           setIsSidebarCollapsed(true);
-        } else if (newScreenSize >= 1400) {
+        } else if (newScreenSize >= 1600) {
           // Large screens: full sidebar by default (icons + text)
           setIsSidebarCollapsed(false);
         }
@@ -61,9 +61,9 @@ export default function SuperAdminLayout({
     const initialSize = window.innerWidth;
     setScreenSize(initialSize);
     
-    if (initialSize >= 800 && initialSize < 1400) {
+    if (initialSize >= 800 && initialSize < 1600) {
       setIsSidebarCollapsed(true);
-    } else if (initialSize >= 1400) {
+    } else if (initialSize >= 1600) {
       setIsSidebarCollapsed(false);
     }
     
@@ -206,17 +206,22 @@ export default function SuperAdminLayout({
   }, []);
 
   const toggleSidebarCollapse = useCallback(() => {
-    setIsSidebarCollapsed(prev => !prev);
-  }, []);
+    console.log('Toggle sidebar collapse called, current state:', isSidebarCollapsed);
+    setIsSidebarCollapsed(prev => {
+      const newState = !prev;
+      console.log('Sidebar collapsed state changing from', prev, 'to', newState);
+      return newState;
+    });
+  }, [isSidebarCollapsed]);
 
   // Memoize main content margin calculation
   const mainContentMargin = useMemo(() => {
     if (screenSize < 800) {
       return 'ml-0'; // No margin for mobile
-    } else if (screenSize >= 1400) {
+    } else if (screenSize >= 1600) {
       return isSidebarCollapsed ? 'ml-20' : 'ml-64'; // Toggle between collapsed and full
     } else {
-      // Medium screens (800px to 1400px) - allow toggle between icons and full
+      // Medium screens (800px to 1600px) - allow toggle between icons and full
       return isSidebarCollapsed ? 'ml-20' : 'ml-64';
     }
   }, [screenSize, isSidebarCollapsed]);

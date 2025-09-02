@@ -10,7 +10,9 @@ import {
   PhotoIcon,
   XMarkIcon,
   CloudArrowUpIcon,
-  EyeIcon
+  EyeIcon,
+  ExclamationTriangleIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { FabricFormData } from '@/types/fabric';
@@ -55,7 +57,7 @@ export default function CreateFabricPage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [checkingQualityCode, setCheckingQualityCode] = useState(false);
-  const [validationMessage, setValidationMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [validationMessage, setValidationMessage] = useState<{ type: 'success' | 'error' | 'info' | 'warning'; text: string } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -104,83 +106,75 @@ export default function CreateFabricPage() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Optimized load fabric data for editing
+  // Optimized load fabric data for editing - Fast loading with better error handling
   const loadFabricForEdit = useCallback(async () => {
     if (!editId) return;
     
     try {
       setLoading(true);
-      // First get the main fabric with timeout for faster feedback
+      console.log('Starting to load fabric for edit:', editId);
+      
+      // Use a shorter timeout for faster feedback
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced to 5s timeout
       
       const response = await fetch(`/api/fabrics/${editId}`, {
-        signal: controller.signal
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'no-cache', // Prevent caching issues
+          'Pragma': 'no-cache'
+        }
       });
+      
       clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       
-      if (data.success) {
-        const fabric = data.data;
+      if (data.success && data.data) {
+        const allItems = data.data;
         
-        // Then get all fabrics with the same quality code
-        const allFabricsResponse = await fetch(`/api/fabrics?search=${encodeURIComponent(fabric.qualityCode)}`);
-        const allFabricsData = await allFabricsResponse.json();
+        console.log(`Successfully loaded ${allItems.length} items for edit with quality code: ${data.qualityCode}`);
         
-        if (allFabricsData.success) {
-          // Filter to get exact quality code matches
-          const sameQualityFabrics = allFabricsData.data.filter((f: any) => 
-            f.qualityCode === fabric.qualityCode && f.qualityName === fabric.qualityName
-          );
-          
-          console.log('Loading fabrics for edit:', sameQualityFabrics.length, 'items');
-          
-          // Convert all fabrics to form items
-          const items = sameQualityFabrics.map((f: any) => ({
-            qualityCode: f.qualityCode || '',
-            qualityName: f.qualityName || '',
-            weaver: f.weaver || '',
-            weaverQualityName: f.weaverQualityName || '',
-            greighWidth: f.greighWidth?.toString() || '',
-            finishWidth: f.finishWidth?.toString() || '',
-            weight: f.weight?.toString() || '',
-            gsm: f.gsm?.toString() || '',
-            danier: f.danier || '',
-            reed: f.reed?.toString() || '',
-            pick: f.pick?.toString() || '',
-            greighRate: f.greighRate?.toString() || '',
-            images: f.images || []
-          }));
-          
-          setFormData({ items });
-        } else {
-          // Fallback to single item if search fails
+        // Load ALL items that share the same quality code
+        const formattedItems = allItems.map((item: any) => ({
+          qualityCode: item.qualityCode || '',
+          qualityName: item.qualityName || '',
+          weaver: item.weaver || '',
+          weaverQualityName: item.weaverQualityName || '',
+          greighWidth: item.greighWidth?.toString() || '',
+          finishWidth: item.finishWidth?.toString() || '',
+          weight: item.weight?.toString() || '',
+          gsm: item.gsm?.toString() || '',
+          danier: item.danier || '',
+          reed: item.reed?.toString() || '',
+          pick: item.pick?.toString() || '',
+          greighRate: item.greighRate?.toString() || '',
+          images: item.images || []
+        }));
+        
         setFormData({
-          items: [{
-            qualityCode: fabric.qualityCode || '',
-            qualityName: fabric.qualityName || '',
-            weaver: fabric.weaver || '',
-            weaverQualityName: fabric.weaverQualityName || '',
-            greighWidth: fabric.greighWidth?.toString() || '',
-            finishWidth: fabric.finishWidth?.toString() || '',
-            weight: fabric.weight?.toString() || '',
-            gsm: fabric.gsm?.toString() || '',
-            danier: fabric.danier || '',
-            reed: fabric.reed?.toString() || '',
-            pick: fabric.pick?.toString() || '',
-            greighRate: fabric.greighRate?.toString() || '',
-            images: fabric.images || []
-          }]
+          items: formattedItems
         });
-        }
+        
+        showValidationMessage('success', `Loaded ${allItems.length} item(s) for editing!`);
       } else {
-        setMessage({ type: 'error', text: 'Failed to load fabric data' });
+        throw new Error(data.message || 'Failed to load fabric data');
       }
     } catch (error: any) {
       console.error('Error loading fabric:', error);
-      showValidationMessage('error', 'Error loading fabric data');
+      
       if (error.name === 'AbortError') {
-        showValidationMessage('error', 'Request timed out');
+        showValidationMessage('error', 'Request timed out - Please try again');
+      } else if (error.message.includes('HTTP 404')) {
+        showValidationMessage('error', 'Fabric not found - It may have been deleted');
+      } else if (error.message.includes('HTTP 500')) {
+        showValidationMessage('error', 'Server error - Please try again later');
+      } else {
+        showValidationMessage('error', `Error loading fabric: ${error.message}`);
       }
     } finally {
       setLoading(false);
@@ -298,7 +292,7 @@ export default function CreateFabricPage() {
   };
 
   // Show validation message with auto-hide
-  const showValidationMessage = (type: 'success' | 'error' | 'info', text: string, duration = 4000) => {
+  const showValidationMessage = (type: 'success' | 'error' | 'info' | 'warning', text: string, duration = 4000) => {
     setValidationMessage({ type, text });
     setTimeout(() => {
       setValidationMessage(null);
@@ -665,51 +659,47 @@ export default function CreateFabricPage() {
       const token = localStorage.getItem('token');
       
       if (isEditMode && editId) {
-        // For edit mode, first delete all existing items with same quality code, then create new ones
+        // For edit mode, update the existing fabric using PUT endpoint
         try {
-          const qualityCode = formData.items[0]?.qualityCode;
-          const qualityName = formData.items[0]?.qualityName;
+          console.log('Updating existing fabric with ID:', editId);
           
-          console.log('Deleting existing fabrics with quality code:', qualityCode);
-          
-          // Delete all existing fabrics with same quality code and name
-          const deleteResponse = await fetch(`/api/fabrics?qualityCode=${encodeURIComponent(qualityCode)}&qualityName=${encodeURIComponent(qualityName)}`, {
-            method: 'DELETE',
+          // Update the fabric using PUT endpoint
+          const updateResponse = await fetch(`/api/fabrics/${editId}`, {
+            method: 'PUT',
             headers: {
+              'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`
-            }
+            },
+            body: JSON.stringify(apiData[0]) // Send only the first item for single fabric update
           });
 
-          const deleteData = await deleteResponse.json();
-          
-          if (!deleteData.success) {
-            console.warn('Failed to delete existing items:', deleteData.message);
-            // Continue anyway - might be a new quality code
-          }
-
-          // Create all new items
-          const createResponse = await fetch('/api/fabrics', {
-            method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-            body: JSON.stringify(apiData)
-        });
-
-          const createData = await createResponse.json();
+          const updateData = await updateResponse.json();
         
-          if (createData.success) {
-            showValidationMessage('success', `Fabric updated successfully with ${formData.items.length} item(s)!`);
-          setTimeout(() => {
-              router.push('/fabrics');
-            }, 1000);
-        } else {
-            showValidationMessage('error', createData.message || 'Update failed');
+          if (updateData.success) {
+            if (updateData.warning && updateData.existingFabrics) {
+              // Show warning about existing fabrics with same quality code
+              const warningMessage = `${updateData.message}\n\nExisting fabrics with this quality code:\n${updateData.existingFabrics.map((fabric: any) => 
+                `• ${fabric.qualityName} - Weaver: ${fabric.weaver}, Quality: ${fabric.weaverQualityName}`
+              ).join('\n')}`;
+              
+              showValidationMessage('warning', warningMessage);
+              
+              // Still redirect after showing warning
+              setTimeout(() => {
+                router.push('/fabrics');
+              }, 3000); // Give more time to read the warning
+            } else {
+              showValidationMessage('success', 'Fabric updated successfully!');
+              setTimeout(() => {
+                router.push('/fabrics');
+              }, 1000);
+            }
+          } else {
+            showValidationMessage('error', updateData.message || 'Update failed');
           }
         } catch (error) {
           console.error('Error in edit mode:', error);
-                    showValidationMessage('error', 'An error occurred while updating fabric');
+          showValidationMessage('error', 'An error occurred while updating fabric');
         }
       } else {
         // Create new fabric(s) - each item becomes a separate record but with same quality code
@@ -822,6 +812,8 @@ export default function CreateFabricPage() {
             ? 'bg-green-900/90 border-green-500 text-green-100'
             : validationMessage.type === 'error'
             ? 'bg-red-900/90 border-red-500 text-red-100'
+            : validationMessage.type === 'warning'
+            ? 'bg-yellow-900/90 border-yellow-500 text-yellow-100'
             : 'bg-blue-900/90 border-blue-500 text-blue-100'
         }`}>
           <div className="flex items-center space-x-3">
@@ -830,6 +822,8 @@ export default function CreateFabricPage() {
                 <CheckIcon className="h-6 w-6 text-green-400" />
               ) : validationMessage.type === 'error' ? (
                 <XMarkIcon className="h-6 w-6 text-red-400" />
+              ) : validationMessage.type === 'warning' ? (
+                <ExclamationTriangleIcon className="h-6 w-6 text-yellow-400" />
               ) : (
                 <PhotoIcon className="h-6 w-6 text-blue-400" />
               )}
@@ -850,38 +844,38 @@ export default function CreateFabricPage() {
       {/* Enhanced Header */}
       <div className="border-b border-gray-600/50 shadow-lg" style={{ backgroundColor: '#253649' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
-            <div className="flex items-center space-x-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-4 sm:py-6 lg:h-20 space-y-4 sm:space-y-0">
+            <div className="flex items-center space-x-3 sm:space-x-6">
               <button
                 onClick={() => router.push('/fabrics')}
-                className="p-3 rounded-xl transition-all duration-200 hover:scale-110 bg-gray-700/50 hover:bg-gray-600/70 border border-gray-600 hover:border-gray-500"
+                className="p-2 sm:p-3 rounded-xl transition-all duration-200 hover:scale-110 bg-gray-700/50 hover:bg-gray-600/70 border border-gray-600 hover:border-gray-500"
               >
-                <ArrowLeftIcon className="h-6 w-6 text-gray-300" />
+                <ArrowLeftIcon className="h-5 w-5 sm:h-6 sm:w-6 text-gray-300" />
               </button>
-              <div className="flex items-center space-x-4">
-                <div className="p-3 rounded-xl bg-blue-500/20 border border-blue-500/30">
-                  <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center space-x-2 sm:space-x-4">
+                <div className="p-2 sm:p-3 rounded-xl bg-blue-500/20 border border-blue-500/30">
+                  <svg className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
                 </div>
-              <div>
-                  <h1 className="text-3xl font-bold text-white">
-                  {isEditMode ? 'Edit Fabric' : 'Create New Fabric'}
-                </h1>
-                  <p className="text-base text-gray-300 mt-1">
+                <div>
+                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
+                    {isEditMode ? 'Edit Fabric' : 'Create New Fabric'}
+                  </h1>
+                  <p className="text-sm sm:text-base text-gray-300 mt-1">
                     {isEditMode ? 'Update fabric information and properties' : 'Add fabric items to your inventory with detailed specifications'}
-                </p>
+                  </p>
+                </div>
               </div>
             </div>
-            </div>
-            <div className="flex items-center space-x-6">
-              <div className="flex items-center space-x-3 px-4 py-2 rounded-xl bg-gray-700/50 border border-gray-600">
-                <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex items-center space-x-3 sm:space-x-6">
+              <div className="flex items-center space-x-2 sm:space-x-3 px-3 sm:px-4 py-2 rounded-xl bg-gray-700/50 border border-gray-600">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4-8-4m16 0v10l-8 4-8-4V7" />
                 </svg>
-                <span className="text-lg font-semibold text-white">
-                {formData.items.length} Item{formData.items.length !== 1 ? 's' : ''}
-              </span>
+                <span className="text-base sm:text-lg font-semibold text-white">
+                  {formData.items.length} Item{formData.items.length !== 1 ? 's' : ''}
+                </span>
               </div>
             </div>
           </div>
@@ -889,37 +883,53 @@ export default function CreateFabricPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
 
+        {/* Loading Indicator for Edit Mode */}
+        {isEditMode && loading && (
+          <div className="mb-4 sm:mb-6 p-4 sm:p-6 rounded-xl border border-blue-500/30 bg-blue-500/10">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
+              <div className="animate-spin rounded-full h-5 w-5 sm:h-6 sm:w-6 border-b-2 border-blue-500"></div>
+              <div className="flex-1">
+                <h3 className="text-base sm:text-lg font-semibold text-blue-400">Loading Fabric Data...</h3>
+                <p className="text-sm sm:text-base text-blue-300">Please wait while we fetch the fabric information for editing.</p>
+                <div className="mt-2 sm:mt-3 w-full bg-blue-500/20 rounded-full h-2">
+                  <div className="bg-blue-500 h-2 rounded-full animate-pulse" style={{ width: '100%' }}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit}>
            
            
           {/* Shared Fabric Information */}
-          <div className={`p-6 rounded-xl border mb-8 ${
+          <div className={`p-4 sm:p-6 rounded-xl border mb-6 sm:mb-8 ${
             isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
           }`}>
             <h3 className="text-lg font-semibold mb-6">Shared Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
               {/* Quality Code */}
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-xs sm:text-sm font-medium mb-2">
                    Quality Code <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                 <input
                   type="text"
                   value={formData.items[0]?.qualityCode || ''}
-                    onChange={(e) => {
-                      handleSharedFieldChange('qualityCode', e.target.value);
-                      // Debounced real-time validation
-                      setTimeout(() => validateQualityCodeRealTime(e.target.value), 500);
-                    }}
-                    onBlur={(e) => validateQualityCodeRealTime(e.target.value)}
+                  onChange={(e) => {
+                    handleSharedFieldChange('qualityCode', e.target.value);
+                    // Debounced real-time validation
+                    setTimeout(() => validateQualityCodeRealTime(e.target.value), 500);
+                  }}
+                  onBlur={(e) => validateQualityCodeRealTime(e.target.value)}
                   placeholder="e.g., 1001-WL"
-                    className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400 ${errors.qualityCode ? 'border-red-500 focus:ring-red-400' : ''}`}
-                  />
+                  disabled={isEditMode && loading}
+                  className={`w-full p-2 sm:p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400 text-sm sm:text-base ${errors.qualityCode ? 'border-red-500 focus:ring-red-400' : ''} ${isEditMode && loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                />
                   {checkingQualityCode && (
                     <div className="absolute right-3 top-3">
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
@@ -927,15 +937,15 @@ export default function CreateFabricPage() {
                   )}
                 </div>
                  {errors.qualityCode && (
-                   <div className="mt-2 p-2 bg-red-900/20 border border-red-500/30 rounded-lg">
-                     <p className="text-red-400 text-sm flex items-center">
-                       <XMarkIcon className="h-4 w-4 mr-2" />
+                   <div className="mt-2 p-2 sm:p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+                     <p className="text-red-400 text-xs sm:text-sm flex items-center">
+                       <XMarkIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                        {errors.qualityCode}
                      </p>
                    </div>
                  )}
                  {!isEditMode && (
-                   <p className="text-xs text-gray-500 mt-1">
+                   <p className="text-xs text-gray-500 mt-1 leading-relaxed">
                      Quality code will be checked for uniqueness. Multiple items can share the same quality code.
                    </p>
                  )}
@@ -1088,13 +1098,68 @@ export default function CreateFabricPage() {
           {/* Fabric Items */}
           <div className="space-y-8">
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-semibold">Fabric Items</h3>
+              <div className="flex items-center space-x-4">
+                <h3 className="text-xl font-semibold">Fabric Items</h3>
+                
+                {/* Short Code Dropdown - Shows Item Count and Quick Navigation */}
+                {formData.items.length > 1 && (
+                  <div className="relative group">
+                    <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg border cursor-pointer transition-all duration-200 hover:scale-105 ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-gray-200 hover:border-blue-500 hover:bg-gray-600' 
+                        : 'bg-white border-gray-300 text-gray-700 hover:border-blue-500 hover:bg-gray-50'
+                    }`}>
+                      <span className="text-sm font-medium">
+                        📦 {formData.items.length} Item{formData.items.length > 1 ? 's' : ''}
+                      </span>
+                      <ChevronDownIcon className="h-4 w-4 transition-transform group-hover:rotate-180" />
+                    </div>
+                    
+                    {/* Dropdown Menu */}
+                    <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200">
+                      <div className="py-2">
+                        <div className="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">
+                          Quick Navigation
+                        </div>
+                        {formData.items.map((_, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => {
+                              // Scroll to specific item
+                              const itemElement = document.getElementById(`fabric-item-${index}`);
+                              if (itemElement) {
+                                itemElement.scrollIntoView({ 
+                                  behavior: 'smooth', 
+                                  block: 'center' 
+                                });
+                                // Add highlight effect
+                                itemElement.classList.add('ring-2', 'ring-blue-500', 'ring-opacity-50');
+                                setTimeout(() => {
+                                  itemElement.classList.remove('ring-2', 'ring-blue-500', 'ring-opacity-50');
+                                }, 2000);
+                              }
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors flex items-center space-x-2"
+                          >
+                            <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs font-medium flex items-center justify-center">
+                              {index + 1}
+                            </span>
+                            <span>Item {index + 1}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {formData.items.map((item, index) => (
               <div 
                 key={index}
-                className="p-8 rounded-2xl border border-gray-600 shadow-lg"
+                id={`fabric-item-${index}`}
+                className="p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl border border-gray-600 shadow-lg"
                 style={{ backgroundColor: '#253649' }}
               >
                 <div className="flex items-center justify-between mb-6">
@@ -1114,7 +1179,7 @@ export default function CreateFabricPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6">
                   {/* Weaver */}
                   <div>
                     <label className="block text-sm font-medium mb-2">
@@ -1312,11 +1377,11 @@ export default function CreateFabricPage() {
           </div>
 
           {/* Submit Buttons */}
-          <div className="mt-8 flex justify-end space-x-4">
+          <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4">
             <button
               type="button"
               onClick={() => router.push('/fabrics')}
-              className={`px-6 py-3 rounded-lg border transition-colors ${
+              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg border transition-colors text-sm sm:text-base ${
                 isDarkMode 
                   ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
                   : 'border-gray-300 text-gray-700 hover:bg-gray-50'
@@ -1328,7 +1393,7 @@ export default function CreateFabricPage() {
             <button
               type="submit"
               disabled={loading}
-              className={`px-8 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
+              className={`px-4 sm:px-6 lg:px-8 py-2 sm:py-3 rounded-lg font-medium transition-colors flex items-center space-x-1 sm:space-x-2 text-sm sm:text-base ${
                 loading 
                   ? 'opacity-50 cursor-not-allowed' 
                   : ''

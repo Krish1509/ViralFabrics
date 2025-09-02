@@ -582,13 +582,17 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
       
       return (
         <button
-          onClick={handleToggleCollapse}
+          onClick={(e) => {
+            console.log('Navbar: Toggle collapse button clicked, current state:', isCollapsed);
+            handleToggleCollapse(e);
+          }}
           className={`p-2 rounded-lg transition-all duration-300 cursor-pointer ${
             isDarkMode 
               ? 'bg-white/10 text-white hover:bg-white/20' 
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           } shadow-lg backdrop-blur-sm`}
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           <div className="flex items-center space-x-2">
             {isCollapsed ? (
@@ -682,6 +686,8 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                     : 'bg-gray-400/10 scale-0 group-hover:scale-100'
                 }`}></div>
               </button>
+
+
 
               {/* Profile Dropdown */}
               <div className="relative" data-profile-dropdown>

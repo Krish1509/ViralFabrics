@@ -37,7 +37,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
   const pathname = usePathname();
   const { isDarkMode, mounted } = useDarkMode();
   const [screenSize, setScreenSize] = useState<number>(0);
-  const [hasInitialized, setHasInitialized] = useState<boolean>(false);
+  const [hasSetInitialState, setHasSetInitialState] = useState<boolean>(false);
 
   // Debug current pathname
   useEffect(() => {
@@ -107,37 +107,35 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
 
   // Set initial collapse state based on screen size (only once)
   useEffect(() => {
-    if (screenSize > 0 && !hasInitialized) {
+    if (screenSize > 0 && !hasSetInitialState) {
       const isLargeScreen = screenSize >= 1600;
       
-      // Set default states based on screen size:
-      // Large screens (1600px+): should be expanded (icon + text)
-      // Medium and small screens (< 1600px): should be collapsed (icon-only)
+      console.log('Sidebar: Setting initial state', {
+        screenSize,
+        isLargeScreen,
+        isCollapsed,
+        shouldExpand: isLargeScreen && isCollapsed,
+        shouldCollapse: !isLargeScreen && !isCollapsed
+      });
+      
+      // Only set initial state if it doesn't match the expected state
+      // This prevents unnecessary toggles on mount
       if (isLargeScreen && isCollapsed) {
-        onToggleCollapse(); // Expand to icon + text
+        // Large screen but collapsed - expand to show text
+        console.log('Sidebar: Expanding sidebar for large screen');
+        onToggleCollapse();
       } else if (!isLargeScreen && !isCollapsed) {
-        onToggleCollapse(); // Collapse to icon-only
+        // Small/medium screen but expanded - collapse to icons-only
+        console.log('Sidebar: Collapsing sidebar for small/medium screen');
+        onToggleCollapse();
       }
       
-      setHasInitialized(true); // Mark as initialized to prevent future auto-adjustments
+      setHasSetInitialState(true);
     }
-  }, [screenSize, isCollapsed, onToggleCollapse, hasInitialized]);
+  }, [screenSize, hasSetInitialState, isCollapsed, onToggleCollapse]);
 
-  // Responsive behavior: Auto-adjust sidebar when screen size changes
-  useEffect(() => {
-    if (hasInitialized && screenSize > 0) {
-      const isLargeScreen = screenSize >= 1600;
-      
-      // Auto-adjust based on screen size changes
-      if (isLargeScreen && isCollapsed) {
-        // If screen becomes large and sidebar is collapsed, expand it
-        onToggleCollapse();
-      } else if (!isLargeScreen && !isCollapsed) {
-        // If screen becomes small and sidebar is expanded, collapse it
-        onToggleCollapse();
-      }
-    }
-  }, [screenSize, hasInitialized, isCollapsed, onToggleCollapse]);
+  // Remove auto-adjustment on screen size changes to prevent interference with manual toggles
+  // The user can now manually control the sidebar state via the Navbar toggle button
 
   // Memoize active state calculation
   const isActive = useCallback((href: string) => {

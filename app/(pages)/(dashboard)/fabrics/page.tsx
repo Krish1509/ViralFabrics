@@ -68,7 +68,7 @@ export default function FabricsPage() {
   const itemsPerPageOptions = [5, 10, 50, 100, 'All'] as const;
   
   // Enhanced UI states
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showStats, setShowStats] = useState(true);
   const [selectedFabrics, setSelectedFabrics] = useState<Set<string>>(new Set());
@@ -76,6 +76,36 @@ export default function FabricsPage() {
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'recent' | 'popular' | 'trending'>('all');
   const [showIndividualFabrics, setShowIndividualFabrics] = useState(false);
+  
+  // Auto-switch view mode based on screen size (only on mount and resize, not on manual changes)
+  useEffect(() => {
+    const handleResize = () => {
+      // Only auto-switch if user hasn't manually changed the view mode recently
+      const now = Date.now();
+      const lastManualChange = localStorage.getItem('lastViewModeChange') || '0';
+      const timeSinceLastChange = now - parseInt(lastManualChange);
+      
+      // Allow manual override for 5 minutes after user changes view mode
+      if (timeSinceLastChange < 300000) return;
+      
+      if (window.innerWidth < 800 && viewMode === 'table') {
+        setViewMode('cards');
+      } else if (window.innerWidth >= 800 && viewMode === 'cards') {
+        setViewMode('table');
+      }
+    };
+    
+    handleResize(); // Check on mount
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [viewMode]);
+
+  // Handle manual view mode changes
+  const handleViewModeChange = (newMode: 'table' | 'cards') => {
+    setViewMode(newMode);
+    // Store timestamp of manual change
+    localStorage.setItem('lastViewModeChange', Date.now().toString());
+  };
   
 
   
@@ -949,44 +979,47 @@ export default function FabricsPage() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-4 sm:mb-6 lg:mb-8">
         {filtersLoading ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className={`w-14 h-14 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-xl animate-pulse`}></div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg sm:rounded-xl animate-pulse`}></div>
               <div>
-                <div className={`w-48 h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse mb-2`}></div>
-                <div className={`w-64 h-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+                <div className={`w-24 sm:w-40 lg:w-48 h-5 sm:h-6 lg:h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse mb-1 sm:mb-2`}></div>
+                <div className={`w-32 sm:w-48 lg:w-64 h-3 sm:h-4 lg:h-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
               </div>
             </div>
-            <div className={`w-32 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+            <div className={`w-20 sm:w-28 lg:w-32 h-8 sm:h-10 lg:h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
           </div>
         ) : (
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-              <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-4">
+              <div className="p-1.5 sm:p-2 lg:p-3 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4-8-4m16 0v10l-8 4-8-4V7" />
                 </svg>
             </div>
             <div>
-                <h1 className={`text-4xl font-bold ${
+                <h1 className={`text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold ${
                   isDarkMode ? 'text-white' : 'text-gray-900'
                 }`}>
-                Fabric Management
+                <span className="hidden sm:inline">Fabric Management</span>
+                <span className="sm:hidden">Fabrics</span>
               </h1>
-                <p className={`text-xl mt-2 ${
+                <p className={`text-xs sm:text-sm lg:text-base xl:text-lg mt-0.5 sm:mt-1 lg:mt-2 ${
                     isDarkMode ? 'text-gray-300' : 'text-gray-600'
               }`}>
-                Manage fabric inventory and specifications with advanced filtering
+                  <span className="hidden lg:inline">Manage fabric inventory and specifications with advanced filtering</span>
+                  <span className="hidden sm:inline lg:hidden">Manage fabric inventory and specifications</span>
+                  <span className="sm:hidden">Manage fabrics</span>
               </p>
             </div>
           </div>
-                     <div className="flex items-center space-x-3">
+                     <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:flex-row sm:items-center sm:space-x-1.5 lg:space-x-2 xl:space-x-3 gap-2 sm:gap-0">
              <button
                onClick={() => fetchFabrics(true)}
                disabled={loading}
-               className={`p-3 rounded-xl font-medium transition-all duration-200 hover:scale-110 ${
+               className={`p-1.5 sm:p-2 lg:p-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
                  loading ? 'opacity-50 cursor-not-allowed' : ''
                } ${
                  isDarkMode 
@@ -995,19 +1028,21 @@ export default function FabricsPage() {
                }`}
                title="Refresh Data"
              >
-               <ArrowPathIcon className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+               <ArrowPathIcon className={`h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 ${loading ? 'animate-spin' : ''}`} />
              </button>
 
              <button
                onClick={handleCreate}
-               className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+               className={`px-2 sm:px-2.5 lg:px-4 xl:px-6 py-1.5 sm:py-2 lg:py-2.5 xl:py-3 rounded-lg font-medium transition-colors text-xs sm:text-sm lg:text-base ${
                  isDarkMode 
                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
                    : 'bg-blue-500 hover:bg-blue-600 text-white'
                }`}
              >
-               <PlusIcon className="h-5 w-5 inline mr-2" />
-               Add Fabrics
+               <PlusIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 inline mr-1 sm:mr-1.5 lg:mr-2" />
+               <span className="hidden xl:inline">Add Fabrics</span>
+               <span className="hidden sm:inline xl:hidden">Add Fabrics</span>
+               <span className="sm:hidden">Add</span>
              </button>
 
            </div>
@@ -1032,22 +1067,22 @@ export default function FabricsPage() {
 
 
               {/* Search and View Controls */}
-       <div className={`mb-6 p-4 rounded-xl border ${
+       <div className={`mb-3 sm:mb-4 lg:mb-6 p-2.5 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl border ${
          isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
        } shadow-lg`}>
-         <div className="flex items-center justify-between flex-wrap gap-4">
-          {/* Search Bar */}
-          <div className="flex-1 max-w-md">
+                  <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* Top row - Search Bar */}
+          <div className="flex-1 max-w-full sm:max-w-xs lg:max-w-sm xl:max-w-md">
             <div className="relative">
-              <MagnifyingGlassIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
+              <MagnifyingGlassIcon className={`absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 ${
                 isDarkMode ? 'text-gray-400' : 'text-gray-500'
               }`} />
               <input
                 type="text"
-                placeholder="Search fabrics by code, name, or weaver..."
+                placeholder="Search fabrics..."
                 value={filters.search}
                 onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                className={`w-full pl-10 pr-4 py-2.5 rounded-lg border transition-colors ${
+                className={`w-full pl-8 sm:pl-9 lg:pl-10 pr-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg border transition-colors text-xs sm:text-sm lg:text-base ${
                   isDarkMode 
                     ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500' 
                     : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
@@ -1056,7 +1091,7 @@ export default function FabricsPage() {
               {filters.search && (
                 <button
                   onClick={() => setFilters(prev => ({ ...prev, search: '' }))}
-                  className={`absolute right-3 top-1/2 transform -translate-y-1/2 ${
+                  className={`absolute right-2.5 sm:right-3 top-1/2 transform -translate-y-1/2 ${
                     isDarkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
@@ -1066,17 +1101,17 @@ export default function FabricsPage() {
             </div>
           </div>
 
-           {/* Sort and View Controls */}
-          <div className="flex items-center space-x-6">
+           {/* Bottom row - Controls Grid for small screens */}
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:items-center sm:space-x-3 lg:space-x-4 xl:space-x-6 gap-2 sm:gap-0">
             {/* Sort Controls */}
-            <div className="flex items-center space-x-3">
-             <span className={`text-sm font-medium ${
+            <div className="flex items-center justify-center sm:justify-start space-x-1.5 sm:space-x-2">
+             <span className={`text-xs sm:text-sm font-medium ${
                isDarkMode ? 'text-gray-300' : 'text-gray-700'
               }`}>Sort:</span>
              <div className="flex rounded-lg border overflow-hidden">
                <button
                   onClick={() => setFilters(prev => ({ ...prev, sortBy: 'createdAt', sortOrder: 'desc' }))}
-                 className={`px-3 py-2 text-sm transition-colors ${
+                 className={`px-1.5 sm:px-2 lg:px-3 py-1 sm:py-1.5 lg:py-2 text-xs sm:text-sm transition-colors ${
                     filters.sortBy === 'createdAt' && filters.sortOrder === 'desc'
                      ? isDarkMode
                         ? 'bg-green-600 text-white'
@@ -1087,11 +1122,13 @@ export default function FabricsPage() {
                  }`}
                   title="Latest First"
                >
-                  Latest
+                  <span className="hidden lg:inline">Latest</span>
+                  <span className="hidden sm:inline lg:hidden">Latest</span>
+                  <span className="sm:hidden">New</span>
                </button>
                <button
                   onClick={() => setFilters(prev => ({ ...prev, sortBy: 'createdAt', sortOrder: 'asc' }))}
-                 className={`px-3 py-2 text-sm transition-colors ${
+                 className={`px-1.5 sm:px-2 lg:px-3 py-1 sm:py-1.5 lg:py-2 text-xs sm:text-sm transition-colors ${
                     filters.sortBy === 'createdAt' && filters.sortOrder === 'asc'
                       ? isDarkMode
                         ? 'bg-green-600 text-white'
@@ -1102,20 +1139,22 @@ export default function FabricsPage() {
                   }`}
                   title="Oldest First"
                 >
-                  Oldest
+                  <span className="hidden lg:inline">Oldest</span>
+                  <span className="hidden sm:inline lg:hidden">Oldest</span>
+                  <span className="sm:hidden">Old</span>
                 </button>
               </div>
             </div>
 
            {/* View Mode Toggle */}
-            <div className="flex items-center space-x-3">
-             <span className={`text-sm font-medium ${
+            <div className="flex items-center justify-center sm:justify-start space-x-1.5 sm:space-x-2">
+             <span className={`text-xs sm:text-sm font-medium ${
                isDarkMode ? 'text-gray-300' : 'text-gray-700'
              }`}>View:</span>
              <div className="flex rounded-lg border overflow-hidden">
                <button
-                 onClick={() => setViewMode('table')}
-                 className={`px-3 py-2 text-sm transition-colors ${
+                 onClick={() => handleViewModeChange('table')}
+                 className={`px-1.5 sm:px-2 lg:px-3 py-1 sm:py-1.5 lg:py-2 text-xs sm:text-sm transition-colors ${
                    viewMode === 'table'
                      ? isDarkMode
                        ? 'bg-blue-600 text-white'
@@ -1126,11 +1165,11 @@ export default function FabricsPage() {
                  }`}
                 title="Table View"
                >
-                 <ListBulletIcon className="h-4 w-4" />
+                 <ListBulletIcon className="h-3 w-3 sm:h-4 sm:w-4" />
                </button>
                <button
-                 onClick={() => setViewMode('cards')}
-                 className={`px-3 py-2 text-sm transition-colors ${
+                 onClick={() => handleViewModeChange('cards')}
+                 className={`px-1.5 sm:px-2 lg:px-3 py-1 sm:py-1.5 lg:py-2 text-xs sm:text-sm transition-colors ${
                    viewMode === 'cards'
                      ? isDarkMode
                        ? 'bg-blue-600 text-white'
@@ -1141,28 +1180,22 @@ export default function FabricsPage() {
                  }`}
                 title="Card View"
                >
-                <Squares2X2Icon className="h-4 w-4" />
+                <Squares2X2Icon className="h-3 w-3 sm:h-4 sm:w-4" />
                </button>
              </div>
            </div>
 
-            {/* Results Count */}
-
-           </div>
-
-
-
-           {/* Bulk Actions */}
+           {/* Bulk Actions - Integrated into controls grid */}
            {bulkActions && (
-             <div className="flex items-center space-x-2">
-               <span className={`text-sm ${
+             <div className="flex items-center justify-center sm:justify-start space-x-2 col-span-1 xs:col-span-2 sm:col-span-1">
+               <span className={`text-xs sm:text-sm ${
                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
                }`}>
                  {selectedFabrics.size} selected
                </span>
                <button
                  onClick={clearSelection}
-                 className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                 className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
                    isDarkMode 
                      ? 'bg-gray-600 hover:bg-gray-700 text-white' 
                      : 'bg-gray-500 hover:bg-gray-600 text-white'
@@ -1172,96 +1205,107 @@ export default function FabricsPage() {
                </button>
              </div>
            )}
+         </div>
 
-           {/* Toggle Stats */}
-           {/* Removed as per edit hint */}
+
          </div>
        </div>
 
        {/* Selection Toolbar */}
        {showSelectionToolbar && (
-         <div className={`mb-4 p-4 rounded-xl border ${
+         <div className={`mb-3 sm:mb-4 p-2.5 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl border ${
            isDarkMode ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200'
          } shadow-lg`}>
-           <div className="flex items-center justify-between">
-             <div className="flex items-center space-x-4">
-               <div className="flex items-center space-x-2">
-                 <CheckCircleIcon className={`h-5 w-5 ${
-                   isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                 }`} />
-                 <span className={`font-medium ${
-                   isDarkMode ? 'text-blue-300' : 'text-blue-700'
-                 }`}>
-                   {selectedFabrics.size} fabric{selectedFabrics.size !== 1 ? 's' : ''} selected
-                 </span>
-               </div>
-               <div className="flex items-center space-x-2">
-                 <button
-                   onClick={selectAllVisible}
-                   className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                     isDarkMode 
-                       ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                       : 'bg-blue-500 hover:bg-blue-600 text-white'
-                   }`}
-                 >
-                   Select All
-                 </button>
-                 <button
-                   onClick={invertSelection}
-                   className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                     isDarkMode 
-                       ? 'bg-gray-600 hover:bg-gray-700 text-white' 
-                       : 'bg-gray-500 hover:bg-gray-600 text-white'
-                   }`}
-                 >
-                   Invert
-                 </button>
-                 <button
-                   onClick={clearAllSelection}
-                   className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                     isDarkMode 
-                       ? 'bg-gray-600 hover:bg-gray-700 text-white' 
-                       : 'bg-gray-500 hover:bg-gray-600 text-white'
-                   }`}
-                 >
-                   Clear
-                 </button>
-               </div>
-             </div>
-             
-             <div className="flex items-center space-x-2">
-               <button
-                 onClick={() => setShowExportModal(true)}
-                 className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                   isDarkMode 
-                     ? 'bg-green-600 hover:bg-green-700 text-white' 
-                     : 'bg-green-500 hover:bg-green-600 text-white'
-                 }`}
-               >
-                 Export
-               </button>
-               <button
-                 onClick={handleBulkEdit}
-                 className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                   isDarkMode 
-                     ? 'bg-yellow-600 hover:bg-yellow-700 text-white' 
-                     : 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                 }`}
-               >
-                 Edit
-               </button>
-               <button
-                 onClick={handleBulkDeleteSelected}
-                 className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                   isDarkMode 
-                     ? 'bg-red-600 hover:bg-red-700 text-white' 
-                     : 'bg-red-500 hover:bg-red-600 text-white'
-                 }`}
-               >
-                 Delete
-               </button>
-             </div>
-           </div>
+                                               <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+              <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:space-x-3 lg:space-x-4 xl:space-x-6">
+                <div className="flex items-center space-x-1.5 sm:space-x-2">
+                  <CheckCircleIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 ${
+                    isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                  }`} />
+                  <span className={`text-xs sm:text-sm lg:text-base font-medium ${
+                    isDarkMode ? 'text-blue-300' : 'text-blue-700'
+                  }`}>
+                    <span className="hidden sm:inline">{selectedFabrics.size} fabric{selectedFabrics.size !== 1 ? 's' : ''} selected</span>
+                    <span className="sm:hidden">{selectedFabrics.size} selected</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 xs:grid-cols-3 sm:flex sm:flex-row sm:space-y-0 sm:items-center sm:space-x-1.5 lg:space-x-2 gap-1.5 sm:gap-0">
+                  <button
+                    onClick={selectAllVisible}
+                    className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
+                      isDarkMode 
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                        : 'bg-blue-500 hover:bg-blue-600 text-white'
+                    }`}
+                  >
+                    <span className="hidden lg:inline">Select All</span>
+                    <span className="hidden sm:inline lg:hidden">Select All</span>
+                    <span className="sm:hidden">All</span>
+                  </button>
+                  <button
+                    onClick={invertSelection}
+                    className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
+                      isDarkMode 
+                        ? 'bg-gray-600 hover:bg-gray-700 text-white' 
+                        : 'bg-gray-500 hover:bg-gray-600 text-white'
+                    }`}
+                  >
+                    <span className="hidden lg:inline">Invert</span>
+                    <span className="hidden sm:inline lg:hidden">Invert</span>
+                    <span className="sm:hidden">Flip</span>
+                  </button>
+                  <button
+                    onClick={clearAllSelection}
+                    className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
+                      isDarkMode 
+                        ? 'bg-gray-600 hover:bg-gray-700 text-white' 
+                        : 'bg-gray-500 hover:bg-gray-600 text-white'
+                    }`}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 xs:grid-cols-3 sm:flex sm:flex-row sm:space-y-0 sm:items-center sm:space-x-1.5 lg:space-x-2 gap-1.5 sm:gap-0">
+                <button
+                  onClick={() => setShowExportModal(true)}
+                  className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
+                    isDarkMode 
+                      ? 'bg-green-600 hover:bg-green-700 text-white' 
+                      : 'bg-green-500 hover:bg-green-600 text-white'
+                  }`}
+                >
+                  <span className="hidden lg:inline">Export</span>
+                  <span className="hidden sm:inline lg:hidden">Export</span>
+                  <span className="sm:hidden">Export</span>
+                </button>
+                <button
+                  onClick={handleBulkEdit}
+                  className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
+                    isDarkMode 
+                      ? 'bg-yellow-600 hover:bg-yellow-700 text-white' 
+                      : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                  }`}
+                >
+                  <span className="hidden lg:inline">Edit</span>
+                  <span className="hidden sm:inline lg:hidden">Edit</span>
+                  <span className="sm:hidden">Edit</span>
+                </button>
+                <button
+                  onClick={handleBulkDeleteSelected}
+                  className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
+                    isDarkMode 
+                      ? 'bg-red-600 hover:bg-red-700 text-white' 
+                      : 'bg-red-500 hover:bg-red-600 text-white'
+                  }`}
+                >
+                  <span className="hidden lg:inline">Delete</span>
+                  <span className="hidden sm:inline lg:hidden">Delete</span>
+                  <span className="sm:hidden">Del</span>
+                </button>
+              </div>
+            </div>
          </div>
        )}
 
@@ -1277,17 +1321,17 @@ export default function FabricsPage() {
           <div className="p-8">
             {viewMode === 'cards' ? (
               // Card View Skeleton
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                  <div key={i} className={`p-6 rounded-xl border ${
+                  <div key={i} className={`p-3 sm:p-4 lg:p-6 rounded-lg sm:rounded-xl border ${
                     isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'
                   } animate-pulse`}>
-                    <div className={`w-full h-48 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg mb-4`}></div>
-                    <div className={`w-3/4 h-6 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded mb-2`}></div>
-                    <div className={`w-1/2 h-4 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded mb-4`}></div>
-                    <div className="space-y-2">
-                      <div className={`w-full h-4 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded`}></div>
-                      <div className={`w-2/3 h-4 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded`}></div>
+                    <div className={`w-full h-32 sm:h-40 lg:h-48 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg mb-3 sm:mb-4`}></div>
+                    <div className={`w-3/4 h-5 sm:h-6 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded mb-1.5 sm:mb-2`}></div>
+                    <div className={`w-1/2 h-3 sm:h-4 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded mb-3 sm:mb-4`}></div>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <div className={`w-full h-3 sm:h-4 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded`}></div>
+                      <div className={`w-2/3 h-3 sm:h-4 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded`}></div>
                     </div>
                   </div>
                 ))}
@@ -1383,19 +1427,20 @@ export default function FabricsPage() {
         ) : (
           <div>
             {/* Top Pagination and Results Info */}
-            <div className={`px-4 py-3 border-b flex justify-between items-center ${
+            <div className={`px-3 sm:px-4 py-2 sm:py-3 border-b flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:justify-between ${
               isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
             }`}>
-              <div className="flex items-center space-x-4">
-                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  Showing {totalQualityGroups > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? totalQualityGroups : itemsPerPage) + 1 : 0} to{' '}
+              <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:space-x-3 lg:space-x-4">
+                <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <span className="hidden sm:inline">Showing {totalQualityGroups > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? totalQualityGroups : itemsPerPage) + 1 : 0} to{' '}
                   {Math.min(currentPage * (itemsPerPage === 'All' ? totalQualityGroups : itemsPerPage), totalQualityGroups)} of{' '}
-                  {totalQualityGroups} quality groups
+                  {totalQualityGroups} quality groups</span>
+                  <span className="sm:hidden">{totalQualityGroups > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? totalQualityGroups : itemsPerPage) + 1 : 0}-{Math.min(currentPage * (itemsPerPage === 'All' ? totalQualityGroups : itemsPerPage), totalQualityGroups)} of {totalQualityGroups}</span>
                 </span>
                 
                 {/* Items per page dropdown */}
                 <div className="flex items-center space-x-2">
-                  <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Show:</span>
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Show:</span>
                   <select
                     value={itemsPerPage}
                     onChange={(e) => {
@@ -1403,7 +1448,7 @@ export default function FabricsPage() {
                       setItemsPerPage(value);
                       setCurrentPage(1);
                     }}
-                    className={`px-3 py-1 rounded-lg border text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    className={`px-2 sm:px-3 py-1 rounded-lg border text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       isDarkMode 
                         ? 'bg-gray-700 border-gray-600 text-white' 
                         : 'bg-white border-gray-300 text-gray-900'
@@ -1418,17 +1463,18 @@ export default function FabricsPage() {
 
               {/* Top Page Navigation */}
               {itemsPerPage !== 'All' && totalPages > 1 && (
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1 sm:space-x-2">
                   <button
                     onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
-                    className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                    className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
                       currentPage === 1
                         ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
                     }`}
                   >
-                    Previous
+                    <span className="hidden sm:inline">Previous</span>
+                    <span className="sm:hidden">Prev</span>
                   </button>
                   
                   {/* Top Page numbers */}
@@ -1449,7 +1495,7 @@ export default function FabricsPage() {
                         <button
                           key={pageNum}
                           onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                          className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
                             currentPage === pageNum
                               ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
                               : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
@@ -1464,7 +1510,7 @@ export default function FabricsPage() {
                   <button
                     onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages}
-                    className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                    className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
                       currentPage === totalPages
                         ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
@@ -1479,7 +1525,7 @@ export default function FabricsPage() {
           <div className="p-4">
             {viewMode === 'cards' ? (
               // Card View
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {(() => {
                   // Group fabrics by qualityCode for card view while preserving sort order
                   const groupedFabrics = new Map<string, Fabric[]>();
@@ -1508,11 +1554,11 @@ export default function FabricsPage() {
                     const itemsToShow = isExpanded ? fabrics : fabrics.slice(0, 1);
                     
                     return (
-                      <div key={qualityCode} className={`rounded-xl border ${
+                      <div key={qualityCode} className={`rounded-lg sm:rounded-xl border ${
                         isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-300'
                       }`}>
                         {/* Image Section - Responsive */}
-                        <div className="relative h-36 sm:h-40 md:h-44 lg:h-48 overflow-hidden rounded-t-xl">
+                        <div className="relative h-28 sm:h-32 md:h-36 lg:h-40 xl:h-48 overflow-hidden rounded-t-lg sm:rounded-t-xl">
                           {mainFabric.images && mainFabric.images.length > 0 ? (
                             <div className="relative w-full h-full">
                               <img 
@@ -1580,35 +1626,35 @@ export default function FabricsPage() {
                         </div>
                         
                         {/* Content Section - Responsive */}
-                        <div className="p-2 sm:p-3 md:p-4">
+                        <div className="p-1.5 sm:p-2 lg:p-3 xl:p-4">
                           {/* Quality Information */}
-                          <div className="mb-2">
-                            <div className={`text-sm mb-1 ${
+                          <div className="mb-1.5 sm:mb-2">
+                            <div className={`text-xs sm:text-sm mb-1 ${
                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
                             }`}>
-                              <span className="font-medium">Quality Code:</span>
+                              <span className="font-medium">Code:</span>
                               <span className={`ml-1 font-bold ${
                                 isDarkMode ? 'text-blue-400' : 'text-blue-600'
                               }`}>
                                 {mainFabric.qualityCode}
                               </span>
                             </div>
-                            <div className={`text-sm ${
+                            <div className={`text-xs sm:text-sm ${
                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
                             }`}>
-                              <span className="font-medium">Quality Name:</span>
+                              <span className="font-medium">Name:</span>
                               <span className="ml-1">{mainFabric.qualityName}</span>
                             </div>
                           </div>
                           
                           {/* All Items in One Compact Section */}
-                          <div className="mb-2">
-                            <div className={`p-2.5 rounded-lg border ${
+                          <div className="mb-1.5 sm:mb-2">
+                            <div className={`p-2 sm:p-2.5 rounded-lg border ${
                               isDarkMode 
                                 ? 'bg-gray-700/30 border-gray-500' 
                                 : 'bg-gray-50 border-gray-300'
                             }`}>
-                              <h4 className={`text-sm font-semibold mb-1.5 flex items-center justify-between ${
+                              <h4 className={`text-xs sm:text-sm font-semibold mb-1 sm:mb-1.5 flex items-center justify-between ${
                                 isDarkMode ? 'text-gray-300' : 'text-gray-700'
                               }`}>
                                 <span>Items ({fabrics.length})</span>
@@ -1617,20 +1663,20 @@ export default function FabricsPage() {
                               {/* Show items based on expansion state */}
                               <div className="space-y-2">
                                 {itemsToShow.map((fabric, index) => (
-                                  <div key={fabric._id} className={`p-3 rounded-lg border ${
+                                  <div key={fabric._id} className={`p-2 sm:p-2.5 lg:p-3 rounded-lg border ${
                                     isDarkMode 
                                       ? 'bg-gray-800/40 border-gray-600/40 hover:bg-gray-800/60' 
                                       : 'bg-white border-gray-200 hover:bg-gray-50'
                                   } transition-colors duration-200`}>
                                     {/* Item Header */}
-                                    <div className="flex items-center justify-between mb-3">
-                                      <div className="flex items-center gap-3">
-                                        <span className={`text-sm font-bold px-2 py-1 rounded-md ${
+                                    <div className="flex items-center justify-between mb-2 sm:mb-3">
+                                      <div className="flex items-center gap-2 sm:gap-3">
+                                        <span className={`text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md ${
                                           isDarkMode ? 'bg-blue-600/20 text-blue-400' : 'bg-blue-100 text-blue-700'
                                         }`}>
                                           #{index + 1}
                                         </span>
-                                        <span className={`text-lg font-bold ${
+                                        <span className={`text-base sm:text-lg font-bold ${
                                           isDarkMode ? 'text-green-400' : 'text-green-600'
                                         }`}>
                                           {fabric.greighRate > 0 ? `₹${fabric.greighRate}` : '-'}
@@ -1638,20 +1684,20 @@ export default function FabricsPage() {
                                       </div>
                                       <button
                                         onClick={() => handleDelete(fabric)}
-                                        className={`p-1.5 rounded-md transition-all duration-200 hover:scale-110 ${
+                                        className={`p-1 sm:p-1.5 rounded-md transition-all duration-200 hover:scale-110 ${
                                           isDarkMode 
                                             ? 'text-red-400 hover:bg-red-900/20' 
                                             : 'text-red-600 hover:bg-red-50'
                                         }`}
                                         title={`Delete Item ${index + 1}`}
                                       >
-                                        <TrashIcon className="h-4 w-4" />
+                                        <TrashIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                       </button>
                                     </div>
                                     
                                     {/* Item Details Grid */}
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                                      <div className="space-y-1">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 text-xs sm:text-sm">
+                                      <div className="space-y-0.5 sm:space-y-1">
                                         <span className={`text-xs font-medium uppercase tracking-wide ${
                                           isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                         }`}>Weaver</span>
@@ -1660,7 +1706,7 @@ export default function FabricsPage() {
                                         </div>
                                       </div>
                                       
-                                      <div className="space-y-1">
+                                      <div className="space-y-0.5 sm:space-y-1">
                                         <span className={`text-xs font-medium uppercase tracking-wide ${
                                           isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                         }`}>Weight</span>
@@ -1669,7 +1715,7 @@ export default function FabricsPage() {
                                         </div>
                                       </div>
                                       
-                                      <div className="space-y-1">
+                                      <div className="space-y-0.5 sm:space-y-1">
                                         <span className={`text-xs font-medium uppercase tracking-wide ${
                                           isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                         }`}>GSM</span>
@@ -1678,7 +1724,7 @@ export default function FabricsPage() {
                                         </div>
                                       </div>
                                       
-                                      <div className="space-y-1">
+                                      <div className="space-y-0.5 sm:space-y-1">
                                         <span className={`text-xs font-medium uppercase tracking-wide ${
                                           isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                         }`}>Reed</span>
@@ -1687,7 +1733,7 @@ export default function FabricsPage() {
                                         </div>
                                       </div>
                                       
-                                      <div className="space-y-1">
+                                      <div className="space-y-0.5 sm:space-y-1">
                                         <span className={`text-xs font-medium uppercase tracking-wide ${
                                           isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                         }`}>Pick</span>
@@ -1696,7 +1742,7 @@ export default function FabricsPage() {
                                         </div>
                                       </div>
                                       
-                                      <div className="space-y-1">
+                                      <div className="space-y-0.5 sm:space-y-1">
                                         <span className={`text-xs font-medium uppercase tracking-wide ${
                                           isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                         }`}>Finish</span>
@@ -1712,18 +1758,26 @@ export default function FabricsPage() {
                                 {fabrics.length > 1 ? (
                                   <button
                                     onClick={() => toggleCardExpansion(qualityCode)}
-                                    className={`w-full py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded border-2 border-dashed transition-colors ${
+                                    className={`w-full py-1 sm:py-1.5 lg:py-2 text-xs sm:text-sm font-medium rounded border-2 border-dashed transition-colors ${
                                       isDarkMode 
                                         ? 'border-gray-600 text-gray-400 hover:border-blue-500 hover:text-blue-400' 
                                         : 'border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600'
                                     }`}
                                   >
-                                    <span className="hidden sm:inline">
+                                    <span className="hidden lg:inline">
                                       {isExpanded 
                                         ? 'Show Less' 
                                         : fabrics.length === 2 
                                           ? 'View 1 more item'
                                           : `View ${fabrics.length - 1} more items`
+                                      }
+                                    </span>
+                                    <span className="hidden sm:inline lg:hidden">
+                                      {isExpanded 
+                                        ? 'Show Less' 
+                                        : fabrics.length === 2 
+                                          ? 'View 1 more'
+                                          : `View ${fabrics.length - 1} more`
                                       }
                                     </span>
                                     <span className="sm:hidden">
@@ -1734,12 +1788,13 @@ export default function FabricsPage() {
                                     </span>
                                   </button>
                                 ) : (
-                                  <div className={`w-full py-1.5 sm:py-2 text-xs sm:text-sm text-center rounded border border-dashed ${
+                                  <div className={`w-full py-1 sm:py-1.5 lg:py-2 text-xs sm:text-sm text-center rounded border border-dashed ${
                                     isDarkMode 
                                       ? 'border-gray-700 text-gray-500' 
                                       : 'border-gray-200 text-gray-400'
                                   }`}>
-                                    <span className="hidden sm:inline">Only 1 item</span>
+                                    <span className="hidden lg:inline">Only 1 item</span>
+                                    <span className="hidden sm:inline lg:hidden">Only 1 item</span>
                                     <span className="sm:hidden">1</span>
                                   </div>
                                 )}
@@ -1749,47 +1804,53 @@ export default function FabricsPage() {
                         </div>
                         
                         {/* Actions at Bottom - Responsive */}
-                        <div className={`p-2 sm:p-3 border-t ${
+                        <div className={`p-1.5 sm:p-2 lg:p-3 border-t ${
                           isDarkMode ? 'border-gray-600' : 'border-gray-300'
                         }`}>
-                          <div className="flex space-x-1 sm:space-x-2">
+                          <div className="flex flex-col space-y-1.5 sm:flex-row sm:space-y-0 sm:space-x-1 lg:space-x-1.5 xl:space-x-2">
                             <button
                               onClick={() => handleView(mainFabric)}
-                              className={`flex-1 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all duration-200 hover:scale-105 text-xs sm:text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center space-x-1 sm:space-x-2 bg-transparent ${
+                              className={`flex-1 px-1.5 sm:px-2 lg:px-3 py-1 sm:py-1.5 lg:py-2 rounded-lg transition-all duration-200 hover:scale-105 text-xs sm:text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center space-x-1 bg-transparent ${
                                 isDarkMode 
                                   ? 'text-blue-400 border border-blue-400 hover:bg-blue-400/10' 
                                   : 'text-blue-600 border border-blue-600 hover:bg-blue-600/10'
                               }`}
                               title="View Quality Details"
                             >
-                              <EyeIcon className="h-3 w-3 sm:h-4 sm:w-4" />
-                              <span className="hidden sm:inline">View</span>
+                              <EyeIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4" />
+                              <span className="hidden lg:inline">View</span>
+                              <span className="hidden sm:inline lg:hidden">View</span>
+                              <span className="sm:hidden">View</span>
                             </button>
                             
                             <button
                               onClick={() => handleEdit(mainFabric)}
-                              className={`flex-1 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all duration-200 hover:scale-105 text-xs sm:text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center space-x-1 sm:space-x-2 bg-transparent ${
+                              className={`flex-1 px-1.5 sm:px-2 lg:px-3 py-1 sm:py-1.5 lg:py-2 rounded-lg transition-all duration-200 hover:scale-105 text-xs sm:text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center space-x-1 bg-transparent ${
                                 isDarkMode 
                                   ? 'text-emerald-400 border border-emerald-400 hover:bg-emerald-400/10' 
                                   : 'text-emerald-600 border border-emerald-600 hover:bg-emerald-600/10'
                               }`}
                               title="Edit Quality"
                             >
-                              <PencilIcon className="h-3 w-3 sm:h-4 sm:w-4" />
-                              <span className="hidden sm:inline">Edit</span>
+                              <PencilIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4" />
+                              <span className="hidden lg:inline">Edit</span>
+                              <span className="hidden sm:inline lg:hidden">Edit</span>
+                              <span className="sm:hidden">Edit</span>
                             </button>
                             
                             <button
                               onClick={() => handleDeleteQualityGroup(mainFabric, fabrics)}
-                              className={`flex-1 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all duration-200 hover:scale-105 text-xs sm:text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center space-x-1 sm:space-x-2 bg-transparent ${
+                              className={`flex-1 px-1.5 sm:px-2 lg:px-3 py-1 sm:py-1.5 lg:py-2 rounded-lg transition-all duration-200 hover:scale-105 text-xs sm:text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center space-x-1 bg-transparent ${
                                 isDarkMode 
                                   ? 'text-red-400 border border-red-400 hover:bg-red-400/10' 
                                   : 'text-red-600 border border-red-600 hover:bg-red-600/10'
                               }`}
                               title={`Delete Quality Group (${fabrics.length} items)`}
                             >
-                              <TrashIcon className="h-3 w-3 sm:h-4 sm:w-4" />
-                              <span className="hidden sm:inline">Delete</span>
+                              <TrashIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4" />
+                              <span className="hidden lg:inline">Delete</span>
+                              <span className="hidden sm:inline lg:hidden">Delete</span>
+                              <span className="sm:hidden">Del</span>
                             </button>
                           </div>
                         </div>
@@ -1801,52 +1862,57 @@ export default function FabricsPage() {
             ) : (
               // Table View
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[600px] sm:min-w-[800px]">
                 <thead className={`${
                   isDarkMode ? 'bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-600' : 'bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-300'
                 }`}>
                   <tr>
-                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                    <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
                       isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
-                      Quality Information
+                      <span className="hidden sm:inline">Quality Information</span>
+                      <span className="sm:hidden">Quality</span>
                     </th>
-                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                    <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
                       isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
                       Images
                     </th>
-                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                    <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
                       isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
                       Items
                     </th>
-                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                    <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
                       isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
-                      Weaver Information
+                      <span className="hidden sm:inline">Weaver Information</span>
+                      <span className="sm:hidden">Weaver</span>
                     </th>
-                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                    <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
                       isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
-                      Dimensions
+                      <span className="hidden sm:inline">Dimensions</span>
+                      <span className="sm:hidden">Size</span>
                     </th>
-                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                    <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
                       isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
-                      Specifications
+                      <span className="hidden sm:inline">Specifications</span>
+                      <span className="sm:hidden">Specs</span>
                     </th>
-                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                    <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
                       isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
-                      Technical Details
+                      <span className="hidden sm:inline">Technical Details</span>
+                      <span className="sm:hidden">Tech</span>
                     </th>
-                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                    <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
                       isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
                       Pricing
                     </th>
-                    <th className={`px-6 py-4 text-left text-sm font-bold uppercase tracking-wide border-b-2 ${
+                    <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
                       isDarkMode ? 'text-white border-gray-500 bg-gray-800/50' : 'text-gray-800 border-gray-400 bg-gray-50'
                     }`}>
                       Actions
@@ -1888,47 +1954,48 @@ export default function FabricsPage() {
                           isDarkMode ? 'border-gray-600' : 'border-gray-300'
                         }`}>
                           {/* Quality Information */}
-                          <td className={`px-6 py-5 ${
+                          <td className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
-                            <div className="space-y-3">
-                              <div className="text-base">
+                            <div className="space-y-2 sm:space-y-3">
+                              <div className="text-sm sm:text-base">
                                 <span className={`font-semibold ${
                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                                }`}>Quality Code:</span>
-                                <span className={`ml-2 font-bold text-lg ${
+                                }`}>Code:</span>
+                                <span className={`ml-1 sm:ml-2 font-bold text-base sm:text-lg ${
                                   isDarkMode ? 'text-blue-400' : 'text-blue-600'
                                 }`}>
                                   {mainFabric.qualityCode}
                                 </span>
                               </div>
-                              <div className="text-base">
+                              <div className="text-sm sm:text-base">
                                 <span className={`font-semibold ${
                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                                }`}>Quality Name:</span>
-                                <span className={`ml-2 font-bold ${
+                                }`}>Name:</span>
+                                <span className={`ml-1 sm:ml-2 font-bold ${
                                   isDarkMode ? 'text-purple-300' : 'text-purple-600'
                                 }`}>
                                   {mainFabric.qualityName}
                                 </span>
                               </div>
-                              <div className="pt-3 border-t border-gray-400/15">
-                              <div className="text-sm">
+                              <div className="pt-2 sm:pt-3 border-t border-gray-400/15">
+                              <div className="text-xs sm:text-sm">
                                 <span className={`font-medium ${
                                     isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                 }`}>Created:</span>
-                                  <span className={`ml-2 font-semibold ${
+                                  <span className={`ml-1 sm:ml-2 font-semibold ${
                                     isDarkMode ? 'text-gray-300' : 'text-gray-600'
                                   }`}>
-                                  {new Date(mainFabric.createdAt).toLocaleString()}
+                                  <span className="hidden sm:inline">{new Date(mainFabric.createdAt).toLocaleString()}</span>
+                                  <span className="sm:hidden">{new Date(mainFabric.createdAt).toLocaleDateString()}</span>
                                 </span>
                                 </div>
                               </div>
-                              <div className="text-sm">
+                              <div className="text-xs sm:text-sm">
                                 <span className={`font-medium ${
                                   isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                }`}>Total Items:</span>
-                                <span className={`ml-2 font-bold text-lg ${
+                                }`}>Items:</span>
+                                <span className={`ml-1 sm:ml-2 font-bold text-base sm:text-lg ${
                                   isDarkMode ? 'text-green-400' : 'text-green-600'
                                 }`}>
                                   {fabrics.length}
@@ -1938,14 +2005,14 @@ export default function FabricsPage() {
                           </td>
                           
                           {/* Images - Show only once per quality group */}
-                          <td className="px-4 py-3">
+                          <td className="px-1.5 sm:px-2 lg:px-4 py-1.5 sm:py-2 lg:py-3">
                             {mainFabric.images && mainFabric.images.length > 0 ? (
-                              <div className="flex items-center space-x-2">
+                              <div className="flex items-center space-x-1 sm:space-x-2">
                                    <div className="relative">
                                 <img 
                                   src={mainFabric.images[0]} 
                                   alt="Fabric"
-                                       className="w-16 h-16 object-cover rounded-lg border-2 border-gray-200 hover:border-blue-400 transition-all duration-200 cursor-pointer shadow-md hover:shadow-lg hover:scale-105"
+                                       className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 object-cover rounded-lg border-2 border-gray-200 hover:border-blue-400 transition-all duration-200 cursor-pointer shadow-md hover:shadow-lg hover:scale-105"
                                   onClick={() => handleImageClick(mainFabric, 0)}
                                        onError={(e) => {
                                          const target = e.target as HTMLImageElement;
@@ -1956,16 +2023,16 @@ export default function FabricsPage() {
                                          }
                                        }}
                                      />
-                                     <div className={`hidden fallback-icon w-16 h-16 rounded-lg items-center justify-center ${
+                                     <div className={`hidden fallback-icon w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 rounded-lg items-center justify-center ${
                                        isDarkMode ? 'bg-gray-600 border-2 border-gray-500' : 'bg-gray-100 border-2 border-gray-200'
                                      }`} style={{ display: 'none' }}>
-                                       <PhotoIcon className={`h-8 w-8 ${
+                                       <PhotoIcon className={`h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 ${
                                          isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                        }`} />
                                      </div>
                                    </div>
                                 {mainFabric.images.length > 1 && (
-                                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                     <span className={`text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full font-medium ${
                                     isDarkMode 
                                       ? 'bg-blue-600 text-white' 
                                       : 'bg-blue-100 text-blue-800'
@@ -1975,33 +2042,34 @@ export default function FabricsPage() {
                                 )}
                               </div>
                             ) : (
-                                 <div className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center border-2 ${
+                                 <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-lg flex flex-col items-center justify-center border-2 ${
                                    isDarkMode 
                                      ? 'bg-gray-700 border-gray-600 hover:bg-gray-600' 
                                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
                                  } transition-colors duration-200`}>
-                                   <PhotoIcon className={`h-6 w-6 mb-1 ${
+                                   <PhotoIcon className={`h-5 w-5 sm:h-6 sm:w-6 mb-1 ${
                                      isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                    }`} />
                                    <span className={`text-xs font-medium ${
                                      isDarkMode ? 'text-gray-500' : 'text-gray-400'
                                    }`}>
-                                     No image
+                                     <span className="hidden sm:inline">No image</span>
+                                     <span className="sm:hidden">No img</span>
                                    </span>
                               </div>
                             )}
                           </td>
                           
                           {/* Items Column - Show Item 1, Item 2 labels */}
-                          <td className={`px-4 py-3 ${
+                          <td className={`px-2 sm:px-3 lg:px-4 py-2 sm:py-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
                                                           <div className="space-y-1">
                               {fabrics.map((fabric, index) => (
-                                  <div key={fabric._id} className={`text-sm min-h-[4rem] flex items-center ${
-                                    index > 0 ? `mt-3 pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
+                                  <div key={fabric._id} className={`text-xs sm:text-sm min-h-[3rem] sm:min-h-[4rem] flex items-center ${
+                                    index > 0 ? `mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
                                   }`}>
-                                                                  <div className={`text-base font-bold ${
+                                                                  <div className={`text-sm sm:text-base font-bold ${
                                    isDarkMode ? 'text-blue-300' : 'text-blue-600'
                                   }`}>
                                     Item {index + 1}
@@ -2012,19 +2080,23 @@ export default function FabricsPage() {
                           </td>
                           
                           {/* Weaver Information - Show all weavers */}
-                          <td className={`px-4 py-3 ${
+                          <td className={`px-2 sm:px-3 lg:px-4 py-2 sm:py-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
                               <div className="space-y-1">
                               {fabrics.map((fabric, index) => (
-                                                                    <div key={fabric._id} className={`text-base ${
-                                    index > 0 ? `mt-3 pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
+                                                                    <div key={fabric._id} className={`text-sm sm:text-base ${
+                                    index > 0 ? `mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
                                   }`}>
-                                   <div className={`mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                     Weaver: <span className={`font-bold ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>{fabric.weaver}</span>
+                                   <div className={`mb-1.5 sm:mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     <span className="hidden sm:inline">Weaver:</span>
+                                     <span className="sm:hidden">W:</span>
+                                     <span className={`font-bold ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>{fabric.weaver}</span>
                                     </div>
                                    <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                     Quality: <span className={`font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-600'}`}>{fabric.weaverQualityName || '-'}</span>
+                                     <span className="hidden sm:inline">Quality:</span>
+                                     <span className="sm:hidden">Q:</span>
+                                     <span className={`font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-600'}`}>{fabric.weaverQualityName || '-'}</span>
                                   </div>
                                 </div>
                               ))}
@@ -2032,19 +2104,23 @@ export default function FabricsPage() {
                           </td>
                           
                           {/* Dimensions - Show all dimensions */}
-                          <td className={`px-4 py-3 ${
+                          <td className={`px-2 sm:px-3 lg:px-4 py-2 sm:py-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
                                                             <div className="space-y-1">
                               {fabrics.map((fabric, index) => (
-                                  <div key={fabric._id} className={`text-base ${
-                                    index > 0 ? `mt-3 pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
+                                  <div key={fabric._id} className={`text-sm sm:text-base ${
+                                    index > 0 ? `mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
                                   }`}>
-                                   <div className={`mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                     Greigh: <span className={`font-bold ${isDarkMode ? 'text-green-300' : 'text-green-600'}`}>{fabric.greighWidth > 0 ? `${fabric.greighWidth}"` : '-'}</span>
+                                   <div className={`mb-1.5 sm:mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     <span className="hidden sm:inline">Greigh:</span>
+                                     <span className="sm:hidden">G:</span>
+                                     <span className={`font-bold ${isDarkMode ? 'text-green-300' : 'text-green-600'}`}>{fabric.greighWidth > 0 ? `${fabric.greighWidth}"` : '-'}</span>
                                     </div>
                                    <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                     Finish: <span className={`font-bold ${isDarkMode ? 'text-teal-300' : 'text-teal-600'}`}>{fabric.finishWidth > 0 ? `${fabric.finishWidth}"` : '-'}</span>
+                                     <span className="hidden sm:inline">Finish:</span>
+                                     <span className="sm:hidden">F:</span>
+                                     <span className={`font-bold ${isDarkMode ? 'text-teal-300' : 'text-teal-600'}`}>{fabric.finishWidth > 0 ? `${fabric.finishWidth}"` : '-'}</span>
                                   </div>
                                 </div>
                               ))}
@@ -2052,19 +2128,23 @@ export default function FabricsPage() {
                           </td>
                           
                           {/* Specifications - Show all specifications */}
-                          <td className={`px-4 py-3 ${
+                          <td className={`px-2 sm:px-3 lg:px-4 py-2 sm:py-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
                                                             <div className="space-y-1">
                               {fabrics.map((fabric, index) => (
-                                  <div key={fabric._id} className={`text-base ${
-                                    index > 0 ? `mt-3 pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
+                                  <div key={fabric._id} className={`text-sm sm:text-base ${
+                                    index > 0 ? `mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
                                   }`}>
-                                   <div className={`mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                     Weight: <span className={`font-bold ${isDarkMode ? 'text-orange-300' : 'text-orange-600'}`}>{fabric.weight > 0 ? `${fabric.weight} KG` : '-'}</span>
+                                   <div className={`mb-1.5 sm:mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     <span className="hidden sm:inline">Weight:</span>
+                                     <span className="sm:hidden">W:</span>
+                                     <span className={`font-bold ${isDarkMode ? 'text-orange-300' : 'text-orange-600'}`}>{fabric.weight > 0 ? `${fabric.weight} KG` : '-'}</span>
                                     </div>
                                    <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                     GSM: <span className={`font-bold ${isDarkMode ? 'text-pink-300' : 'text-pink-600'}`}>{fabric.gsm > 0 ? fabric.gsm : '-'}</span>
+                                     <span className="hidden sm:inline">GSM:</span>
+                                     <span className="sm:hidden">G:</span>
+                                     <span className={`font-bold ${isDarkMode ? 'text-pink-300' : 'text-pink-600'}`}>{fabric.gsm > 0 ? fabric.gsm : '-'}</span>
                                   </div>
                                 </div>
                               ))}
@@ -2072,22 +2152,28 @@ export default function FabricsPage() {
                           </td>
                           
                           {/* Technical Details - Show all technical details */}
-                          <td className={`px-4 py-3 ${
+                          <td className={`px-2 sm:px-3 lg:px-4 py-2 sm:py-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
                                                             <div className="space-y-1">
                               {fabrics.map((fabric, index) => (
-                                  <div key={fabric._id} className={`text-base ${
-                                    index > 0 ? `mt-3 pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
+                                  <div key={fabric._id} className={`text-sm sm:text-base ${
+                                    index > 0 ? `mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
                                   }`}>
-                                   <div className={`mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                     Danier: <span className={`font-bold ${isDarkMode ? 'text-yellow-300' : 'text-yellow-600'}`}>{fabric.danier || '-'}</span>
+                                   <div className={`mb-1.5 sm:mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     <span className="hidden sm:inline">Danier:</span>
+                                     <span className="sm:hidden">D:</span>
+                                     <span className={`font-bold ${isDarkMode ? 'text-yellow-300' : 'text-yellow-600'}`}>{fabric.danier || '-'}</span>
                                     </div>
-                                   <div className={`mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                     Reed: <span className={`font-bold ${isDarkMode ? 'text-cyan-300' : 'text-cyan-600'}`}>{fabric.reed > 0 ? fabric.reed : '-'}</span>
+                                   <div className={`mb-1.5 sm:mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                     <span className="hidden sm:inline">Reed:</span>
+                                     <span className="sm:hidden">R:</span>
+                                     <span className={`font-bold ${isDarkMode ? 'text-cyan-300' : 'text-cyan-600'}`}>{fabric.reed > 0 ? fabric.reed : '-'}</span>
                                     </div>
                                    <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                     Pick: <span className={`font-bold ${isDarkMode ? 'text-rose-300' : 'text-rose-600'}`}>{fabric.pick > 0 ? fabric.pick : '-'}</span>
+                                     <span className="hidden sm:inline">Pick:</span>
+                                     <span className="sm:hidden">P:</span>
+                                     <span className={`font-bold ${isDarkMode ? 'text-rose-300' : 'text-rose-600'}`}>{fabric.pick > 0 ? fabric.pick : '-'}</span>
                                   </div>
                                 </div>
                               ))}
@@ -2095,16 +2181,18 @@ export default function FabricsPage() {
                           </td>
                           
                           {/* Pricing - Show all rates with delete buttons */}
-                          <td className={`px-4 py-3 ${
+                          <td className={`px-2 sm:px-3 lg:px-4 py-2 sm:py-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
                                                               <div className="space-y-1">
                               {fabrics.map((fabric, index) => (
-                                   <div key={fabric._id} className={`text-base flex items-center justify-between ${
-                                    index > 0 ? `mt-3 pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
+                                   <div key={fabric._id} className={`text-sm sm:text-base flex items-center justify-between ${
+                                    index > 0 ? `mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
                                    }`}>
                                   <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                    Price: <span className={`font-bold text-xl ${
+                                    <span className="hidden sm:inline">Price:</span>
+                                    <span className="sm:hidden">P:</span>
+                                    <span className={`font-bold text-lg sm:text-xl ${
                                       fabric.greighRate > 0 
                                         ? isDarkMode 
                                           ? 'text-green-400' 
@@ -2118,14 +2206,14 @@ export default function FabricsPage() {
                                     </div>
                                     <button
                                       onClick={() => handleDelete(fabric)}
-                                    className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+                                    className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
                                         isDarkMode 
                                         ? 'text-red-400 hover:text-red-300 hover:bg-red-900/20 border border-red-500/30' 
                                         : 'text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-300'
                                       }`}
                                       title={`Delete Item ${index + 1}`}
                                     >
-                                      <TrashIcon className="h-4 w-4" />
+                                      <TrashIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                     </button>
                                 </div>
                               ))}
@@ -2133,44 +2221,44 @@ export default function FabricsPage() {
                           </td>
                           
                                                          {/* Actions - Vertical button layout with subtle colors */}
-                          <td className="px-4 py-3">
-                               <div className="space-y-2">
+                          <td className="px-2 sm:px-4 py-2 sm:py-3">
+                               <div className="space-y-1.5 sm:space-y-2">
                               <button
                                 onClick={() => handleView(mainFabric)}
-                                   className={`w-full px-4 py-2.5 rounded-lg transition-all duration-200 hover:scale-105 text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center space-x-2 bg-transparent ${
+                                   className={`w-full px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg transition-all duration-200 hover:scale-105 text-xs sm:text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center space-x-1 sm:space-x-2 bg-transparent ${
                                   isDarkMode 
                                        ? 'text-blue-400 border border-blue-400 hover:bg-blue-400/10' 
                                        : 'text-blue-600 border border-blue-600 hover:bg-blue-600/10'
                                 }`}
                                                               title="View Details"
                               >
-                              <EyeIcon className="h-4 w-4" />
+                              <EyeIcon className="h-3 w-3 sm:h-4 sm:w-4" />
                               <span>View</span>
                               </button>
                               
                               <button
                                 onClick={() => handleEdit(mainFabric)}
-                              className={`w-full px-4 py-2.5 rounded-lg transition-all duration-200 hover:scale-105 text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center space-x-2 bg-transparent ${
+                              className={`w-full px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg transition-all duration-200 hover:scale-105 text-xs sm:text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center space-x-1 sm:space-x-2 bg-transparent ${
                                   isDarkMode 
                                   ? 'text-emerald-400 border border-emerald-400 hover:bg-emerald-400/10' 
                                   : 'text-emerald-600 border border-emerald-600 hover:bg-emerald-600/10'
                                 }`}
                               title="Edit"
                               >
-                              <PencilIcon className="h-4 w-4" />
+                              <PencilIcon className="h-3 w-3 sm:h-4 sm:w-4" />
                               <span>Edit</span>
                               </button>
                               
                               <button
                                 onClick={() => handleDeleteQualityGroup(mainFabric, fabrics)}
-                              className={`w-full px-4 py-2.5 rounded-lg transition-all duration-200 hover:scale-105 text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center space-x-2 bg-transparent ${
+                              className={`w-full px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg transition-all duration-200 hover:scale-105 text-xs sm:text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center space-x-1 sm:space-x-2 bg-transparent ${
                                   isDarkMode 
                                   ? 'text-red-400 border border-red-400 hover:bg-red-400/10' 
                                   : 'text-red-600 border border-red-600 hover:bg-red-600/10'
                                 }`}
                               title={`Delete Quality Group (${fabrics.length} items)`}
                               >
-                              <TrashIcon className="h-4 w-4" />
+                              <TrashIcon className="h-3 w-3 sm:h-4 sm:w-4" />
                               <span>Delete</span>
                               </button>
                             </div>
@@ -2187,20 +2275,21 @@ export default function FabricsPage() {
 
           {/* Bottom Pagination Controls */}
           {itemsPerPage !== 'All' && totalPages > 1 && (
-            <div className={`px-4 py-3 border-t flex justify-center items-center ${
+            <div className={`px-3 sm:px-4 py-2 sm:py-3 border-t flex justify-center items-center ${
               isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
             }`}>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1 sm:space-x-2">
               <button
                 onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                   currentPage === 1
                       ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
                 }`}
               >
-                Previous
+                <span className="hidden sm:inline">Previous</span>
+                <span className="sm:hidden">Prev</span>
               </button>
               
                 {/* Page numbers */}
@@ -2221,7 +2310,7 @@ export default function FabricsPage() {
                     <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                         currentPage === pageNum
                             ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
                             : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
@@ -2236,7 +2325,7 @@ export default function FabricsPage() {
               <button
                 onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                   currentPage === totalPages
                       ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
