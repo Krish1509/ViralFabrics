@@ -300,6 +300,23 @@ function LoginForm() {
         
         {/* Background decorative elements */}
         <div className="absolute inset-0 overflow-hidden">
+          {/* Desktop Particles - Only visible on 1024px and above (Very Subtle) */}
+          <div className="hidden lg:block">
+            {/* Minimal subtle particles for desktop */}
+            <div className="absolute top-1/4 left-1/6 w-1 h-1 bg-white/8 rounded-full shadow-sm shadow-white/5 animate-pulse duration-12000"></div>
+            <div className="absolute bottom-1/4 right-1/6 w-1 h-1 bg-blue-200/6 rounded-full shadow-sm shadow-blue-200/5 animate-pulse duration-15000 delay-3000"></div>
+            <div className="absolute top-1/3 right-1/6 w-1 h-1 bg-white/6 rounded-full shadow-sm shadow-white/5 animate-pulse duration-14000 delay-1000"></div>
+            <div className="absolute bottom-1/3 left-1/6 w-1 h-1 bg-indigo-200/5 rounded-full shadow-sm shadow-indigo-200/5 animate-pulse duration-11000 delay-2000"></div>
+            
+            {/* Additional left section desktop particles */}
+            <div className="absolute top-1/6 left-1/5 w-1 h-1 bg-white/7 rounded-full shadow-sm shadow-white/5 animate-pulse duration-13500 delay-500"></div>
+            <div className="absolute top-2/3 right-1/5 w-1 h-1 bg-blue-200/5 rounded-full shadow-sm shadow-blue-200/5 animate-pulse duration-12500 delay-1500"></div>
+            <div className="absolute bottom-1/6 right-1/4 w-1 h-1 bg-white/6 rounded-full shadow-sm shadow-white/5 animate-pulse duration-16000 delay-2500"></div>
+            <div className="absolute top-4/5 left-1/4 w-1 h-1 bg-indigo-200/4 rounded-full shadow-sm shadow-indigo-200/5 animate-pulse duration-17000 delay-1800"></div>
+            <div className="absolute bottom-2/5 left-1/5 w-1 h-1 bg-white/5 rounded-full shadow-sm shadow-white/5 animate-pulse duration-14500 delay-2200"></div>
+            <div className="absolute top-1/2 right-1/6 w-1 h-1 bg-blue-200/6 rounded-full shadow-sm shadow-blue-200/5 animate-pulse duration-15500 delay-700"></div>
+          </div>
+          
           {/* Floating circles - Subtle and professional */}
           <div className="absolute top-20 left-20 w-32 h-32 border border-white/15 rounded-full animate-float-slow hover:scale-105 transition-transform duration-500"></div>
           <div className="absolute bottom-40 right-20 w-24 h-24 border border-white/18 rounded-full animate-float-slow delay-2000 hover:scale-105 transition-transform duration-500"></div>
@@ -319,6 +336,26 @@ function LoginForm() {
         
         {/* Main content */}
         <div className="relative z-10 flex flex-col justify-center items-center h-full px-8 lg:px-16 text-white py-12 lg:py-0">
+          {/* Dark Mode Toggle - Left Section (Mobile Only) */}
+          <div className="lg:hidden absolute top-4 right-4 z-20">
+            <button
+              ref={themeSwitchRef}
+              onClick={toggleDarkMode}
+              className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
+                isDarkMode
+                  ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/90 border border-slate-600/50 hover:shadow-slate-500/25'
+                  : 'bg-white/90 text-slate-700 hover:bg-white border border-slate-200/50 shadow-xl hover:shadow-slate-300/25'
+              }`}
+              aria-label="Toggle dark mode"
+            >
+              {isDarkMode ? (
+                <SunIcon className="h-6 w-6" />
+              ) : (
+                <MoonIcon className="h-6 w-6" />
+              )}
+            </button>
+          </div>
+          
           <div className="max-w-lg text-center">
             {/* CRM Logo and Branding */}
             <div className="flex items-center justify-center mb-10 animate-fade-in-subtle">
@@ -377,6 +414,26 @@ function LoginForm() {
         </div>
         
         <div className="flex items-center justify-center py-6 px-4 relative z-10">
+          {/* Dark Mode Toggle - Top Right of Left Side (Mobile) */}
+          <div className="absolute top-4 right-4 z-20">
+            <button
+              ref={themeSwitchRef}
+              onClick={toggleDarkMode}
+              className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
+                isDarkMode
+                  ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/90 border border-slate-600/50 hover:shadow-slate-500/25'
+                  : 'bg-white/90 text-slate-700 hover:bg-white border border-slate-200/50 shadow-xl hover:shadow-slate-300/25'
+              }`}
+              aria-label="Toggle dark mode"
+            >
+              {isDarkMode ? (
+                <SunIcon className="h-6 w-6" />
+              ) : (
+                <MoonIcon className="h-6 w-6" />
+              )}
+            </button>
+          </div>
+          
           <div className={`h-12 w-12 rounded-xl flex items-center justify-center shadow-xl transition-all duration-300 ${
             isDarkMode
               ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/30'
@@ -391,31 +448,86 @@ function LoginForm() {
         </div>
       </div>
 
-      {/* Right Side - Login Form (Full width on mobile, 45% on desktop) */}
-      <div className={`flex-1 lg:w-[45%] flex items-center justify-center p-6 sm:p-8 lg:p-10 xl:p-12 transition-all duration-300 ${
-        isDarkMode 
-          ? 'bg-slate-900' 
-          : 'bg-white'
-      }`}>
-        {/* Dark Mode Toggle - Top Right */}
-        <div className="absolute top-4 right-4 z-20">
-          <button
-            ref={themeSwitchRef}
-            onClick={toggleDarkMode}
-            className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
-              isDarkMode
-                ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600 hover:shadow-slate-500/25'
-                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-xl hover:shadow-slate-300/25'
-            }`}
-            aria-label="Toggle dark mode"
-          >
-            {isDarkMode ? (
-              <SunIcon className="h-6 w-6" />
-            ) : (
-              <MoonIcon className="h-6 w-6" />
-            )}
-          </button>
-        </div>
+              {/* Right Side - Login Form (Full width on mobile, 45% on desktop) */}
+        <div className={`flex-1 lg:w-[45%] flex items-center justify-center p-6 sm:p-8 lg:p-10 xl:p-12 transition-all duration-300 relative overflow-hidden ${
+          isDarkMode 
+            ? 'bg-slate-900' 
+            : 'bg-white'
+        }`}>
+          {/* Mobile Particles - Only visible on 1024px and below */}
+          <div className="lg:hidden absolute inset-0 pointer-events-none">
+            {/* Subtle floating particles with smooth animations */}
+            <div className="absolute top-1/5 left-1/6 w-1.5 h-1.5 bg-blue-400/40 rounded-full shadow-lg shadow-blue-400/30 animate-pulse duration-3000"></div>
+            <div className="absolute top-1/3 right-1/5 w-1 h-1 bg-indigo-400/35 rounded-full shadow-md shadow-indigo-400/25 animate-pulse duration-2500 delay-1000"></div>
+            <div className="absolute bottom-1/3 left-1/4 w-1.5 h-1.5 bg-purple-400/30 rounded-full shadow-lg shadow-purple-400/20 animate-pulse duration-4000 delay-500"></div>
+            <div className="absolute bottom-1/4 right-1/6 w-1 h-1 bg-blue-300/40 rounded-full shadow-md shadow-blue-300/25 animate-pulse duration-3500 delay-1500"></div>
+            <div className="absolute top-2/5 left-1/8 w-1 h-1 bg-indigo-300/35 rounded-full shadow-lg shadow-indigo-300/20 animate-pulse duration-3000 delay-2000"></div>
+            
+            {/* Elegant floating orbs with gentle glow */}
+            <div className="absolute top-20 left-1/3 w-2.5 h-2.5 bg-blue-400/25 rounded-full shadow-xl shadow-blue-400/20 animate-pulse duration-5000 delay-300"></div>
+            <div className="absolute bottom-28 right-1/4 w-2 h-2 bg-indigo-400/30 rounded-full shadow-lg shadow-indigo-400/25 animate-pulse duration-4500 delay-1200"></div>
+            
+            {/* Smooth floating elements with professional look */}
+            <div className="absolute top-12 left-1/2 w-1.5 h-1.5 bg-purple-400/25 rounded-full shadow-lg shadow-purple-400/15 animate-pulse duration-4000 delay-700"></div>
+            <div className="absolute bottom-20 left-1/5 w-1 h-1 bg-blue-300/30 rounded-full shadow-md shadow-blue-300/20 animate-pulse duration-3500 delay-1400"></div>
+            
+            {/* Additional subtle elements for depth */}
+            <div className="absolute top-1/2 right-1/6 w-1 h-1 bg-indigo-400/20 rounded-full shadow-sm shadow-indigo-400/15 animate-pulse duration-6000 delay-800"></div>
+            <div className="absolute bottom-1/6 left-1/3 w-1.5 h-1.5 bg-purple-300/25 rounded-full shadow-lg shadow-purple-300/15 animate-pulse duration-5000 delay-1600"></div>
+            
+            {/* Extra mobile particles for better coverage */}
+            <div className="absolute top-1/6 right-1/8 w-1 h-1 bg-blue-300/25 rounded-full shadow-sm shadow-blue-300/15 animate-pulse duration-5000 delay-900"></div>
+            <div className="absolute bottom-1/5 left-1/5 w-1.5 h-1.5 bg-indigo-300/20 rounded-full shadow-md shadow-indigo-300/15 animate-pulse duration-4500 delay-1100"></div>
+            <div className="absolute top-3/5 right-1/4 w-1 h-1 bg-purple-300/30 rounded-full shadow-sm shadow-purple-300/20 animate-pulse duration-3800 delay-1300"></div>
+            
+            {/* Additional mobile particles for rich coverage */}
+            <div className="absolute top-1/8 left-1/4 w-1 h-1 bg-blue-400/20 rounded-full shadow-sm shadow-blue-400/15 animate-pulse duration-4200 delay-400"></div>
+            <div className="absolute top-2/3 right-1/3 w-1.5 h-1.5 bg-indigo-400/25 rounded-full shadow-md shadow-indigo-400/20 animate-pulse duration-4800 delay-600"></div>
+            <div className="absolute bottom-1/8 right-1/3 w-1 h-1 bg-purple-400/20 rounded-full shadow-sm shadow-purple-400/15 animate-pulse duration-3600 delay-1000"></div>
+            <div className="absolute top-4/5 left-1/3 w-1.5 h-1.5 bg-blue-300/30 rounded-full shadow-md shadow-blue-300/20 animate-pulse duration-5200 delay-1200"></div>
+            <div className="absolute bottom-2/5 left-1/6 w-1 h-1 bg-indigo-300/25 rounded-full shadow-sm shadow-indigo-300/15 animate-pulse duration-4400 delay-800"></div>
+            <div className="absolute top-1/2 left-1/8 w-1 h-1 bg-purple-300/20 rounded-full shadow-sm shadow-purple-300/15 animate-pulse duration-5000 delay-1500"></div>
+            <div className="absolute bottom-3/5 right-1/5 w-1.5 h-1.5 bg-blue-400/25 rounded-full shadow-md shadow-blue-400/20 animate-pulse duration-4600 delay-1100"></div>
+          </div>
+          
+          {/* Desktop Particles - Only visible on 1024px and above (Very Subtle) */}
+          <div className="hidden lg:block absolute inset-0 pointer-events-none">
+            {/* Minimal subtle particles for desktop */}
+            <div className="absolute top-1/4 left-1/6 w-1 h-1 bg-slate-400/10 rounded-full shadow-sm shadow-slate-400/5 animate-pulse duration-8000"></div>
+            <div className="absolute bottom-1/4 right-1/6 w-1 h-1 bg-slate-500/8 rounded-full shadow-sm shadow-slate-500/5 animate-pulse duration-10000 delay-2000"></div>
+            <div className="absolute top-1/3 right-1/8 w-1 h-1 bg-slate-400/8 rounded-full shadow-sm shadow-slate-400/5 animate-pulse duration-12000 delay-1000"></div>
+            <div className="absolute bottom-1/3 left-1/8 w-1 h-1 bg-slate-500/6 rounded-full shadow-sm shadow-slate-500/5 animate-pulse duration-9000 delay-3000"></div>
+            
+            {/* Additional desktop particles for better coverage */}
+            <div className="absolute top-1/6 left-1/5 w-1 h-1 bg-slate-400/8 rounded-full shadow-sm shadow-slate-400/5 animate-pulse duration-11000 delay-500"></div>
+            <div className="absolute top-2/3 right-1/5 w-1 h-1 bg-slate-500/6 rounded-full shadow-sm shadow-slate-500/5 animate-pulse duration-9500 delay-1500"></div>
+            <div className="absolute bottom-1/6 right-1/4 w-1 h-1 bg-slate-400/7 rounded-full shadow-sm shadow-slate-400/5 animate-pulse duration-13000 delay-2500"></div>
+            <div className="absolute top-4/5 left-1/4 w-1 h-1 bg-slate-500/5 rounded-full shadow-sm shadow-slate-500/5 animate-pulse duration-14000 delay-1800"></div>
+            <div className="absolute bottom-2/5 left-1/5 w-1 h-1 bg-slate-400/6 rounded-full shadow-sm shadow-slate-400/5 animate-pulse duration-10500 delay-2200"></div>
+            <div className="absolute top-1/2 right-1/6 w-1 h-1 bg-slate-500/7 rounded-full shadow-sm shadow-slate-500/5 animate-pulse duration-11500 delay-700"></div>
+          </div>
+          
+          {/* Dark Mode Toggle - Right Section (Desktop Only) */}
+          <div className="hidden lg:block absolute top-4 right-4 z-20">
+            <button
+              ref={themeSwitchRef}
+              onClick={toggleDarkMode}
+              className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
+                isDarkMode
+                  ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600 hover:shadow-slate-500/25'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-xl hover:shadow-slate-300/25'
+              }`}
+              aria-label="Toggle dark mode"
+            >
+              {isDarkMode ? (
+                <SunIcon className="h-6 w-6" />
+              ) : (
+                <MoonIcon className="h-6 w-6" />
+              )}
+            </button>
+          </div>
+          
+
 
         {/* Login Form Container */}
         <div className="w-full max-w-sm lg:max-w-sm xl:max-w-md">

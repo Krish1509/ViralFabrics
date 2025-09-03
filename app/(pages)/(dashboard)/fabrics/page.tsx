@@ -1929,56 +1929,56 @@ export default function FabricsPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[600px] sm:min-w-[800px]">
                 <thead className={`${
-                  isDarkMode ? 'bg-gradient-to-r from-blue-800/30 to-blue-900/30 border-b border-blue-600' : 'bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-300'
+                  isDarkMode ? 'bg-gradient-to-r from-slate-800/80 to-slate-700/80 border-b border-slate-600' : 'bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-300'
                 }`}>
                   <tr>
                     <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Quality Information</span>
                       <span className="sm:hidden">Quality</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       Images
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       Items
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Weaver Information</span>
                       <span className="sm:hidden">Weaver</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Dimensions</span>
                       <span className="sm:hidden">Size</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Specifications</span>
                       <span className="sm:hidden">Specs</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Technical Details</span>
                       <span className="sm:hidden">Tech</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       Pricing
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-blue-500 bg-blue-800/30' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
                     }`}>
                       Actions
                     </th>

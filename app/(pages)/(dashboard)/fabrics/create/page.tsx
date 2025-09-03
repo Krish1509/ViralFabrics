@@ -46,6 +46,8 @@ export default function CreateFabricPage() {
   });
   
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -211,6 +213,18 @@ export default function CreateFabricPage() {
     setErrors({});
     setIsQualityCodeValid(false);
     setQualityCodeCache({}); // Clear cache on mount
+  }, []);
+
+  // Handle page loading - Faster and smoother
+  useEffect(() => {
+    // Set mounted immediately to prevent flickering
+    setMounted(true);
+    
+    // Reduce loading time and make it smoother
+    const timer = setTimeout(() => {
+      setPageLoading(false);
+    }, 150); // Reduced to 150ms for even faster loading
+    return () => clearTimeout(timer);
   }, []);
 
   // Auto-sync shared fields when items change (only in create mode)
@@ -843,8 +857,89 @@ export default function CreateFabricPage() {
     }
   };
 
+  // Loading skeleton - Show immediately to prevent flickering
+  if (!mounted || pageLoading || (isEditMode && loading)) {
+    return (
+      <div className={`min-h-screen rounded-2xl transition-colors duration-300 ${
+        isDarkMode 
+          ? 'text-white bg-gray-900' 
+          : 'text-gray-900 bg-gray-50'
+      }`}>
+        <div className={`border-b shadow-lg transition-colors duration-300 ${
+          isDarkMode 
+            ? 'border-gray-600/50 bg-gray-800' 
+            : 'border-gray-200 bg-white'
+        }`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-4 sm:py-6 lg:h-20 space-y-4 sm:space-y-0">
+              <div className="flex items-center space-x-3 sm:space-x-6">
+                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl animate-pulse ${
+                  isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                }`}></div>
+                <div className="space-y-2">
+                  <div className={`w-32 sm:w-48 h-6 sm:h-8 rounded-lg animate-pulse ${
+                    isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                  }`}></div>
+                  <div className={`w-48 sm:w-64 h-4 sm:h-5 rounded animate-pulse ${
+                    isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                  }`}></div>
+                </div>
+              </div>
+              <div className={`w-24 h-10 sm:w-28 sm:h-12 rounded-xl animate-pulse ${
+                isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+              }`}></div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          <div className="space-y-6 sm:space-y-8">
+            {/* Form skeleton */}
+            <div className="space-y-4 sm:space-y-6">
+              <div className={`w-full h-12 sm:h-14 rounded-xl animate-pulse ${
+                isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+              }`}></div>
+              <div className={`w-full h-12 sm:h-14 rounded-xl animate-pulse ${
+                isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+              }`}></div>
+              <div className={`w-full h-12 sm:h-14 rounded-xl animate-pulse ${
+                isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+              }`}></div>
+            </div>
+            
+            {/* Items skeleton */}
+            <div className="space-y-4 sm:space-y-6">
+              <div className={`w-32 h-8 rounded-lg animate-pulse ${
+                isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+              }`}></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className={`p-4 sm:p-6 rounded-xl border animate-pulse ${
+                    isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                  }`}>
+                    <div className="space-y-3 sm:space-y-4">
+                      <div className={`w-full h-10 rounded-lg animate-pulse ${
+                        isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                      }`}></div>
+                      <div className={`w-full h-10 rounded-lg animate-pulse ${
+                        isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                      }`}></div>
+                      <div className={`w-full h-10 rounded-lg animate-pulse ${
+                        isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                      }`}></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`min-h-screen rounded-2xl transition-colors **: duration-300 ${
+    <div className={`min-h-screen rounded-2xl transition-all duration-300 animate-in fade-in-0 ${
             isDarkMode 
         ? 'text-white bg-gray-900' 
         : 'text-gray-900 bg-gray-50'
@@ -890,7 +985,7 @@ export default function CreateFabricPage() {
       )}
 
       {/* Enhanced Header */}
-      <div className={`border-b shadow-lg transition-colors duration-300 ${
+      <div className={`border-b shadow-lg transition-all duration-300 animate-in fade-in-0 slide-in-from-top-2 ${
         isDarkMode 
           ? 'border-gray-600/50 bg-gray-800' 
           : 'border-gray-200 bg-white'
@@ -930,8 +1025,8 @@ export default function CreateFabricPage() {
                 </div>
               </div>
               
-              {/* Keyboard Shortcuts Button - Now in Header */}
-              <div className="relative group">
+              {/* Keyboard Shortcuts Button - Now in Header - Hidden on small screens */}
+              <div className="relative group hidden xl:block">
                 <button className={`p-2 sm:p-3 rounded-xl transition-all duration-200 hover:scale-105 border ${
                   isDarkMode 
                     ? 'bg-gray-700/50 hover:bg-gray-600/70 border-gray-600 text-gray-300' 
@@ -1031,7 +1126,7 @@ export default function CreateFabricPage() {
       </div>
 
       {/* Main Content */}
-      <div className={`max-w-6xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 transition-colors duration-300 ${
+      <div className={`max-w-6xl mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 transition-all duration-300 animate-in fade-in-0 slide-in-from-top-4 delay-100 ${
         isDarkMode ? 'text-white' : 'text-gray-900'
       }`}>
 
@@ -1056,11 +1151,11 @@ export default function CreateFabricPage() {
            
            
           {/* Shared Fabric Information */}
-          <div className={`p-4 sm:p-6 rounded-xl border mb-6 sm:mb-8 ${
+          <div className={`p-3 sm:p-4 lg:p-6 rounded-xl border mb-4 sm:mb-6 lg:mb-8 transition-all duration-300 animate-in fade-in-0 slide-in-from-top-4 delay-200 ${
             isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
           }`}>
-            <h3 className="text-lg font-semibold mb-6">Shared Information</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+            <h3 className="text-base sm:text-lg font-semibold mb-4 sm:mb-6">Shared Information</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
               {/* Quality Code */}
               <div>
                 <label className="block text-xs sm:text-sm font-medium mb-2">
@@ -1421,14 +1516,14 @@ export default function CreateFabricPage() {
               <div 
                 key={index}
                 id={`fabric-item-${index}`}
-                className={`p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl border shadow-lg transition-colors duration-300 ${
+                className={`p-3 sm:p-4 lg:p-6 rounded-xl border shadow-lg transition-all duration-300 animate-in fade-in-0 slide-in-from-top-4 delay-300 ${
                   isDarkMode 
                     ? 'border-gray-600 bg-gray-800' 
                     : 'border-gray-200 bg-white'
                 }`}
               >
-                <div className="flex items-center justify-between mb-6">
-                  <h4 className="text-lg font-semibold">Item {index + 1}</h4>
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                  <h4 className="text-base sm:text-lg font-semibold">Item {index + 1}</h4>
                   {formData.items.length > 1 && (
                     <button
                       type="button"
@@ -1444,10 +1539,10 @@ export default function CreateFabricPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
                   {/* Weaver */}
                   <div>
-                    <label className="block text-sm font-medium mb-2">
+                    <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">
                        Weaver <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -1455,7 +1550,7 @@ export default function CreateFabricPage() {
                       value={item.weaver}
                       onChange={(e) => handleItemChange(index, 'weaver', e.target.value)}
                       placeholder="Enter weaver name"
-                      className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 ${errors[`items.${index}.weaver`] ? 'border-red-500 focus:ring-red-400' : ''} ${
+                      className={`w-full p-2.5 sm:p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 ${errors[`items.${index}.weaver`] ? 'border-red-500 focus:ring-red-400' : ''} ${
                         isDarkMode 
                           ? 'bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400' 
                           : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 hover:border-gray-400'
