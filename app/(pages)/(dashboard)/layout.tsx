@@ -5,10 +5,10 @@ import { useRouter, usePathname } from 'next/navigation';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import { useDarkMode } from './hooks/useDarkMode';
-import PageVisitLogger from './components/PageVisitLogger';
-import LoadingOptimizer from './components/LoadingOptimizer';
+
+
 import GlobalSkeleton from './components/GlobalSkeleton';
-import PerformanceMonitor from './components/PerformanceMonitor';
+
 import PWARegistration from './components/PWARegistration';
 
 interface User {
@@ -33,6 +33,9 @@ export default function SuperAdminLayout({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [screenSize, setScreenSize] = useState<number>(0);
   const [sessionStatus, setSessionStatus] = useState<'active' | 'refreshing' | 'expired'>('active');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
   const { isDarkMode, mounted } = useDarkMode();
 
   // Track screen size with debouncing
@@ -214,6 +217,142 @@ export default function SuperAdminLayout({
     });
   }, [isSidebarCollapsed]);
 
+  // Theme toggle function
+  const handleThemeToggle = useCallback(() => {
+    // This will be handled by the useDarkMode hook
+    console.log('Theme toggle requested');
+  }, []);
+
+  // Fullscreen toggle function
+  const handleFullscreenToggle = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => {
+        setIsFullscreen(true);
+      }).catch(err => {
+        console.log('Error attempting to enable fullscreen:', err);
+      });
+    } else {
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false);
+      }).catch(err => {
+        console.log('Error attempting to exit fullscreen:', err);
+      });
+    }
+  }, []);
+
+  // PWA install prompt detection and status checking
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Store the event so it can be triggered later
+      (window as any).deferredPrompt = e;
+      console.log('Install prompt captured and stored');
+    };
+
+    const handleAppInstalled = () => {
+      console.log('PWA was installed');
+      setIsInstalled(true);
+      setIsInstalling(false);
+      // Store install status in localStorage
+      localStorage.setItem('pwa-installed', 'true');
+      // Clear the deferred prompt
+      (window as any).deferredPrompt = null;
+    };
+
+    // Check if app is already installed
+    const checkIfInstalled = () => {
+      // Check if running in standalone mode (installed PWA)
+      if ('standalone' in navigator && (navigator as any).standalone === true) {
+        console.log('App is already installed and running in standalone mode');
+        setIsInstalled(true);
+      }
+      // Check if there's a stored install status
+      const storedInstallStatus = localStorage.getItem('pwa-installed');
+      if (storedInstallStatus === 'true') {
+        console.log('App install status found in localStorage');
+        setIsInstalled(true);
+      }
+    };
+
+    // Listen for the beforeinstallprompt event
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    // Listen for the appinstalled event
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    // Check initial install status
+    checkIfInstalled();
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  // PWA install functions
+  const handleInstallClick = useCallback(() => {
+    setIsInstalling(true);
+    
+    // Check if PWA is supported
+    if ('serviceWorker' in navigator && 'BeforeInstallPromptEvent' in window) {
+      // Trigger the browser's install prompt
+      const installPrompt = (window as any).deferredPrompt;
+      
+      if (installPrompt) {
+        installPrompt.prompt();
+        
+        // Wait for the user to respond to the prompt
+        installPrompt.userChoice.then((choiceResult: any) => {
+          if (choiceResult.outcome === 'accepted') {
+            console.log('User accepted the install prompt');
+            setIsInstalled(true);
+            // Store install status in localStorage
+            localStorage.setItem('pwa-installed', 'true');
+          } else {
+            console.log('User dismissed the install prompt');
+          }
+          setIsInstalling(false);
+          // Clear the prompt
+          (window as any).deferredPrompt = null;
+        });
+      } else {
+        // No install prompt available, try alternative method
+        console.log('No install prompt available, trying alternative method');
+        // For some browsers, we can try to install directly
+        if ('standalone' in navigator && (navigator as any).standalone === false) {
+          // iOS Safari - show instructions
+          alert('To install this app:\n1. Tap the Share button\n2. Tap "Add to Home Screen"\n3. Tap "Add"');
+        } else {
+          // Other browsers - show manual install instructions
+          alert('To install this app, look for the install icon in your browser\'s address bar or menu.');
+        }
+        setIsInstalling(false);
+      }
+    } else {
+      // PWA not supported
+      console.log('PWA not supported in this browser');
+      alert('PWA installation is not supported in your browser. Please use a modern browser like Chrome, Edge, or Firefox.');
+      setIsInstalling(false);
+    }
+  }, []);
+
+  const handleOpenInApp = useCallback(() => {
+    // Handle opening in app mode
+    if ('standalone' in navigator && (navigator as any).standalone === true) {
+      // Already in app mode
+      console.log('Already running in app mode');
+    } else {
+      // Try to open in app mode
+      if (window.location.href.includes('localhost')) {
+        // Development - show message
+        alert('App mode is only available when the app is properly deployed and installed.');
+      } else {
+        // Production - try to open in app
+        window.location.reload();
+      }
+    }
+  }, []);
+
   // Memoize main content margin calculation
   const mainContentMargin = useMemo(() => {
     if (screenSize < 800) {
@@ -237,7 +376,8 @@ export default function SuperAdminLayout({
     }
   }, [screenSize]);
 
-  if (isLoading || !mounted) {
+  // Only show loading skeleton when actually loading, not when just waiting for dark mode
+  if (isLoading) {
     return <GlobalSkeleton type="page" />;
   }
 
@@ -247,15 +387,6 @@ export default function SuperAdminLayout({
         ? 'bg-slate-800' 
         : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
     }`}>
-      {/* Page Visit Logger - Logs all page visits */}
-      <PageVisitLogger />
-      
-      {/* Loading Optimizer - Improves performance across all pages */}
-      <LoadingOptimizer />
-      
-      {/* Silent Performance Monitor - No UI */}
-      <PerformanceMonitor />
-      
       {/* PWA Registration - Handles service worker and PWA setup */}
       <PWARegistration />
       
@@ -266,6 +397,14 @@ export default function SuperAdminLayout({
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={toggleSidebarCollapse}
         user={user}
+        onLogout={handleLogout}
+        onThemeToggle={handleThemeToggle}
+        onFullscreenToggle={handleFullscreenToggle}
+        isFullscreen={isFullscreen}
+        isInstalled={isInstalled}
+        isInstalling={isInstalling}
+        onInstallClick={handleInstallClick}
+        onOpenInApp={handleOpenInApp}
       />
       
       {/* Main content area - Flush with sidebar */}
@@ -279,6 +418,10 @@ export default function SuperAdminLayout({
           isCollapsed={isSidebarCollapsed}
           updateUser={updateUser}
           sessionStatus={sessionStatus}
+          isInstalled={isInstalled}
+          isInstalling={isInstalling}
+          onInstallClick={handleInstallClick}
+          onOpenInApp={handleOpenInApp}
         />
 
         {/* Main Content - Starts immediately below navbar */}

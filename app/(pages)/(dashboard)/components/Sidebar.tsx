@@ -10,7 +10,13 @@ import {
   XMarkIcon,
   ShoppingBagIcon,
   DocumentTextIcon,
-  CubeIcon
+  CubeIcon,
+  UserIcon,
+  SunIcon,
+  ArrowsPointingOutIcon,
+  ArrowsPointingInIcon,
+  DevicePhoneMobileIcon,
+  ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { BRAND_NAME, BRAND_COPYRIGHT, BRAND_TAGLINE } from '@/lib/config';
@@ -23,7 +29,16 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   user?: {
     role: string;
+    name: string;
   } | null;
+  onLogout?: () => void;
+  onThemeToggle?: () => void;
+  onFullscreenToggle?: () => void;
+  isFullscreen?: boolean;
+  isInstalled?: boolean;
+  isInstalling?: boolean;
+  onInstallClick?: () => void;
+  onOpenInApp?: () => void;
 }
 
 interface NavItem {
@@ -33,16 +48,76 @@ interface NavItem {
   badge?: string;
 }
 
-export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse, user }: SidebarProps) {
+export default function Sidebar({ 
+  isOpen, 
+  onClose, 
+  isCollapsed, 
+  onToggleCollapse, 
+  user,
+  onLogout,
+  onThemeToggle,
+  onFullscreenToggle,
+  isFullscreen = false,
+  isInstalled = false,
+  isInstalling = false,
+  onInstallClick,
+  onOpenInApp
+}: SidebarProps) {
   const pathname = usePathname();
   const { isDarkMode, mounted } = useDarkMode();
   const [screenSize, setScreenSize] = useState<number>(0);
   const [hasSetInitialState, setHasSetInitialState] = useState<boolean>(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
 
   // Debug current pathname
   useEffect(() => {
     console.log('Current pathname:', pathname);
   }, [pathname]);
+
+  // Helper function to get user initials
+  const getUserInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(word => word.charAt(0))
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  // Toggle profile dropdown
+  const toggleProfileDropdown = () => {
+    setIsProfileDropdownOpen(!isProfileDropdownOpen);
+  };
+
+  // Close profile dropdown
+  const closeProfileDropdown = () => {
+    setIsProfileDropdownOpen(false);
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (isProfileDropdownOpen && !target.closest('[data-profile-dropdown]')) {
+        setIsProfileDropdownOpen(false);
+      }
+    };
+
+    if (isProfileDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isProfileDropdownOpen]);
+
+  // Close dropdown when sidebar closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsProfileDropdownOpen(false);
+    }
+  }, [isOpen]);
 
   // Memoize nav items to prevent recalculation on every render
   const navItems = useMemo(() => {
@@ -320,18 +395,227 @@ export default function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse
             })}
           </nav>
 
-          {/* Footer */}
-          {shouldShowText && (
-            <div className={`p-4 border-t transition-colors duration-300 ${
-              mounted && isDarkMode ? 'border-white/10' : 'border-gray-200'
-            }`}>
-              <div className={`text-xs text-center transition-colors duration-300 ${
-                mounted && isDarkMode ? 'text-gray-400' : 'text-gray-500'
-              }`}>
-                {BRAND_COPYRIGHT}
-              </div>
+          {/* Footer with Profile Dropdown */}
+          <div className={`border-t transition-colors duration-300 ${
+            mounted && isDarkMode ? 'border-white/10' : 'border-gray-200'
+          }`}>
+            {/* Profile Section */}
+            <div className="relative p-4" data-profile-dropdown>
+              <button
+                onClick={toggleProfileDropdown}
+                className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all duration-300 cursor-pointer ${
+                  isDarkMode 
+                    ? 'bg-white/10 text-white hover:bg-white/20' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                } shadow-lg backdrop-blur-sm`}
+                aria-label="User profile menu"
+              >
+                <div className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all duration-300 ${
+                  isDarkMode 
+                    ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white' 
+                    : 'bg-gradient-to-br from-purple-600 to-purple-700 text-white'
+                } ${
+                  user ? 'border-green-500' : 'border-red-500'
+                }`} title="User Profile">
+                  {user ? getUserInitials(user.name) : 'U'}
+                </div>
+                {shouldShowText && (
+                  <div className="flex-1 min-w-0 text-left">
+                    <span className={`block font-medium transition-colors duration-300 ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {user?.name || 'User'}
+                    </span>
+                    <span className={`block text-xs transition-colors duration-300 ${
+                      isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                    }`}>
+                      {user?.role === 'superadmin' ? 'Super Admin' : 'User'}
+                    </span>
+                  </div>
+                )}
+              </button>
+
+                              {/* Dropdown Menu */}
+                {isProfileDropdownOpen && (
+                  <div className={`absolute bottom-full left-3 mb-2 rounded-xl shadow-2xl transition-all duration-300 z-50 ${
+                    shouldShowText ? 'w-56' : 'w-48'
+                  }`}>
+                    <div className={`py-2 transition-all duration-300 ${
+                      isDarkMode 
+                        ? 'bg-slate-800 border border-slate-700 shadow-slate-900/50' 
+                        : 'bg-white border border-gray-200 shadow-gray-900/20'
+                    } rounded-xl`}>
+                    {shouldShowText && (
+                      <div className={`px-4 py-3 border-b transition-colors duration-300 ${
+                        isDarkMode ? 'border-slate-700' : 'border-gray-200'
+                      }`}>
+                        <p className={`text-sm font-medium transition-colors duration-300 ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {user?.name || 'User'}
+                        </p>
+                        <p className={`text-xs transition-colors duration-300 ${
+                          isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                        }`}>
+                          {user?.role === 'superadmin' ? 'Super Admin' : 'User'}
+                        </p>
+                      </div>
+                    )}
+                    
+                    <button
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                        isDarkMode 
+                          ? 'text-gray-300 hover:bg-slate-700' 
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                      onClick={() => {
+                        closeProfileDropdown();
+                        // Add profile modal logic here
+                      }}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <UserIcon className="h-4 w-4" />
+                        <span>Profile</span>
+                      </div>
+                    </button>
+                    
+                    <button
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                        isDarkMode 
+                          ? 'text-orange-300 hover:bg-orange-500/10' 
+                          : 'text-orange-600 hover:bg-orange-50'
+                      }`}
+                      onClick={() => {
+                        closeProfileDropdown();
+                        onThemeToggle?.();
+                      }}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <SunIcon className="h-4 w-4" />
+                        <span>Theme</span>
+                      </div>
+                    </button>
+                    
+                    <button
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                        isDarkMode 
+                          ? 'text-blue-300 hover:bg-blue-500/10' 
+                          : 'text-blue-600 hover:bg-blue-50'
+                      }`}
+                      onClick={() => {
+                        closeProfileDropdown();
+                        onFullscreenToggle?.();
+                      }}
+                    >
+                      <div className="flex items-center space-x-2">
+                        {isFullscreen ? <ArrowsPointingInIcon className="h-4 w-4" /> : <ArrowsPointingOutIcon className="h-4 w-4" />}
+                        <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+                      </div>
+                    </button>
+                    
+                    {/* Install App / Open in App Button */}
+                    {isInstalled ? (
+                      <button
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                          isDarkMode 
+                            ? 'text-green-300 hover:bg-green-500/10' 
+                            : 'text-green-600 hover:bg-green-50'
+                        }`}
+                        onClick={() => {
+                          closeProfileDropdown();
+                          onOpenInApp?.();
+                        }}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <DevicePhoneMobileIcon className="h-4 w-4" />
+                          <span>Open in App</span>
+                        </div>
+                      </button>
+                    ) : (
+                      <div>
+                        <button
+                          onClick={() => {
+                            closeProfileDropdown();
+                            onInstallClick?.();
+                          }}
+                          disabled={isInstalling}
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                            isDarkMode 
+                              ? 'text-purple-300 hover:bg-purple-500/10' 
+                              : 'text-purple-600 hover:bg-purple-50'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <DevicePhoneMobileIcon className="h-4 w-4" />
+                            <span>{isInstalling ? 'Installing...' : `Install ${BRAND_NAME}`}</span>
+                          </div>
+                        </button>
+                        {/* Simple reason why install button exists */}
+                        <div className="px-4 pb-2">
+                          <p className={`text-xs transition-colors duration-300 ${
+                            mounted && isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            Use CRM on your phone
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className={`border-t transition-colors duration-300 ${
+                      isDarkMode ? 'border-slate-700' : 'border-gray-200'
+                    }`}>
+                      <button
+                        onClick={() => {
+                          closeProfileDropdown();
+                          // Clear session and redirect to login for account change
+                          localStorage.removeItem('token');
+                          localStorage.removeItem('user');
+                          window.location.href = '/login';
+                        }}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                          isDarkMode 
+                            ? 'text-indigo-400 hover:bg-indigo-500/10' 
+                            : 'text-indigo-600 hover:bg-indigo-50'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <UserIcon className="h-4 w-4" />
+                          <span>Change Account</span>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          closeProfileDropdown();
+                          onLogout?.();
+                        }}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                          isDarkMode 
+                            ? 'text-red-400 hover:bg-red-500/10' 
+                            : 'text-red-600 hover:bg-red-50'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                          <span>Logout</span>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Copyright */}
+            {shouldShowText && (
+              <div className="px-4 pb-4">
+                <div className={`text-xs text-center transition-colors duration-300 ${
+                  mounted && isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                }`}>
+                  {BRAND_COPYRIGHT}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 

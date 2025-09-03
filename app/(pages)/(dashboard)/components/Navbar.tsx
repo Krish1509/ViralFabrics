@@ -190,9 +190,14 @@ interface NavbarProps {
   isCollapsed: boolean;
   updateUser: (updatedUser: User) => void;
   sessionStatus?: 'active' | 'refreshing' | 'expired';
+  isLoading?: boolean;
+  isInstalled?: boolean;
+  isInstalling?: boolean;
+  onInstallClick?: () => void;
+  onOpenInApp?: () => void;
 }
 
-export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollapse, isCollapsed, updateUser, sessionStatus = 'active' }: NavbarProps) {
+export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollapse, isCollapsed, updateUser, sessionStatus = 'active', isLoading = false, isInstalled = false, isInstalling = false, onInstallClick, onOpenInApp }: NavbarProps) {
   const { isDarkMode, toggleDarkMode, setSystemTheme, mounted } = useDarkMode();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
@@ -212,11 +217,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
     password: ''
   });
   const [isThemeTransitioning, setIsThemeTransitioning] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
-  const [canInstall, setCanInstall] = useState(false);
-  const [isInstalling, setIsInstalling] = useState(false);
-  const [showManualInstructions, setShowManualInstructions] = useState(false);
+  // Remove unused PWA state since we're using props from layout
 
   // Track screen size with debouncing
   useEffect(() => {
@@ -294,86 +295,8 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
     };
   }, []);
 
-  // PWA Install functionality - Simplified and reliable
-  useEffect(() => {
-    let mounted = true;
-
-    // Check if app is already installed
-    const checkIfInstalled = () => {
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-      const isIOSStandalone = (window.navigator as any).standalone === true;
-      return isStandalone || isIOSStandalone;
-    };
-
-    // Listen for beforeinstallprompt event
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      if (mounted) {
-        setDeferredPrompt(e);
-      }
-    };
-
-    // Listen for appinstalled event
-    const handleAppInstalled = () => {
-      if (mounted) {
-        setIsInstalled(true);
-        setDeferredPrompt(null);
-      }
-    };
-
-    // Check initial state
-    const isAlreadyInstalled = checkIfInstalled();
-    setIsInstalled(isAlreadyInstalled);
-    
-    if (!isAlreadyInstalled) {
-      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.addEventListener('appinstalled', handleAppInstalled);
-    }
-
-    return () => {
-      mounted = false;
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-    };
-  }, []);
-
-  const handleInstallClick = async () => {
-    setIsInstalling(true);
-
-    try {
-      if (deferredPrompt) {
-        // Show the install prompt
-        await deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        
-        if (outcome === 'accepted') {
-          setIsInstalled(true);
-          setCanInstall(false);
-        }
-      } else {
-        // Always show manual instructions if no prompt available
-        setShowManualInstructions(true);
-      }
-    } catch (error) {
-      console.error('Installation error:', error);
-      setShowManualInstructions(true);
-    } finally {
-      setIsInstalling(false);
-      setDeferredPrompt(null);
-    }
-  };
-
-  const handleOpenInApp = () => {
-    // If app is installed, try to open it in standalone mode
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      // Already in app mode, do nothing
-      return;
-    }
-    
-    // Try to open in app mode by redirecting to the same URL
-    // This will trigger the browser to open in app mode if installed
-    window.location.href = window.location.href;
-  };
+  // Use PWA install functions from layout instead of local implementation
+  // This ensures consistency between sidebar and navbar
 
   // Memoize screen size calculations
   const screenConfig = useMemo(() => {
@@ -627,7 +550,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
         isDarkMode 
           ? 'bg-white/10 backdrop-blur-sm border-b border-white/10' 
           : 'bg-white/80 backdrop-blur-sm border-b border-gray-200/50'
-      }`}>
+      } ${isLoading ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`}>
         <div className={`transition-all duration-300 ${
           screenSize >= 1350 ? 'px-4 lg:px-6' :
           screenSize >= 1200 ? 'px-3 lg:px-4' :
@@ -722,12 +645,12 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
 
                 {/* Dropdown Menu */}
                 {isProfileDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 rounded-xl shadow-lg transition-all duration-300 z-50">
+                  <div className="absolute right-0 mt-2 w-56 rounded-xl transition-all duration-300 z-50">
                     <div className={`py-2 transition-all duration-300 ${
                       isDarkMode 
-                        ? 'bg-slate-800 border border-slate-700' 
-                        : 'bg-white border border-gray-200'
-                    } rounded-xl shadow-xl`}>
+                        ? 'bg-slate-800 border border-slate-700 shadow-2xl shadow-slate-900/50' 
+                        : 'bg-white border border-gray-200 shadow-2xl shadow-gray-900/20'
+                    } rounded-xl`}>
                       <div className={`px-4 py-3 border-b transition-colors duration-300 ${
                         isDarkMode ? 'border-slate-700' : 'border-gray-200'
                       }`}>
@@ -797,11 +720,11 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                           className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
                             isDarkMode 
                               ? 'text-green-300 hover:bg-green-500/10' 
-                              : 'text-green-600 hover:bg-green-50'
+                              : 'text-green-600 hover:bg-green-500/10'
                           }`}
                           onClick={() => {
                             closeProfileDropdown();
-                            handleOpenInApp();
+                            onOpenInApp?.();
                           }}
                         >
                           <div className="flex items-center space-x-2">
@@ -810,47 +733,31 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                           </div>
                         </button>
                       ) : (
-                        <div className={`px-4 py-3 rounded-lg transition-colors duration-200 ${
-                          isDarkMode 
-                            ? 'bg-purple-500/10 border border-purple-500/20' 
-                            : 'bg-purple-50 border border-purple-200'
-                        }`}>
-                          <div className="flex items-start space-x-3">
-                            <div className={`p-2 rounded-lg ${
-                              isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                        <div>
+                                                  <button
+                          onClick={() => {
+                            closeProfileDropdown();
+                            onInstallClick?.();
+                          }}
+                          disabled={isInstalling}
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                            isDarkMode 
+                              ? 'text-purple-300 hover:bg-purple-500/10' 
+                              : 'text-purple-600 hover:bg-purple-50'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <DevicePhoneMobileIcon className="h-4 w-4" />
+                            <span>{isInstalling ? 'Installing...' : `Install ${BRAND_NAME}`}</span>
+                          </div>
+                        </button>
+                          {/* Simple reason why install button exists */}
+                          <div className="px-4 pb-2">
+                            <p className={`text-xs transition-colors duration-300 ${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-500'
                             }`}>
-                              <DevicePhoneMobileIcon className="h-5 w-5 text-purple-600" />
-                            </div>
-                            
-                            <div className="flex-1 min-w-0">
-                              <h4 className={`text-sm font-semibold ${
-                                isDarkMode ? 'text-white' : 'text-gray-900'
-                              }`}>
-                                Install {BRAND_NAME}
-                              </h4>
-                              <p className={`text-xs mt-1 ${
-                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                              }`}>
-                                Get quick access to your CRM dashboard on your device
-                              </p>
-                              
-                              <button
-                                onClick={() => {
-                                  closeProfileDropdown();
-                                  handleInstallClick();
-                                }}
-                                disabled={isInstalling}
-                                className={`mt-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                                  isInstalling
-                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                    : isDarkMode
-                                      ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                                      : 'bg-purple-600 hover:bg-purple-700 text-white'
-                                }`}
-                              >
-                                {isInstalling ? 'Installing...' : 'Install'}
-                              </button>
-                            </div>
+                              Use CRM on your phone
+                            </p>
                           </div>
                         </div>
                       )}
@@ -908,7 +815,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
         isDarkMode 
           ? 'bg-white/10 backdrop-blur-sm border-b border-white/10' 
           : 'bg-white/80 backdrop-blur-sm border-b border-gray-200/50'
-      }`}>
+      } ${isLoading ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`}>
         <div className="px-3 py-3">
           <div className="flex justify-between items-center">
             {/* Mobile Menu Button */}
@@ -1079,7 +986,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                           }`}
                           onClick={() => {
                             closeProfileDropdown();
-                            handleOpenInApp();
+                            onOpenInApp?.();
                           }}
                         >
                           <div className="flex items-center space-x-2">
@@ -1115,7 +1022,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                               <button
                                 onClick={() => {
                                   closeProfileDropdown();
-                                  handleInstallClick();
+                                  onInstallClick?.();
                                 }}
                                 disabled={isInstalling}
                                 className={`mt-1.5 px-2 py-1 text-xs font-medium rounded transition-colors ${
@@ -1623,114 +1530,6 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                 }`}
               >
                 Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Manual Installation Instructions Modal */}
-      {showManualInstructions && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`w-full max-w-md rounded-lg shadow-xl ${
-            isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
-          }`}>
-            <div className={`flex items-center justify-between p-6 border-b ${
-              isDarkMode ? 'border-slate-700' : 'border-gray-200'
-            }`}>
-              <h3 className={`text-lg font-semibold ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                Install {BRAND_NAME}
-              </h3>
-              <button
-                onClick={() => setShowManualInstructions(false)}
-                className={`p-2 rounded-lg transition-all duration-300 ${
-                  isDarkMode
-                    ? 'text-gray-400 hover:bg-white/10'
-                    : 'text-gray-500 hover:bg-gray-100'
-                }`}
-              >
-                <XMarkIcon className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="p-6">
-              <div className="space-y-4">
-                <div className={`p-4 rounded-lg ${
-                  isDarkMode ? 'bg-blue-900/20 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'
-                }`}>
-                  <h4 className={`font-medium mb-2 ${
-                    isDarkMode ? 'text-blue-300' : 'text-blue-800'
-                  }`}>
-                    Chrome / Edge / Brave
-                  </h4>
-                  <p className={`text-sm ${
-                    isDarkMode ? 'text-blue-200' : 'text-blue-700'
-                  }`}>
-                    Click the ⋮ menu → "Install {BRAND_NAME}" or "Add to Home Screen"
-                  </p>
-                </div>
-
-                <div className={`p-4 rounded-lg ${
-                  isDarkMode ? 'bg-orange-900/20 border border-orange-500/30' : 'bg-orange-50 border border-orange-200'
-                }`}>
-                  <h4 className={`font-medium mb-2 ${
-                    isDarkMode ? 'text-orange-300' : 'text-orange-800'
-                  }`}>
-                    Firefox
-                  </h4>
-                  <p className={`text-sm ${
-                    isDarkMode ? 'text-orange-200' : 'text-orange-700'
-                  }`}>
-                    Click the ⋮ menu → "Install App" or "Add to Home Screen"
-                  </p>
-                </div>
-
-                <div className={`p-4 rounded-lg ${
-                  isDarkMode ? 'bg-purple-900/20 border border-purple-500/30' : 'bg-purple-50 border border-purple-200'
-                }`}>
-                  <h4 className={`font-medium mb-2 ${
-                    isDarkMode ? 'text-purple-300' : 'text-purple-800'
-                  }`}>
-                    Safari (iOS)
-                  </h4>
-                  <p className={`text-sm ${
-                    isDarkMode ? 'text-purple-200' : 'text-purple-700'
-                  }`}>
-                    Tap Share button → "Add to Home Screen"
-                  </p>
-                </div>
-
-                <div className={`p-4 rounded-lg ${
-                  isDarkMode ? 'bg-green-900/20 border border-green-500/30' : 'bg-green-50 border border-green-200'
-                }`}>
-                  <h4 className={`font-medium mb-2 ${
-                    isDarkMode ? 'text-green-300' : 'text-green-800'
-                  }`}>
-                    Samsung Internet
-                  </h4>
-                  <p className={`text-sm ${
-                    isDarkMode ? 'text-green-200' : 'text-green-700'
-                  }`}>
-                    Tap ⋮ menu → "Add page to" → "Home screen"
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className={`flex justify-end p-6 border-t ${
-              isDarkMode ? 'border-slate-700' : 'border-gray-200'
-            }`}>
-              <button
-                onClick={() => setShowManualInstructions(false)}
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
-                  isDarkMode
-                    ? 'text-gray-300 hover:bg-white/10'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                Got it
               </button>
             </div>
           </div>
