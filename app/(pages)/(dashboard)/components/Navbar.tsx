@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 
-// Custom CSS for sun glow animation and theme transition
+// Custom CSS for sun glow animation only
 const sunGlowStyles = `
   @keyframes sunGlow {
     0%, 100% { 
@@ -15,141 +15,6 @@ const sunGlowStyles = `
               drop-shadow(0 0 10px rgba(255, 255, 0, 0.6)) 
               drop-shadow(0 0 15px rgba(255, 255, 0, 0.4));
     }
-  }
-
-  @keyframes rippleExpand {
-    0% {
-      transform: scale(0);
-      opacity: 1;
-      background: #1D293D;
-    }
-    25% {
-      transform: scale(25);
-      opacity: 0.9;
-      background: #1D293D;
-    }
-    50% {
-      transform: scale(50);
-      opacity: 0.8;
-      background: #1D293D;
-    }
-    75% {
-      transform: scale(75);
-      opacity: 0.6;
-      background: #1D293D;
-    }
-    100% {
-      transform: scale(150);
-      opacity: 0;
-      background: #1D293D;
-    }
-  }
-
-  @keyframes rippleContract {
-    0% {
-      transform: scale(150);
-      opacity: 0;
-      background: #1D293D;
-    }
-    25% {
-      transform: scale(75);
-      opacity: 0.6;
-      background: #1D293D;
-    }
-    50% {
-      transform: scale(50);
-      opacity: 0.8;
-      background: #1D293D;
-    }
-    75% {
-      transform: scale(25);
-      opacity: 0.9;
-      background: #1D293D;
-    }
-    100% {
-      transform: scale(0);
-      opacity: 1;
-      background: #1D293D;
-    }
-  }
-
-  .theme-ripple {
-    position: fixed;
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 9999;
-    animation: rippleExpand 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-    transform-origin: center;
-    will-change: transform;
-  }
-
-  .theme-ripple.dark-to-light {
-    animation: rippleContract 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-  }
-
-  .theme-transition {
-    overflow: hidden !important;
-    scrollbar-width: none !important;
-    -ms-overflow-style: none !important;
-  }
-
-  .theme-transition::-webkit-scrollbar {
-    display: none !important;
-  }
-
-  .theme-transition * {
-    scrollbar-width: none !important;
-    -ms-overflow-style: none !important;
-  }
-
-  .theme-transition *::-webkit-scrollbar {
-    display: none !important;
-  }
-
-  body.theme-transition {
-    overflow: hidden !important;
-    scrollbar-width: none !important;
-    -ms-overflow-style: none !important;
-  }
-
-  body.theme-transition::-webkit-scrollbar {
-    display: none !important;
-  }
-
-  body.theme-transition * {
-    scrollbar-width: none !important;
-    -ms-overflow-style: none !important;
-  }
-
-  body.theme-transition *::-webkit-scrollbar {
-    display: none !important;
-  }
-
-  html.theme-transition {
-    overflow: hidden !important;
-    scrollbar-width: none !important;
-    -ms-overflow-style: none !important;
-  }
-
-  html.theme-transition::-webkit-scrollbar {
-    display: none !important;
-  }
-
-  .theme-transition {
-    overflow: hidden;
-  }
-
-  .theme-transition * {
-    transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
-  }
-
-  .theme-transition {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  .theme-transition::-webkit-scrollbar {
-    display: none;
   }
 `;
 import Link from 'next/link';
@@ -289,9 +154,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
   // Cleanup theme transition on unmount
   useEffect(() => {
     return () => {
-      // Ensure scrollbars are restored when component unmounts
-      document.documentElement.classList.remove('theme-transition');
-      document.body.classList.remove('theme-transition');
+      // No cleanup needed since we're not adding theme-transition classes anymore
     };
   }, []);
 
@@ -347,61 +210,14 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
   const handleThemeToggle = useCallback((event: React.MouseEvent) => {
     setIsThemeTransitioning(true);
     
-    // Get button position for ripple effect
-    const button = event.currentTarget as HTMLElement;
-    const rect = button.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
+    // Pass the event to toggleDarkMode so it can capture button position
+    toggleDarkMode(event);
     
-    // Create ripple element
-    const ripple = document.createElement('div');
-    ripple.className = 'theme-ripple';
-    
-    // Set ripple position and size - ensure it covers the entire screen
-    const screenWidth = Math.max(window.innerWidth, document.documentElement.clientWidth);
-    const screenHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
-    const maxDimension = Math.max(screenWidth, screenHeight);
-    
-    ripple.style.left = `${centerX - 10}px`;
-    ripple.style.top = `${centerY - 10}px`;
-    ripple.style.width = '20px';
-    ripple.style.height = '20px';
-    ripple.style.transformOrigin = 'center';
-    
-    // Set ripple direction based on current theme
-    const isCurrentlyDark = isDarkMode;
-    if (isCurrentlyDark) {
-      ripple.classList.add('dark-to-light');
-    }
-    
-    // Add ripple to body
-    document.body.appendChild(ripple);
-    
-    // Add theme transition class to html and body
-    document.documentElement.classList.add('theme-transition');
-    document.body.classList.add('theme-transition');
-    
-    // Toggle dark mode
-    toggleDarkMode();
-    
-    // Remove ripple and transition class after animation completes
+    // Remove transition state after animation completes
     setTimeout(() => {
-      try {
-        if (document.body.contains(ripple)) {
-          document.body.removeChild(ripple);
-        }
-        document.documentElement.classList.remove('theme-transition');
-        document.body.classList.remove('theme-transition');
-        setIsThemeTransitioning(false);
-      } catch (error) {
-        console.error('Error cleaning up theme transition:', error);
-        // Force cleanup even if there's an error
-        document.documentElement.classList.remove('theme-transition');
-        document.body.classList.remove('theme-transition');
-        setIsThemeTransitioning(false);
-      }
-    }, 500);
-  }, [toggleDarkMode, isDarkMode]);
+      setIsThemeTransitioning(false);
+    }, 800); // Match the animation duration from useDarkMode hook
+  }, [toggleDarkMode]);
 
   // Helper functions
   const getUserInitials = useCallback((name: string) => {
@@ -734,12 +550,12 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                         </button>
                       ) : (
                         <div>
-                                                  <button
-                          onClick={() => {
-                            closeProfileDropdown();
+                              <button
+                                onClick={() => {
+                                  closeProfileDropdown();
                             onInstallClick?.();
-                          }}
-                          disabled={isInstalling}
+                                }}
+                                disabled={isInstalling}
                           className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
                             isDarkMode 
                               ? 'text-purple-300 hover:bg-purple-500/10' 
@@ -750,7 +566,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                             <DevicePhoneMobileIcon className="h-4 w-4" />
                             <span>{isInstalling ? 'Installing...' : `Install ${BRAND_NAME}`}</span>
                           </div>
-                        </button>
+                              </button>
                           {/* Simple reason why install button exists */}
                           <div className="px-4 pb-2">
                             <p className={`text-xs transition-colors duration-300 ${
@@ -856,8 +672,8 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
               </button>
 
               {/* Theme Toggle */}
-              <button
-                onClick={handleThemeToggle}
+                              <button
+                  onClick={handleThemeToggle}
                 disabled={isThemeTransitioning}
                 className={`p-2 rounded-lg transition-all duration-500 cursor-pointer relative overflow-hidden ${
                   isDarkMode 
@@ -1573,7 +1389,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                   <button
                     onClick={(e) => {
                       // Set dark mode
-                      if (!isDarkMode) handleThemeToggle(e);
+                      if (!isDarkMode) toggleDarkMode(e);
                       setShowThemeModal(false);
                     }}
                     className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
@@ -1593,7 +1409,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                   <button
                     onClick={(e) => {
                       // Set light mode
-                      if (isDarkMode) handleThemeToggle(e);
+                      if (isDarkMode) toggleDarkMode(e);
                       setShowThemeModal(false);
                     }}
                     className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
@@ -1611,9 +1427,9 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                   </button>
                   
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
                       // Set system default (detect system preference)
-                      setSystemTheme();
+                      setSystemTheme(e);
                       setShowThemeModal(false);
                     }}
                     className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-300 ${

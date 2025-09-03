@@ -217,11 +217,7 @@ export default function SuperAdminLayout({
     });
   }, [isSidebarCollapsed]);
 
-  // Theme toggle function
-  const handleThemeToggle = useCallback(() => {
-    // This will be handled by the useDarkMode hook
-    console.log('Theme toggle requested');
-  }, []);
+
 
   // Fullscreen toggle function
   const handleFullscreenToggle = useCallback(() => {
@@ -382,7 +378,7 @@ export default function SuperAdminLayout({
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
+    <div className={`min-h-screen transition-colors duration-300 theme-switch-root ${
       mounted && isDarkMode 
         ? 'bg-slate-800' 
         : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
@@ -398,7 +394,7 @@ export default function SuperAdminLayout({
         onToggleCollapse={toggleSidebarCollapse}
         user={user}
         onLogout={handleLogout}
-        onThemeToggle={handleThemeToggle}
+
         onFullscreenToggle={handleFullscreenToggle}
         isFullscreen={isFullscreen}
         isInstalled={isInstalled}

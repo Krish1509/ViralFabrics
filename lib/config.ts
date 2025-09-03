@@ -4,7 +4,7 @@ export const BRAND_CONFIG = {
   shortName: "Viral",
   tagline: "Premium Fabric Solutions",
   description: "Manage your fabric business operations",
-  copyright: "© 2024 Viral Fabrics"
+  copyright: "© 2025 Viral Fabrics"
 };
 
 // Export individual parts for easy use

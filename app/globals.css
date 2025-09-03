@@ -238,3 +238,43 @@ button{
 .dark .btn-enhanced:hover {
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
 }
+
+/* Smooth Theme Switch Animation */
+@keyframes theme-switch-circle {
+  0% {
+    clip-path: circle(0% at var(--x, 50%) var(--y, 50%));
+  }
+  100% {
+    clip-path: circle(150% at var(--x, 50%) var(--y, 50%));
+  }
+}
+
+@keyframes theme-switch-blur {
+  0% {
+    clip-path: circle(0% at var(--x, 50%) var(--y, 50%));
+    filter: blur(0px);
+  }
+  100% {
+    clip-path: circle(150% at var(--x, 50%) var(--y, 50%));
+    filter: blur(var(--blur-amount, 2px));
+  }
+}
+
+.theme-switch-animation {
+  animation: theme-switch-circle 0.75s ease-in-out forwards;
+}
+
+.theme-switch-animation-blur {
+  animation: theme-switch-blur 0.75s ease-in-out forwards;
+}
+
+/* View Transitions Support */
+@supports (view-transition-name: none) {
+  * {
+    view-transition-name: none;
+  }
+  
+  .theme-switch-root {
+    view-transition-name: root;
+  }
+}

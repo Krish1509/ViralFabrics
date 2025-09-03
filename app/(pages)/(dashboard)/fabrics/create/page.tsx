@@ -57,6 +57,8 @@ export default function CreateFabricPage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [checkingQualityCode, setCheckingQualityCode] = useState(false);
+  const [isQualityCodeValid, setIsQualityCodeValid] = useState(false);
+  const [qualityCodeCache, setQualityCodeCache] = useState<{ [key: string]: boolean }>({});
   const [validationMessage, setValidationMessage] = useState<{ type: 'success' | 'error' | 'info' | 'warning'; text: string } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -134,13 +136,17 @@ export default function CreateFabricPage() {
       
       const data = await response.json();
       
+      console.log('Raw API response:', data);
+      
       if (data.success && data.data) {
         const allItems = data.data;
         
         console.log(`Successfully loaded ${allItems.length} items for edit with quality code: ${data.qualityCode}`);
+        console.log('Raw items data:', allItems);
         
         // Load ALL items that share the same quality code
-        const formattedItems = allItems.map((item: any) => ({
+        const formattedItems = allItems.map((item: any) => {
+          const formattedItem = {
           qualityCode: item.qualityCode || '',
           qualityName: item.qualityName || '',
           weaver: item.weaver || '',
@@ -154,12 +160,17 @@ export default function CreateFabricPage() {
           pick: item.pick?.toString() || '',
           greighRate: item.greighRate?.toString() || '',
           images: item.images || []
-        }));
+          };
+          
+          console.log('Formatted item:', formattedItem);
+          return formattedItem;
+        });
         
         setFormData({
           items: formattedItems
         });
         
+        console.log('Final form data set:', formattedItems);
         showValidationMessage('success', `Loaded ${allItems.length} item(s) for editing!`);
       } else {
         throw new Error(data.message || 'Failed to load fabric data');
@@ -188,12 +199,26 @@ export default function CreateFabricPage() {
     }
   }, [isEditMode, editId]);
 
-  // Auto-sync shared fields when items change
+  // Reset validation states when edit mode changes
   useEffect(() => {
-    if (formData.items.length > 1) {
+    setErrors({});
+    setIsQualityCodeValid(false);
+    setQualityCodeCache({}); // Clear cache when edit mode changes
+  }, [isEditMode]);
+
+  // Reset validation states on component mount
+  useEffect(() => {
+    setErrors({});
+    setIsQualityCodeValid(false);
+    setQualityCodeCache({}); // Clear cache on mount
+  }, []);
+
+  // Auto-sync shared fields when items change (only in create mode)
+  useEffect(() => {
+    if (formData.items.length > 1 && !isEditMode) {
       syncSharedFields();
     }
-  }, [formData.items.length]);
+  }, [formData.items.length, isEditMode]);
 
   // Function to sync shared fields across all items
   const syncSharedFields = () => {
@@ -202,6 +227,8 @@ export default function CreateFabricPage() {
       
       const sharedQualityCode = prev.items[0]?.qualityCode || '';
       const sharedQualityName = prev.items[0]?.qualityName || '';
+      const sharedWeaver = prev.items[0]?.weaver || '';
+      const sharedWeaverQualityName = prev.items[0]?.weaverQualityName || '';
       const sharedImages = prev.items[0]?.images || [];
       
       return {
@@ -210,6 +237,8 @@ export default function CreateFabricPage() {
           ...item,
           qualityCode: sharedQualityCode,
           qualityName: sharedQualityName,
+          weaver: sharedWeaver,
+          weaverQualityName: sharedWeaverQualityName,
           images: sharedImages // Sync images across all items
         }))
       };
@@ -220,26 +249,86 @@ export default function CreateFabricPage() {
   const checkQualityCodeExists = async (qualityCode: string) => {
     if (!qualityCode.trim() || isEditMode) return; // Skip if editing or empty
     
+
+    
+    // Check cache first for instant response
+    const normalizedCode = qualityCode.trim().toLowerCase();
+    if (qualityCodeCache.hasOwnProperty(normalizedCode)) {
+      const exists = qualityCodeCache[normalizedCode];
+      if (exists) {
+        setErrors(prev => ({ 
+          ...prev, 
+          qualityCode: `Quality code "${qualityCode}" already exists. You can add items to existing quality codes.` 
+        }));
+        setIsQualityCodeValid(false);
+      } else {
+        setErrors(prev => ({ ...prev, qualityCode: '' }));
+        setIsQualityCodeValid(true);
+      }
+      return;
+    }
+    
     setCheckingQualityCode(true);
     try {
-      const response = await fetch(`/api/fabrics?search=${encodeURIComponent(qualityCode.trim())}&limit=1`);
-      const data = await response.json();
+      // Use a more specific endpoint and add timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
       
-      if (data.success && data.data.length > 0) {
-        // Check if any fabric has exact quality code match
-        const exactMatch = data.data.find((fabric: any) => 
-          fabric.qualityCode.toLowerCase() === qualityCode.trim().toLowerCase()
+      const response = await fetch(`/api/fabrics?qualityCode=${encodeURIComponent(qualityCode.trim())}&exact=true`, {
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Quality code check response:', data);
+      
+      // Check if the API returned data and if any item has the exact quality code
+      if (data.success && data.data && Array.isArray(data.data)) {
+        const exactMatch = data.data.find((item: any) => 
+          item.qualityCode && item.qualityCode.toString().toLowerCase() === qualityCode.trim().toLowerCase()
         );
         
         if (exactMatch) {
+          // Quality code already exists
+          setQualityCodeCache(prev => ({ ...prev, [normalizedCode]: true }));
           setErrors(prev => ({ 
             ...prev, 
             qualityCode: `Quality code "${qualityCode}" already exists. You can add items to existing quality codes.` 
           }));
+          setIsQualityCodeValid(false);
+        } else {
+          // Quality code is unique, clear any existing error
+          setQualityCodeCache(prev => ({ ...prev, [normalizedCode]: false }));
+          setErrors(prev => ({ ...prev, qualityCode: '' }));
+          setIsQualityCodeValid(true);
         }
+      } else {
+        // API didn't return expected data structure, assume it's valid
+        setQualityCodeCache(prev => ({ ...prev, [normalizedCode]: false }));
+        setErrors(prev => ({ ...prev, qualityCode: '' }));
+        setIsQualityCodeValid(true);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error checking quality code:', error);
+      
+      if (error.name === 'AbortError') {
+        // Request timed out, assume it's valid to avoid blocking the user
+        setQualityCodeCache(prev => ({ ...prev, [normalizedCode]: false }));
+        setErrors(prev => ({ ...prev, qualityCode: '' }));
+        setIsQualityCodeValid(true);
+      } else {
+        // Other error, show a user-friendly message
+        setErrors(prev => ({ 
+          ...prev, 
+          qualityCode: 'Unable to verify quality code. Please try again.' 
+        }));
+        setIsQualityCodeValid(false);
+      }
     } finally {
       setCheckingQualityCode(false);
     }
@@ -259,12 +348,30 @@ export default function CreateFabricPage() {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
     
-    // Check quality code uniqueness after user stops typing
+    // Reset quality code validation state when user starts typing
+    if (field === 'qualityCode') {
+      setIsQualityCodeValid(false);
+      // Clear any cached result for this field to force re-validation
+      if (qualityCodeCache[value.trim().toLowerCase()] !== undefined) {
+        setQualityCodeCache(prev => {
+          const newCache = { ...prev };
+          delete newCache[value.trim().toLowerCase()];
+          return newCache;
+        });
+      }
+    }
+    
+    // Check quality code uniqueness after user stops typing (debounced)
     if (field === 'qualityCode' && value.trim() && !isEditMode) {
-      // Debounce the API call
+      // Clear any existing error first
+      setErrors(prev => ({ ...prev, qualityCode: '' }));
+      
+      // Faster debounce - check after 300ms instead of 1000ms
       setTimeout(() => {
+        if (value.trim() === formData.items[0]?.qualityCode) {
         checkQualityCodeExists(value);
-      }, 1000);
+        }
+      }, 300);
     }
     
     // Also clear any item-specific errors for this field
@@ -299,32 +406,15 @@ export default function CreateFabricPage() {
     }, duration);
   };
 
-  // Real-time validation for quality code
-  const validateQualityCodeRealTime = async (qualityCode: string) => {
-    if (!qualityCode.trim()) return;
-    
-    try {
-      setCheckingQualityCode(true);
-      const response = await fetch(`/api/fabrics?qualityCode=${encodeURIComponent(qualityCode)}`);
-      const data = await response.json();
-      
-      if (data.success && data.data.length > 0 && !isEditMode) {
-        setErrors(prev => ({ ...prev, qualityCode: 'Quality code already exists' }));
-      } else {
-        setErrors(prev => ({ ...prev, qualityCode: '' }));
-      }
-    } catch (error) {
-      console.error('Error checking quality code:', error);
-    } finally {
-      setCheckingQualityCode(false);
-    }
-  };
+
 
   const addItem = () => {
     setFormData(prev => {
       // Get the shared values from the first item
       const sharedQualityCode = prev.items[0]?.qualityCode || '';
       const sharedQualityName = prev.items[0]?.qualityName || '';
+      const sharedWeaver = prev.items[0]?.weaver || '';
+      const sharedWeaverQualityName = prev.items[0]?.weaverQualityName || '';
       const sharedImages = prev.items[0]?.images || []; // Share images across all items
       
       return {
@@ -332,8 +422,8 @@ export default function CreateFabricPage() {
         items: [...prev.items, {
           qualityCode: sharedQualityCode,
           qualityName: sharedQualityName,
-          weaver: '',
-          weaverQualityName: '',
+          weaver: sharedWeaver,
+          weaverQualityName: sharedWeaverQualityName,
           greighWidth: '',
           finishWidth: '',
           weight: '',
@@ -349,6 +439,8 @@ export default function CreateFabricPage() {
     
     // Clear any existing errors when adding new item
     setErrors({});
+    setIsQualityCodeValid(false);
+    setQualityCodeCache({}); // Clear cache when adding new items
 
     // Scroll down smoothly to show the new item after it's added
     setTimeout(() => {
@@ -616,10 +708,21 @@ export default function CreateFabricPage() {
       newErrors.qualityName = 'Quality Name is required';
     }
     
-    // Validate each item's weaver field
+    // Validate each item's weaver and weaverQualityName fields
     formData.items.forEach((item, index) => {
+      console.log(`Validating item ${index}:`, {
+        weaver: item.weaver,
+        weaverQualityName: item.weaverQualityName,
+        weaverTrimmed: item.weaver?.trim(),
+        weaverQualityNameTrimmed: item.weaverQualityName?.trim()
+      });
+      
       if (!item.weaver?.trim()) {
         newErrors[`items.${index}.weaver`] = 'Weaver is required';
+      }
+      
+      if (!item.weaverQualityName?.trim()) {
+        newErrors[`items.${index}.weaverQualityName`] = 'Weaver Quality Name is required';
       }
     });
     
@@ -633,6 +736,7 @@ export default function CreateFabricPage() {
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      setIsQualityCodeValid(false); // Reset validation state when form validation fails
       showValidationMessage('error', 'Please fill all required fields');
       return;
     }
@@ -689,6 +793,10 @@ export default function CreateFabricPage() {
                 router.push('/fabrics');
               }, 3000); // Give more time to read the warning
             } else {
+              // Reset validation states on success
+              setErrors({});
+              setIsQualityCodeValid(false);
+              setQualityCodeCache({}); // Clear cache on successful submission
               showValidationMessage('success', 'Fabric updated successfully!');
               setTimeout(() => {
                 router.push('/fabrics');
@@ -715,6 +823,10 @@ export default function CreateFabricPage() {
         const data = await response.json();
         
         if (data.success) {
+          // Reset validation states on success
+          setErrors({});
+          setIsQualityCodeValid(false);
+          setQualityCodeCache({}); // Clear cache on successful submission
           showValidationMessage('success', `Fabric created successfully with ${formData.items.length} item(s)!`);
           setTimeout(() => {
             router.push('/fabrics');
@@ -732,78 +844,12 @@ export default function CreateFabricPage() {
   };
 
   return (
-    <div className="min-h-screen text-white" style={{ backgroundColor: '#1D293D' }}>
-      {/* Enhanced Keyboard Shortcuts Card - Floating Top Right (Desktop Only) */}
-      <div className="hidden lg:block fixed top-6 right-6 z-[60]">
-        <div className="relative group">
-          <button className={`p-3 rounded-2xl backdrop-blur-md transition-all duration-300 hover:scale-105 shadow-lg border ${
+    <div className={`min-h-screen rounded-2xl transition-colors **: duration-300 ${
             isDarkMode 
-              ? 'bg-gray-800/90 border-gray-600 text-gray-300 hover:bg-gray-700/95 shadow-gray-900/50' 
-              : 'bg-white/90 border-gray-300 text-gray-600 hover:bg-white/95 shadow-gray-500/20'
-          }`}>
-            <div className="flex items-center space-x-2">
-              <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span className="text-sm font-bold">Shortcuts</span>
-            </div>
-          </button>
-          
-          {/* Enhanced Tooltip */}
-          <div className={`absolute top-full right-0 mt-3 p-5 rounded-2xl shadow-2xl border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 min-w-[320px] backdrop-blur-md ${
-            isDarkMode 
-              ? 'bg-gray-900/95 border-gray-600 text-gray-200 shadow-gray-900/50' 
-              : 'bg-white/95 border-gray-300 text-gray-700 shadow-gray-500/20'
-          }`}>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2 pb-2 border-b border-gray-500/20">
-                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                <h3 className="font-bold text-base">Keyboard Shortcuts</h3>
-              </div>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between items-center py-2 px-3 rounded-lg hover:bg-gray-500/10 transition-colors">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-green-500 text-lg">➕</span>
-                    <span className="font-medium">Add New Item</span>
-                  </div>
-                  <kbd className={`px-3 py-2 rounded-lg text-xs font-mono font-bold ${
-                    isDarkMode ? 'bg-gray-800 text-green-400 border border-gray-700' : 'bg-gray-100 text-green-600 border border-gray-200'
-                  }`}>Alt + N</kbd>
-                </div>
-                <div className="flex justify-between items-center py-2 px-3 rounded-lg hover:bg-gray-500/10 transition-colors">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-blue-500 text-lg">💾</span>
-                    <span className="font-medium">Save Fabric</span>
-                  </div>
-                  <kbd className={`px-3 py-2 rounded-lg text-xs font-mono font-bold ${
-                    isDarkMode ? 'bg-gray-800 text-blue-400 border border-gray-700' : 'bg-gray-100 text-blue-600 border border-gray-200'
-                  }`}>Ctrl + Enter</kbd>
-                </div>
-                <div className="flex justify-between items-center py-2 px-3 rounded-lg hover:bg-gray-500/10 transition-colors">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-orange-500 text-lg">↩️</span>
-                    <span className="font-medium">Go Back</span>
-                  </div>
-                  <kbd className={`px-3 py-2 rounded-lg text-xs font-mono font-bold ${
-                    isDarkMode ? 'bg-gray-800 text-orange-400 border border-gray-700' : 'bg-gray-100 text-orange-600 border border-gray-200'
-                  }`}>Esc</kbd>
-                </div>
-                <div className="flex justify-between items-center py-2 px-3 rounded-lg hover:bg-gray-500/10 transition-colors">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-purple-500 text-lg">⚡</span>
-                    <span className="font-medium">Quick Save</span>
-                  </div>
-                  <kbd className={`px-3 py-2 rounded-lg text-xs font-mono font-bold ${
-                    isDarkMode ? 'bg-gray-800 text-purple-400 border border-gray-700' : 'bg-gray-100 text-purple-600 border border-gray-200'
-                  }`}>Ctrl + S</kbd>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+        ? 'text-white bg-gray-900' 
+        : 'text-gray-900 bg-gray-50'
+    }`}>
+
 
       {/* Floating Validation Message */}
       {validationMessage && (
@@ -833,7 +879,9 @@ export default function CreateFabricPage() {
             </div>
             <button
               onClick={() => setValidationMessage(null)}
-              className="flex-shrink-0 text-gray-400 hover:text-white transition-colors"
+              className={`flex-shrink-0 transition-colors ${
+                isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
+              }`}
             >
               <XMarkIcon className="h-5 w-5" />
             </button>
@@ -842,15 +890,25 @@ export default function CreateFabricPage() {
       )}
 
       {/* Enhanced Header */}
-      <div className="border-b border-gray-600/50 shadow-lg" style={{ backgroundColor: '#253649' }}>
+      <div className={`border-b shadow-lg transition-colors duration-300 ${
+        isDarkMode 
+          ? 'border-gray-600/50 bg-gray-800' 
+          : 'border-gray-200 bg-white'
+      }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-4 sm:py-6 lg:h-20 space-y-4 sm:space-y-0">
             <div className="flex items-center space-x-3 sm:space-x-6">
               <button
                 onClick={() => router.push('/fabrics')}
-                className="p-2 sm:p-3 rounded-xl transition-all duration-200 hover:scale-110 bg-gray-700/50 hover:bg-gray-600/70 border border-gray-600 hover:border-gray-500"
+                className={`p-2 sm:p-3 rounded-xl transition-all duration-200 hover:scale-110 border ${
+                  isDarkMode 
+                    ? 'bg-gray-700/50 hover:bg-gray-600/70 border-gray-600 hover:border-gray-500' 
+                    : 'bg-gray-100 hover:bg-gray-200 border-gray-300 hover:border-gray-400'
+                }`}
               >
-                <ArrowLeftIcon className="h-5 w-5 sm:h-6 sm:w-6 text-gray-300" />
+                <ArrowLeftIcon className={`h-5 w-5 sm:h-6 sm:w-6 transition-colors duration-300 ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`} />
               </button>
               <div className="flex items-center space-x-2 sm:space-x-4">
                 <div className="p-2 sm:p-3 rounded-xl bg-blue-500/20 border border-blue-500/30">
@@ -859,21 +917,111 @@ export default function CreateFabricPage() {
                   </svg>
                 </div>
                 <div>
-                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
+                  <h1 className={`text-xl sm:text-2xl lg:text-3xl font-bold transition-colors duration-300 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
                     {isEditMode ? 'Edit Fabric' : 'Create New Fabric'}
                   </h1>
-                  <p className="text-sm sm:text-base text-gray-300 mt-1">
+                  <p className={`text-sm sm:text-base mt-1 transition-colors duration-300 ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}>
                     {isEditMode ? 'Update fabric information and properties' : 'Add fabric items to your inventory with detailed specifications'}
                   </p>
                 </div>
               </div>
+              
+              {/* Keyboard Shortcuts Button - Now in Header */}
+              <div className="relative group">
+                <button className={`p-2 sm:p-3 rounded-xl transition-all duration-200 hover:scale-105 border ${
+                  isDarkMode 
+                    ? 'bg-gray-700/50 hover:bg-gray-600/70 border-gray-600 text-gray-300' 
+                    : 'bg-gray-100 hover:bg-gray-200 border-gray-300 text-gray-600'
+                }`}>
+                  <div className="flex items-center space-x-2">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <span className="text-xs sm:text-sm font-medium">Shortcuts</span>
+                  </div>
+                </button>
+                
+                {/* Shortcuts Tooltip */}
+                <div className={`absolute top-full right-0 mt-2 p-4 rounded-xl shadow-2xl border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 min-w-[280px] backdrop-blur-md ${
+                  isDarkMode 
+                    ? 'bg-gray-900/95 border-gray-600 text-gray-200 shadow-gray-900/50' 
+                    : 'bg-white/95 border-gray-300 text-gray-700 shadow-gray-500/20'
+                }`}>
+                  <div className="space-y-3">
+                    <div className={`flex items-center space-x-2 pb-2 border-b transition-colors duration-300 ${
+                      isDarkMode ? 'border-gray-500/20' : 'border-gray-300/50'
+                    }`}>
+                      <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <h3 className="font-bold text-sm">Keyboard Shortcuts</h3>
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div className={`flex justify-between items-center py-1.5 px-2 rounded-lg transition-colors ${
+                        isDarkMode ? 'hover:bg-gray-500/10' : 'hover:bg-gray-100'
+                      }`}>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-green-500 text-sm">➕</span>
+                          <span className="font-medium">Add New Item</span>
+                        </div>
+                        <kbd className={`px-2 py-1 rounded text-xs font-mono font-bold ${
+                          isDarkMode ? 'bg-gray-800 text-green-400 border border-gray-700' : 'bg-gray-100 text-green-600 border border-gray-200'
+                        }`}>Alt + N</kbd>
+                      </div>
+                      <div className={`flex justify-between items-center py-1.5 px-2 rounded-lg transition-colors ${
+                        isDarkMode ? 'hover:bg-gray-500/10' : 'hover:bg-gray-100'
+                      }`}>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-blue-500 text-sm">💾</span>
+                          <span className="font-medium">Save Fabric</span>
+                        </div>
+                        <kbd className={`px-2 py-1 rounded text-xs font-mono font-bold ${
+                          isDarkMode ? 'bg-gray-800 text-blue-400 border border-gray-700' : 'bg-gray-100 text-blue-600 border border-gray-200'
+                        }`}>Ctrl + Enter</kbd>
+                      </div>
+                      <div className={`flex justify-between items-center py-1.5 px-2 rounded-lg transition-colors ${
+                        isDarkMode ? 'hover:bg-gray-500/10' : 'hover:bg-gray-100'
+                      }`}>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-orange-500 text-sm">↩️</span>
+                          <span className="font-medium">Go Back</span>
+                        </div>
+                        <kbd className={`px-2 py-1 rounded text-xs font-mono font-bold ${
+                          isDarkMode ? 'bg-gray-800 text-orange-400 border border-gray-700' : 'bg-gray-100 text-orange-600 border border-gray-200'
+                        }`}>Esc</kbd>
+                      </div>
+                      <div className={`flex justify-between items-center py-1.5 px-2 rounded-lg transition-colors ${
+                        isDarkMode ? 'hover:bg-gray-500/10' : 'hover:bg-gray-100'
+                      }`}>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-blue-500 text-sm">⚡</span>
+                          <span className="font-medium">Quick Save</span>
+                        </div>
+                        <kbd className={`px-2 py-1 rounded text-xs font-mono font-bold ${
+                          isDarkMode ? 'bg-gray-800 text-purple-400 border border-gray-700' : 'bg-gray-100 text-purple-600 border border-gray-200'
+                        }`}>Ctrl + S</kbd>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="flex items-center space-x-3 sm:space-x-6">
-              <div className="flex items-center space-x-2 sm:space-x-3 px-3 sm:px-4 py-2 rounded-xl bg-gray-700/50 border border-gray-600">
+              <div className={`flex items-center space-x-2 sm:space-x-3 px-3 sm:px-4 py-2 rounded-xl border transition-colors duration-300 ${
+                isDarkMode 
+                  ? 'bg-gray-700/50 border-gray-600' 
+                  : 'bg-gray-100 border-gray-300'
+              }`}>
                 <svg className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4-8-4m16 0v10l-8 4-8-4V7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m16 0v10l-8 4-8-4V7" />
                 </svg>
-                <span className="text-base sm:text-lg font-semibold text-white">
+                <span className={`text-base sm:text-lg font-semibold transition-colors duration-300 ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>
                   {formData.items.length} Item{formData.items.length !== 1 ? 's' : ''}
                 </span>
               </div>
@@ -883,7 +1031,9 @@ export default function CreateFabricPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
+      <div className={`max-w-6xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 transition-colors duration-300 ${
+        isDarkMode ? 'text-white' : 'text-gray-900'
+      }`}>
 
         {/* Loading Indicator for Edit Mode */}
         {isEditMode && loading && (
@@ -922,25 +1072,54 @@ export default function CreateFabricPage() {
                   value={formData.items[0]?.qualityCode || ''}
                   onChange={(e) => {
                     handleSharedFieldChange('qualityCode', e.target.value);
-                    // Debounced real-time validation
-                    setTimeout(() => validateQualityCodeRealTime(e.target.value), 500);
                   }}
-                  onBlur={(e) => validateQualityCodeRealTime(e.target.value)}
+                  onBlur={(e) => {
+                    if (e.target.value.trim()) {
+                      checkQualityCodeExists(e.target.value);
+                    } else {
+                      // Clear error if field is empty
+                      setErrors(prev => ({ ...prev, qualityCode: '' }));
+                    }
+                  }}
                   placeholder="e.g., 1001-WL"
                   disabled={isEditMode && loading}
-                  className={`w-full p-2 sm:p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400 text-sm sm:text-base ${errors.qualityCode ? 'border-red-500 focus:ring-red-400' : ''} ${isEditMode && loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`w-full p-2 sm:p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-sm sm:text-base ${
+                    errors.qualityCode 
+                      ? 'border-red-500 focus:ring-red-400' 
+                      : isQualityCodeValid 
+                        ? 'border-green-500 focus:ring-green-400' 
+                        : ''
+                  } ${isEditMode && loading ? 'opacity-50 cursor-not-allowed' : ''} ${
+                    isDarkMode 
+                      ? 'bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400' 
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 hover:border-gray-400'
+                  }`}
                 />
                   {checkingQualityCode && (
-                    <div className="absolute right-3 top-3">
+                    <div className="absolute right-3 top-3" title="Checking quality code...">
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                    </div>
+                  )}
+                  {isQualityCodeValid && !checkingQualityCode && (
+                    <div className="absolute right-3 top-3" title="Quality code is available">
+                      <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
+                  {errors.qualityCode && !checkingQualityCode && (
+                    <div className="absolute right-3 top-3" title="Quality code error">
+                      <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
                     </div>
                   )}
                 </div>
                  {errors.qualityCode && (
-                   <div className="mt-2 p-2 sm:p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+                   <div className="mt-2 p-2 sm:p-3 bg-red-900/20 border border-red-500/30 rounded-lg animate-in slide-in-from-top-2">
                      <p className="text-red-400 text-xs sm:text-sm flex items-center">
-                       <XMarkIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                       {errors.qualityCode}
+                       <XMarkIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                       <span className="flex-1">{errors.qualityCode}</span>
                      </p>
                    </div>
                  )}
@@ -948,6 +1127,16 @@ export default function CreateFabricPage() {
                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
                      Quality code will be checked for uniqueness. Multiple items can share the same quality code.
                    </p>
+                 )}
+                 {isQualityCodeValid && !isEditMode && (
+                   <div className="mt-2 p-2 sm:p-3 bg-green-900/20 border border-green-500/30 rounded-lg animate-in slide-in-from-top-2">
+                     <p className="text-green-400 text-xs sm:text-sm flex items-center">
+                       <svg className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                       </svg>
+                       <span className="flex-1">Quality code is available and unique!</span>
+                     </p>
+                   </div>
                  )}
               </div>
 
@@ -1022,6 +1211,26 @@ export default function CreateFabricPage() {
                   Camera
                 </button>
                 
+                {/* Drag & Drop Button - Only visible on 1200px+ displays */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Trigger the file input when drag & drop button is clicked
+                    document.getElementById('quality-image-upload')?.click();
+                  }}
+                  className={`hidden min-[1200px]:inline-flex px-6 py-3 rounded-lg border-2 border-dashed transition-all duration-200 hover:scale-105 active:scale-95 ${
+                    isDarkMode 
+                      ? 'border-gray-600 hover:border-purple-500 text-gray-300 hover:text-purple-400' 
+                      : 'border-gray-300 hover:border-purple-400 text-gray-600 hover:text-purple-600'
+                  }`}
+                  title="Drag & Drop Images (Click to browse files)"
+                >
+                  <svg className="h-5 w-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  Drag & Drop
+                </button>
+                
                 {uploadingImages && (
                   <div className="flex items-center space-x-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
@@ -1032,12 +1241,51 @@ export default function CreateFabricPage() {
                 )}
               </div>
               
+              {/* Drag & Drop Area - Enhanced visual feedback */}
+              <div
+                onDragEnter={handleDrag}
+                onDragOver={handleDrag}
+                onDragLeave={handleDrag}
+                onDrop={handleDrop}
+                className={`w-full px-6 py-8 rounded-xl border-2 border-dashed transition-all duration-300 flex items-center justify-center space-x-3 group ${
+                  dragActive
+                    ? isDarkMode
+                      ? 'border-purple-500 bg-purple-500/10 text-purple-400'
+                      : 'border-purple-500 bg-purple-50 text-purple-600'
+                    : isDarkMode
+                    ? 'border-gray-500 hover:border-purple-400 text-gray-300 hover:text-purple-300 hover:bg-purple-500/10'
+                    : 'border-gray-300 hover:border-purple-500 text-gray-500 hover:text-purple-600 hover:bg-purple-50'
+                }`}
+              >
+                <svg className={`w-8 h-8 transition-all duration-300 ${
+                  dragActive ? 'scale-110' : 'group-hover:scale-110'
+                }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <div className="text-center">
+                  <p className="text-lg font-medium">
+                    {dragActive ? 'Drop images here!' : 'Drag & drop images here'}
+                  </p>
+                  <p className={`text-sm mt-1 ${
+                    dragActive 
+                      ? isDarkMode ? 'text-purple-300' : 'text-purple-500'
+                      : isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    {dragActive ? 'Release to upload' : 'or click the buttons above'}
+                  </p>
+                </div>
+              </div>
+              
               {/* Image Previews */}
               {formData.items[0]?.images && formData.items[0].images.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {formData.items[0].images.map((image, imageIndex) => (
                     <div key={imageIndex} className="relative group">
-                      <div className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-lg transition-all duration-200 bg-gray-100 dark:bg-gray-700">
+                      <div className={`aspect-square rounded-lg overflow-hidden border-2 shadow-sm hover:shadow-lg transition-all duration-200 ${
+                        isDarkMode 
+                          ? 'border-gray-600 bg-gray-700' 
+                          : 'border-gray-200 bg-gray-100'
+                      }`}>
                         <img
                           src={image}
                           alt={`Quality image ${imageIndex + 1}`}
@@ -1083,7 +1331,9 @@ export default function CreateFabricPage() {
                       <button
                         type="button"
                         onClick={() => removeImage(imageIndex)}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 transition-all duration-200 opacity-0 group-hover:opacity-100 z-10 hover:scale-110"
+                        className={`absolute -top-2 -right-2 rounded-full p-1.5 transition-all duration-200 opacity-0 group-hover:opacity-100 z-10 hover:scale-110 ${
+                          isDarkMode ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-red-500 hover:bg-red-600 text-white'
+                        }`}
                         title="Remove Image"
                       >
                         <XMarkIcon className="h-3 w-3" />
@@ -1116,9 +1366,17 @@ export default function CreateFabricPage() {
                     </div>
                     
                     {/* Dropdown Menu */}
-                    <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200">
+                    <div className={`absolute top-full left-0 mt-2 w-48 border rounded-lg shadow-xl z-50 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 ${
+                      isDarkMode 
+                        ? 'bg-gray-800 border-gray-600' 
+                        : 'bg-white border-gray-200'
+                    }`}>
                       <div className="py-2">
-                        <div className="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">
+                        <div className={`px-3 py-2 text-xs font-medium border-b ${
+                          isDarkMode 
+                            ? 'text-gray-400 border-gray-600' 
+                            : 'text-gray-500 border-gray-100'
+                        }`}>
                           Quick Navigation
                         </div>
                         {formData.items.map((_, index) => (
@@ -1140,7 +1398,11 @@ export default function CreateFabricPage() {
                                 }, 2000);
                               }
                             }}
-                            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors flex items-center space-x-2"
+                            className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center space-x-2 ${
+                              isDarkMode 
+                                ? 'text-gray-300 hover:bg-gray-700 hover:text-white' 
+                                : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700'
+                            }`}
                           >
                             <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs font-medium flex items-center justify-center">
                               {index + 1}
@@ -1159,8 +1421,11 @@ export default function CreateFabricPage() {
               <div 
                 key={index}
                 id={`fabric-item-${index}`}
-                className="p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl border border-gray-600 shadow-lg"
-                style={{ backgroundColor: '#253649' }}
+                className={`p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl border shadow-lg transition-colors duration-300 ${
+                  isDarkMode 
+                    ? 'border-gray-600 bg-gray-800' 
+                    : 'border-gray-200 bg-white'
+                }`}
               >
                 <div className="flex items-center justify-between mb-6">
                   <h4 className="text-lg font-semibold">Item {index + 1}</h4>
@@ -1190,7 +1455,11 @@ export default function CreateFabricPage() {
                       value={item.weaver}
                       onChange={(e) => handleItemChange(index, 'weaver', e.target.value)}
                       placeholder="Enter weaver name"
-                      className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400 ${errors[`items.${index}.weaver`] ? 'border-red-500 focus:ring-red-400' : ''}`}
+                      className={`w-full p-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 ${errors[`items.${index}.weaver`] ? 'border-red-500 focus:ring-red-400' : ''} ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 hover:border-gray-400'
+                      }`}
                     />
                      {errors[`items.${index}.weaver`] && (
                        <p className="text-red-500 text-sm mt-1">{errors[`items.${index}.weaver`]}</p>
@@ -1200,7 +1469,7 @@ export default function CreateFabricPage() {
                   {/* Weaver Quality Name */}
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      Weaver Quality Name
+                      Weaver Quality Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -1208,11 +1477,18 @@ export default function CreateFabricPage() {
                       onChange={(e) => handleItemChange(index, 'weaverQualityName', e.target.value)}
                       placeholder="Enter weaver quality name"
                       className={`w-full p-3 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        errors[`items.${index}.weaverQualityName`] 
+                          ? 'border-red-500 focus:ring-red-400' 
+                          : ''
+                      } ${
                         isDarkMode 
                           ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
                           : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
                       }`}
                     />
+                    {errors[`items.${index}.weaverQualityName`] && (
+                      <p className="text-red-500 text-sm mt-1">{errors[`items.${index}.weaverQualityName`]}</p>
+                    )}
                   </div>
 
                   {/* Greigh Width */}
@@ -1368,7 +1644,11 @@ export default function CreateFabricPage() {
               <button
                 type="button"
                 onClick={addItem}
-              className="w-full px-6 py-4 rounded-xl border-2 border-dashed border-gray-500 hover:border-blue-400 text-gray-300 hover:text-blue-300 transition-all duration-300 flex items-center justify-center space-x-3 hover:bg-blue-500/10 group"
+                              className={`w-full px-6 py-4 rounded-xl border-2 border-dashed transition-all duration-300 flex items-center justify-center space-x-3 group ${
+                  isDarkMode 
+                    ? 'border-gray-500 hover:border-blue-400 text-gray-300 hover:text-blue-300 hover:bg-blue-500/10' 
+                    : 'border-gray-300 hover:border-blue-500 text-gray-500 hover:text-blue-600 hover:bg-blue-50'
+                }`}
 
             >
               <PlusIcon className="h-6 w-6 group-hover:scale-110 transition-transform" />
@@ -1463,7 +1743,9 @@ export default function CreateFabricPage() {
             
             <div className="p-4">
               {cameraError ? (
-                <div className="flex items-center justify-center h-64 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <div className={`flex items-center justify-center h-64 rounded-lg transition-colors duration-300 ${
+          isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
+        }`}>
                   <div className="text-center">
                     <svg className="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -1485,7 +1767,9 @@ export default function CreateFabricPage() {
                   <canvas ref={canvasRef} className="hidden" />
                   
                   {/* Camera Info */}
-                  <div className="absolute top-4 left-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                  <div className={`absolute top-4 left-4 bg-black/50 px-3 py-1 rounded-full text-sm transition-colors duration-300 ${
+          isDarkMode ? 'text-white' : 'text-white'
+        }`}>
                     {availableCameras[currentCameraIndex]?.label || `Camera ${currentCameraIndex + 1}`}
                   </div>
                   
@@ -1500,7 +1784,9 @@ export default function CreateFabricPage() {
                       className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-transform"
                     >
                       <div className="w-12 h-12 bg-blue-500 rounded-full border-4 border-white flex items-center justify-center">
-                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className={`w-6 h-6 transition-colors duration-300 ${
+                          isDarkMode ? 'text-white' : 'text-white'
+                        }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
@@ -1511,7 +1797,11 @@ export default function CreateFabricPage() {
               )}
             </div>
             
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
+            <div className={`p-4 border-t transition-colors duration-300 ${
+          isDarkMode 
+            ? 'border-gray-700 bg-gray-700' 
+            : 'border-gray-200 bg-gray-50'
+        }`}>
               <div className="flex items-center justify-between text-sm">
                 <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                   {availableCameras.length > 0 ? `${currentCameraIndex + 1} of ${availableCameras.length} cameras` : 'No cameras available'}
@@ -1524,7 +1814,9 @@ export default function CreateFabricPage() {
 
       {/* Image Preview Modal */}
       {showImagePreview && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-60 p-4">
+        <div className={`fixed inset-0 backdrop-blur-sm flex items-center justify-center z-60 p-4 transition-colors duration-300 ${
+          isDarkMode ? 'bg-black/80' : 'bg-black/60'
+        }`}>
           <div className="relative max-w-6xl max-h-[90vh]">
             <img
               src={showImagePreview.url}
@@ -1545,7 +1837,9 @@ export default function CreateFabricPage() {
                   link.click();
                   document.body.removeChild(link);
                 }}
-                className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
+                className={`p-2 rounded-full transition-colors ${
+                  isDarkMode ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'
+                }`}
                 title="Download Image"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1558,7 +1852,9 @@ export default function CreateFabricPage() {
                 onClick={() => {
                   window.open(showImagePreview.url, '_blank');
                 }}
-                className="p-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
+                className={`p-2 rounded-full transition-colors ${
+                  isDarkMode ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-green-500 hover:bg-green-600 text-white'
+                }`}
                 title="Open in New Tab"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1569,7 +1865,9 @@ export default function CreateFabricPage() {
               {/* Close Button */}
               <button
                 onClick={() => setShowImagePreview(null)}
-                className="p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+                className={`p-2 rounded-full transition-colors ${
+                  isDarkMode ? 'bg-black/50 hover:bg-black/70 text-white' : 'bg-black/50 hover:bg-black/70 text-white'
+                }`}
                 title="Close"
               >
                 <XMarkIcon className="h-6 w-6" />
@@ -1577,9 +1875,13 @@ export default function CreateFabricPage() {
             </div>
             
             {/* Image Info */}
-            <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-2 rounded-lg text-sm">
+            <div className={`absolute bottom-4 left-4 bg-black/50 px-3 py-2 rounded-lg text-sm transition-colors duration-300 ${
+              isDarkMode ? 'text-white' : 'text-white'
+            }`}>
               <p>Quality Image {showImagePreview.index + 1}</p>
-              <p className="text-xs text-gray-300 truncate max-w-xs">{showImagePreview.url}</p>
+              <p className={`text-xs truncate max-w-xs transition-colors duration-300 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-200'
+              }`}>{showImagePreview.url}</p>
             </div>
           </div>
         </div>

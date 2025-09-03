@@ -4,19 +4,20 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  HomeIcon,
-  UsersIcon,
-  BuildingOfficeIcon,
-  XMarkIcon,
-  ShoppingBagIcon,
+  HomeIcon, 
+  UsersIcon, 
+  BuildingOfficeIcon, 
+  XMarkIcon, 
+  ShoppingBagIcon, 
   DocumentTextIcon,
-  CubeIcon,
-  UserIcon,
-  SunIcon,
-  ArrowsPointingOutIcon,
-  ArrowsPointingInIcon,
-  DevicePhoneMobileIcon,
-  ArrowRightOnRectangleIcon
+  CubeIcon, 
+  UserIcon, 
+  SunIcon, 
+  ArrowsPointingOutIcon, 
+  ArrowsPointingInIcon, 
+  DevicePhoneMobileIcon, 
+  ArrowRightOnRectangleIcon,
+  MoonIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { BRAND_NAME, BRAND_COPYRIGHT, BRAND_TAGLINE } from '@/lib/config';
@@ -32,7 +33,6 @@ interface SidebarProps {
     name: string;
   } | null;
   onLogout?: () => void;
-  onThemeToggle?: () => void;
   onFullscreenToggle?: () => void;
   isFullscreen?: boolean;
   isInstalled?: boolean;
@@ -55,7 +55,6 @@ export default function Sidebar({
   onToggleCollapse, 
   user,
   onLogout,
-  onThemeToggle,
   onFullscreenToggle,
   isFullscreen = false,
   isInstalled = false,
@@ -64,7 +63,7 @@ export default function Sidebar({
   onOpenInApp
 }: SidebarProps) {
   const pathname = usePathname();
-  const { isDarkMode, mounted } = useDarkMode();
+  const { isDarkMode, mounted, toggleDarkMode } = useDarkMode();
   const [screenSize, setScreenSize] = useState<number>(0);
   const [hasSetInitialState, setHasSetInitialState] = useState<boolean>(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
@@ -410,13 +409,11 @@ export default function Sidebar({
                 } shadow-lg backdrop-blur-sm`}
                 aria-label="User profile menu"
               >
-                <div className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all duration-300 ${
+                <div className="h-8 w-8 flex items-center justify-center text-lg font-semibold transition-all duration-300 ${
                   isDarkMode 
-                    ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white' 
-                    : 'bg-gradient-to-br from-purple-600 to-purple-700 text-white'
-                } ${
-                  user ? 'border-green-500' : 'border-red-500'
-                }`} title="User Profile">
+                    ? 'text-white' 
+                    : 'text-gray-700'
+                }" title="User Profile">
                   {user ? getUserInitials(user.name) : 'U'}
                 </div>
                 {shouldShowText && (
@@ -462,37 +459,25 @@ export default function Sidebar({
                       </div>
                     )}
                     
+                    {/* Dark/White Mode Toggle Button */}
                     <button
                       className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
                         isDarkMode 
-                          ? 'text-gray-300 hover:bg-slate-700' 
-                          : 'text-gray-700 hover:bg-gray-50'
+                          ? 'text-yellow-300 hover:bg-yellow-500/10' 
+                          : 'text-gray-600 hover:bg-gray-50'
                       }`}
-                      onClick={() => {
+                      onClick={(event) => {
                         closeProfileDropdown();
-                        // Add profile modal logic here
+                        toggleDarkMode(event);
                       }}
                     >
                       <div className="flex items-center space-x-2">
-                        <UserIcon className="h-4 w-4" />
-                        <span>Profile</span>
-                      </div>
-                    </button>
-                    
-                    <button
-                      className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
-                        isDarkMode 
-                          ? 'text-orange-300 hover:bg-orange-500/10' 
-                          : 'text-orange-600 hover:bg-orange-50'
-                      }`}
-                      onClick={() => {
-                        closeProfileDropdown();
-                        onThemeToggle?.();
-                      }}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <SunIcon className="h-4 w-4" />
-                        <span>Theme</span>
+                        {isDarkMode ? (
+                          <SunIcon className="h-4 w-4" />
+                        ) : (
+                          <MoonIcon className="h-4 w-4" />
+                        )}
+                        <span>{isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</span>
                       </div>
                     </button>
                     
@@ -555,7 +540,7 @@ export default function Sidebar({
                           <p className={`text-xs transition-colors duration-300 ${
                             mounted && isDarkMode ? 'text-gray-400' : 'text-gray-500'
                           }`}>
-                            Use CRM on your phone
+                            Use as a webapp
                           </p>
                         </div>
                       </div>
@@ -742,6 +727,10 @@ export default function Sidebar({
           </div>
         </div>
       </aside>
+
+
+
+
     </>
   );
 }
