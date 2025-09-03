@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
+import { useModeAnimation, ThemeAnimationType } from 'react-theme-switch-animation';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   EyeIcon, 
@@ -51,6 +52,20 @@ function LoginForm() {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [showRememberMeAlert, setShowRememberMeAlert] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const usernameInputRef = useRef<HTMLInputElement>(null);
+
+  // Use the react-theme-switch-animation hook
+  const { ref: themeSwitchRef, toggleSwitchTheme, isDarkMode: hookDarkMode } = useModeAnimation({
+    animationType: ThemeAnimationType.CIRCLE,
+    duration: 400,
+    easing: "ease-in-out",
+    globalClassName: "dark",
+    isDarkMode: isDarkMode,
+    onDarkModeChange: (isDark: boolean) => {
+      setIsDarkMode(isDark);
+      localStorage.setItem('darkMode', isDark.toString());
+    }
+  });
 
   // Check for dark mode preference - prevent flash
   useEffect(() => {
@@ -59,6 +74,23 @@ function LoginForm() {
     setIsDarkMode(savedMode ? savedMode === 'true' : prefersDark);
     setMounted(true);
   }, []);
+
+  // Auto-focus username field when component mounts
+  useEffect(() => {
+    if (mounted && usernameInputRef.current) {
+      // Small delay to ensure smooth transition and dark mode is set
+      const timer = setTimeout(() => {
+        usernameInputRef.current?.focus();
+        // Add a subtle highlight effect
+        usernameInputRef.current?.classList.add('animate-pulse');
+        setTimeout(() => {
+          usernameInputRef.current?.classList.remove('animate-pulse');
+        }, 1000);
+      }, 200);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [mounted]);
 
   // Auto-login check for active session
   useEffect(() => {
@@ -119,9 +151,8 @@ function LoginForm() {
 
 
   const toggleDarkMode = () => {
-    const newMode = !isDarkMode;
-    setIsDarkMode(newMode);
-    localStorage.setItem('darkMode', newMode.toString());
+    // Use the hook's toggle function for smooth animation
+    toggleSwitchTheme();
   };
 
   const validateForm = (): boolean => {
@@ -217,11 +248,11 @@ function LoginForm() {
 
   // Also show skeleton for a brief moment to prevent flash
   if (!mounted) {
-    return <GlobalSkeleton type="login" />;
+    return <GlobalSkeleton type="login" minLoadTime={200} />;
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
+    <div className="min-h-screen flex flex-col lg:flex-row theme-switch-root">
 
 
       {/* Left Side - Professional Design (Hidden on mobile, 55% on desktop) */}
@@ -369,6 +400,7 @@ function LoginForm() {
         {/* Dark Mode Toggle - Top Right */}
         <div className="absolute top-4 right-4 z-20">
           <button
+            ref={themeSwitchRef}
             onClick={toggleDarkMode}
             className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
               isDarkMode
@@ -487,6 +519,7 @@ function LoginForm() {
                   <UserIcon className="h-4 w-4 lg:h-5 lg:w-5" />
                 </div>
                 <input
+                  ref={usernameInputRef}
                   type="text"
                   value={formData.username}
                   onChange={(e) => handleInputChange('username', e.target.value)}
@@ -697,7 +730,7 @@ function LoginForm() {
 // Main component with Suspense boundary
 export default function LoginPage() {
   return (
-    <Suspense fallback={<GlobalSkeleton type="login" />}>
+            <Suspense fallback={<GlobalSkeleton type="login" minLoadTime={200} />}>
       <LoginForm />
     </Suspense>
   );

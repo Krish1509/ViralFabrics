@@ -63,7 +63,7 @@ interface NavbarProps {
 }
 
 export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollapse, isCollapsed, updateUser, sessionStatus = 'active', isLoading = false, isInstalled = false, isInstalling = false, onInstallClick, onOpenInApp }: NavbarProps) {
-  const { isDarkMode, toggleDarkMode, setSystemTheme, mounted } = useDarkMode();
+  const { isDarkMode, toggleDarkMode, setSystemTheme, mounted, themeSwitchRef } = useDarkMode();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState(3);
@@ -207,11 +207,11 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
     }
   }, []);
 
-  const handleThemeToggle = useCallback((event: React.MouseEvent) => {
+  const handleThemeToggle = useCallback(() => {
     setIsThemeTransitioning(true);
     
-    // Pass the event to toggleDarkMode so it can capture button position
-    toggleDarkMode(event);
+    // Toggle dark mode with smooth animation
+    toggleDarkMode();
     
     // Remove transition state after animation completes
     setTimeout(() => {
@@ -353,7 +353,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
 
   // Show skeleton while not mounted
   if (!mounted) {
-    return <GlobalSkeleton type="navbar" />;
+    return <GlobalSkeleton type="navbar" minLoadTime={150} />;
   }
 
   return (
@@ -398,6 +398,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
 
               {/* Theme Toggle */}
               <button
+                ref={themeSwitchRef}
                 onClick={handleThemeToggle}
                 disabled={isThemeTransitioning}
                 className={`p-3 rounded-lg transition-all duration-500 cursor-pointer relative overflow-hidden ${
@@ -497,6 +498,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                       </button>
                       
                       <button
+
                         className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
                           isDarkMode 
                             ? 'text-orange-300 hover:bg-orange-500/10' 
@@ -673,6 +675,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
 
               {/* Theme Toggle */}
                               <button
+                              
                   onClick={handleThemeToggle}
                 disabled={isThemeTransitioning}
                 className={`p-2 rounded-lg transition-all duration-500 cursor-pointer relative overflow-hidden ${
@@ -1387,9 +1390,9 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                 </label>
                 <div className="space-y-2">
                   <button
-                    onClick={(e) => {
+                    onClick={() => {
                       // Set dark mode
-                      if (!isDarkMode) toggleDarkMode(e);
+                      if (!isDarkMode) toggleDarkMode();
                       setShowThemeModal(false);
                     }}
                     className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
@@ -1407,9 +1410,9 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                   </button>
                   
                   <button
-                    onClick={(e) => {
+                    onClick={() => {
                       // Set light mode
-                      if (isDarkMode) toggleDarkMode(e);
+                      if (isDarkMode) toggleDarkMode();
                       setShowThemeModal(false);
                     }}
                     className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
@@ -1427,9 +1430,9 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                   </button>
                   
                   <button
-                    onClick={(e) => {
+                    onClick={() => {
                       // Set system default (detect system preference)
-                      setSystemTheme(e);
+                      setSystemTheme();
                       setShowThemeModal(false);
                     }}
                     className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-300 ${

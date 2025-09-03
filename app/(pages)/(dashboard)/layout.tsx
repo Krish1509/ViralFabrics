@@ -374,7 +374,7 @@ export default function SuperAdminLayout({
 
   // Only show loading skeleton when actually loading, not when just waiting for dark mode
   if (isLoading) {
-    return <GlobalSkeleton type="page" />;
+    return <GlobalSkeleton type="page" minLoadTime={200} />;
   }
 
   return (

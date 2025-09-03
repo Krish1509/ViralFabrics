@@ -63,7 +63,7 @@ export default function Sidebar({
   onOpenInApp
 }: SidebarProps) {
   const pathname = usePathname();
-  const { isDarkMode, mounted, toggleDarkMode } = useDarkMode();
+  const { isDarkMode, mounted, toggleDarkMode, themeSwitchRef } = useDarkMode();
   const [screenSize, setScreenSize] = useState<number>(0);
   const [hasSetInitialState, setHasSetInitialState] = useState<boolean>(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
@@ -284,7 +284,7 @@ export default function Sidebar({
 
   // Show skeleton while not mounted
   if (!mounted) {
-    return <GlobalSkeleton type="sidebar" />;
+    return <GlobalSkeleton type="sidebar" minLoadTime={150} />;
   }
 
   return (
@@ -461,14 +461,15 @@ export default function Sidebar({
                     
                     {/* Dark/White Mode Toggle Button */}
                     <button
+                      ref={themeSwitchRef}
                       className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
                         isDarkMode 
                           ? 'text-yellow-300 hover:bg-yellow-500/10' 
                           : 'text-gray-600 hover:bg-gray-50'
                       }`}
-                      onClick={(event) => {
+                      onClick={() => {
                         closeProfileDropdown();
-                        toggleDarkMode(event);
+                        toggleDarkMode();
                       }}
                     >
                       <div className="flex items-center space-x-2">
