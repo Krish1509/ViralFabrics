@@ -359,6 +359,59 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
     }
   };
 
+  const handleDeleteQuality = (quality: Quality) => {
+    setQualities(prev => prev.filter(q => q._id !== quality._id));
+    setRecentlyAddedQuality(null); // Clear recently added if deleted
+    // Update form data to reflect deletion
+    formData.dispatchItems.forEach(item => {
+      item.quality = qualities.find(q => q._id === item.quality)?._id || '';
+      item.additionalQualityMtr.forEach(additional => {
+        additional.quality = qualities.find(q => q._id === additional.quality)?._id || '';
+      });
+    });
+    setErrors({}); // Clear all errors as qualities might have changed
+  };
+
+  const handleQualitySuccess = (newQualityName?: string, newQualityData?: any) => {
+    if (newQualityData) {
+      setQualities(prev => [...prev, newQualityData]);
+      setRecentlyAddedQuality(newQualityData._id);
+      setShowQualityModal(false);
+      
+      // Auto-select the newly added quality in the active dropdown
+      if (activeQualityDropdown !== null) {
+        const itemIndex = activeQualityDropdown.toString().split('_')[0];
+        const additionalIndex = activeQualityDropdown.toString().includes('additional') 
+          ? activeQualityDropdown.toString().split('_')[2] 
+          : null;
+        
+        if (additionalIndex !== null) {
+          updateAdditionalQualityMtr(
+            formData.dispatchItems[parseInt(itemIndex)].id, 
+            parseInt(additionalIndex), 
+            'quality', 
+            newQualityData._id
+          );
+          setQualitySearchStates(prev => ({ 
+            ...prev, 
+            [activeQualityDropdown]: newQualityData.name 
+          }));
+        } else {
+          updateDispatchItem(
+            formData.dispatchItems[parseInt(itemIndex)].id, 
+            'quality', 
+            newQualityData._id
+          );
+          setQualitySearchStates(prev => ({ 
+            ...prev, 
+            [activeQualityDropdown]: newQualityData.name 
+          }));
+        }
+        setActiveQualityDropdown(null);
+      }
+    }
+  };
+
   const addDispatchItem = () => {
     setFormData(prev => ({
       ...prev,
@@ -372,6 +425,18 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
       }],
     }));
     setErrors(prev => ({ ...prev, submit: '' })); // Clear previous submit error
+    
+    // Scroll to the newly added item after a short delay
+    setTimeout(() => {
+      const newItemId = `item${formData.dispatchItems.length + 1}`;
+      const newItemElement = document.getElementById(`dispatch-item-${newItemId}`);
+      if (newItemElement) {
+        newItemElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+      }
+    }, 100);
   };
 
   const removeDispatchItem = (id: string) => {
@@ -430,19 +495,6 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
       }, 0);
       return sum + itemTotal + additionalTotal;
     }, 0);
-  };
-
-  const handleDeleteQuality = (quality: Quality) => {
-    setQualities(prev => prev.filter(q => q._id !== quality._id));
-    setRecentlyAddedQuality(null); // Clear recently added if deleted
-    // Update form data to reflect deletion
-    formData.dispatchItems.forEach(item => {
-      item.quality = qualities.find(q => q._id === item.quality)?._id || '';
-      item.additionalQualityMtr.forEach(additional => {
-        additional.quality = qualities.find(q => q._id === additional.quality)?._id || '';
-      });
-    });
-    setErrors({}); // Clear all errors as qualities might have changed
   };
 
   if (!mounted) {
@@ -544,7 +596,7 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
 
                 <div className="space-y-6">
                   {formData.dispatchItems.map((item, itemIndex) => (
-                    <div key={item.id} className={`p-6 rounded-xl border transition-all duration-200 hover:shadow-lg ${
+                    <div key={item.id} id={`dispatch-item-${item.id}`} className={`p-6 rounded-xl border transition-all duration-200 hover:shadow-lg ${
                       isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
                     }`}>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
@@ -865,6 +917,14 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
             </div>
         </div>
       </div>
+
+      {/* Quality Modal */}
+      {showQualityModal && (
+        <QualityModal
+          onClose={() => setShowQualityModal(false)}
+          onSuccess={handleQualitySuccess}
+        />
+      )}
     </div>
     </>
   );
