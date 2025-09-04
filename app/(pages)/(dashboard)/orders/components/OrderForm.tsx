@@ -246,7 +246,7 @@ function CustomDatePicker({
            onFocus={() => setShowCalendar(true)}
            className={`w-full p-3 pr-12 rounded-lg border ${
              isDarkMode 
-               ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+               ? 'bg-white/10 border-white/20 text-white placeholder-gray-400' 
                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
            } focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
          />
@@ -270,8 +270,27 @@ function CustomDatePicker({
             }`}
           >
             <CalendarIcon className="h-4 w-4" />
-          </button>
-        </div>
+                      </button>
+          </div>
+
+          {/* Quick Navigation Buttons */}
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date());
+              }}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                isDarkMode 
+                  ? 'bg-blue-500 hover:bg-blue-600 text-white' 
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+            >
+              Today
+            </button>
+          </div>
       </div>
 
              {showCalendar && (
@@ -279,7 +298,7 @@ function CustomDatePicker({
            ref={calendarRef}
            onClick={handleCalendarClick}
            className={`absolute z-50 mt-1 p-4 rounded-lg border shadow-xl calendar-container date-picker ${
-           isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+           isDarkMode ? 'bg-[#1D293D] border-white/20' : 'bg-white border-gray-200'
            }`}
          >
           <div className="flex items-center justify-between mb-4">
@@ -343,7 +362,9 @@ function CustomDatePicker({
 
           {/* Month Picker */}
           {showMonthPicker && (
-            <div className="mb-4 p-2 rounded-lg bg-gray-100 dark:bg-gray-700">
+            <div className={`mb-4 p-2 rounded-lg ${
+              isDarkMode ? 'bg-white/10' : 'bg-gray-100'
+            }`}>
               <div className="grid grid-cols-3 gap-1">
                 {monthNames.map((month, index) => (
                   <button
@@ -359,7 +380,9 @@ function CustomDatePicker({
                     className={`p-2 text-sm rounded-lg transition-colors ${
                       index === currentDate.getMonth()
                         ? 'bg-blue-500 text-white'
-                        : 'hover:bg-gray-200 dark:hover:bg-gray-600'
+                        : isDarkMode 
+                          ? 'hover:bg-white/10 text-white' 
+                          : 'hover:bg-gray-200 text-gray-900'
                     }`}
                   >
                     {month.slice(0, 3)}
@@ -371,7 +394,9 @@ function CustomDatePicker({
 
           {/* Year Picker */}
           {showYearPicker && (
-            <div className="mb-4 p-2 rounded-lg bg-gray-100 dark:bg-gray-700">
+            <div className={`mb-4 p-2 rounded-lg ${
+              isDarkMode ? 'bg-white/10' : 'bg-gray-100'
+            }`}>
               <div className="grid grid-cols-3 gap-1">
                 {Array.from({ length: 12 }, (_, i) => currentDate.getFullYear() - 5 + i).map((year) => (
                   <button
@@ -387,7 +412,9 @@ function CustomDatePicker({
                     className={`p-2 text-sm rounded-lg transition-colors ${
                       year === currentDate.getFullYear()
                         ? 'bg-blue-500 text-white'
-                        : 'hover:bg-gray-200 dark:hover:bg-gray-600'
+                        : isDarkMode 
+                          ? 'hover:bg-white/10 text-white' 
+                          : 'hover:bg-gray-200 text-gray-900'
                     }`}
                   >
                     {year}
@@ -424,7 +451,7 @@ function CustomDatePicker({
                     ? 'bg-blue-500 text-white' :
                   value === day.toISOString().split('T')[0]
                     ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
-                  `hover:bg-gray-200 dark:hover:bg-gray-700 ${
+                  `hover:bg-gray-200 dark:hover:bg-white/10 ${
                     isDarkMode ? 'text-white' : 'text-gray-900'
                   }`
                 }`}

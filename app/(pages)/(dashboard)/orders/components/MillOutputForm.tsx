@@ -92,6 +92,17 @@ export default function MillOutputForm({
         }
       ]
     });
+    
+    // Scroll to the newly added item after a short delay
+    setTimeout(() => {
+      const newItemElement = document.getElementById(`mill-output-item-${newId}`);
+      if (newItemElement) {
+        newItemElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+      }
+    }, 100);
   };
 
   // Remove mill output item
@@ -304,11 +315,33 @@ export default function MillOutputForm({
         <div className={`relative w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
           isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
         }`}>
+          {/* Loading Overlay for Saving */}
+          {saving && (
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
+              <div className={`p-6 rounded-lg ${
+                isDarkMode ? 'bg-gray-800' : 'bg-white'
+              }`}>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-3 text-sm font-medium">Saving mill output data...</p>
+                <p className="mt-1 text-xs text-gray-500">Please wait while we process your data</p>
+              </div>
+            </div>
+          )}
         {/* Header */}
           <div className={`flex items-center justify-between p-6 border-b ${
             isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
           }`}>
             <div className="flex items-center space-x-4">
+              {/* Order ID Display */}
+              <div className={`px-3 py-2 rounded-lg ${
+                isDarkMode 
+                  ? 'bg-blue-900/30 text-blue-300 border border-blue-700' 
+                  : 'bg-blue-100 text-blue-700 border border-blue-200'
+              }`}>
+                <span className="text-sm font-medium">Order ID:</span>
+                <span className="ml-2 text-lg font-bold">{formData.orderId}</span>
+              </div>
+              
               <div className="flex items-center space-x-3">
                 <DocumentTextIcon className="h-8 w-8 text-blue-500" />
                 <h2 className="text-2xl font-bold">Add Mill Output</h2>
@@ -354,26 +387,7 @@ export default function MillOutputForm({
                 </div>
               )}
 
-          {/* Order No (Auto) - Full Width */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div>
-                  <label className={`block text-sm font-medium mb-3 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-              Order No
-            </label>
-            <input
-              type="text"
-              value={order.orderId}
-              disabled
-                    className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 ${
-                isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-gray-400' 
-                        : 'bg-gray-100 border-gray-300 text-gray-500'
-              } font-mono text-sm`}
-            />
-          </div>
-              </div>
+          
 
               {/* Mill Output Items */}
               <div>
@@ -383,7 +397,7 @@ export default function MillOutputForm({
 
                 <div className="space-y-6">
                   {formData.millOutputItems.map((item, itemIndex) => (
-                    <div key={item.id} className={`p-6 rounded-xl border transition-all duration-200 hover:shadow-lg ${
+                    <div key={item.id} id={`mill-output-item-${item.id}`} className={`p-6 rounded-xl border transition-all duration-200 hover:shadow-lg ${
                       isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
                     }`}>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
@@ -457,144 +471,143 @@ export default function MillOutputForm({
                 </p>
               )}
             </div>
-
-            {/* Finished Mtr */}
-            <div>
-                          <label className={`block text-sm font-medium mb-3 ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                          }`}>
-                            Finished Mtr <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                            value={item.finishedMtr}
-                            onChange={(e) => updateMillOutputItem(item.id, 'finishedMtr', e.target.value)}
-                placeholder="Enter finished meters"
-                step="0.01"
-                min="0"
-                            className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                              errors[`finishedMtr_${item.id}`]
-                                ? isDarkMode
-                                  ? 'border-red-500 bg-gray-800 text-white'
-                                  : 'border-red-500 bg-white text-gray-900'
-                                : isDarkMode
-                                  ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                                  : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                            }`}
-                          />
-                          {errors[`finishedMtr_${item.id}`] && (
-                            <p className={`text-sm mt-1 ${
-                              isDarkMode ? 'text-red-400' : 'text-red-600'
-                            }`}>
-                              {errors[`finishedMtr_${item.id}`]}
-                </p>
-              )}
-            </div>
-
-            {/* Mill Rate */}
-            <div>
-                          <label className={`block text-sm font-medium mb-3 ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                          }`}>
-                            Mill Rate <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                            value={item.millRate}
-                            onChange={(e) => updateMillOutputItem(item.id, 'millRate', e.target.value)}
-                placeholder="Enter mill rate"
-                step="0.01"
-                min="0"
-                            className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                              errors[`millRate_${item.id}`]
-                                ? isDarkMode
-                                  ? 'border-red-500 bg-gray-800 text-white'
-                                  : 'border-red-500 bg-white text-gray-900'
-                                : isDarkMode
-                                  ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                                  : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                            }`}
-                          />
-                          {errors[`millRate_${item.id}`] && (
-                            <p className={`text-sm mt-1 ${
-                              isDarkMode ? 'text-red-400' : 'text-red-600'
-                            }`}>
-                              {errors[`millRate_${item.id}`]}
-                </p>
-              )}
-            </div>
           </div>
 
-                       {/* Additional Finished Meters & Rates */}
-                       {item.additionalFinishedMtr.length > 0 && (
-                         <div className={`mt-6 p-4 rounded-xl border ${
-                           isDarkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-100 border-gray-200'
-                         }`}>
-                           <h6 className={`text-sm font-semibold mb-4 flex items-center ${
-                             isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                           }`}>
-                             <PlusIcon className="h-4 w-4 mr-2" />
-                             Additional Finished Meters & Rates
-                           </h6>
-                           <div className="space-y-4">
-                             {item.additionalFinishedMtr.map((additional, index) => (
-                               <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                 <div>
-                                   <label className={`block text-sm font-medium mb-2 ${
-                                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                                   }`}>
-                                     Finished Mtr M{index + 1} <span className="text-red-500">*</span>
-                                   </label>
-                                   <input
-                                     type="number"
-                                     value={additional.meters}
-                                     onChange={(e) => updateAdditionalFinishedMtr(item.id, index, 'meters', e.target.value)}
-                                     placeholder="Enter finished meters"
-                                     step="0.01"
-                                     min="0"
-                                     className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                       isDarkMode 
-                                         ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
-                                         : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                                     }`}
-                                   />
-                                 </div>
-                                 <div>
-                                   <label className={`block text-sm font-medium mb-2 ${
-                                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                                   }`}>
-                                     Mill Rate R{index + 1} <span className="text-red-500">*</span>
-                                   </label>
-                                   <input
-                                     type="number"
-                                     value={additional.rate}
-                                     onChange={(e) => updateAdditionalFinishedMtr(item.id, index, 'rate', e.target.value)}
-                                     placeholder="Enter mill rate"
-                                     step="0.01"
-                                     min="0"
-                                     className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                       isDarkMode
-                                         ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
-                                         : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                                     }`}
-                                   />
-                                 </div>
-                                 <div className="flex items-end">
-                                   <button
-                                     type="button"
-                                     onClick={() => removeAdditionalFinishedMtr(item.id, index)}
-                                     className={`p-2 rounded-lg text-red-500 hover:bg-red-50 ${
-                                       isDarkMode ? 'hover:bg-red-900/20' : 'hover:bg-red-50'
-                                     }`}
-                                   >
-                                     <TrashIcon className="h-4 w-4" />
-                                   </button>
-                                 </div>
-                               </div>
-                             ))}
-                           </div>
+          {/* Finished Meters & Rates Section */}
+          <div className={`mt-6 p-4 rounded-xl border ${
+            isDarkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-100 border-gray-200'
+          }`}>
+            <h6 className={`text-sm font-semibold mb-4 flex items-center ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Finished Meters & Rates
+            </h6>
+            <div className="space-y-4">
+              {/* M1 and R1 Fields (Always visible) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Finished Mtr M1 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={item.finishedMtr}
+                    onChange={(e) => updateMillOutputItem(item.id, 'finishedMtr', e.target.value)}
+                    placeholder="Enter finished meters"
+                    step="0.01"
+                    min="0"
+                    className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      errors[`finishedMtr_${item.id}`]
+                        ? isDarkMode
+                          ? 'border-red-500 bg-gray-800 text-white'
+                          : 'border-red-500 bg-white text-gray-900'
+                        : isDarkMode
+                          ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
+                          : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                    }`}
+                  />
+                  {errors[`finishedMtr_${item.id}`] && (
+                    <p className={`text-sm mt-1 ${
+                      isDarkMode ? 'text-red-400' : 'text-red-600'
+                    }`}>
+                      {errors[`finishedMtr_${item.id}`]}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Mill Rate R1 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={item.millRate}
+                    onChange={(e) => updateMillOutputItem(item.id, 'millRate', e.target.value)}
+                    placeholder="Enter mill rate"
+                    step="0.01"
+                    min="0"
+                    className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      errors[`millRate_${item.id}`]
+                        ? isDarkMode
+                          ? 'border-red-500 bg-gray-800 text-white'
+                          : 'border-red-500 bg-white text-gray-900'
+                        : isDarkMode
+                          ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
+                          : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                    }`}
+                  />
+                  {errors[`millRate_${item.id}`] && (
+                    <p className={`text-sm mt-1 ${
+                      isDarkMode ? 'text-red-400' : 'text-red-600'
+                    }`}>
+                      {errors[`millRate_${item.id}`]}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Additional Fields (M2, R2, M3, R3, etc.) */}
+              {item.additionalFinishedMtr.map((additional, index) => (
+                <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Finished Mtr M{index + 2} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={additional.meters}
+                      onChange={(e) => updateAdditionalFinishedMtr(item.id, index, 'meters', e.target.value)}
+                      placeholder="Enter finished meters"
+                      step="0.01"
+                      min="0"
+                      className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        isDarkMode 
+                          ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
+                          : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Mill Rate R{index + 2} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={additional.rate}
+                      onChange={(e) => updateAdditionalFinishedMtr(item.id, index, 'rate', e.target.value)}
+                      placeholder="Enter mill rate"
+                      step="0.01"
+                      min="0"
+                      className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        isDarkMode
+                          ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
+                          : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                      }`}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => removeAdditionalFinishedMtr(item.id, index)}
+                      className={`p-2 rounded-lg text-red-500 hover:bg-red-50 ${
+                        isDarkMode ? 'hover:bg-red-900/20' : 'hover:bg-red-50'
+                      }`}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
+          </div>
 
                        {/* Add More Finished Meters & Rates Button */}
                        <div className="mt-4">

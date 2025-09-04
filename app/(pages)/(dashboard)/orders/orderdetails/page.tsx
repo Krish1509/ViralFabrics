@@ -3,37 +3,40 @@
 import { 
   XMarkIcon,
   PencilIcon,
-  TrashIcon,
+  ArrowLeftIcon,
   CalendarIcon,
   PhoneIcon,
   MapPinIcon,
   CubeIcon,
-  DocumentTextIcon,
+  PhotoIcon,
   UserIcon,
   BuildingOfficeIcon,
-  PhotoIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  InformationCircleIcon,
   BeakerIcon,
-  TruckIcon
+  TruckIcon,
+  DocumentTextIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  ExclamationTriangleIcon,
+  TrashIcon,
+  InformationCircleIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { Order } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { useState, useEffect } from 'react';
-import OrderLogsModal from './OrderLogsModal';
-import LabAddModal from './LabDataModal';  
-import DispatchForm from './DispatchForm';
+import { useRouter, useSearchParams } from 'next/navigation';
+import OrderLogsModal from '../components/OrderLogsModal';
+import LabAddModal from '../components/LabDataModal';  
+import DispatchForm from '../components/DispatchForm';
 
-interface OrderDetailsProps {
-  order: Order;
-  onClose: () => void;
-  onEdit: () => void;
-}
-
-export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsProps) {
+export default function OrderDetailsPage() {
   const { isDarkMode, mounted } = useDarkMode();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get('id');
+  
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
   const [labs, setLabs] = useState<any[]>([]);
   const [loadingLabs, setLoadingLabs] = useState(false);
   const [millInputs, setMillInputs] = useState<any[]>([]);
@@ -48,15 +51,86 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
   const [showLabModal, setShowLabModal] = useState(false);
   const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string>('');
+
+  // Calculate lab stats
+  const labStats = {
+    withLabs: labs.filter(lab => lab.status === 'received').length,
+    total: labs.length
+  };
+
+  // Helper function to get lab for an item
+  const getLabForItem = (itemId: string) => {
+    return labs.find(lab => lab.itemId === itemId);
+  };
+
+  // Handle mill input edit
+  const handleEditMillInput = (millInput: any) => {
+    // Navigate to edit mill input form with order ID
+    showSuccessMessage(`Opening edit form for mill input from ${millInput.mill?.name || 'Unknown Mill'}`);
+    router.push(`/orders?editMillInput=${orderId}&millInputId=${millInput._id}`);
+  };
+
+  // Handle mill input delete
+  const handleDeleteMillInput = async (millInputId: string) => {
+    if (confirm('Are you sure you want to delete this mill input?')) {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/mill-inputs/${millInputId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          }
+        });
+        
+        if (response.ok) {
+          // Refresh mill inputs by filtering out the deleted one
+          setMillInputs(prev => prev.filter(input => input._id !== millInputId));
+          showSuccessMessage('Mill input deleted successfully!');
+        }
+      } catch (error) {
+        console.error('Error deleting mill input:', error);
+      }
+    }
+  };
+
+  // Fetch order data
+  useEffect(() => {
+    if (orderId) {
+      const fetchOrder = async () => {
+        try {
+          setLoading(true);
+          const token = localStorage.getItem('token');
+          const response = await fetch(`/api/orders/${orderId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            }
+          });
+          const data = await response.json();
+          console.log('Order API response:', data); // Debug log
+          if (data.success) {
+            setOrder(data.data);
+            showSuccessMessage(`Order ${data.data.orderId} loaded successfully!`);
+          }
+        } catch (error) {
+          console.error('Error fetching order:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      fetchOrder();
+    }
+  }, [orderId]);
 
   // Pre-fetch logs and labs when order details open
   useEffect(() => {
-    if (order._id) {
+    if (orderId) {
       // Pre-fetch logs in background
       const preloadLogs = async () => {
         try {
           const token = localStorage.getItem('token');
-          await fetch(`/api/orders/${order._id}/logs`, {
+          await fetch(`/api/orders/${orderId}/logs`, {
             headers: {
               ...(token && { 'Authorization': `Bearer ${token}` }),
               'Cache-Control': 'max-age=30' // Cache for 30 seconds
@@ -73,7 +147,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
         try {
           setLoadingLabs(true);
           const token = localStorage.getItem('token');
-          const response = await fetch(`/api/labs/by-order/${order._id}`, {
+          const response = await fetch(`/api/labs/by-order/${orderId}`, {
             headers: {
               'Cache-Control': 'max-age=30', // Reduced cache time for more frequent updates
               'Authorization': `Bearer ${token}`,
@@ -82,6 +156,9 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
           const data = await response.json();
           if (data.success && Array.isArray(data.data)) {
             setLabs(data.data);
+            if (data.data.length > 0) {
+              showSuccessMessage(`Loaded ${data.data.length} lab records`);
+            }
           }
         } catch (error) {
           console.error('Error fetching labs:', error);
@@ -95,15 +172,24 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
         try {
           setLoadingMillInputs(true);
           const token = localStorage.getItem('token');
-          const response = await fetch(`/api/mill-inputs?orderId=${order.orderId}`, {
+          const response = await fetch(`/api/mill-inputs?orderId=${orderId}`, {
             headers: {
               'Cache-Control': 'max-age=30',
               'Authorization': `Bearer ${token}`,
             }
           });
           const data = await response.json();
-          if (data.success && Array.isArray(data.data.millInputs)) {
-            setMillInputs(data.data.millInputs);
+          console.log('Mill inputs API response:', data); // Debug log
+          if (data.success && Array.isArray(data.data)) {
+            setMillInputs(data.data);
+            if (data.data.length > 0) {
+              showSuccessMessage(`Loaded ${data.data.length} mill input entries`);
+            }
+          } else if (data.success && Array.isArray(data.millInputs)) {
+            setMillInputs(data.millInputs);
+            if (data.millInputs.length > 0) {
+              showSuccessMessage(`Loaded ${data.millInputs.length} mill input entries`);
+            }
           }
         } catch (error) {
           console.error('Error fetching mill inputs:', error);
@@ -117,7 +203,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
         try {
           setLoadingMillOutputs(true);
           const token = localStorage.getItem('token');
-          const response = await fetch(`/api/mill-outputs?orderId=${order.orderId}`, {
+          const response = await fetch(`/api/mill-outputs?orderId=${orderId}`, {
             headers: {
               'Cache-Control': 'max-age=30',
               'Authorization': `Bearer ${token}`,
@@ -139,7 +225,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
         try {
           setLoadingDispatches(true);
           const token = localStorage.getItem('token');
-          const response = await fetch(`/api/dispatch?orderId=${order.orderId}`, {
+          const response = await fetch(`/api/dispatch?orderId=${orderId}`, {
             headers: {
               'Cache-Control': 'max-age=30',
               'Authorization': `Bearer ${token}`,
@@ -162,19 +248,19 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
       fetchMillOutputs();
       fetchDispatches();
     }
-  }, [order._id]);
+  }, [orderId]);
 
   // Listen for lab updates and refresh labs data
   useEffect(() => {
     const handleLabUpdate = (event: CustomEvent) => {
-      if (event.detail?.orderId === order._id && event.detail?.action === 'lab_add') {
+      if (event.detail?.orderId === orderId && event.detail?.action === 'lab_add') {
         // Refresh labs data after a short delay to ensure server has updated
         setTimeout(() => {
           const fetchLabs = async () => {
             try {
               setLoadingLabs(true);
               const token = localStorage.getItem('token');
-              const response = await fetch(`/api/labs/by-order/${order._id}`, {
+              const response = await fetch(`/api/labs/by-order/${orderId}`, {
                 headers: {
                   'Cache-Control': 'no-cache', // Force fresh data
                   'Authorization': `Bearer ${token}`,
@@ -183,6 +269,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
               const data = await response.json();
               if (data.success && Array.isArray(data.data)) {
                 setLabs(data.data);
+                showSuccessMessage(`Refreshed ${data.data.length} lab records`);
               }
             } catch (error) {
               console.error('Error refreshing labs:', error);
@@ -200,7 +287,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
     return () => {
       window.removeEventListener('orderUpdated', handleLabUpdate as EventListener);
     };
-  }, [order._id]);
+  }, [orderId]);
 
   const handleViewLogs = async () => {
     setLogsLoading(true);
@@ -213,7 +300,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
   const refreshLogs = () => {
     if (showOrderLogs) {
       // Trigger a refresh in the OrderLogsModal
-      const event = new CustomEvent('refreshOrderLogs', { detail: { orderId: order._id } });
+      const event = new CustomEvent('refreshOrderLogs', { detail: { orderId: orderId } });
       window.dispatchEvent(event);
     }
   };
@@ -255,7 +342,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
     }
   };
 
-  const party = typeof order.party === 'string' ? null : order.party;
+  const party = typeof order?.party === 'string' ? null : order?.party;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -279,46 +366,17 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
     return order.items.reduce((total: number, item: any) => total + (item.quantity || 0), 0);
   };
 
+  const showSuccessMessage = (message: string) => {
+    setSuccessMessage(message);
+    setTimeout(() => setSuccessMessage(''), 3000);
+  };
+
   const handleImageClick = (imageUrl: string, alt: string) => {
     setPreviewImage({ url: imageUrl, alt });
     setShowImagePreview(true);
   };
 
-  // Handle edit mill input
-  const handleEditMillInput = (millInput: any) => {
-    // TODO: Implement edit functionality
-    console.log('Edit mill input:', millInput);
-    // You can open a modal or navigate to edit page
-  };
 
-  // Handle delete mill input
-  const handleDeleteMillInput = async (millInputId: string) => {
-    if (!confirm('Are you sure you want to delete this mill input?')) {
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/mill-inputs/${millInputId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        // Refresh mill inputs
-        const updatedMillInputs = millInputs.filter(input => input._id !== millInputId);
-        setMillInputs(updatedMillInputs);
-      } else {
-        alert('Failed to delete mill input: ' + data.message);
-      }
-    } catch (error) {
-      console.error('Error deleting mill input:', error);
-      alert('Failed to delete mill input');
-    }
-  };
 
   // Handle ESC key to close image preview
   useEffect(() => {
@@ -348,7 +406,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
         const timeoutId = setTimeout(() => controller.abort(), 2000); // Reduced timeout to 2 seconds
         
         const token = localStorage.getItem('token');
-        const response = await fetch(`/api/labs/by-order/${order._id}`, {
+        const response = await fetch(`/api/labs/by-order/${orderId}`, {
           signal: controller.signal,
           headers: {
             'Cache-Control': 'max-age=60', // Increased cache to 60 seconds
@@ -379,39 +437,83 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
     };
 
     fetchLabs();
-  }, [order._id]);
-
-  const getLabForItem = (itemId: string) => {
-    if (!Array.isArray(labs)) return null;
-    const lab = labs.find(lab => lab.orderItemId === itemId);
-    return lab;
-  };
-
-  // Calculate lab statistics
-  const labStats = {
-    total: labs.length,
-    withLabs: labs.length,
-    withoutLabs: Math.max(0, order.items.length - labs.length),
-    sent: labs.filter(lab => lab.status === 'sent').length,
-    received: labs.filter(lab => lab.status === 'received').length,
-    cancelled: labs.filter(lab => lab.status === 'cancelled').length
-  };
+  }, [orderId]);
 
 
 
 
+
+
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className={`text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            Loading order details...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 flex items-center justify-center">
+        <div className="text-center">
+          <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-red-900/20' : 'bg-red-100'}`}>
+            <ExclamationTriangleIcon className={`h-16 w-16 mx-auto mb-4 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`} />
+            <p className={`text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              Order not found
+            </p>
+            <button
+              onClick={() => router.push('/orders')}
+              className={`mt-4 px-6 py-2 rounded-lg ${
+                isDarkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'
+              } text-white`}
+            >
+              Back to Orders
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className={`w-full max-w-7xl rounded-2xl shadow-2xl ${
-        isDarkMode ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'
-      } max-h-[98vh] overflow-hidden`}>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+      <div className="w-full max-w-7xl mx-auto bg-white dark:bg-gray-900 rounded-2xl shadow-2xl">
         {/* Enhanced Header */}
-        <div className={`relative p-8 border-b ${
-          isDarkMode ? 'border-gray-700 bg-gradient-to-r from-gray-900 to-gray-800' : 'border-gray-200 bg-gradient-to-r from-white to-gray-50'
-        }`}>
+                 <div className={`relative p-8 border-b ${
+           isDarkMode ? 'border-gray-700 bg-gradient-to-r from-gray-900 to-gray-800' : 'border-gray-200 bg-gradient-to-r from-white to-gray-50'
+         }`}>
+           {/* Success Message */}
+           {successMessage && (
+             <div className={`absolute top-4 left-1/2 transform -translate-x-1/2 z-10 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ${
+               isDarkMode 
+                 ? 'bg-green-600 text-white border border-green-500' 
+                 : 'bg-green-500 text-white border border-green-400'
+             }`}>
+               <div className="flex items-center space-x-2">
+                 <CheckCircleIcon className="h-5 w-5" />
+                 <span className="font-medium">{successMessage}</span>
+               </div>
+             </div>
+           )}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
+              <button
+                onClick={() => router.push('/orders')}
+                className={`p-2 rounded-lg transition-all duration-200 ${
+                  isDarkMode
+                    ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                }`}
+                title="Back to Orders"
+              >
+                <ArrowLeftIcon className="h-6 w-6" />
+              </button>
               <div className={`h-16 w-16 rounded-2xl flex items-center justify-center shadow-lg ${
                 isDarkMode 
                   ? 'bg-gradient-to-br from-blue-600 to-indigo-700' 
@@ -429,17 +531,17 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                   <p className={`text-lg font-mono ${
                     isDarkMode ? 'text-blue-400' : 'text-blue-600'
                   }`}>
-                    #{order.orderId}
+                    #{order?.orderId}
                   </p>
                                      <span className={`inline-flex items-center px-3 py-1 text-sm font-semibold rounded-full ${
-                     order.status === 'delivered'
+                     order?.status === 'delivered'
                        ? isDarkMode ? 'bg-green-900/30 text-green-400 border border-green-500/50' : 'bg-green-100 text-green-800 border border-green-200'
-                       : order.status === 'pending'
+                       : order?.status === 'pending'
                        ? isDarkMode ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-500/50' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
                        : isDarkMode ? 'bg-blue-900/30 text-blue-400 border border-blue-500/50' : 'bg-blue-100 text-blue-800 border border-blue-200'
                    }`}>
-                     {order.status === 'delivered' ? <CheckCircleIcon className="h-4 w-4" /> : <ClockIcon className="h-4 w-4" />}
-                     <span className="ml-1">{order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Pending'}</span>
+                     {order?.status === 'delivered' ? <CheckCircleIcon className="h-4 w-4" /> : <ClockIcon className="h-4 w-4" />}
+                     <span className="ml-1">{order?.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Pending'}</span>
                    </span>
                 </div>
               </div>
@@ -466,32 +568,21 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                    <span className="hidden xs:inline sm:hidden">{logsLoading ? 'Loading...' : 'Logs'}</span>
                    <span className="xs:hidden">{logsLoading ? 'Loading...' : 'Log'}</span>
                 </button>
-               <button
-                 onClick={onEdit}
-                  className={`inline-flex items-center px-1.5 py-1.5 xs:px-2 sm:px-3 lg:px-4 xs:py-2 sm:py-2.5 rounded-lg font-medium transition-all duration-300 shadow-md hover:shadow-lg text-xs ${
-                   isDarkMode
-                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
-                     : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600'
-                 }`}
-               >
-                  <PencilIcon className="h-3 w-3 xs:h-3.5 xs:w-3.5 sm:h-4 sm:w-4 mr-0.5 xs:mr-1 sm:mr-1.5 lg:mr-2" />
-                  <span className="hidden lg:inline">Edit Order</span>
-                  <span className="hidden sm:inline lg:hidden">Edit</span>
-                  <span className="hidden xs:inline sm:hidden">Edit</span>
-                  <span className="xs:hidden">Edit</span>
-                </button>
-                                <button
-                  onClick={() => setShowLabModal(true)}
-                  className={`inline-flex items-center px-1.5 py-1.5 xs:px-2 sm:px-3 lg:px-4 xs:py-2 sm:py-2.5 rounded-lg font-medium transition-all duration-300 shadow-md hover:shadow-lg text-xs ${
-                    labs.length > 0
-                      ? isDarkMode
-                        ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
-                        : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600'
-                      : isDarkMode
-                        ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white hover:from-orange-700 hover:to-red-700'
-                        : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
-                  }`}
-                >
+                               <button
+                  onClick={() => {
+                    showSuccessMessage(labs.length > 0 ? 'Opening lab data editor...' : 'Opening lab data form...');
+                    setShowLabModal(true);
+                  }}
+                   className={`inline-flex items-center px-1.5 py-1.5 xs:px-2 sm:px-3 lg:px-4 xs:py-2 sm:py-2.5 rounded-lg font-medium transition-all duration-300 shadow-md hover:shadow-lg text-xs ${
+                     labs.length > 0
+                       ? isDarkMode
+                         ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
+                         : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600'
+                       : isDarkMode
+                         ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white hover:from-orange-700 hover:to-red-700'
+                         : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
+                   }`}
+                 >
                   <BeakerIcon className="h-3 w-3 xs:h-3.5 xs:w-3.5 sm:h-4 sm:w-4 mr-0.5 xs:mr-1 sm:mr-1.5 lg:mr-2" />
                   <span className="hidden lg:inline">{labs.length > 0 ? 'Edit Lab' : 'Add Lab'}</span>
                   <span className="hidden sm:inline lg:hidden">{labs.length > 0 ? 'Edit Lab' : 'Add Lab'}</span>
@@ -517,7 +608,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                   <span className="xs:hidden">{dispatches.length > 0 ? 'E' : 'A'}</span>
                 </button>
                <button
-                 onClick={onClose}
+                 onClick={() => router.push('/orders')}
                   className={`p-1 xs:p-1.5 sm:p-2 lg:p-3 rounded-lg transition-all duration-300 ${
                    isDarkMode
                      ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
@@ -566,20 +657,20 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                         Order Type
                       </p>
                       <p className={`text-xl font-bold ${
-                        order.orderType === 'Dying'
+                        order?.orderType === 'Dying'
                           ? isDarkMode ? 'text-red-400' : 'text-red-600'
                           : isDarkMode ? 'text-blue-400' : 'text-blue-600'
                       }`}>
-                        {order.orderType}
+                        {order?.orderType}
                       </p>
                     </div>
                     <div className={`p-3 rounded-xl ${
-                      order.orderType === 'Dying'
+                      order?.orderType === 'Dying'
                         ? isDarkMode ? 'bg-red-500/20' : 'bg-red-100'
                         : isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
                     }`}>
                       <svg className={`h-6 w-6 ${
-                        order.orderType === 'Dying'
+                        order?.orderType === 'Dying'
                           ? isDarkMode ? 'text-red-400' : 'text-red-600'
                           : isDarkMode ? 'text-blue-400' : 'text-blue-600'
                       }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -601,23 +692,23 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                         Order Status
                       </p>
                       <p className={`text-xl font-bold ${
-                        order.status === 'delivered'
+                        order?.status === 'delivered'
                           ? isDarkMode ? 'text-green-400' : 'text-green-600'
-                          : order.status === 'pending'
+                          : order?.status === 'pending'
                           ? isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
                           : isDarkMode ? 'text-blue-400' : 'text-blue-600'
                       }`}>
-                        {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Pending'}
+                        {order?.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Pending'}
                       </p>
                     </div>
                     <div className={`p-3 rounded-xl ${
-                      order.status === 'delivered'
+                      order?.status === 'delivered'
                         ? isDarkMode ? 'bg-green-500/20' : 'bg-green-100'
-                        : order.status === 'pending'
+                        : order?.status === 'pending'
                         ? isDarkMode ? 'bg-yellow-500/20' : 'bg-yellow-100'
                         : isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
                     }`}>
-                      {order.status === 'delivered' ? <CheckCircleIcon className="h-6 w-6" /> :
+                      {order?.status === 'delivered' ? <CheckCircleIcon className="h-6 w-6" /> :
                        <ClockIcon className="h-6 w-6" />}
                     </div>
                   </div>
@@ -637,7 +728,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                       <p className={`text-3xl font-bold ${
                         isDarkMode ? 'text-white' : 'text-gray-900'
                       }`}>
-                        {order.items?.length || 0}
+                        {order?.items?.length || 0}
                       </p>
                     </div>
                     <div className={`p-3 rounded-xl ${
@@ -709,7 +800,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                      </div>
                    </div>
                    <div className="space-y-4">
-                                           {order.orderNo && (
+                                           {order?.orderNo && (
                         <div className={`flex justify-between items-center p-3 rounded-lg ${
                           isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
                         }`}>
@@ -721,13 +812,13 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                           <span className={`text-sm font-semibold ${
                             isDarkMode ? 'text-white' : 'text-gray-900'
                           }`}>
-                            {order.orderNo}
+                            {order?.orderNo}
                           </span>
                         </div>
                       )}
-                      {(order.poNumber || order.styleNo) && ( // Removed weaverSupplierName and purchaseRate checks
+                      {(order?.poNumber || order?.styleNo) && ( // Removed weaverSupplierName and purchaseRate checks
                         <div className="space-y-3">
-                          {order.poNumber && (
+                          {order?.poNumber && (
                             <div className={`flex justify-between items-center p-3 rounded-lg ${
                               isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
                             }`}>
@@ -739,11 +830,11 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                               <span className={`text-sm font-mono font-semibold ${
                                 isDarkMode ? 'text-blue-400' : 'text-blue-600'
                               }`}>
-                                {order.poNumber}
+                                {order?.poNumber}
                               </span>
                             </div>
                           )}
-                          {order.styleNo && (
+                          {order?.styleNo && (
                             <div className={`flex justify-between items-center p-3 rounded-lg ${
                               isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
                             }`}>
@@ -755,7 +846,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                              <span className={`text-sm font-mono font-semibold ${
                                isDarkMode ? 'text-purple-400' : 'text-purple-600'
                              }`}>
-                               {order.styleNo}
+                               {order?.styleNo}
                              </span>
                            </div>
                          )}
@@ -804,10 +895,10 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                         <span className={`text-sm font-semibold ${
                           isDarkMode ? 'text-white' : 'text-gray-900'
                         }`}>
-                          {order.arrivalDate ? formatDate(order.arrivalDate) : 'Not specified'}
+                          {order?.arrivalDate ? formatDate(order.arrivalDate) : 'Not specified'}
                         </span>
                       </div>
-                      {order.poDate && (
+                      {order?.poDate && (
                         <div className={`flex justify-between items-center p-3 rounded-lg ${
                           isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
                         }`}>
@@ -819,11 +910,11 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                           <span className={`text-sm font-semibold ${
                             isDarkMode ? 'text-white' : 'text-gray-900'
                           }`}>
-                            {order.poDate ? formatDate(order.poDate) : 'Not specified'}
+                            {order?.poDate ? formatDate(order.poDate) : 'Not specified'}
                           </span>
                         </div>
                       )}
-                      {order.deliveryDate && (
+                      {order?.deliveryDate && (
                         <div className={`flex justify-between items-center p-3 rounded-lg ${
                           isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
                         }`}>
@@ -835,7 +926,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                          <span className={`text-sm font-semibold ${
                            isDarkMode ? 'text-white' : 'text-gray-900'
                          }`}>
-                           {order.deliveryDate ? formatDate(order.deliveryDate) : 'Not specified'}
+                           {order?.deliveryDate ? formatDate(order.deliveryDate) : 'Not specified'}
                          </span>
                        </div>
                      )}
@@ -948,7 +1039,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                  )}
 
                  {/* Contact Information Card */}
-                 {(order.contactName || order.contactPhone) && (
+                 {(order?.contactName || order?.contactPhone) && (
                    <div className={`p-6 rounded-2xl border ${
                      isDarkMode 
                        ? 'bg-gray-800/50 border-gray-700' 
@@ -976,7 +1067,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                        </div>
                      </div>
                      <div className="space-y-4">
-                       {order.contactName && (
+                       {order?.contactName && (
                          <div className={`p-3 rounded-lg ${
                            isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
                          }`}>
@@ -988,11 +1079,11 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                            <p className={`text-sm font-semibold mt-1 ${
                              isDarkMode ? 'text-white' : 'text-gray-900'
                            }`}>
-                             {order.contactName}
+                             {order?.contactName}
                            </p>
                          </div>
                        )}
-                       {order.contactPhone && (
+                       {order?.contactPhone && (
                          <div className={`flex items-center p-3 rounded-lg ${
                            isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
                          }`}>
@@ -1008,7 +1099,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                              <p className={`text-sm font-semibold ${
                                isDarkMode ? 'text-white' : 'text-gray-900'
                              }`}>
-                               {order.contactPhone}
+                               {order?.contactPhone}
                              </p>
                            </div>
                          </div>
@@ -1022,7 +1113,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                 <div className="space-y-6">
 
                  {/* Order Items Card */}
-                 {order.items && order.items.length > 0 && (
+                 {order?.items && order.items.length > 0 && (
                   <div className={`p-6 rounded-xl border ${
                     isDarkMode 
                       ? 'bg-white/5 border-white/10' 
@@ -1294,12 +1385,213 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                   </div>
                 )}
 
-                {/* Mill Inputs Card - Simplified */}
-                <div className={`mt-8 p-6 rounded-xl border ${
-                  isDarkMode 
-                    ? 'bg-white/5 border-white/10' 
-                    : 'bg-white border-gray-200 shadow-sm'
-                }`}>
+                                 {/* Lab Data Card - Enhanced */}
+                 <div className={`mt-8 p-6 rounded-xl border ${
+                   isDarkMode 
+                     ? 'bg-white/5 border-white/10' 
+                     : 'bg-white border-gray-200 shadow-sm'
+                 }`}>
+                   <div className="flex items-center justify-between mb-6">
+                     <div className="flex items-center">
+                       <BeakerIcon className={`h-5 w-5 mr-2 ${
+                         isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                       }`} />
+                       <h3 className={`text-lg font-semibold ${
+                         isDarkMode ? 'text-white' : 'text-gray-900'
+                       }`}>
+                         Lab Data ({labs.length})
+                       </h3>
+                     </div>
+                     <div className="flex items-center space-x-3">
+                       <button
+                         onClick={() => setShowLabModal(true)}
+                         className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                           labs.length > 0
+                             ? isDarkMode
+                               ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25'
+                               : 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25'
+                             : isDarkMode
+                               ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg hover:shadow-orange-500/25'
+                               : 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg hover:shadow-orange-500/25'
+                         }`}
+                       >
+                         <BeakerIcon className="h-4 w-4 mr-2" />
+                         {labs.length > 0 ? 'Edit Lab Data' : 'Add Lab Data'}
+                       </button>
+                       {loadingLabs && (
+                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-500"></div>
+                       )}
+                     </div>
+                   </div>
+                   
+                   {loadingLabs ? (
+                     <div className="text-center py-8">
+                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-4"></div>
+                       <p className={`text-sm ${
+                         isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                       }`}>
+                         Loading lab data...
+                       </p>
+                     </div>
+                   ) : labs.length > 0 ? (
+                     <div className="space-y-6">
+                       {/* Lab Summary Stats */}
+                       <div className={`p-4 rounded-xl border-2 ${
+                         isDarkMode 
+                           ? 'bg-gradient-to-r from-purple-900/20 to-indigo-900/20 border-purple-500/30' 
+                           : 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-300'
+                       }`}>
+                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                           <div className="text-center">
+                             <span className={`text-xs font-medium ${
+                               isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                             }`}>
+                               Total Lab Records
+                             </span>
+                             <p className={`text-xl font-bold ${
+                               isDarkMode ? 'text-white' : 'text-gray-900'
+                             }`}>
+                               {labs.length}
+                             </p>
+                           </div>
+                           <div className="text-center">
+                             <span className={`text-xs font-medium ${
+                               isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                             }`}>
+                               Approved
+                             </span>
+                             <p className={`text-xl font-bold ${
+                               isDarkMode ? 'text-green-400' : 'text-green-600'
+                             }`}>
+                               {labs.filter(lab => lab.status === 'received').length}
+                             </p>
+                           </div>
+                           <div className="text-center">
+                             <span className={`text-xs font-medium ${
+                               isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                             }`}>
+                               Pending
+                             </span>
+                             <p className={`text-xl font-bold ${
+                               isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
+                             }`}>
+                               {labs.filter(lab => lab.status === 'sent').length}
+                             </p>
+                           </div>
+                         </div>
+                       </div>
+
+                       {/* Lab Records Table */}
+                       <div className={`rounded-xl border-2 ${
+                         isDarkMode 
+                           ? 'bg-white/5 border-purple-500/30' 
+                           : 'bg-gray-50 border-purple-200'
+                       } overflow-hidden`}>
+                         <div className={`p-4 border-b ${
+                           isDarkMode ? 'border-gray-700' : 'border-gray-200'
+                         }`}>
+                           <h4 className={`text-lg font-semibold ${
+                             isDarkMode ? 'text-white' : 'text-gray-900'
+                           }`}>
+                             All Lab Records
+                           </h4>
+                         </div>
+                         
+                         <div className="overflow-x-auto">
+                           <table className="w-full">
+                                                           <thead className={`${
+                                isDarkMode ? 'bg-gray-800/50' : 'bg-gray-100'
+                              }`}>
+                                <tr>
+                                  <th className={`px-4 py-3 text-left text-xs font-medium ${
+                                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                  }`}>
+                                    Sample Number
+                                  </th>
+                                  <th className={`px-4 py-3 text-left text-xs font-medium ${
+                                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                  }`}>
+                                    Send Date
+                                  </th>
+                                  <th className={`px-4 py-3 text-left text-xs font-medium ${
+                                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                  }`}>
+                                    Approval Date
+                                  </th>
+                                </tr>
+                              </thead>
+                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                               {labs.map((lab: any, index: number) => (
+                                 <tr key={lab._id || index} className={`hover:${
+                                   isDarkMode ? 'bg-white/5' : 'bg-gray-50'
+                                 } transition-colors`}>
+                                   <td className={`px-4 py-3 text-sm font-medium ${
+                                     isDarkMode ? 'text-white' : 'text-gray-900'
+                                   }`}>
+                                     {lab.labSendNumber || '-'}
+                                   </td>
+                                   <td className={`px-4 py-3 text-sm ${
+                                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                   }`}>
+                                     {lab.labSendDate ? new Date(lab.labSendDate).toLocaleDateString('en-US', {
+                                       year: 'numeric',
+                                       month: 'short',
+                                       day: 'numeric'
+                                     }) : 'No Date'}
+                                   </td>
+                                   <td className={`px-4 py-3 text-sm ${
+                                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                   }`}>
+                                     {lab.labSendData?.approvalDate ? new Date(lab.labSendData.approvalDate).toLocaleDateString('en-US', {
+                                       year: 'numeric',
+                                       month: 'short',
+                                       day: 'numeric'
+                                     }) : 'Not Approved'}
+                                   </td>
+                                 </tr>
+                               ))}
+                             </tbody>
+                           </table>
+                         </div>
+                       </div>
+                     </div>
+                   ) : (
+                     <div className={`p-6 rounded-2xl border-2 border-dashed ${
+                       isDarkMode 
+                         ? 'bg-gray-900/10 border-gray-500/30' 
+                         : 'bg-gray-50 border-gray-300'
+                     } shadow-sm`}>
+                       <div className="flex items-center justify-center">
+                         <div className={`p-3 rounded-xl ${
+                           isDarkMode ? 'bg-gray-500/20' : 'bg-gray-100'
+                         }`}>
+                           <BeakerIcon className={`h-6 w-6 ${
+                             isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                           }`} />
+                         </div>
+                         <div className="ml-4 text-center">
+                           <h4 className={`text-lg font-semibold ${
+                             isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                           }`}>
+                             No Lab Records
+                           </h4>
+                           <p className={`text-sm ${
+                             isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                           }`}>
+                             Lab data can be added after order is saved
+                           </p>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+                 </div>
+
+                 {/* Mill Inputs Card - Simplified */}
+                 <div className={`mt-8 p-6 rounded-xl border ${
+                   isDarkMode 
+                     ? 'bg-white/5 border-white/10' 
+                     : 'bg-white border-gray-200 shadow-sm'
+                 }`}>
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center">
                       <BuildingOfficeIcon className={`h-5 w-5 mr-2 ${
@@ -1311,9 +1603,62 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                         Mill Inputs ({millInputs.length})
                       </h3>
                     </div>
-                    {loadingMillInputs && (
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-cyan-500"></div>
-                    )}
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => {
+                          showSuccessMessage('Opening add mill input form...');
+                          router.push(`/orders?addMillInput=${orderId}`);
+                        }}
+                        className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          isDarkMode
+                            ? 'bg-cyan-600 hover:bg-cyan-700 text-white shadow-lg hover:shadow-cyan-500/25'
+                            : 'bg-cyan-600 hover:bg-cyan-700 text-white shadow-lg hover:shadow-cyan-500/25'
+                        }`}
+                      >
+                        <BuildingOfficeIcon className="h-4 w-4 mr-2" />
+                        Add Mill Input
+                      </button>
+                      <button
+                        onClick={() => {
+                          const fetchMillInputs = async () => {
+                            try {
+                              setLoadingMillInputs(true);
+                              const token = localStorage.getItem('token');
+                              const response = await fetch(`/api/mill-inputs?orderId=${orderId}`, {
+                                headers: {
+                                  'Cache-Control': 'no-cache',
+                                  'Authorization': `Bearer ${token}`,
+                                }
+                              });
+                                                            const data = await response.json();
+                              console.log('Refresh mill inputs API response:', data); // Debug log
+                              if (data.success && Array.isArray(data.data)) {
+                                setMillInputs(data.data);
+                                showSuccessMessage(`Refreshed ${data.data.length} mill input entries`);
+                              } else if (data.success && Array.isArray(data.millInputs)) {
+                                setMillInputs(data.millInputs);
+                                showSuccessMessage(`Refreshed ${data.millInputs.length} mill input entries`);
+                              }
+                            } catch (error) {
+                              console.error('Error refreshing mill inputs:', error);
+                            } finally {
+                              setLoadingMillInputs(false);
+                            }
+                          };
+                          fetchMillInputs();
+                        }}
+                        className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          isDarkMode
+                            ? 'bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600'
+                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
+                        }`}
+                      >
+                        <ArrowPathIcon className="h-4 w-4" />
+                      </button>
+                      {loadingMillInputs && (
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-cyan-500"></div>
+                      )}
+                    </div>
                   </div>
                   
                   {loadingMillInputs ? (
@@ -1355,7 +1700,12 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                             <p className={`text-xl font-bold ${
                               isDarkMode ? 'text-white' : 'text-gray-900'
                             }`}>
-                              {millInputs.reduce((total: number, input: any) => total + (input.greighMtr || 0), 0).toLocaleString()} mtr
+                              {millInputs.reduce((total: number, input: any) => {
+                                const mainMeters = input.greighMtr || 0;
+                                const additionalMeters = input.additionalMeters ? 
+                                  input.additionalMeters.reduce((sum: number, additional: any) => sum + (additional.greighMtr || 0), 0) : 0;
+                                return total + mainMeters + additionalMeters;
+                              }, 0).toLocaleString()} mtr
                             </p>
                           </div>
                           <div className="text-center">
@@ -1367,7 +1717,12 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                             <p className={`text-xl font-bold ${
                               isDarkMode ? 'text-white' : 'text-gray-900'
                             }`}>
-                              {millInputs.reduce((total: number, input: any) => total + (input.pcs || 0), 0).toLocaleString()}
+                              {millInputs.reduce((total: number, input: any) => {
+                                const mainPieces = input.pcs || 0;
+                                const additionalPieces = input.additionalMeters ? 
+                                  input.additionalMeters.reduce((sum: number, additional: any) => sum + (additional.pcs || 0), 0) : 0;
+                                return total + mainPieces + additionalPieces;
+                              }, 0).toLocaleString()}
                             </p>
                           </div>
                           <div className="text-center">
@@ -1379,7 +1734,7 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                             <p className={`text-xl font-bold ${
                               isDarkMode ? 'text-white' : 'text-gray-900'
                             }`}>
-                              {order.orderId}
+                              {order?.orderId}
                             </p>
                           </div>
                         </div>
@@ -1874,12 +2229,12 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
                 <div className={`text-sm ${
                   isDarkMode ? 'text-gray-400' : 'text-gray-500'
                 }`}>
-                  <span className="font-medium">Created:</span> {formatDateTime(order.createdAt)}
+                  <span className="font-medium">Created:</span> {order?.createdAt ? formatDateTime(order.createdAt) : 'Not available'}
                 </div>
                 <div className={`text-sm ${
                   isDarkMode ? 'text-gray-400' : 'text-gray-500'
                 }`}>
-                  <span className="font-medium">Last Updated:</span> {formatDateTime(order.updatedAt)}
+                  <span className="font-medium">Last Updated:</span> {order?.updatedAt ? formatDateTime(order.updatedAt) : 'Not available'}
                 </div>
               </div>
             </div>
@@ -1979,89 +2334,90 @@ export default function OrderDetails({ order, onClose, onEdit }: OrderDetailsPro
               </div>
             </div>
           </div>
-                 </div>
-       )}
+        </div>
+      )}
 
-       {/* Order Activity Log Modal */}
-       {showOrderLogs && (
-         <OrderLogsModal
-           orderId={order._id}
-           onClose={() => setShowOrderLogs(false)}
-         />
-       )}
+      {/* Order Activity Log Modal */}
+      {showOrderLogs && (
+        <OrderLogsModal
+          orderId={orderId || ''}
+          onClose={() => setShowOrderLogs(false)}
+        />
+      )}
 
-               {/* Lab Add/Edit Modal */}
-        {showLabModal && (
-          <LabAddModal
-            isOpen={showLabModal}
-            order={order}
-            onClose={() => setShowLabModal(false)}
-            onLabDataUpdate={() => {
-              // Refresh labs data after successful lab operation
-              const fetchLabs = async () => {
-                try {
-                  // Force refresh by adding timestamp to avoid cache
-                  const token = localStorage.getItem('token');
-                  const response = await fetch(`/api/labs/by-order/${order._id}?t=${Date.now()}`, {
-                    headers: {
-                      'Cache-Control': 'no-cache',
-                      'Pragma': 'no-cache',
-                      'Authorization': `Bearer ${token}`,
-                    }
-                  });
-                  const data = await response.json();
-                  if (data.success && Array.isArray(data.data)) {
-                    setLabs(data.data);
-                    console.log('Labs refreshed successfully:', data.data.length, 'labs');
-                  } else {
-                    console.log('Failed to refresh labs:', data);
+      {/* Lab Add/Edit Modal */}
+      {showLabModal && order && (
+        <LabAddModal
+          isOpen={showLabModal}
+          order={order}
+          onClose={() => setShowLabModal(false)}
+          onLabDataUpdate={() => {
+            // Refresh labs data after successful lab operation
+            const fetchLabs = async () => {
+              try {
+                // Force refresh by adding timestamp to avoid cache
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/labs/by-order/${orderId}?t=${Date.now()}`, {
+                  headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                    'Authorization': `Bearer ${token}`,
                   }
-                } catch (error) {
-                  console.error('Error refreshing labs:', error);
-                }
-              };
-              
-              // Add a small delay to ensure the API has processed the changes
-              setTimeout(fetchLabs, 500);
-            }}
-          />
-        )}
+                });
+                const data = await response.json();
+                                 if (data.success && Array.isArray(data.data)) {
+                   setLabs(data.data);
+                   showSuccessMessage(`Updated ${data.data.length} lab records`);
+                   console.log('Labs refreshed successfully:', data.data.length, 'labs');
+                 } else {
+                   console.log('Failed to refresh labs:', data);
+                 }
+              } catch (error) {
+                console.error('Error refreshing labs:', error);
+              }
+            };
+            
+            // Add a small delay to ensure the API has processed the changes
+            setTimeout(fetchLabs, 500);
+          }}
+        />
+      )}
 
-        {/* Dispatch Add/Edit Modal */}
-        {showDispatchModal && (
-          <DispatchForm
-            orderId={order.orderId}
-            onClose={() => setShowDispatchModal(false)}
-            onSuccess={() => {
-              // Refresh dispatch data after successful dispatch operation
-              const fetchDispatches = async () => {
-                try {
-                  // Force refresh by adding timestamp to avoid cache
-                  const token = localStorage.getItem('token');
-                  const response = await fetch(`/api/dispatch?orderId=${order.orderId}&t=${Date.now()}`, {
-                    headers: {
-                      'Cache-Control': 'no-cache',
-                      'Pragma': 'no-cache',
-                      'Authorization': `Bearer ${token}`,
-                    }
-                  });
-                  const data = await response.json();
-                  if (data.success && Array.isArray(data.data)) {
-                    setDispatches(data.data);
-                    console.log('Dispatches refreshed successfully:', data.data.length, 'dispatches');
-                  } else {
-                    console.log('Failed to refresh dispatches:', data);
+      {/* Dispatch Add/Edit Modal */}
+      {showDispatchModal && order?.orderId && (
+        <DispatchForm
+          orderId={order.orderId}
+          onClose={() => setShowDispatchModal(false)}
+          onSuccess={() => {
+            // Refresh dispatch data after successful dispatch operation
+            const fetchDispatches = async () => {
+              try {
+                // Force refresh by adding timestamp to avoid cache
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/dispatch?orderId=${order.orderId}&t=${Date.now()}`, {
+                  headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                    'Authorization': `Bearer ${token}`,
                   }
-                } catch (error) {
-                  console.error('Error refreshing dispatches:', error);
+                });
+                const data = await response.json();
+                if (data.success && Array.isArray(data.data)) {
+                  setDispatches(data.data);
+                  console.log('Dispatches refreshed successfully:', data.data.length, 'dispatches');
+                } else {
+                  console.log('Failed to refresh dispatches:', data);
                 }
-              };
-              
-              // Add a small delay to ensure the API has processed the changes
-              setTimeout(fetchDispatches, 500);
-            }}
-          />
-        )}
-      </div>
-    );
-  }
+              } catch (error) {
+                console.error('Error refreshing dispatches:', error);
+              }
+            };
+            
+            // Add a small delay to ensure the API has processed the changes
+            setTimeout(fetchDispatches, 500);
+          }}
+        />
+      )}
+    </div>
+  );
+}

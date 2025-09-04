@@ -21,6 +21,11 @@ export interface IMillInput extends Document {
   chalanNo: string;
   greighMtr: number;
   pcs: number;
+  additionalMeters?: Array<{
+    greighMtr: number;
+    pcs: number;
+    notes?: string;
+  }>;
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -120,6 +125,25 @@ const MillInputSchema = new Schema<IMillInput>({
     required: [true, "Number of pieces is required"],
     min: [1, "Number of pieces must be at least 1"]
   },
+  additionalMeters: [
+    {
+      greighMtr: {
+        type: Number,
+        required: [true, "Additional greigh meters is required"],
+        min: [0, "Additional greigh meters cannot be negative"]
+      },
+      pcs: {
+        type: Number,
+        required: [true, "Additional pieces is required"],
+        min: [1, "Additional pieces must be at least 1"]
+      },
+      notes: {
+        type: String,
+        trim: true,
+        maxlength: [500, "Additional notes cannot exceed 500 characters"]
+      }
+    }
+  ],
   notes: {
     type: String,
     trim: true,

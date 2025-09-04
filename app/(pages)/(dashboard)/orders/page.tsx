@@ -23,7 +23,7 @@ import {
   TruckIcon
 } from '@heroicons/react/24/outline';
 import OrderForm from './components/OrderForm';
-import OrderDetails from './components/OrderDetails';
+
 import PartyModal from './components/PartyModal';
 import QualityModal from './components/QualityModal';
 import LabAddModal from './components/LabDataModal';
@@ -34,6 +34,7 @@ import MillOutputForm from './components/MillOutputForm';
 import DispatchForm from './components/DispatchForm';
 import { Order, Party, Quality, Mill, MillOutput } from '@/types';
 import { useDarkMode } from '../hooks/useDarkMode';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // Enhanced message interface
 interface ValidationMessage {
@@ -47,14 +48,15 @@ interface ValidationMessage {
 
 export default function OrdersPage() {
   const { isDarkMode, mounted } = useDarkMode();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [qualities, setQualities] = useState<Quality[]>([]);
   const [loading, setLoading] = useState(true);
+  const [orderMillInputs, setOrderMillInputs] = useState<{[key: string]: any[]}>({});
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
   const [showPartyModal, setShowPartyModal] = useState(false);
   const [showQualityModal, setShowQualityModal] = useState(false);
   const [showLabAddModal, setShowLabAddModal] = useState(false);
@@ -74,6 +76,8 @@ export default function OrdersPage() {
   const [deletingAll, setDeletingAll] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [selectedOrderForLogs, setSelectedOrderForLogs] = useState<Order | null>(null);
   const [showLabDataModal, setShowLabDataModal] = useState(false);
@@ -82,6 +86,8 @@ export default function OrdersPage() {
 
   const [showMillInputForm, setShowMillInputForm] = useState(false);
   const [selectedOrderForMillInputForm, setSelectedOrderForMillInputForm] = useState<Order | null>(null);
+  const [existingMillInputs, setExistingMillInputs] = useState<any[]>([]);
+  const [isEditingMillInput, setIsEditingMillInput] = useState(false);
   const [showMillOutputForm, setShowMillOutputForm] = useState(false);
   const [selectedOrderForMillOutput, setSelectedOrderForMillOutput] = useState<Order | null>(null);
   const [showDispatchForm, setShowDispatchForm] = useState(false);
@@ -241,6 +247,83 @@ export default function OrdersPage() {
     }
   }, [showMessage]);
 
+  // Function to fetch existing mill inputs for an order
+  const fetchExistingMillInputs = useCallback(async (orderId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/mill-inputs?orderId=${orderId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (data.success) {
+        setExistingMillInputs(data.millInputs);
+        return data.millInputs;
+      } else {
+        console.error('Failed to fetch mill inputs:', data.message);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching mill inputs:', error);
+      return [];
+    }
+  }, []);
+
+  // Handle search params for edit mill input
+  useEffect(() => {
+    const editMillInput = searchParams.get('editMillInput');
+    const addMillInput = searchParams.get('addMillInput');
+    
+    if (editMillInput) {
+      // Find the order by ID
+      const order = orders.find(o => o._id === editMillInput);
+      if (order) {
+        setSelectedOrderForMillInputForm(order);
+        setIsEditingMillInput(true);
+        setShowMillInputForm(true);
+        // Clear the URL parameter
+        router.replace('/orders', { scroll: false });
+      }
+    } else if (addMillInput) {
+      // Find the order by ID
+      const order = orders.find(o => o._id === addMillInput);
+      if (order) {
+        setSelectedOrderForMillInputForm(order);
+        setIsEditingMillInput(false);
+        setShowMillInputForm(true);
+        // Clear the URL parameter
+        router.replace('/orders', { scroll: false });
+      }
+    }
+  }, [searchParams, orders, router]);
+
+  // Function to fetch mill inputs for all orders
+  const fetchAllOrderMillInputs = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/mill-inputs', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (data.success && data.millInputs) {
+        // Group mill inputs by order ID
+        const groupedInputs: {[key: string]: any[]} = {};
+        data.millInputs.forEach((input: any) => {
+          if (!groupedInputs[input.orderId]) {
+            groupedInputs[input.orderId] = [];
+          }
+          groupedInputs[input.orderId].push(input);
+        });
+        setOrderMillInputs(groupedInputs);
+      }
+    } catch (error) {
+      console.error('Error fetching all mill inputs:', error);
+    }
+  }, []);
+
   const fetchParties = useCallback(async () => {
     try {
       const controller = new AbortController();
@@ -358,11 +441,12 @@ export default function OrdersPage() {
         await fetchOrders();
         ordersLoaded = true;
         
-        // Fetch parties, qualities, and mills in parallel (non-critical)
+        // Fetch parties, qualities, mills, and mill inputs in parallel (non-critical)
         Promise.allSettled([
           fetchParties(),
           fetchQualities(),
-          fetchMills()
+          fetchMills(),
+          fetchAllOrderMillInputs()
         ]).then((results) => {
           const [partiesResult, qualitiesResult, millsResult] = results;
           if (partiesResult.status === 'rejected') {
@@ -397,7 +481,15 @@ export default function OrdersPage() {
     }, 8000); // Reduced to 8 second timeout
     
     return () => clearTimeout(timeoutId);
-  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, showMessage, isInitialized]); // Added isInitialized to dependencies
+  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderMillInputs, showMessage, isInitialized]); // Added isInitialized to dependencies
+
+  // Keyboard navigation for image preview
+  useEffect(() => {
+    if (showImagePreview) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [showImagePreview, currentImageIndex]);
 
   // Listen for real-time order updates
   useEffect(() => {
@@ -414,8 +506,8 @@ export default function OrdersPage() {
         // OrdersPage: Refreshing orders due to action
         
         // Immediate refresh without loading state for better UX
-        fetchOrders().then(() => {
-          // OrdersPage: Successfully refreshed orders
+        Promise.all([fetchOrders(), fetchAllOrderMillInputs()]).then(() => {
+          // OrdersPage: Successfully refreshed orders and mill inputs
           // Show success message for automatic refresh
           if (event.detail?.action === 'order_create') {
             showMessage('success', 'New order added to table automatically!', { autoDismiss: true, dismissTime: 3000 });
@@ -702,8 +794,7 @@ export default function OrdersPage() {
   };
 
   const handleView = (order: Order) => {
-    setSelectedOrder(order);
-    setShowDetails(true);
+    router.push(`/orders/orderdetails?id=${order._id}`);
   };
 
   const handleAddLab = (order: Order) => {
@@ -734,10 +825,67 @@ export default function OrdersPage() {
     setShowMillInputForm(true);
   };
 
-  const handleImagePreview = (url: string, alt: string) => {
-    setPreviewImage({ url, alt });
+  const handleImagePreview = (url: string, alt: string, allImages?: string[], startIndex?: number) => {
+    if (allImages && allImages.length > 0) {
+      setPreviewImages(allImages);
+      setCurrentImageIndex(startIndex || 0);
+      setPreviewImage({ url: allImages[startIndex || 0], alt });
+    } else {
+      setPreviewImages([url]);
+      setCurrentImageIndex(0);
+      setPreviewImage({ url, alt });
+    }
     setShowImagePreview(true);
   };
+
+  const navigateImage = (direction: 'prev' | 'next') => {
+    if (previewImages.length <= 1) return;
+    
+    let newIndex;
+    if (direction === 'prev') {
+      newIndex = currentImageIndex === 0 ? previewImages.length - 1 : currentImageIndex - 1;
+    } else {
+      newIndex = currentImageIndex === previewImages.length - 1 ? 0 : currentImageIndex + 1;
+    }
+    
+    setCurrentImageIndex(newIndex);
+    setPreviewImage({ url: previewImages[newIndex], alt: `Image ${newIndex + 1}` });
+  };
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (!showImagePreview) return;
+    
+    if (e.key === 'ArrowLeft') {
+      navigateImage('prev');
+    } else if (e.key === 'ArrowRight') {
+      navigateImage('next');
+    } else if (e.key === 'Escape') {
+      setShowImagePreview(false);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    setTouchStart(touch.clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStart) return;
+    
+    const touch = e.touches[0];
+    const diff = touchStart - touch.clientX;
+    
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) {
+        navigateImage('next');
+      } else {
+        navigateImage('prev');
+      }
+      setTouchStart(null);
+    }
+  };
+
+  const [touchStart, setTouchStart] = useState<number | null>(null);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
@@ -979,6 +1127,17 @@ export default function OrdersPage() {
     return (
       <div className="space-y-6">
         <LoadingSkeleton />
+        {/* Simple loading message for better UX */}
+        <div className={`text-center py-8 ${
+          isDarkMode ? 'text-gray-300' : 'text-gray-600'
+        }`}>
+          <div className="flex items-center justify-center space-x-3 mb-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <span className="text-xl font-semibold">Loading Orders...</span>
+          </div>
+          <p className="text-sm text-gray-500 mb-2">This may take a few moments depending on your connection</p>
+          <p className="text-xs text-gray-400">If loading takes too long, please check your internet connection</p>
+        </div>
       </div>
     );
   }
@@ -1556,52 +1715,54 @@ export default function OrdersPage() {
       </div>
 
       {/* Orders Table */}
-      <div className={`rounded-lg border overflow-hidden ${
+      <div className={`rounded-xl border overflow-hidden shadow-lg ${
         isDarkMode
-          ? 'bg-white/5 border-white/10'
-          : 'bg-white border-gray-200'
+          ? 'bg-white/5 border-white/10 shadow-2xl'
+          : 'bg-white border-gray-200 shadow-xl'
       }`}>
         <div className="overflow-x-auto">
           <table className="w-full">
-                         <thead className={`${
-               isDarkMode
-                 ? 'bg-white/5 border-b border-white/10'
-                 : 'bg-gray-50 border-b border-gray-200'
-             }`}>
-               <tr>
-                 <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                   isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                 }`}>
-                   Order Info
-                 </th>
-                 <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                   isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                 }`}>
-                   Party Details
-                 </th>
-                 <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                   isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                 }`}>
-                   Dates
-                 </th>
-                 <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                   isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                 }`}>
-                   Items
-                 </th>
-                 
-                 <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                   isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                 }`}>
-                   Status
-                 </th>
-                 <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                   isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                 }`}>
-                   Actions
-                 </th>
-               </tr>
-             </thead>
+                                                   <thead className={`${
+                isDarkMode
+                  ? 'bg-gradient-to-r from-gray-800/50 to-gray-700/50 border-b border-white/10'
+                  : 'bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200'
+              }`}>
+                <tr>
+                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
+                    Order Info
+                  </th>
+                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
+                    Party Details
+                  </th>
+                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
+                    Dates
+                  </th>
+                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
+                    Items
+                  </th>
+                  
+
+                  
+                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
+                    Status
+                  </th>
+                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${
+                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
+                    Actions
+                  </th>
+                </tr>
+              </thead>
             <tbody className={`divide-y ${
               isDarkMode ? 'divide-white/10' : 'divide-gray-200'
             }`}>
@@ -1752,100 +1913,105 @@ export default function OrdersPage() {
                               </div>
                             )}
                             
-                            {/* Lab Data Display - Compact */}
-                            {item.labData && (
-                              <div className={`text-xs mb-1.5 p-1.5 rounded-md border ${
-                                isDarkMode 
-                                  ? 'bg-purple-900/20 border-purple-700/30 text-purple-300' 
-                                  : 'bg-purple-50 border-purple-200 text-purple-700'
-                              }`}>
-                                <div className="flex items-center gap-1 mb-1">
-                                  <BeakerIcon className="h-3 w-3" />
-                                  <span className="font-medium">Lab Data</span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-xs">
-                                  {item.labData.color && (
-                                    <div>Color: {item.labData.color}</div>
-                                  )}
-                                  {item.labData.shade && (
-                                    <div>Shade: {item.labData.shade}</div>
-                                  )}
-                                  {item.labData.sampleNumber && (
-                                    <div>Sample: {item.labData.sampleNumber}</div>
-                                  )}
-                                  {item.labData.labSendDate && (
-                                    <div>Send: {new Date(item.labData.labSendDate).toLocaleDateString()}</div>
-                                  )}
-                                  {item.labData.approvalDate && (
-                                    <div>Approval: {new Date(item.labData.approvalDate).toLocaleDateString()}</div>
-                                  )}
-                                </div>
-                                {item.labData.notes && (
-                                  <div className="mt-1 text-xs italic">"{item.labData.notes}"</div>
-                                )}
-                                {/* Lab Data Image */}
-                                {item.labData.imageUrl && (
-                                  <div className="mt-1.5">
-                                    <div className="relative group inline-block">
-                                      <img 
-                                        src={item.labData.imageUrl} 
-                                        alt="Lab Data"
-                                        className="w-6 h-6 object-cover rounded border"
-                                        onError={(e) => {
-                                          e.currentTarget.style.display = 'none';
-                                        }}
-                                      />
-                                      <button
-                                        onClick={() => handleImagePreview(item.labData?.imageUrl || '', 'Lab Data')}
-                                        className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded flex items-center justify-center"
-                                      >
-                                        <PhotoIcon className="h-3 w-3 text-white" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
+
                             
-                            {/* Item Images Display - Compact */}
+                            {/* Item Images Display - Improved */}
                             {item.imageUrls && item.imageUrls.length > 0 && (
-                              <div className="mt-1.5">
-                                <div className="flex items-center gap-1 mb-1">
+                              <div className="mt-2">
+                                <div className="flex items-center gap-1 mb-2">
                                   <PhotoIcon className="h-3 w-3" />
                                   <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                                     Images ({item.imageUrls.length})
                                   </span>
                                 </div>
-                                <div className="flex flex-wrap gap-1">
-                                  {item.imageUrls.map((imageUrl, imageIndex) => (
-                                    <div key={imageIndex} className="relative group">
-                                      <img 
-                                        src={imageUrl} 
-                                        alt={`Item ${index + 1} image ${imageIndex + 1}`}
-                                        className="w-6 h-6 object-cover rounded border"
-                                        onError={(e) => {
-                                          e.currentTarget.style.display = 'none';
-                                        }}
-                                      />
+                                <div className="flex items-center gap-1">
+                                  {/* Show first image */}
+                                  <div className="relative group">
+                                    <img 
+                                      src={item.imageUrls[0]} 
+                                      alt={`Item ${index + 1} image 1`}
+                                      className="w-8 h-8 object-cover rounded border cursor-pointer hover:scale-110 transition-transform duration-200"
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                      }}
+                                      onClick={() => handleImagePreview(item.imageUrls![0], `Item ${index + 1} - Image 1`, item.imageUrls, 0)}
+                                    />
+                                  </div>
+                                  
+                                  {/* Show +N indicator if more images */}
+                                  {item.imageUrls.length > 1 && (
+                                    <div className="relative group">
+                                      <div className="w-8 h-8 rounded border flex items-center justify-center cursor-pointer hover:scale-110 transition-transform duration-200 bg-gray-100 dark:bg-gray-700">
+                                        <span className="text-xs font-bold text-gray-600 dark:text-gray-300">
+                                          +{item.imageUrls.length - 1}
+                                        </span>
+                                      </div>
                                       <button
-                                        onClick={() => handleImagePreview(imageUrl, `Item ${index + 1} - Image ${imageIndex + 1}`)}
+                                        onClick={() => handleImagePreview(item.imageUrls![1], `Item ${index + 1} - Image 2`, item.imageUrls, 1)}
                                         className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded flex items-center justify-center"
                                       >
                                         <PhotoIcon className="h-2.5 w-2.5 text-white" />
                                       </button>
                                     </div>
-                                  ))}
+                                  )}
+                                  
+                                  {/* Show third image if exists */}
+                                  {item.imageUrls.length > 2 && (
+                                    <div className="relative group">
+                                      <img 
+                                        src={item.imageUrls[2]} 
+                                        alt={`Item ${index + 1} image 3`}
+                                        className="w-8 h-8 object-cover rounded border cursor-pointer hover:scale-110 transition-transform duration-200"
+                                        onError={(e) => {
+                                          e.currentTarget.style.display = 'none';
+                                        }}
+                                        onClick={() => handleImagePreview(item.imageUrls![2], `Item ${index + 1} - Image 3`, item.imageUrls, 2)}
+                                      />
+                                    </div>
+                                  )}
+                                  
+                                  {/* Show +N indicator if more than 3 images */}
+                                  {item.imageUrls.length > 3 && (
+                                    <div className="relative group">
+                                      <div className="w-8 h-8 rounded border flex items-center justify-center cursor-pointer hover:scale-110 transition-transform duration-200 bg-gray-100 dark:bg-gray-700">
+                                        <span className="text-xs font-bold text-gray-600 dark:text-gray-300">
+                                          +{item.imageUrls.length - 3}
+                                        </span>
+                                      </div>
+                                      <button
+                                        onClick={() => handleImagePreview(item.imageUrls![3], `Item ${index + 1} - Image 4`, item.imageUrls, 3)}
+                                        className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded flex items-center justify-center"
+                                      >
+                                        <PhotoIcon className="h-2.5 w-2.5 text-white" />
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             )}
                           </div>
                         ))}
+                        
+                        {/* Show +N indicator if more than 2 items */}
+                        {order.items.length > 2 && (
+                          <div className={`p-2 rounded-lg border-2 border-dashed text-center cursor-pointer transition-all duration-200 hover:scale-105 ${
+                            isDarkMode 
+                              ? 'border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300 hover:bg-gray-800/30' 
+                              : 'border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                          }`}>
+                            <div className="flex items-center justify-center gap-1">
+                              <span className="text-xs font-medium">
+                                +{order.items.length - 2} more item{order.items.length - 2 !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </td>
 
-                                                                               
 
-                                                                               {/* Status Column */}
+
+                    {/* Status Column */}
                      <td className="px-6 py-4">
                        <select
                          value={order.status || 'pending'}
@@ -1870,58 +2036,106 @@ export default function OrdersPage() {
 
                                        {/* Actions Column */}
                     <td className="px-6 py-4">
-                      <div className="flex items-center space-x-1">
+                      <div className="grid grid-cols-4 gap-2 w-full max-w-sm">
+                        {/* First Row - Primary Actions */}
+                        {/* View Button */}
                         <button
                           onClick={() => handleView(order)}
-                          className={`p-1.5 rounded transition-all duration-300 ${
+                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
                             isDarkMode
-                              ? 'text-blue-400 hover:bg-blue-500/20'
-                              : 'text-blue-600 hover:bg-blue-50'
+                              ? 'bg-blue-600/25 text-blue-200 border border-blue-500/50 hover:bg-blue-600/35 hover:border-blue-400/60 hover:shadow-blue-500/25'
+                              : 'bg-blue-100 text-blue-800 border border-blue-300 hover:bg-blue-200 hover:border-blue-400 hover:shadow-blue-200'
                           }`}
                           title="View order details"
                         >
-                          <EyeIcon className="h-4 w-4" />
+                          <EyeIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline font-medium">View</span>
                         </button>
+
+                        {/* Edit Button */}
                         <button
                           onClick={() => handleEdit(order)}
-                          className={`p-1.5 rounded transition-all duration-300 ${
+                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
                             isDarkMode
-                              ? 'text-green-400 hover:bg-green-500/20'
-                              : 'text-green-600 hover:bg-green-50'
+                              ? 'bg-emerald-600/25 text-emerald-200 border border-emerald-500/50 hover:bg-emerald-600/35 hover:border-emerald-400/60 hover:shadow-emerald-500/25'
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 hover:border-emerald-400 hover:shadow-emerald-200'
                           }`}
                           title="Edit order"
                         >
-                          <PencilIcon className="h-4 w-4" />
+                          <PencilIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline font-medium">Edit</span>
                         </button>
-                        {/* Lab Data Button */}
-                        <button
-                          onClick={() => handleLabData(order)}
-                          className={`p-1.5 rounded transition-all duration-300 ${
-                            order.items.some(item => item.labData?.sampleNumber)
-                              ? isDarkMode
-                                ? 'text-green-400 hover:bg-green-500/20'
-                                : 'text-green-600 hover:bg-green-50'
-                              : isDarkMode
-                                ? 'text-orange-400 hover:bg-orange-500/20'
-                                : 'text-orange-600 hover:bg-orange-50'
-                          }`}
-                          title="Manage lab data"
-                        >
-                          <BeakerIcon className="h-4 w-4" />
-                        </button>
+
+                        {/* Logs Button */}
                         <button
                           onClick={() => handleViewLogs(order)}
-                          className={`p-1.5 rounded transition-all duration-300 ${
+                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
                             isDarkMode
-                              ? 'text-indigo-400 hover:bg-indigo-500/20'
-                              : 'text-indigo-600 hover:bg-indigo-50'
+                              ? 'bg-violet-600/25 text-violet-200 border border-violet-500/50 hover:bg-violet-600/35 hover:border-violet-400/60 hover:shadow-violet-500/25'
+                              : 'bg-violet-100 text-violet-800 border border-violet-300 hover:bg-violet-200 hover:border-violet-400 hover:shadow-violet-200'
                           }`}
                           title="View order logs"
                         >
-                          <ChartBarIcon className="h-4 w-4" />
+                          <ChartBarIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline font-medium">Logs</span>
                         </button>
+
+                        {/* Delete Button */}
                         <button
-                          onClick={() => {
+                          onClick={() => handleDeleteClick(order)}
+                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
+                            isDarkMode
+                              ? 'bg-red-600/25 text-red-200 border border-red-500/50 hover:bg-red-600/35 hover:border-red-400/60 hover:shadow-red-500/25'
+                              : 'bg-red-100 text-red-800 border border-red-300 hover:bg-red-200 hover:border-red-400 hover:shadow-red-200'
+                          }`}
+                          title="Delete order"
+                        >
+                          <TrashIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline font-medium">Delete</span>
+                        </button>
+
+                        {/* Second Row - Secondary Actions */}
+                        {/* Lab Data Button */}
+                        <button
+                          onClick={() => handleLabData(order)}
+                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
+                            order.items.some(item => item.labData?.sampleNumber)
+                              ? isDarkMode
+                                ? 'bg-emerald-600/25 text-emerald-200 border border-emerald-500/50 hover:bg-emerald-600/35 hover:border-emerald-400/60 hover:shadow-emerald-500/25'
+                                : 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 hover:border-emerald-400 hover:shadow-emerald-200'
+                              : isDarkMode
+                                ? 'bg-amber-600/25 text-amber-200 border border-amber-500/50 hover:bg-amber-600/35 hover:border-amber-400/60 hover:shadow-amber-500/25'
+                                : 'bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 hover:border-amber-400 hover:shadow-amber-200'
+                          }`}
+                          title="Manage lab data"
+                        >
+                          <BeakerIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline font-medium">Lab</span>
+                        </button>
+
+                        {/* Mill Input Button */}
+                        <button
+                          onClick={async () => {
+                            // Check if there are existing mill inputs for this order using the already loaded state
+                            const existingInputs = orderMillInputs[order.orderId] || [];
+                            
+                            console.log('=== Mill Input Button Click Debug ===');
+                            console.log('Order ID:', order.orderId);
+                            console.log('orderMillInputs state:', orderMillInputs);
+                            console.log('Mill inputs for this order from state:', existingInputs);
+                            
+                            if (existingInputs.length > 0) {
+                              // Edit existing mill inputs
+                              console.log('Setting EDIT mode with existing inputs:', existingInputs);
+                              setIsEditingMillInput(true);
+                              setExistingMillInputs(existingInputs);
+                            } else {
+                              // Add new mill inputs
+                              console.log('Setting ADD mode - no existing inputs');
+                              setIsEditingMillInput(false);
+                              setExistingMillInputs([]);
+                            }
+                            
                             // Clear cache before opening form
                             if (typeof window !== 'undefined') {
                               window.localStorage.removeItem('millInputFormCache');
@@ -1933,56 +2147,58 @@ export default function OrdersPage() {
                             setSelectedOrderForMillInputForm(order);
                             setShowMillInputForm(true);
                           }}
-                          className={`p-1.5 rounded transition-all duration-300 ${
-                            isDarkMode
-                              ? 'text-cyan-400 hover:bg-cyan-500/20'
-                              : 'text-cyan-600 hover:bg-cyan-50'
+                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
+                            orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0
+                              ? isDarkMode
+                                ? 'bg-emerald-600/25 text-emerald-200 border border-emerald-500/50 hover:bg-emerald-600/35 hover:border-emerald-400/60 hover:shadow-emerald-500/25'
+                                : 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 hover:border-emerald-400 hover:shadow-emerald-200'
+                              : isDarkMode
+                                ? 'bg-cyan-600/25 text-cyan-200 border border-cyan-500/50 hover:bg-cyan-600/35 hover:border-cyan-400/60 hover:shadow-cyan-500/25'
+                                : 'bg-cyan-100 text-cyan-800 border border-cyan-300 hover:bg-cyan-200 hover:border-cyan-400 hover:shadow-cyan-200'
                           }`}
-                          title="Add mill input"
+                          title={orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? "Edit mill input" : "Add mill input"}
                         >
-                          <BuildingOfficeIcon className="h-4 w-4" />
+                          <BuildingOfficeIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline font-medium">
+                            {orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? 'Edit Mill' : 'Mill In'}
+                          </span>
                         </button>
+
+                        {/* Mill Output Button */}
                         <button
                           onClick={() => {
                             setSelectedOrderForMillOutput(order);
                             setShowMillOutputForm(true);
                           }}
-                          className={`p-1.5 rounded transition-all duration-300 ${
+                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
                             isDarkMode
-                              ? 'text-green-400 hover:bg-green-500/20'
-                              : 'text-green-600 hover:bg-green-50'
+                              ? 'bg-teal-600/25 text-teal-200 border border-teal-500/50 hover:bg-teal-600/35 hover:border-teal-400/60 hover:shadow-teal-500/25'
+                              : 'bg-teal-100 text-teal-800 border border-teal-300 hover:bg-teal-200 hover:border-teal-400 hover:shadow-teal-200'
                           }`}
                           title="Add mill output"
                         >
-                          <DocumentTextIcon className="h-4 w-4" />
+                          <DocumentTextIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline font-medium">Mill Out</span>
                         </button>
+
+                        {/* Dispatch Button */}
                         <button
                           onClick={() => {
                             setSelectedOrderForDispatch(order);
                             setShowDispatchForm(true);
                           }}
-                          className={`p-1.5 rounded transition-all duration-300 ${
+                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
                             isDarkMode
-                              ? 'text-orange-400 hover:bg-orange-500/20'
-                              : 'text-orange-600 hover:bg-orange-50'
+                              ? 'bg-orange-600/25 text-orange-200 border border-orange-500/50 hover:bg-orange-600/35 hover:border-orange-400/60 hover:shadow-orange-500/25'
+                              : 'bg-orange-100 text-orange-800 border border-orange-300 hover:bg-orange-200 hover:border-orange-400 hover:shadow-orange-200'
                           }`}
                           title="Add dispatch"
                         >
-                          <TruckIcon className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClick(order)}
-                          className={`p-1.5 rounded transition-all duration-300 ${
-                            isDarkMode
-                              ? 'text-red-400 hover:bg-red-500/20'
-                              : 'text-red-600 hover:bg-red-50'
-                          }`}
-                          title="Delete order"
-                        >
-                          <TrashIcon className="h-4 w-4" />
+                          <TruckIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline font-medium">Dispatch</span>
                         </button>
                       </div>
-                                         </td>
+                    </td>
                   </tr>
                 ))}
             </tbody>
@@ -2187,20 +2403,7 @@ export default function OrdersPage() {
         />
       )}
 
-      {showDetails && selectedOrder && (
-        <OrderDetails
-          order={selectedOrder}
-          onClose={() => {
-            setShowDetails(false);
-            setSelectedOrder(null);
-          }}
-          onEdit={() => {
-            setShowDetails(false);
-            setSelectedOrder(null);
-            handleEdit(selectedOrder);
-          }}
-        />
-      )}
+
 
       {showPartyModal && (
         <PartyModal
@@ -2433,14 +2636,48 @@ export default function OrdersPage() {
       {/* Image Preview Modal */}
       {showImagePreview && previewImage && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center">
+          <div 
+            className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+          >
             {/* Close Button */}
             <button
-              onClick={() => setShowImagePreview(false)}
+              onClick={() => {
+                setShowImagePreview(false);
+                setPreviewImages([]);
+                setCurrentImageIndex(0);
+                setPreviewImage(null);
+              }}
               className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors duration-200"
             >
               <XMarkIcon className="h-6 w-6" />
             </button>
+            
+            {/* Navigation Buttons - Only show if multiple images */}
+            {previewImages.length > 1 && (
+              <>
+                {/* Previous Button */}
+                <button
+                  onClick={() => navigateImage('prev')}
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 p-3 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors duration-200"
+                >
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                
+                {/* Next Button */}
+                <button
+                  onClick={() => navigateImage('next')}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 p-3 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors duration-200"
+                >
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </>
+            )}
             
             {/* Image */}
             <img
@@ -2452,9 +2689,39 @@ export default function OrdersPage() {
               }}
             />
             
-            {/* Image Info */}
+            {/* Image Info with Navigation */}
             <div className="absolute bottom-4 left-4 right-4 bg-black/50 text-white p-3 rounded-lg">
-              <p className="text-sm font-medium">{previewImage.alt}</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">{previewImage.alt}</p>
+                {previewImages.length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-300">
+                      {currentImageIndex + 1} of {previewImages.length}
+                    </span>
+                    {/* Image Dots Indicator */}
+                    <div className="flex gap-1">
+                      {previewImages.map((_, index) => (
+                        <div
+                          key={index}
+                          className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                            index === currentImageIndex 
+                              ? 'bg-white' 
+                              : 'bg-white/40'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Keyboard/Touch Instructions */}
+            <div className="absolute top-4 left-4 bg-black/50 text-white p-2 rounded-lg text-xs">
+              <div className="flex items-center gap-2">
+                <span>← → Arrow keys or swipe</span>
+                <span>ESC to close</span>
+              </div>
             </div>
           </div>
         </div>
@@ -2493,27 +2760,41 @@ export default function OrdersPage() {
       {/* Mill Input Form */}
       {showMillInputForm && selectedOrderForMillInputForm && (
         <MillInputForm
-          key={`mill-input-form-v2-${selectedOrderForMillInputForm.orderId}-${Date.now()}`}
+          key={`mill-input-form-${selectedOrderForMillInputForm.orderId}`}
           order={selectedOrderForMillInputForm}
           mills={mills}
           onClose={() => {
             setShowMillInputForm(false);
             setSelectedOrderForMillInputForm(null);
+            setIsEditingMillInput(false);
+            setExistingMillInputs([]);
             // Clear cache when closing
             if (typeof window !== 'undefined') {
               window.localStorage.removeItem('millInputFormCache');
               window.localStorage.removeItem('millInputFormData');
             }
           }}
-          onSuccess={() => {
-            // Refresh orders to show any updates
-            fetchOrders();
-            showMessage('success', 'Mill input added successfully!');
-          }}
+                      onSuccess={() => {
+              // Refresh orders and mill inputs to show any updates
+              fetchOrders();
+              fetchAllOrderMillInputs();
+              
+              // Debug: Check if data is updated
+              setTimeout(() => {
+                console.log('After onSuccess - orderMillInputs state:', orderMillInputs);
+                console.log('Current order ID:', selectedOrderForMillInputForm?.orderId);
+                console.log('Mill inputs for current order:', orderMillInputs[selectedOrderForMillInputForm?.orderId || ''] || []);
+              }, 100);
+              
+              const message = isEditingMillInput ? 'Mill input updated successfully!' : 'Mill input added successfully!';
+              showMessage('success', message);
+            }}
           onAddMill={() => {
             // This will be handled within the form
           }}
           onRefreshMills={fetchMills}
+          isEditing={isEditingMillInput}
+          existingMillInputs={existingMillInputs}
         />
       )}
 

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDarkMode } from '../../hooks/useDarkMode';
+import QualityModal from './QualityModal';
 import { 
   XMarkIcon, 
   TruckIcon,
@@ -34,9 +35,160 @@ interface DispatchFormProps {
   onSuccess: () => void;
 }
 
+interface Quality {
+  _id: string;
+  name: string;
+}
+
+// EnhancedDropdown Component
+interface EnhancedDropdownProps {
+  options: Quality[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+  showDropdown: boolean;
+  onToggleDropdown: () => void;
+  onSelect: (quality: Quality) => void;
+  isDarkMode: boolean;
+  error?: string;
+  onAddNew: () => void;
+  onDelete: (quality: Quality) => void;
+  itemIndex: string; // Changed to string for additional items
+  recentlyAddedId?: string | null;
+}
+
+function EnhancedDropdown({
+  options,
+  value,
+  onChange,
+  placeholder,
+  searchValue,
+  onSearchChange,
+  showDropdown,
+  onToggleDropdown,
+  onSelect,
+  isDarkMode,
+  error,
+  onAddNew,
+  onDelete,
+  itemIndex,
+  recentlyAddedId
+}: EnhancedDropdownProps) {
+  return (
+    <div className="relative">
+      <div className="relative">
+        <input
+          type="text"
+          value={searchValue}
+          onChange={(e) => onSearchChange(e.target.value)}
+          onFocus={onToggleDropdown}
+          placeholder={placeholder}
+          className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+            error
+              ? isDarkMode
+                ? 'border-red-500 bg-gray-800 text-white'
+                : 'border-red-500 bg-white text-gray-900'
+              : isDarkMode
+                ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
+                : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+          }`}
+        />
+        <button
+          type="button"
+          onClick={onToggleDropdown}
+          className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1"
+        >
+          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+
+      {showDropdown && (
+        <div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-lg max-h-60 overflow-auto ${
+          isDarkMode 
+            ? 'bg-gray-800 border-gray-600' 
+            : 'bg-white border-gray-200'
+        }`}>
+          <div className="p-2">
+            <button
+              type="button"
+              onClick={onAddNew}
+              className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                isDarkMode 
+                  ? 'text-blue-400 hover:bg-gray-700' 
+                  : 'text-blue-600 hover:bg-blue-50'
+              }`}
+            >
+              + Add New Quality
+            </button>
+          </div>
+          
+          {options.length > 0 && (
+            <div className="border-t border-gray-200 dark:border-gray-600">
+              {options.map((quality) => (
+                <div
+                  key={quality._id}
+                  className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-colors duration-200 ${
+                    isDarkMode 
+                      ? 'hover:bg-gray-700' 
+                      : 'hover:bg-gray-50'
+                  }`}
+                  onClick={() => onSelect(quality)}
+                >
+                  <span className={`text-sm ${
+                    recentlyAddedId === quality._id
+                      ? 'font-semibold text-green-600 dark:text-green-400'
+                      : isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    {quality.name}
+                    {recentlyAddedId === quality._id && ' ✓'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(quality);
+                    }}
+                    className={`p-1 rounded-full transition-colors duration-200 ${
+                      isDarkMode 
+                        ? 'text-red-400 hover:bg-red-900/20' 
+                        : 'text-red-500 hover:bg-red-50'
+                    }`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <p className={`text-sm mt-1 ${
+          isDarkMode ? 'text-red-400' : 'text-red-600'
+        }`}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFormProps) {
   const { isDarkMode, mounted } = useDarkMode();
   const [loading, setLoading] = useState(false);
+  const [showQualityModal, setShowQualityModal] = useState(false);
+  const [qualities, setQualities] = useState<Quality[]>([]);
+  const [activeQualityDropdown, setActiveQualityDropdown] = useState<string | null>(null);
+  const [currentQualitySearch, setCurrentQualitySearch] = useState('');
+  const [qualitySearchStates, setQualitySearchStates] = useState<Record<string, string>>({});
+  const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     orderId: orderId,
     dispatchItems: [
@@ -51,6 +203,49 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
     ] as DispatchItem[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Fetch qualities on component mount
+  useEffect(() => {
+    const fetchQualities = async () => {
+      try {
+        const response = await fetch('/api/qualities');
+        const data = await response.json();
+        if (data.success) {
+          setQualities(data.data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching qualities:', error);
+      }
+    };
+
+    fetchQualities();
+  }, []);
+
+  // Update quality search states when form data changes
+  useEffect(() => {
+    formData.dispatchItems.forEach((item, index) => {
+      if (item.quality) {
+        const selectedQuality = qualities.find(q => q._id === item.quality);
+        if (selectedQuality) {
+          setQualitySearchStates(prev => ({
+            ...prev,
+            [`${index}`]: selectedQuality.name
+          }));
+        }
+      }
+      item.additionalQualityMtr.forEach((additional, aIndex) => {
+        if (additional.quality) {
+          const selectedQuality = qualities.find(q => q._id === additional.quality);
+          if (selectedQuality) {
+            setQualitySearchStates(prev => ({
+              ...prev,
+              [`${index}_additional_${aIndex}`]: selectedQuality.name
+            }));
+          }
+        }
+      });
+    });
+  }, [formData.dispatchItems, qualities]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -237,6 +432,19 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
     }, 0);
   };
 
+  const handleDeleteQuality = (quality: Quality) => {
+    setQualities(prev => prev.filter(q => q._id !== quality._id));
+    setRecentlyAddedQuality(null); // Clear recently added if deleted
+    // Update form data to reflect deletion
+    formData.dispatchItems.forEach(item => {
+      item.quality = qualities.find(q => q._id === item.quality)?._id || '';
+      item.additionalQualityMtr.forEach(additional => {
+        additional.quality = qualities.find(q => q._id === additional.quality)?._id || '';
+      });
+    });
+    setErrors({}); // Clear all errors as qualities might have changed
+  };
+
   if (!mounted) {
     return null;
   }
@@ -270,6 +478,16 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
             isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
         }`}>
             <div className="flex items-center space-x-4">
+              {/* Order ID Display */}
+              <div className={`px-3 py-2 rounded-lg ${
+                isDarkMode 
+                  ? 'bg-orange-900/30 text-orange-300 border border-orange-700' 
+                  : 'bg-orange-100 text-orange-700 border border-orange-200'
+              }`}>
+                <span className="text-sm font-medium">Order ID:</span>
+                <span className="ml-2 text-lg font-bold">{formData.orderId}</span>
+              </div>
+              
               <div className="flex items-center space-x-3">
                 <TruckIcon className="h-8 w-8 text-orange-500" />
                 <h2 className="text-2xl font-bold">Add Dispatch</h2>
@@ -316,25 +534,7 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
               )}
 
               {/* Order No (Auto) - Full Width */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div>
-                  <label className={`block text-sm font-medium mb-3 ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-700'
-              }`}>
-                Order No
-              </label>
-                  <input
-                    type="text"
-                    value={orderId}
-                    disabled
-                    className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 ${
-                isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-gray-400' 
-                        : 'bg-gray-100 border-gray-300 text-gray-500'
-                    } font-mono text-sm`}
-                  />
-              </div>
-            </div>
+              
 
               {/* Dispatch Items */}
               <div>
@@ -366,8 +566,8 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
                                     ? 'border-red-500 bg-gray-800 text-white'
                                     : 'border-red-500 bg-white text-gray-900'
                     : isDarkMode
-                                    ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                                    : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                                    ? 'border-gray-600 bg-gray-800 text-white hover:border-gray-500'
+                                    : 'border-gray-300 bg-white text-gray-900 hover:border-gray-400'
                               }`}
                             />
                             <CalendarIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
@@ -402,8 +602,8 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
                                     ? 'border-red-500 bg-gray-800 text-white'
                                     : 'border-red-500 bg-white text-gray-900'
                     : isDarkMode
-                                    ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                                    : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                                    ? 'border-gray-600 bg-gray-800 text-white hover:border-gray-500'
+                                    : 'border-gray-300 bg-white text-gray-900 hover:border-gray-400'
                               }`}
                             />
                             <DocumentTextIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
@@ -418,165 +618,171 @@ export default function DispatchForm({ orderId, onClose, onSuccess }: DispatchFo
                             </p>
                           )}
                         </div>
+                      </div>
 
-                        {/* Quality */}
-                        <div>
-                          <label className={`block text-sm font-medium mb-3 ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                          }`}>
-                            Quality <span className="text-red-500">*</span>
-                          </label>
-                          <select
-                            value={item.quality}
-                            onChange={(e) => updateDispatchItem(item.id, 'quality', e.target.value)}
-                            className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
-                              errors[`quality_${item.id}`]
-                                ? isDarkMode
-                                  ? 'border-red-500 bg-gray-800 text-white'
-                                  : 'border-red-500 bg-white text-gray-900'
-                                : isDarkMode
-                                  ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                                  : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                      {/* Quality & Meters Section */}
+                      <div className={`mt-6 p-4 rounded-xl border ${
+                        isDarkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-100 border-gray-200'
+                      }`}>
+                        <h6 className={`text-sm font-semibold mb-4 flex items-center ${
+                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                        }`}>
+                          <PlusIcon className="h-4 w-4 mr-2" />
+                          Quality & Meters
+                        </h6>
+                        
+                        <div className="space-y-4">
+                          {/* Q1 and M1 Fields (Always visible) */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className={`block text-sm font-medium mb-2 ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                              }`}>
+                                Quality Q1 <span className="text-red-500">*</span>
+                              </label>
+                              <EnhancedDropdown
+                                options={qualities}
+                                value={item.quality}
+                                onChange={(value) => updateDispatchItem(item.id, 'quality', value)}
+                                placeholder="Select Quality"
+                                searchValue={qualitySearchStates[`${itemIndex}`] || ''}
+                                onSearchChange={(value) => setQualitySearchStates(prev => ({ ...prev, [`${itemIndex}`]: value }))}
+                                showDropdown={activeQualityDropdown === `${itemIndex}`}
+                                onToggleDropdown={() => setActiveQualityDropdown(activeQualityDropdown === `${itemIndex}` ? null : `${itemIndex}`)}
+                                onSelect={(quality) => {
+                                  updateDispatchItem(item.id, 'quality', quality._id);
+                                  setQualitySearchStates(prev => ({ ...prev, [`${itemIndex}`]: quality.name }));
+                                  setActiveQualityDropdown(null);
+                                }}
+                                isDarkMode={isDarkMode}
+                                error={errors[`quality_${item.id}`]}
+                                onAddNew={() => setShowQualityModal(true)}
+                                onDelete={(quality) => handleDeleteQuality(quality)}
+                                itemIndex={`${itemIndex}`}
+                                recentlyAddedId={recentlyAddedQuality}
+                              />
+                            </div>
+                            <div>
+                              <label className={`block text-sm font-medium mb-2 ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                              }`}>
+                                Finish Mtr M1 <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                value={item.finishMtr}
+                                onChange={(e) => updateDispatchItem(item.id, 'finishMtr', e.target.value)}
+                                placeholder="Enter finish meters"
+                                step="0.01"
+                                min="0"
+                                className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+                                  errors[`finishMtr_${item.id}`]
+                                    ? isDarkMode
+                                      ? 'border-red-500 bg-gray-800 text-white'
+                                      : 'border-red-500 bg-white text-gray-900'
+                                    : isDarkMode
+                                      ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
+                                      : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                                }`}
+                              />
+                              {errors[`finishMtr_${item.id}`] && (
+                                <p className={`text-sm mt-1 ${
+                                  isDarkMode ? 'text-red-400' : 'text-red-600'
+                                }`}>
+                                  {errors[`finishMtr_${item.id}`]}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Additional Fields (Q2, M2, Q3, M3, etc.) */}
+                          {item.additionalQualityMtr.map((additional, index) => (
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className={`block text-sm font-medium mb-2 ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                }`}>
+                                  Quality Q{index + 2} <span className="text-red-500">*</span>
+                                </label>
+                                <EnhancedDropdown
+                                  options={qualities}
+                                  value={additional.quality}
+                                  onChange={(value) => updateAdditionalQualityMtr(item.id, index, 'quality', value)}
+                                  placeholder="Select Quality"
+                                  searchValue={qualitySearchStates[`${itemIndex}_additional_${index}`] || ''}
+                                  onSearchChange={(value) => setQualitySearchStates(prev => ({ ...prev, [`${itemIndex}_additional_${index}`]: value }))}
+                                  showDropdown={activeQualityDropdown === `${itemIndex}_additional_${index}`}
+                                  onToggleDropdown={() => setActiveQualityDropdown(activeQualityDropdown === `${itemIndex}_additional_${index}` ? null : `${itemIndex}_additional_${index}`)}
+                                  onSelect={(quality) => {
+                                    updateAdditionalQualityMtr(item.id, index, 'quality', quality._id);
+                                    setQualitySearchStates(prev => ({ ...prev, [`${itemIndex}_additional_${index}`]: quality.name }));
+                                    setActiveQualityDropdown(null);
+                                  }}
+                                  isDarkMode={isDarkMode}
+                                  error={errors[`quality_${item.id}_additional_${index}`]}
+                                  onAddNew={() => setShowQualityModal(true)}
+                                  onDelete={(quality) => handleDeleteQuality(quality)}
+                                  itemIndex={`${itemIndex}_additional_${index}`}
+                                  recentlyAddedId={recentlyAddedQuality}
+                                />
+                              </div>
+                              <div>
+                                <label className={`block text-sm font-medium mb-2 ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                }`}>
+                                  Finish Mtr M{index + 2} <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  type="number"
+                                  value={additional.finishMtr}
+                                  onChange={(e) => updateAdditionalQualityMtr(item.id, index, 'finishMtr', e.target.value)}
+                                  placeholder="Enter finish meters"
+                                  step="0.01"
+                                  min="0"
+                                  className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+                                    isDarkMode
+                                      ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
+                                      : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                                  }`}
+                                />
+                                {errors[`finishMtr_${item.id}_additional_${index}`] && (
+                                  <p className={`text-sm mt-1 ${
+                                    isDarkMode ? 'text-red-400' : 'text-red-600'
+                                  }`}>
+                                    {errors[`finishMtr_${item.id}_additional_${index}`]}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-end">
+                                <button
+                                  type="button"
+                                  onClick={() => removeAdditionalQualityMtr(item.id, index)}
+                                  className={`p-2 rounded-lg text-red-500 hover:bg-red-50 ${
+                                    isDarkMode ? 'hover:bg-red-900/20' : 'hover:bg-red-50'
+                                  }`}
+                                >
+                                  <TrashIcon className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Add More Quality & Meters Button */}
+                        <div className="mt-4">
+                          <button
+                            type="button"
+                            onClick={() => addAdditionalQualityMtr(item.id)}
+                            className={`flex items-center px-4 py-3 rounded-lg border-2 transition-all duration-200 text-sm font-medium ${
+                              isDarkMode 
+                                ? 'bg-gray-800 border-gray-600 hover:bg-gray-700 hover:border-gray-500 text-gray-300' 
+                                : 'bg-gray-100 border-gray-300 hover:bg-gray-200 hover:border-gray-400 text-gray-700'
                             }`}
                           >
-                            <option value="">Select Quality</option>
-                            {/* Assuming 'qualities' is defined elsewhere or passed as a prop */}
-                            {/* For now, using a placeholder or a dummy list */}
-                            <option value="1">Quality A</option>
-                            <option value="2">Quality B</option>
-                            <option value="3">Quality C</option>
-                          </select>
-                          {errors[`quality_${item.id}`] && (
-                            <p className={`text-sm mt-1 ${
-                              isDarkMode ? 'text-red-400' : 'text-red-600'
-                            }`}>
-                              {errors[`quality_${item.id}`]}
-                            </p>
-              )}
-            </div>
-
-                        {/* Finish Mtr */}
-            <div>
-                          <label className={`block text-sm font-medium mb-3 ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-700'
-              }`}>
-                            Finish Mtr <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                            value={item.finishMtr}
-                            onChange={(e) => updateDispatchItem(item.id, 'finishMtr', e.target.value)}
-                placeholder="Enter finish meters"
-                            step="0.01"
-                min="0"
-                            className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
-                              errors[`finishMtr_${item.id}`]
-                                ? isDarkMode
-                                  ? 'border-red-500 bg-gray-800 text-white'
-                                  : 'border-red-500 bg-white text-gray-900'
-                    : isDarkMode
-                                  ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                                  : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                            }`}
-                          />
-                          {errors[`finishMtr_${item.id}`] && (
-                            <p className={`text-sm mt-1 ${
-                              isDarkMode ? 'text-red-400' : 'text-red-600'
-                            }`}>
-                              {errors[`finishMtr_${item.id}`]}
-                            </p>
-                          )}
-                        </div>
-            </div>
-
-                      {/* Additional Quality & Meters */}
-                      {item.additionalQualityMtr.length > 0 && (
-                        <div className={`mt-6 p-4 rounded-xl border ${
-                          isDarkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-100 border-gray-200'
-                        }`}>
-                          <h6 className={`text-sm font-semibold mb-4 flex items-center ${
-                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                          }`}>
                             <PlusIcon className="h-4 w-4 mr-2" />
-                            Additional Quality & Meters
-                          </h6>
-                          <div className="space-y-4">
-                            {item.additionalQualityMtr.map((additional, index) => (
-                              <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <label className={`block text-sm font-medium mb-2 ${
-                                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                                  }`}>
-                                    Quality Q{index + 1} <span className="text-red-500">*</span>
-                                  </label>
-                                  <select
-                                    value={additional.quality}
-                                    onChange={(e) => updateAdditionalQualityMtr(item.id, index, 'quality', e.target.value)}
-                                    className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
-                                      isDarkMode 
-                                        ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
-                                        : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                                    }`}
-                                  >
-                                    <option value="">Select Quality</option>
-                                    {/* Assuming 'qualities' is defined elsewhere or passed as a prop */}
-                                    {/* For now, using a placeholder or a dummy list */}
-                                    <option value="1">Quality A</option>
-                                    <option value="2">Quality B</option>
-                                    <option value="3">Quality C</option>
-                                  </select>
-                                </div>
-            <div>
-              <label className={`block text-sm font-medium mb-2 ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-700'
-              }`}>
-                                    Finish Mtr M{index + 1} <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                                    value={additional.finishMtr}
-                                    onChange={(e) => updateAdditionalQualityMtr(item.id, index, 'finishMtr', e.target.value)}
-                                    placeholder="Enter finish meters"
-                                    step="0.01"
-                min="0"
-                                    className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
-                                      isDarkMode
-                                        ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
-                                        : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                                    }`}
-                                  />
-                                </div>
-                                <div className="flex items-end">
-                                  <button
-                                    type="button"
-                                    onClick={() => removeAdditionalQualityMtr(item.id, index)}
-                                    className={`p-2 rounded-lg text-red-500 hover:bg-red-50 ${
-                                      isDarkMode ? 'hover:bg-red-900/20' : 'hover:bg-red-50'
-                                    }`}
-                                  >
-                                    <TrashIcon className="h-4 w-4" />
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                            Add More Quality & Meters
+                          </button>
                         </div>
-                      )}
-
-                      {/* Add More Quality & Meters Button */}
-                      <div className="mt-4">
-                        <button
-                          type="button"
-                          onClick={() => addAdditionalQualityMtr(item.id)}
-                          className={`flex items-center px-4 py-3 rounded-lg border-2 transition-all duration-200 text-sm font-medium ${
-                            isDarkMode 
-                              ? 'bg-gray-800 border-gray-600 hover:bg-gray-700 hover:border-gray-500 text-gray-300' 
-                              : 'bg-gray-100 border-gray-300 hover:bg-gray-200 hover:border-gray-400 text-gray-700'
-                          }`}
-                        >
-                          <PlusIcon className="h-4 w-4 mr-2" />
-                          Add More Quality & Meters
-                        </button>
                       </div>
 
                       {/* Remove Item Button */}

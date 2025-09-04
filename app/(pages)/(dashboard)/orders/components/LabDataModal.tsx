@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, Calendar, Hash, CheckCircle, Trash2, Plus, Edit3, BeakerIcon } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { X, Calendar, Hash, CheckCircle, Trash2, Plus, Edit3, BeakerIcon, Clock, FileText } from 'lucide-react';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { OrderItem } from '@/types';
+import { ChevronDownIcon, CalendarIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface LabData {
   color?: string;
@@ -28,6 +30,389 @@ interface LabDataModalProps {
     items: OrderItem[];
   };
   onLabDataUpdate: () => void;
+}
+
+// Custom Date Picker Component
+function CustomDatePicker({ 
+  value, 
+  onChange, 
+  placeholder, 
+  isDarkMode 
+}: { 
+  value: string; 
+  onChange: (value: string) => void; 
+  placeholder: string; 
+  isDarkMode: boolean; 
+}) {
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [inputValue, setInputValue] = useState('');
+  const [showYearPicker, setShowYearPicker] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  // Format date for display (dd/mm/yyyy)
+  const formatDateForDisplay = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return date.toLocaleDateString('en-GB'); // dd/mm/yyyy format
+  };
+
+  const handleDateSelect = (date: Date) => {
+    const formattedDate = date.toISOString().split('T')[0];
+    onChange(formattedDate);
+    setInputValue(formatDateForDisplay(formattedDate));
+    setShowCalendar(false);
+    setShowMonthPicker(false);
+    setShowYearPicker(false);
+  };
+
+  const clearDate = () => {
+    onChange('');
+    setInputValue('');
+    setShowCalendar(false);
+  };
+
+  // Update input value when value prop changes
+  useEffect(() => {
+    setInputValue(formatDateForDisplay(value));
+  }, [value]);
+
+  // Close calendar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (calendarRef.current && !calendarRef.current.contains(event.target as Node) &&
+          dateInputRef.current && !dateInputRef.current.contains(event.target as Node)) {
+        setShowCalendar(false);
+      }
+    };
+
+    if (showCalendar) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showCalendar]);
+
+  // Handle keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && showCalendar) {
+      setShowCalendar(false);
+    } else if (e.key === 'Escape') {
+      setShowCalendar(false);
+    } else if (e.key === 'Tab') {
+      setShowCalendar(false);
+    }
+  };
+
+  // Prevent form validation when interacting with calendar
+  const handleCalendarClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay();
+    
+    const days = [];
+    for (let i = 0; i < startingDay; i++) {
+      days.push(null);
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(new Date(year, month, i));
+    }
+    return days;
+  };
+
+  const days = getDaysInMonth(currentDate);
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <input
+          ref={dateInputRef}
+          type="text"
+          value={inputValue}
+          onChange={(e) => {
+            const value = e.target.value;
+            setInputValue(value);
+            // Only try to parse if it looks like a complete date
+            if (value.length >= 8) {
+              // Simple date parsing for dd/mm/yyyy format
+              const parts = value.split('/');
+              if (parts.length === 3) {
+                const day = parseInt(parts[0]);
+                const month = parseInt(parts[1]) - 1;
+                const year = parseInt(parts[2]);
+                const date = new Date(year, month, day);
+                if (!isNaN(date.getTime())) {
+                  onChange(date.toISOString().split('T')[0]);
+                }
+              }
+            } else {
+              onChange('');
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder="dd/mm/yyyy"
+          onFocus={() => setShowCalendar(true)}
+          className={`w-full p-3 pr-12 rounded-lg border ${
+            isDarkMode 
+              ? 'bg-white/10 border-white/20 text-white placeholder-gray-400' 
+              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+          } focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+        />
+        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+          {value && (
+            <button
+              type="button"
+              onClick={clearDate}
+              className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                isDarkMode ? 'text-gray-400 hover:text-red-400' : 'text-gray-500 hover:text-red-500'
+              }`}
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowCalendar(!showCalendar)}
+            className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+              isDarkMode ? 'text-gray-400 hover:text-blue-400' : 'text-gray-500 hover:text-blue-500'
+            }`}
+          >
+            <CalendarIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {showCalendar && mounted && createPortal(
+        <div 
+          ref={calendarRef}
+          onClick={handleCalendarClick}
+          className={`fixed z-[9999999] p-4 rounded-lg border shadow-2xl calendar-container date-picker ${
+            isDarkMode ? 'bg-[#1D293D] border-white/20' : 'bg-white border-gray-200'
+          }`}
+          style={{
+            top: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().top - 450 : '50%',
+            left: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().left : '50%',
+            transform: 'translateX(-50%)'
+          }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+              }}
+              className={`p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}
+            >
+              <ChevronDownIcon className="h-4 w-4 transform rotate-90" />
+            </button>
+            
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowMonthPicker(!showMonthPicker);
+                }}
+                className={`px-3 py-1 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 font-semibold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                {monthNames[currentDate.getMonth()]}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowYearPicker(!showYearPicker);
+                }}
+                className={`px-3 py-1 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 font-semibold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                {currentDate.getFullYear()}
+              </button>
+            </div>
+            
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+              }}
+              className={`p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}
+            >
+              <ChevronDownIcon className="h-4 w-4 transform -rotate-90" />
+            </button>
+          </div>
+
+          {/* Quick Navigation Buttons */}
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date());
+              }}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                isDarkMode 
+                  ? 'bg-blue-500 hover:bg-blue-600 text-white' 
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date(currentDate.getFullYear() + 10, currentDate.getMonth()));
+              }}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                isDarkMode 
+                  ? 'bg-green-500 hover:bg-green-600 text-white' 
+                  : 'bg-green-500 hover:bg-green-600 text-white'
+              }`}
+            >
+              +10 Years
+            </button>
+          </div>
+
+          {/* Month Picker */}
+          {showMonthPicker && (
+            <div className={`mb-4 p-2 rounded-lg ${
+              isDarkMode ? 'bg-white/10' : 'bg-gray-100'
+            }`}>
+              <div className="grid grid-cols-3 gap-1">
+                {monthNames.map((month, index) => (
+                  <button
+                    key={month}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentDate(new Date(currentDate.getFullYear(), index));
+                      setShowMonthPicker(false);
+                      setShowYearPicker(false);
+                    }}
+                    className={`p-2 text-sm rounded-lg transition-colors ${
+                      index === currentDate.getMonth()
+                        ? 'bg-blue-500 text-white'
+                        : isDarkMode 
+                          ? 'hover:bg-white/10 text-white' 
+                          : 'hover:bg-gray-200 text-gray-900'
+                    }`}
+                  >
+                    {month.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Year Picker */}
+          {showYearPicker && (
+            <div className={`mb-4 p-2 rounded-lg ${
+              isDarkMode ? 'bg-white/10' : 'bg-gray-100'
+            }`}>
+              <div className="grid grid-cols-3 gap-1">
+                {Array.from({ length: 12 }, (_, i) => currentDate.getFullYear() - 5 + i).map((year) => (
+                  <button
+                    key={year}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentDate(new Date(year, currentDate.getMonth()));
+                      setShowYearPicker(false);
+                      setShowMonthPicker(false);
+                    }}
+                    className={`p-2 text-sm rounded-lg transition-colors ${
+                      year === currentDate.getFullYear()
+                        ? 'bg-blue-500 text-white'
+                        : isDarkMode 
+                          ? 'hover:bg-white/10 text-white' 
+                          : 'hover:bg-gray-200 text-gray-900'
+                    }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+              <div key={day} className={`text-center text-sm font-medium p-2 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {days.map((day, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  day && handleDateSelect(day);
+                }}
+                disabled={!day}
+                className={`p-2 text-sm rounded-lg transition-colors ${
+                  !day ? 'invisible' :
+                  day.toDateString() === new Date().toDateString() 
+                    ? 'bg-blue-500 text-white' :
+                  value === day.toISOString().split('T')[0]
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                  `hover:bg-gray-200 dark:hover:bg-white/10 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`
+                }`}
+              >
+                {day?.getDate()}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
 }
 
 export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }: LabDataModalProps) {
@@ -249,7 +634,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
   if (!isOpen || !mounted) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
       <div className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${
         isDarkMode 
           ? 'bg-[#1D293D] text-white border border-white/20' 
@@ -425,31 +810,20 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {/* Lab Send Date */}
-                          <div>
-                            <label className={`block text-sm font-medium mb-2 ${
-                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                            }`}>
-                              Lab Send Date *
-                            </label>
-                            <div className="relative">
-                              <input
-                                type="date"
-                                value={labData.labSendDate}
-                                onChange={(e) => setLabData(prev => ({ ...prev, labSendDate: e.target.value }))}
-                                onClick={(e) => e.currentTarget.showPicker?.()}
-                                className={`w-full px-3 py-2 rounded-lg border transition-colors cursor-pointer ${
-                                  isDarkMode
-                                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                }`}
-                                required
-                              />
-                              <Calendar size={16} className={`absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none ${
-                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                              }`} />
-                            </div>
-                          </div>
+                                                     {/* Lab Send Date */}
+                           <div>
+                             <label className={`block text-sm font-medium mb-2 ${
+                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                             }`}>
+                               Lab Send Date *
+                             </label>
+                             <CustomDatePicker
+                               value={labData.labSendDate || ''}
+                               onChange={(value) => setLabData(prev => ({ ...prev, labSendDate: value }))}
+                               placeholder="Select lab send date"
+                               isDarkMode={isDarkMode}
+                             />
+                           </div>
 
                           {/* Approval Date */}
                           <div>
@@ -458,22 +832,12 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                             }`}>
                               Approval Date
                             </label>
-                            <div className="relative">
-                              <input
-                                type="date"
-                                value={labData.approvalDate}
-                                onChange={(e) => setLabData(prev => ({ ...prev, approvalDate: e.target.value }))}
-                                onClick={(e) => e.currentTarget.showPicker?.()}
-                                className={`w-full px-3 py-2 rounded-lg border transition-colors cursor-pointer ${
-                                  isDarkMode
-                                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-ring-blue-500/20'
-                                }`}
-                              />
-                              <Calendar size={16} className={`absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none ${
-                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                              }`} />
-                            </div>
+                            <CustomDatePicker
+                              value={labData.approvalDate || ''}
+                              onChange={(value) => setLabData(prev => ({ ...prev, approvalDate: value }))}
+                              placeholder="Select approval date"
+                              isDarkMode={isDarkMode}
+                            />
                           </div>
 
                           {/* Sample Number */}

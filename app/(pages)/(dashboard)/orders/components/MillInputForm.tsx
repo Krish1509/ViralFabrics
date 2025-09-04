@@ -37,6 +37,8 @@ interface MillInputFormProps {
   onSuccess: () => void;
   onAddMill: () => void;
   onRefreshMills: () => void;
+  isEditing?: boolean;
+  existingMillInputs?: any[];
 }
 
 interface ValidationErrors {
@@ -49,9 +51,20 @@ export default function MillInputForm({
   onClose,
   onSuccess,
   onAddMill,
-  onRefreshMills
+  onRefreshMills,
+  isEditing = false,
+  existingMillInputs = []
 }: MillInputFormProps) {
   const { isDarkMode } = useDarkMode();
+  
+  // Debug logging
+  console.log('MillInputForm rendered with props:', {
+    orderId: order?.orderId,
+    isEditing,
+    existingMillInputsCount: existingMillInputs.length,
+    existingMillInputs
+  });
+  
   const [formData, setFormData] = useState<MillInputFormData>({
     orderId: order?.orderId || '',
     mill: '',
@@ -74,16 +87,24 @@ export default function MillInputForm({
     address: '',
     email: ''
   });
+  const [loadingExistingData, setLoadingExistingData] = useState(false);
 
-  // Reset form when order changes
+  // Load existing mill inputs when editing
   useEffect(() => {
-    if (order) {
+    if (isEditing && existingMillInputs.length > 0) {
+      loadExistingMillInputs();
+    }
+  }, [isEditing, existingMillInputs]);
+
+  // Reset form when order changes (but not when editing)
+  useEffect(() => {
+    if (order && !isEditing) {
       setFormData({
         orderId: order.orderId,
         mill: '',
         millItems: [{
           id: '1',
-          millDate: '',
+          millDate: '1',
           chalanNo: '',
           greighMtr: '',
           pcs: '',
@@ -101,7 +122,86 @@ export default function MillInputForm({
         email: ''
       });
     }
-  }, [order?.orderId]);
+  }, [order?.orderId, isEditing]);
+
+  // Function to load existing mill inputs
+  const loadExistingMillInputs = async () => {
+    console.log('loadExistingMillInputs called with:', { order, existingMillInputs });
+    
+    if (!order || existingMillInputs.length === 0) {
+      console.log('Early return - no order or existing inputs');
+      return;
+    }
+    
+    setLoadingExistingData(true);
+    try {
+      // Group mill inputs by mill and chalan number
+      const groupedInputs = groupMillInputsByMillAndChalan(existingMillInputs);
+      console.log('Grouped inputs:', groupedInputs);
+      
+      if (groupedInputs.length > 0) {
+        const firstGroup = groupedInputs[0];
+        console.log('Setting form data with first group:', firstGroup);
+        
+        const newFormData = {
+          orderId: order.orderId,
+          mill: firstGroup.millId,
+          millItems: groupedInputs.map((group, index) => ({
+            id: (index + 1).toString(),
+            millDate: group.millDate,
+            chalanNo: group.chalanNo,
+            greighMtr: group.mainInput.greighMtr,
+            pcs: group.mainInput.pcs,
+            additionalMeters: group.additionalInputs.map((input: any) => ({
+              meters: input.greighMtr,
+              pieces: input.pcs
+            }))
+          }))
+        };
+        
+        console.log('New form data to be set:', newFormData);
+        setFormData(newFormData);
+        console.log('Form data set successfully');
+      }
+    } catch (error) {
+      console.error('Error loading existing mill inputs:', error);
+    } finally {
+      setLoadingExistingData(false);
+    }
+  };
+
+  // Helper function to group mill inputs by mill and chalan
+  const groupMillInputsByMillAndChalan = (millInputs: any[]) => {
+    const groups: any[] = [];
+    
+    millInputs.forEach((input: any) => {
+      const existingGroup = groups.find(group => 
+        group.millId === input.mill._id && group.chalanNo === input.chalanNo
+      );
+      
+      if (existingGroup) {
+        // Add as additional input
+        existingGroup.additionalInputs.push({
+          greighMtr: input.greighMtr,
+          pcs: input.pcs
+        });
+      } else {
+        // Create new group
+        groups.push({
+          millId: input.mill._id,
+          millDate: input.millDate,
+          chalanNo: input.chalanNo,
+          mainInput: {
+            greighMtr: input.greighMtr,
+            pcs: input.pcs
+          },
+          additionalInputs: []
+        });
+      }
+    });
+    
+    return groups;
+  };
 
   // Form handlers
   const addMillItem = () => {
@@ -120,6 +220,17 @@ export default function MillInputForm({
         }
       ]
     });
+    
+    // Scroll to the newly added item after a short delay
+    setTimeout(() => {
+      const newItemElement = document.getElementById(`mill-item-${newId}`);
+      if (newItemElement) {
+        newItemElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+      }
+    }, 100);
   };
 
   const removeMillItem = (itemId: string) => {
@@ -219,7 +330,7 @@ export default function MillInputForm({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) return;
@@ -228,77 +339,93 @@ export default function MillInputForm({
     try {
       const token = localStorage.getItem('token');
       
-      // Transform the form data to match backend expectations
-      const allMillInputPromises: Promise<any>[] = [];
-
-      formData.millItems.forEach((item) => {
-        // Main mill input
-        const millInputData = {
-          orderId: formData.orderId,
-          mill: formData.mill,
-          millDate: item.millDate,
-          chalanNo: item.chalanNo,
-          greighMtr: item.greighMtr,
-          pcs: item.pcs,
-        };
-
-        allMillInputPromises.push(
-          fetch('/api/mill-inputs', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(millInputData)
-          }).then(response => response.json())
-        );
-
-        // Additional meters inputs
-        item.additionalMeters.forEach((additional) => {
-          const additionalMillInputData = {
-            orderId: formData.orderId,
-            mill: formData.mill,
-            millDate: item.millDate,
-            chalanNo: item.chalanNo,
-            greighMtr: additional.meters,
-            pcs: additional.pieces,
-          };
-
-          allMillInputPromises.push(
-            fetch('/api/mill-inputs', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify(additionalMillInputData)
-            }).then(response => response.json())
-          );
-        });
-      });
-
-      // Wait for all mill inputs to be created
-      const results = await Promise.all(allMillInputPromises);
-      
-      // Check if all were successful
-      const allSuccessful = results.every((result: any) => result.success);
-      
-      if (allSuccessful) {
-        onSuccess();
-        onClose();
+      if (isEditing && existingMillInputs.length > 0) {
+        // Update existing mill inputs
+        await updateExistingMillInputs(token);
       } else {
-        const errorMessages = results
-          .filter((result: any) => !result.success)
-          .map((result: any) => result.message)
-          .join(', ');
-        setErrors({ submit: `Failed to create some mill inputs: ${errorMessages}` });
+        // Create new mill inputs
+        await createNewMillInputs(token);
       }
+      
+      onSuccess();
+      onClose();
     } catch (error) {
-      console.error('Error creating mill input:', error);
-      setErrors({ submit: 'Failed to create mill input' });
+      console.error('Error handling mill input:', error);
+      setErrors({ submit: 'Failed to handle mill input' });
     } finally {
       setSaving(false);
     }
+  };
+
+  // Function to create new mill inputs
+  const createNewMillInputs = async (token: string | null) => {
+    if (!token) throw new Error('No authentication token');
+
+    for (const item of formData.millItems) {
+      // Prepare additional meters data
+      const additionalMeters = item.additionalMeters
+        .filter(additional => additional.meters && additional.pieces)
+        .map(additional => ({
+          greighMtr: parseFloat(additional.meters),
+          pcs: parseInt(additional.pieces)
+        }));
+
+      // Debug log to see what's being sent
+      console.log('Form Data for item:', item);
+      console.log('Additional Meters prepared:', additionalMeters);
+      console.log('Filtered additional meters:', item.additionalMeters.filter(additional => additional.meters && additional.pieces));
+
+      // Send single request with all data for this item
+      const requestBody = {
+        orderId: formData.orderId,
+        mill: formData.mill,
+        millDate: item.millDate,
+        chalanNo: item.chalanNo,
+        greighMtr: parseFloat(item.greighMtr),
+        pcs: parseInt(item.pcs),
+        additionalMeters: additionalMeters.length > 0 ? additionalMeters : undefined,
+        notes: ''
+      };
+
+      console.log('Request body being sent:', requestBody);
+
+      const response = await fetch('/api/mill-inputs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const data = await response.json();
+      
+      console.log('API Response:', data);
+      
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to add mill input');
+      }
+    }
+  };
+
+  // Function to update existing mill inputs
+  const updateExistingMillInputs = async (token: string | null) => {
+    if (!token) throw new Error('No authentication token');
+    
+    // First delete existing mill inputs for this order
+    const deletePromises = existingMillInputs.map((input: any) =>
+      fetch(`/api/mill-inputs/${input._id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+    );
+
+    await Promise.all(deletePromises);
+
+    // Then create new ones with updated data
+    await createNewMillInputs(token);
   };
 
   const handleAddMill = async (e: React.FormEvent) => {
@@ -368,14 +495,49 @@ export default function MillInputForm({
         <div className={`relative w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
           isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
         }`}>
+          {loadingExistingData && (
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
+              <div className={`p-4 rounded-lg ${
+                isDarkMode ? 'bg-gray-800' : 'bg-white'
+              }`}>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-sm">Loading existing mill inputs...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Loading Overlay for Saving */}
+          {saving && (
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
+              <div className={`p-6 rounded-lg ${
+                isDarkMode ? 'bg-gray-800' : 'bg-white'
+              }`}>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-3 text-sm font-medium">Saving mill input data...</p>
+                <p className="mt-1 text-xs text-gray-500">Please wait while we process your data</p>
+              </div>
+            </div>
+          )}
                  {/* Header */}
          <div className={`flex items-center justify-between p-6 border-b ${
             isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
          }`}>
             <div className="flex items-center space-x-4">
+              {/* Order ID Display */}
+              <div className={`px-3 py-2 rounded-lg ${
+                isDarkMode 
+                  ? 'bg-blue-900/30 text-blue-300 border border-blue-700' 
+                  : 'bg-blue-100 text-blue-700 border border-blue-200'
+              }`}>
+                <span className="text-sm font-medium">Order ID:</span>
+                <span className="ml-2 text-lg font-bold">{formData.orderId}</span>
+              </div>
+              
            <div className="flex items-center space-x-3">
                 <BuildingOfficeIcon className="h-8 w-8 text-blue-500" />
-                <h2 className="text-2xl font-bold">Add Mill Input</h2>
+                <h2 className="text-2xl font-bold">
+                  {isEditing ? 'Edit Mill Input' : 'Add Mill Input'}
+                </h2>
              </div>
               <div className="flex items-center space-x-2">
                 <span className={`text-sm px-2 py-1 rounded-full ${
@@ -480,12 +642,13 @@ export default function MillInputForm({
 
                 <div className="space-y-6">
                 {formData.millItems.map((item, itemIndex) => (
-                    <div key={item.id} className={`p-6 rounded-xl border transition-all duration-200 hover:shadow-lg ${
+                    <div key={item.id} id={`mill-item-${item.id}`} className={`p-6 rounded-xl border transition-all duration-200 hover:shadow-lg ${
                       isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
                     }`}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                      {/* Mill Date */}
-                      <div>
+                      {/* Main Fields Row 1 */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        {/* Mill Date */}
+                        <div>
                           <label className={`block text-sm font-medium mb-3 ${
                           isDarkMode ? 'text-gray-300' : 'text-gray-700'
                         }`}>
@@ -549,147 +712,127 @@ export default function MillInputForm({
                           </p>
                         )}
                       </div>
-
-                      {/* Greigh Meters */}
-                      <div>
-                          <label className={`block text-sm font-medium mb-3 ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}>
-                            Greigh Meters <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            value={item.greighMtr}
-                            onChange={(e) => updateMillItem(item.id, 'greighMtr', e.target.value)}
-                            placeholder="Enter meters"
-                            min="0"
-                            step="0.01"
-                              className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                              errors[`greighMtr_${item.id}`]
-                                ? isDarkMode
-                                    ? 'border-red-500 bg-gray-800 text-white'
-                                    : 'border-red-500 bg-white text-gray-900'
-                                : isDarkMode
-                                    ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                                    : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                            }`}
-                          />
-                          <BeakerIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
-                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                          }`} />
-                        </div>
-                        {errors[`greighMtr_${item.id}`] && (
-                          <p className={`text-sm mt-1 ${
-                            isDarkMode ? 'text-red-400' : 'text-red-600'
-                          }`}>
-                            {errors[`greighMtr_${item.id}`]}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Number of Pieces */}
-                      <div>
-                          <label className={`block text-sm font-medium mb-3 ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}>
-                            Number of Pieces <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            value={item.pcs}
-                            onChange={(e) => updateMillItem(item.id, 'pcs', e.target.value)}
-                            placeholder="Enter pieces"
-                            min="0"
-                              className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                              errors[`pcs_${item.id}`]
-                                ? isDarkMode
-                                    ? 'border-red-500 bg-gray-800 text-white'
-                                    : 'border-red-500 bg-white text-gray-900'
-                                : isDarkMode
-                                    ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                                    : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                            }`}
-                          />
-                          <PlusIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
-                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                          }`} />
-                        </div>
-                        {errors[`pcs_${item.id}`] && (
-                          <p className={`text-sm mt-1 ${
-                            isDarkMode ? 'text-red-400' : 'text-red-600'
-                          }`}>
-                            {errors[`pcs_${item.id}`]}
-                          </p>
-                        )}
-                      </div>
                     </div>
 
-                    {/* Additional Meters */}
-                                         {item.additionalMeters.length > 0 && (
-                        <div className={`mt-6 p-4 rounded-xl border ${
-                          isDarkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-100 border-gray-200'
-                       }`}>
-                         <h6 className={`text-sm font-semibold mb-4 flex items-center ${
-                           isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                         }`}>
-                           <PlusIcon className="h-4 w-4 mr-2" />
-                           Additional Meters & Pieces
-                         </h6>
-                        <div className="space-y-4">
-                          {item.additionalMeters.map((additional, index) => (
-                              <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                <label className={`block text-sm font-medium mb-2 ${
-                                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                                }`}>
-                                    Greigh Meters M{index + 1} <span className="text-red-500">*</span>
-                                </label>
-                                <div className="relative">
-                                  <input
-                                    type="number"
-                                    value={additional.meters}
-                                    onChange={(e) => updateAdditionalMeters(item.id, index, 'meters', e.target.value)}
-                                    placeholder="Enter meters"
-                                    min="0"
-                                    step="0.01"
-                                      className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                      isDarkMode 
-                                          ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
-                                          : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                                    }`}
-                                  />
-                                  <BeakerIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
-                                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                  }`} />
-                                </div>
+
+
+                    {/* Additional Meters & Pieces Section */}
+                    <div className={`mt-6 p-4 rounded-xl border ${
+                      isDarkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-100 border-gray-200'
+                    }`}>
+                      <h6 className={`text-sm font-semibold mb-4 flex items-center ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        <PlusIcon className="h-4 w-4 mr-2" />
+                        Additional Meters & Pieces
+                      </h6>
+                      
+                      <div className="space-y-4">
+                        {/* M1 and P1 Fields (Always visible) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className={`block text-sm font-medium mb-2 ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                            }`}>
+                              Greigh Meters M1 <span className="text-red-500">*</span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                value={item.greighMtr}
+                                onChange={(e) => updateMillItem(item.id, 'greighMtr', e.target.value)}
+                                placeholder="Enter meters"
+                                min="0"
+                                step="0.01"
+                                className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                  isDarkMode 
+                                    ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
+                                    : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                                }`}
+                              />
+                              <BeakerIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
+                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                              }`} />
+                            </div>
+                          </div>
+                          <div>
+                            <label className={`block text-sm font-medium mb-2 ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                            }`}>
+                              Number of Pieces P1 <span className="text-red-500">*</span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                value={item.pcs}
+                                onChange={(e) => updateMillItem(item.id, 'pcs', e.target.value)}
+                                placeholder="Enter pieces"
+                                min="0"
+                                className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                  isDarkMode
+                                    ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
+                                    : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                                }`}
+                              />
+                              <PlusIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
+                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                              }`} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {item.additionalMeters.map((additional, index) => (
+                          <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className={`block text-sm font-medium mb-2 ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                              }`}>
+                                Greigh Meters M{index + 2} <span className="text-red-500">*</span>
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  value={additional.meters}
+                                  onChange={(e) => updateAdditionalMeters(item.id, index, 'meters', e.target.value)}
+                                  placeholder="Enter meters"
+                                  min="0"
+                                  step="0.01"
+                                  className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                    isDarkMode 
+                                      ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
+                                      : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                                  }`}
+                                />
+                                <BeakerIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
+                                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`} />
                               </div>
-                                <div>
-                                <label className={`block text-sm font-medium mb-2 ${
-                                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                                }`}>
-                                    Number of Pieces P{index + 1} <span className="text-red-500">*</span>
-                                </label>
-                                <div className="relative">
-                                  <input
-                                    type="number"
-                                    value={additional.pieces}
-                                    onChange={(e) => updateAdditionalMeters(item.id, index, 'pieces', e.target.value)}
-                                    placeholder="Enter pieces"
-                                    min="0"
-                                      className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                      isDarkMode
-                                          ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
-                                          : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                                    }`}
-                                  />
-                                  <PlusIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
-                                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                  }`} />
-                                </div>
+                            </div>
+                            <div>
+                              <label className={`block text-sm font-medium mb-2 ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                              }`}>
+                                Number of Pieces P{index + 2} <span className="text-red-500">*</span>
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  value={additional.pieces}
+                                  onChange={(e) => updateAdditionalMeters(item.id, index, 'pieces', e.target.value)}
+                                  placeholder="Enter pieces"
+                                  min="0"
+                                  className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                    isDarkMode
+                                      ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
+                                      : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                                  }`}
+                                />
+                                <PlusIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
+                                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`} />
                               </div>
-                                <div className="flex items-end">
+                            </div>
+                            <div className="flex items-end">
                               <button
                                 type="button"
                                 onClick={() => removeAdditionalMeters(item.id, index)}
@@ -699,28 +842,29 @@ export default function MillInputForm({
                               >
                                 <TrashIcon className="h-4 w-4" />
                               </button>
-                                </div>
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
-                    )}
 
-                    {/* Add More Additional Meters Button */}
-                    <div className="mt-4">
-                      <button
-                        type="button"
-                        onClick={() => addAdditionalMeters(item.id)}
+                      {/* Add More Additional Meters Button */}
+                      <div className="mt-4">
+                        <button
+                          type="button"
+                          onClick={() => addAdditionalMeters(item.id)}
                           className={`flex items-center px-4 py-3 rounded-lg border-2 transition-all duration-200 text-sm font-medium ${
-                          isDarkMode 
+                            isDarkMode 
                               ? 'bg-gray-800 border-gray-600 hover:bg-gray-700 hover:border-gray-500 text-gray-300' 
                               : 'bg-gray-100 border-gray-300 hover:bg-gray-200 hover:border-gray-400 text-gray-700'
-                        }`}
-                      >
-                        <PlusIcon className="h-4 w-4 mr-2" />
-                        Add More Meters & Pieces
-                      </button>
-            </div>
+                          }`}
+                        >
+                          <PlusIcon className="h-4 w-4 mr-2" />
+                          Add More Meters & Pieces
+                        </button>
+                      </div>
+                    </div>
+
+
 
                       {/* Remove Item Button */}
                       {formData.millItems.length > 1 && (
@@ -797,7 +941,7 @@ export default function MillInputForm({
                       : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
                 }`}
               >
-                {saving ? 'Saving...' : 'Add Mill Input'}
+                {saving ? 'Saving...' : isEditing ? 'Update Mill Input' : 'Add Mill Input'}
               </button>
             </div>
         </div>
