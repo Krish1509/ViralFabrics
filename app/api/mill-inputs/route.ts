@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
       .populate('order', 'orderId orderType party')
       .lean();
 
-    await logCreate('mill_input', finalMillInput?._id?.toString() || 'unknown', { 
+    await logCreate('mill_input', (finalMillInput as any)?._id?.toString() || 'unknown', { 
       orderId, 
       chalanNo, 
       millName: millExists.name,
