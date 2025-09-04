@@ -29,18 +29,18 @@ export default function CreateFabricPage() {
   
   const [formData, setFormData] = useState<FabricFormData>({
     items: [{
-      qualityCode: '7777',
-      qualityName: 'asdfadsf',
-      weaver: 'sad',
-      weaverQualityName: 'asd',
-      greighWidth: '123',
-      finishWidth: '123',
-      weight: '3211',
-      gsm: '23',
-      danier: '213',
-      reed: '213',
-      pick: '213',
-      greighRate: '150.00',
+      qualityCode: '',
+      qualityName: '',
+      weaver: '',
+      weaverQualityName: '',
+      greighWidth: '',
+      finishWidth: '',
+      weight: '',
+      gsm: '',
+      danier: '',
+      reed: '',
+      pick: '',
+      greighRate: '',
       images: []
     }]
   });
@@ -67,51 +67,22 @@ export default function CreateFabricPage() {
   const [originalQualityCode, setOriginalQualityCode] = useState<string>(''); // Track original quality code for edit mode
   const [timeoutCountdown, setTimeoutCountdown] = useState<number>(0); // Track timeout countdown
   const [originalItemCount, setOriginalItemCount] = useState<number>(1); // Track original number of items
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false); // Control dropdown open/close state
 
-  // Keyboard shortcuts - Desktop only
+
+
+  // Close dropdown when clicking outside
   useEffect(() => {
-    // Only enable keyboard shortcuts on desktop (not mobile/tablet)
-    const isMobile = window.innerWidth < 768; // md breakpoint
-    if (isMobile) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Alt + N: Add new item
-      if (e.altKey && e.key.toLowerCase() === 'n') {
-        e.preventDefault();
-        addItem();
-        showValidationMessage('info', 'New item added! (Alt+N)');
-      }
-      
-      // Ctrl + Enter: Submit form
-      if (e.ctrlKey && e.key === 'Enter') {
-        e.preventDefault();
-        const form = document.querySelector('form');
-        if (form) {
-          form.requestSubmit();
-          showValidationMessage('info', 'Form submitted! (Ctrl+Enter)');
-        }
-      }
-      
-      // Escape: Go back to fabrics list
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        router.push('/fabrics');
-      }
-      
-      // Ctrl + S: Save (same as submit)
-      if (e.ctrlKey && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        const form = document.querySelector('form');
-        if (form) {
-          form.requestSubmit();
-          showValidationMessage('info', 'Saving... (Ctrl+S)');
-        }
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (isDropdownOpen && !target.closest('.dropdown-container')) {
+        setIsDropdownOpen(false);
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isDropdownOpen]);
 
   // Optimized load fabric data for editing - Fast loading with better error handling
   const loadFabricForEdit = useCallback(async () => {
@@ -123,13 +94,13 @@ export default function CreateFabricPage() {
       
       // Use a longer timeout for better reliability in edit mode
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased to 15s timeout for better reliability
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased to 30s timeout for better reliability
       
       // Start countdown timer
       const startTime = Date.now();
       const countdownInterval = setInterval(() => {
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        const remaining = Math.max(0, 25 - elapsed);
+        const remaining = Math.max(0, 30 - elapsed);
         setTimeoutCountdown(remaining);
         
         if (remaining <= 0) {
@@ -204,7 +175,7 @@ export default function CreateFabricPage() {
       console.error('Error loading fabric:', error);
       
       if (error.name === 'AbortError') {
-        showValidationMessage('error', 'Request timed out after 15 seconds - Please check your connection and try again');
+        showValidationMessage('error', 'Request timed out after 30 seconds - Please check your connection and try again');
       } else if (error.message.includes('HTTP 404')) {
         showValidationMessage('error', 'Fabric not found - It may have been deleted');
       } else if (error.message.includes('HTTP 500')) {
@@ -254,7 +225,7 @@ export default function CreateFabricPage() {
     // Reduce loading time and make it smoother
     const timer = setTimeout(() => {
       setPageLoading(false);
-    }, 150); // Reduced to 150ms for even faster loading
+    }, 100); // Reduced to 100ms for even faster loading
     return () => clearTimeout(timer);
   }, []);
 
@@ -415,7 +386,7 @@ export default function CreateFabricPage() {
       // Faster debounce - check after 300ms instead of 1000ms
       setTimeout(() => {
         if (value.trim() === formData.items[0]?.qualityCode) {
-          checkQualityCodeExists(value);
+        checkQualityCodeExists(value);
         }
       }, 300);
     }
@@ -475,16 +446,16 @@ export default function CreateFabricPage() {
         items: [...prev.items, {
           qualityCode: sharedQualityCode,
           qualityName: sharedQualityName,
-          weaver: `Weaver ${prev.items.length + 1}`, // Sample data for testing
-          weaverQualityName: `Quality ${prev.items.length + 1}`, // Sample data for testing
-          greighWidth: `${50 + prev.items.length * 2}.0`, // Sample data for testing
-          finishWidth: `${48 + prev.items.length * 2}.0`, // Sample data for testing
-          weight: `${20 + prev.items.length * 5}.5`, // Sample data for testing
-          gsm: `${70 + prev.items.length * 3}.0`, // Sample data for testing
-          danier: `${30 + prev.items.length * 5}*${15 + prev.items.length * 2}D`, // Sample data for testing
-          reed: `${100 + prev.items.length * 10}`, // Sample data for testing
-          pick: `${60 + prev.items.length * 5}`, // Sample data for testing
-          greighRate: `${150 + prev.items.length * 25}.00`, // Sample data for testing
+          weaver: '', // Empty field for new item
+          weaverQualityName: '', // Empty field for new item
+          greighWidth: '', // Empty field for new item
+          finishWidth: '', // Empty field for new item
+          weight: '', // Empty field for new item
+          gsm: '', // Empty field for new item
+          danier: '', // Empty field for new item
+          reed: '', // Empty field for new item
+          pick: '', // Empty field for new item
+          greighRate: '', // Empty field for new item
           images: sharedImages // Shared images
         }]
       };
@@ -832,12 +803,12 @@ export default function CreateFabricPage() {
             showValidationMessage('info', 'Quality code changed - updating all related items...');
             
             // Update all items with the new quality code
-            const updateResponse = await fetch(`/api/fabrics/${editId}`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
+          const updateResponse = await fetch(`/api/fabrics/${editId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
               body: JSON.stringify({
                 qualityCode: currentQualityCode,
                 qualityName: formData.items[0]?.qualityName?.trim(),
@@ -855,11 +826,11 @@ export default function CreateFabricPage() {
                 updateAllWithQualityCode: true, // Signal to backend to update all related items
                 originalQualityCode: originalQualityCode
               })
-            });
-            
-            const updateData = await updateResponse.json();
-            
-            if (updateData.success) {
+          });
+
+          const updateData = await updateResponse.json();
+        
+          if (updateData.success) {
               showValidationMessage('success', 'All items updated successfully with new quality code!');
               setTimeout(() => {
                 router.push('/fabrics');
@@ -934,31 +905,31 @@ export default function CreateFabricPage() {
                 }
               } else {
                 // No new items, just show success for updates
-                if (updateData.warning && updateData.existingFabrics) {
-                  // Show warning about existing fabrics with same quality code
-                  const warningMessage = `${updateData.message}\n\nExisting fabrics with this quality code:\n${updateData.existingFabrics.map((fabric: any) => 
-                    `• ${fabric.qualityName} - Weaver: ${fabric.weaver}, Quality: ${fabric.weaverQualityName}`
-                  ).join('\n')}`;
-                  
-                  showValidationMessage('warning', warningMessage);
-                  
-                  // Still redirect after showing warning
-                  setTimeout(() => {
-                    router.push('/fabrics');
-                  }, 3000); // Give more time to read the warning
-                } else {
-                  // Reset validation states on success
-                  setErrors({});
-                  setIsQualityCodeValid(false);
-                  setQualityCodeCache({}); // Clear cache on successful submission
-                  showValidationMessage('success', 'Fabric updated successfully!');
-                  setTimeout(() => {
-                    router.push('/fabrics');
-                  }, 1000);
-                }
-              }
+            if (updateData.warning && updateData.existingFabrics) {
+              // Show warning about existing fabrics with same quality code
+              const warningMessage = `${updateData.message}\n\nExisting fabrics with this quality code:\n${updateData.existingFabrics.map((fabric: any) => 
+                `• ${fabric.qualityName} - Weaver: ${fabric.weaver}, Quality: ${fabric.weaverQualityName}`
+              ).join('\n')}`;
+              
+              showValidationMessage('warning', warningMessage);
+              
+              // Still redirect after showing warning
+              setTimeout(() => {
+                router.push('/fabrics');
+              }, 3000); // Give more time to read the warning
             } else {
-              showValidationMessage('error', updateData.message || 'Update failed');
+              // Reset validation states on success
+              setErrors({});
+              setIsQualityCodeValid(false);
+              setQualityCodeCache({}); // Clear cache on successful submission
+              showValidationMessage('success', 'Fabric updated successfully!');
+              setTimeout(() => {
+                router.push('/fabrics');
+              }, 1000);
+                }
+            }
+          } else {
+            showValidationMessage('error', updateData.message || 'Update failed');
             }
           }
         } catch (error) {
@@ -1016,19 +987,19 @@ export default function CreateFabricPage() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-4 sm:py-6 lg:h-20 space-y-4 sm:space-y-0">
               <div className="flex items-center space-x-3 sm:space-x-6">
                 <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl animate-pulse ${
-                  isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                  isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
                 }`}></div>
                 <div className="space-y-2">
                   <div className={`w-32 sm:w-48 h-6 sm:h-8 rounded-lg animate-pulse ${
-                    isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                    isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
                   }`}></div>
                   <div className={`w-48 sm:w-64 h-4 sm:h-5 rounded animate-pulse ${
-                    isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                    isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
                   }`}></div>
                 </div>
               </div>
               <div className={`w-24 h-10 sm:w-28 sm:h-12 rounded-xl animate-pulse ${
-                isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
               }`}></div>
             </div>
           </div>
@@ -1039,20 +1010,20 @@ export default function CreateFabricPage() {
             {/* Form skeleton */}
             <div className="space-y-4 sm:space-y-6">
               <div className={`w-full h-12 sm:h-14 rounded-xl animate-pulse ${
-                isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
               }`}></div>
               <div className={`w-full h-12 sm:h-14 rounded-xl animate-pulse ${
-                isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
               }`}></div>
               <div className={`w-full h-12 sm:h-14 rounded-xl animate-pulse ${
-                isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
               }`}></div>
             </div>
             
             {/* Items skeleton */}
             <div className="space-y-4 sm:space-y-6">
               <div className={`w-32 h-8 rounded-lg animate-pulse ${
-                isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
               }`}></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {[1, 2, 3].map((i) => (
@@ -1061,13 +1032,13 @@ export default function CreateFabricPage() {
                   }`}>
                     <div className="space-y-3 sm:space-y-4">
                       <div className={`w-full h-10 rounded-lg animate-pulse ${
-                        isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                        isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
                       }`}></div>
                       <div className={`w-full h-10 rounded-lg animate-pulse ${
-                        isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                        isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
                       }`}></div>
                       <div className={`w-full h-10 rounded-lg animate-pulse ${
-                        isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                        isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
                       }`}></div>
                     </div>
                   </div>
@@ -1081,7 +1052,7 @@ export default function CreateFabricPage() {
   }
 
   return (
-    <div className={`min-h-screen rounded-2xl transition-all duration-300 animate-in fade-in-0 ${
+    <div className={`min-h-screen rounded-2xl transition-all duration-500 ease-out animate-in fade-in-0 slide-in-from-bottom-2 ${
             isDarkMode 
         ? 'text-white bg-gray-900' 
         : 'text-gray-900 bg-gray-50'
@@ -1259,7 +1230,7 @@ export default function CreateFabricPage() {
                 <span className={`text-base sm:text-lg font-semibold transition-colors duration-300 ${
                   isDarkMode ? 'text-white' : 'text-gray-900'
                 }`}>
-                  {formData.items.length} Item{formData.items.length !== 1 ? 's' : ''}
+                  {formData.items.length} Weaver{formData.items.length !== 1 ? 's' : ''}
                 </span>
               </div>
             </div>
@@ -1291,7 +1262,7 @@ export default function CreateFabricPage() {
                   <div 
                     className="bg-blue-500 h-2 rounded-full transition-all duration-1000" 
                     style={{ 
-                      width: timeoutCountdown > 0 ? `${(timeoutCountdown / 15) * 100}%` : '100%' 
+                      width: timeoutCountdown > 0 ? `${(timeoutCountdown / 30) * 100}%` : '100%' 
                     }}
                   ></div>
                 </div>
@@ -1305,45 +1276,45 @@ export default function CreateFabricPage() {
            
            
           {/* Shared Fabric Information */}
-          <div className={`p-3 sm:p-4 lg:p-6 rounded-xl border mb-4 sm:mb-6 lg:mb-8 transition-all duration-300 animate-in fade-in-0 slide-in-from-top-4 delay-200 ${
+          <div className={`p-3 sm:p-4 lg:p-6 rounded-xl border mb-4 sm:mb-6 lg:mb-8 transition-all duration-500 ease-out animate-in fade-in-0 slide-in-from-top-4 delay-200 ${
             isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
           }`}>
-            <h3 className="text-base sm:text-lg font-semibold mb-4 sm:mb-6">Shared Information</h3>
+                            <h3 className="text-base sm:text-lg font-semibold mb-4 sm:mb-6">Quality Information</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
               {/* Quality Code */}
               <div>
                 <label className="block text-xs sm:text-sm font-medium mb-2">
-                  Quality Code <span className="text-red-500">*</span>
+                   Quality Code <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.items[0]?.qualityCode || ''}
-                    onChange={(e) => {
-                      handleSharedFieldChange('qualityCode', e.target.value);
-                    }}
-                    onBlur={(e) => {
-                      if (e.target.value.trim()) {
-                        checkQualityCodeExists(e.target.value);
-                      } else {
-                        // Clear error if field is empty
-                        setErrors(prev => ({ ...prev, qualityCode: '' }));
-                      }
-                    }}
-                    placeholder="e.g., 1001-WL"
-                    disabled={isEditMode && loading}
+                <input
+                  type="text"
+                  value={formData.items[0]?.qualityCode || ''}
+                  onChange={(e) => {
+                    handleSharedFieldChange('qualityCode', e.target.value);
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value.trim()) {
+                      checkQualityCodeExists(e.target.value);
+                    } else {
+                      // Clear error if field is empty
+                      setErrors(prev => ({ ...prev, qualityCode: '' }));
+                    }
+                  }}
+                  placeholder="e.g., 1001-WL"
+                  disabled={isEditMode && loading}
                     className={`w-full p-2 sm:p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-sm sm:text-base ${
-                      errors.qualityCode 
-                        ? 'border-red-500 focus:ring-red-400' 
-                        : isQualityCodeValid 
-                          ? 'border-green-500 focus:ring-green-400' 
-                          : ''
-                    } ${isEditMode && loading ? 'opacity-50 cursor-not-allowed' : ''} ${
-                      isDarkMode 
-                        ? 'bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 hover:border-gray-400'
-                    }`}
-                  />
+                    errors.qualityCode 
+                      ? 'border-red-500 focus:ring-red-400' 
+                      : isQualityCodeValid 
+                        ? 'border-green-500 focus:ring-green-400' 
+                        : ''
+                  } ${isEditMode && loading ? 'opacity-50 cursor-not-allowed' : ''} ${
+                    isDarkMode 
+                      ? 'bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400' 
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 hover:border-gray-400'
+                  }`}
+                />
                   {/* Clear button for Quality Code */}
                   {formData.items[0]?.qualityCode && (
                     <button
@@ -1379,29 +1350,29 @@ export default function CreateFabricPage() {
                     </div>
                   )}
                 </div>
-                {errors.qualityCode && (
-                  <div className="mt-2 p-2 sm:p-3 bg-red-900/20 border border-red-500/30 rounded-lg animate-in slide-in-from-top-2">
-                    <p className="text-red-400 text-xs sm:text-sm flex items-center">
-                      <XMarkIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
-                      <span className="flex-1">{errors.qualityCode}</span>
-                    </p>
-                  </div>
-                )}
-                {!isEditMode && (
-                  <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                    Quality code will be checked for uniqueness. Multiple items can share the same quality code.
-                  </p>
-                )}
-                {isQualityCodeValid && !isEditMode && (
-                  <div className="mt-2 p-2 sm:p-3 bg-green-900/20 border border-green-500/30 rounded-lg animate-in slide-in-from-top-2">
-                    <p className="text-green-400 text-xs sm:text-sm flex items-center">
-                      <svg className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="flex-1">Quality code is available and unique!</span>
-                    </p>
-                  </div>
-                )}
+                 {errors.qualityCode && (
+                   <div className="mt-2 p-2 sm:p-3 bg-red-900/20 border border-red-500/30 rounded-lg animate-in slide-in-from-top-2">
+                     <p className="text-red-400 text-xs sm:text-sm flex items-center">
+                       <XMarkIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                       <span className="flex-1">{errors.qualityCode}</span>
+                     </p>
+                   </div>
+                 )}
+                 {!isEditMode && (
+                   <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                     Quality code will be checked for uniqueness. Multiple items can share the same quality code.
+                   </p>
+                 )}
+                 {isQualityCodeValid && !isEditMode && (
+                   <div className="mt-2 p-2 sm:p-3 bg-green-900/20 border border-green-500/30 rounded-lg animate-in slide-in-from-top-2">
+                     <p className="text-green-400 text-xs sm:text-sm flex items-center">
+                       <svg className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                       </svg>
+                       <span className="flex-1">Quality code is available and unique!</span>
+                     </p>
+                   </div>
+                 )}
               </div>
 
               {/* Quality Name */}
@@ -1410,17 +1381,17 @@ export default function CreateFabricPage() {
                    Quality Name <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.items[0]?.qualityName || ''}
-                    onChange={(e) => handleSharedFieldChange('qualityName', e.target.value)}
-                    placeholder="Enter quality name"
+                <input
+                  type="text"
+                  value={formData.items[0]?.qualityName || ''}
+                  onChange={(e) => handleSharedFieldChange('qualityName', e.target.value)}
+                  placeholder="Enter quality name"
                     className={`w-full p-3 pr-10 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      isDarkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                     } ${errors.qualityName ? 'border-red-500' : ''}`}
-                   />
+                    isDarkMode 
+                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                   } ${errors.qualityName ? 'border-red-500' : ''}`}
+                 />
                    {/* Clear button for Quality Name */}
                    {formData.items[0]?.qualityName && (
                      <button
@@ -1630,35 +1601,52 @@ export default function CreateFabricPage() {
           <div className="space-y-8">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <h3 className="text-xl font-semibold">Fabric Items</h3>
+                <h3 className="text-xl font-semibold">Weaver Information</h3>
                 
                 {/* Short Code Dropdown - Shows Item Count and Quick Navigation */}
                 {formData.items.length > 1 && (
-                  <div className="relative group">
-                    <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg border cursor-pointer transition-all duration-200 hover:scale-105 ${
+                  <div className="relative dropdown-container">
+                    <button
+                      type="button"
+                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                      className={`flex items-center space-x-2 px-3 py-2 rounded-lg border cursor-pointer transition-all duration-200 hover:scale-105 ${
                       isDarkMode 
                         ? 'bg-gray-700 border-gray-600 text-gray-200 hover:border-blue-500 hover:bg-gray-600' 
                         : 'bg-white border-gray-300 text-gray-700 hover:border-blue-500 hover:bg-gray-50'
-                    }`}>
+                      }`}
+                    >
                       <span className="text-sm font-medium">
-                        📦 {formData.items.length} Item{formData.items.length > 1 ? 's' : ''}
+                        📦 {formData.items.length} Weaver{formData.items.length > 1 ? 's' : ''}
                       </span>
-                      <ChevronDownIcon className="h-4 w-4 transition-transform group-hover:rotate-180" />
-                    </div>
+                      <ChevronDownIcon className={`h-4 w-4 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
                     
                     {/* Dropdown Menu */}
-                    <div className={`absolute top-full left-0 mt-2 w-48 border rounded-lg shadow-xl z-50 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 ${
+                    {isDropdownOpen && (
+                      <div className={`absolute top-full left-0 mt-2 w-48 border rounded-lg shadow-xl z-50 transition-all duration-200 ${
                       isDarkMode 
                         ? 'bg-gray-800 border-gray-600' 
                         : 'bg-white border-gray-200'
                     }`}>
                       <div className="py-2">
-                        <div className={`px-3 py-2 text-xs font-medium border-b ${
+                          <div className={`px-3 py-2 text-xs font-medium border-b flex items-center justify-between ${
                           isDarkMode 
                             ? 'text-gray-400 border-gray-600' 
                             : 'text-gray-500 border-gray-100'
                         }`}>
-                          Quick Navigation
+                            <span>Quick Navigation</span>
+                            <button
+                              type="button"
+                              onClick={() => setIsDropdownOpen(false)}
+                              className={`p-1 rounded-full transition-colors ${
+                                isDarkMode 
+                                  ? 'text-gray-400 hover:text-white hover:bg-gray-700' 
+                                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                              }`}
+                              title="Close dropdown"
+                            >
+                              <XMarkIcon className="h-3 w-3" />
+                            </button>
                         </div>
                         {formData.items.map((_, index) => (
                           <button
@@ -1678,6 +1666,7 @@ export default function CreateFabricPage() {
                                   itemElement.classList.remove('ring-2', 'ring-blue-500', 'ring-opacity-50');
                                 }, 2000);
                               }
+                                // Keep dropdown open after clicking
                             }}
                             className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center space-x-2 ${
                               isDarkMode 
@@ -1688,11 +1677,12 @@ export default function CreateFabricPage() {
                             <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs font-medium flex items-center justify-center">
                               {index + 1}
                             </span>
-                            <span>Item {index + 1}</span>
+                              <span>Weaver {index + 1}</span>
                           </button>
                         ))}
                       </div>
                     </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1709,7 +1699,7 @@ export default function CreateFabricPage() {
                 }`}
               >
                 <div className="flex items-center justify-between mb-4 sm:mb-6">
-                  <h4 className="text-base sm:text-lg font-semibold">Item {index + 1}</h4>
+                  <h4 className="text-base sm:text-lg font-semibold">Weaver {index + 1}</h4>
                   {formData.items.length > 1 && (
                     <button
                       type="button"
@@ -1729,20 +1719,20 @@ export default function CreateFabricPage() {
                   {/* Weaver */}
                   <div>
                     <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">
-                       Weaver <span className="text-red-500">*</span>
+                                               Weaver Name <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
-                      <input
-                        type="text"
-                        value={item.weaver}
-                        onChange={(e) => handleItemChange(index, 'weaver', e.target.value)}
-                        placeholder="Enter weaver name"
+                    <input
+                      type="text"
+                      value={item.weaver}
+                      onChange={(e) => handleItemChange(index, 'weaver', e.target.value)}
+                      placeholder="Enter weaver name"
                         className={`w-full p-2.5 sm:p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 ${errors[`items.${index}.weaver`] ? 'border-red-500 focus:ring-red-400' : ''} ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 hover:border-gray-400'
-                        }`}
-                      />
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 hover:border-gray-400'
+                      }`}
+                    />
                       {/* Clear button for Weaver */}
                       {item.weaver && (
                         <button
@@ -1770,21 +1760,21 @@ export default function CreateFabricPage() {
                       Weaver Quality Name <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
-                      <input
-                        type="text"
-                        value={item.weaverQualityName}
-                        onChange={(e) => handleItemChange(index, 'weaverQualityName', e.target.value)}
-                        placeholder="Enter weaver quality name"
+                    <input
+                      type="text"
+                      value={item.weaverQualityName}
+                      onChange={(e) => handleItemChange(index, 'weaverQualityName', e.target.value)}
+                      placeholder="Enter weaver quality name"
                         className={`w-full p-3 pr-10 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          errors[`items.${index}.weaverQualityName`] 
-                            ? 'border-red-500 focus:ring-red-400' 
-                            : ''
-                        } ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
+                        errors[`items.${index}.weaverQualityName`] 
+                          ? 'border-red-500 focus:ring-red-400' 
+                          : ''
+                      } ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                       {/* Clear button for Weaver Quality Name */}
                       {item.weaverQualityName && (
                         <button
@@ -1812,17 +1802,17 @@ export default function CreateFabricPage() {
                       Greigh Width (inches)
                     </label>
                     <div className="relative">
-                      <input
-                        type="text"
-                        value={item.greighWidth}
-                        onChange={(e) => handleItemChange(index, 'greighWidth', e.target.value)}
-                        placeholder="e.g., 58.5"
+                    <input
+                      type="text"
+                      value={item.greighWidth}
+                      onChange={(e) => handleItemChange(index, 'greighWidth', e.target.value)}
+                      placeholder="e.g., 58.5"
                         className={`w-full p-3 pr-10 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                       {/* Clear button for Greigh Width */}
                       {item.greighWidth && (
                         <button
@@ -1847,17 +1837,17 @@ export default function CreateFabricPage() {
                       Finish Width (inches)
                     </label>
                     <div className="relative">
-                      <input
-                        type="text"
-                        value={item.finishWidth}
-                        onChange={(e) => handleItemChange(index, 'finishWidth', e.target.value)}
-                        placeholder="e.g., 56.0"
+                    <input
+                      type="text"
+                      value={item.finishWidth}
+                      onChange={(e) => handleItemChange(index, 'finishWidth', e.target.value)}
+                      placeholder="e.g., 56.0"
                         className={`w-full p-3 pr-10 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                       {/* Clear button for Finish Width */}
                       {item.finishWidth && (
                         <button
@@ -1882,17 +1872,17 @@ export default function CreateFabricPage() {
                       Weight (KG)
                     </label>
                     <div className="relative">
-                      <input
-                        type="text"
-                        value={item.weight}
-                        onChange={(e) => handleItemChange(index, 'weight', e.target.value)}
-                        placeholder="e.g., 8.0"
+                    <input
+                      type="text"
+                      value={item.weight}
+                      onChange={(e) => handleItemChange(index, 'weight', e.target.value)}
+                      placeholder="e.g., 8.0"
                         className={`w-full p-3 pr-10 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                       {/* Clear button for Weight */}
                       {item.weight && (
                         <button
@@ -1917,17 +1907,17 @@ export default function CreateFabricPage() {
                       GSM
                     </label>
                     <div className="relative">
-                      <input
-                        type="text"
-                        value={item.gsm}
-                        onChange={(e) => handleItemChange(index, 'gsm', e.target.value)}
-                        placeholder="e.g., 72.5"
+                    <input
+                      type="text"
+                      value={item.gsm}
+                      onChange={(e) => handleItemChange(index, 'gsm', e.target.value)}
+                      placeholder="e.g., 72.5"
                         className={`w-full p-3 pr-10 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                       {/* Clear button for GSM */}
                       {item.gsm && (
                         <button
@@ -1952,17 +1942,17 @@ export default function CreateFabricPage() {
                       Danier
                     </label>
                     <div className="relative">
-                      <input
-                        type="text"
-                        value={item.danier}
-                        onChange={(e) => handleItemChange(index, 'danier', e.target.value)}
-                        placeholder="e.g., 55*22D"
+                    <input
+                      type="text"
+                      value={item.danier}
+                      onChange={(e) => handleItemChange(index, 'danier', e.target.value)}
+                      placeholder="e.g., 55*22D"
                         className={`w-full p-3 pr-10 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                       {/* Clear button for Danier */}
                       {item.danier && (
                         <button
@@ -1987,17 +1977,17 @@ export default function CreateFabricPage() {
                       Reed
                     </label>
                     <div className="relative">
-                      <input
-                        type="text"
-                        value={item.reed}
-                        onChange={(e) => handleItemChange(index, 'reed', e.target.value)}
-                        placeholder="e.g., 120"
+                    <input
+                      type="text"
+                      value={item.reed}
+                      onChange={(e) => handleItemChange(index, 'reed', e.target.value)}
+                      placeholder="e.g., 120"
                         className={`w-full p-3 pr-10 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                       {/* Clear button for Reed */}
                       {item.reed && (
                         <button
@@ -2022,17 +2012,17 @@ export default function CreateFabricPage() {
                       Pick
                     </label>
                     <div className="relative">
-                      <input
-                        type="text"
-                        value={item.pick}
-                        onChange={(e) => handleItemChange(index, 'pick', e.target.value)}
-                        placeholder="e.g., 80"
+                    <input
+                      type="text"
+                      value={item.pick}
+                      onChange={(e) => handleItemChange(index, 'pick', e.target.value)}
+                      placeholder="e.g., 80"
                         className={`w-full p-3 pr-10 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                       {/* Clear button for Pick */}
                       {item.pick && (
                         <button
@@ -2057,17 +2047,17 @@ export default function CreateFabricPage() {
                       Greigh Rate (₹)
                     </label>
                     <div className="relative">
-                      <input
-                        type="text"
-                        value={item.greighRate}
-                        onChange={(e) => handleItemChange(index, 'greighRate', e.target.value)}
-                        placeholder="e.g., 150.00"
+                    <input
+                      type="text"
+                      value={item.greighRate}
+                      onChange={(e) => handleItemChange(index, 'greighRate', e.target.value)}
+                      placeholder="e.g., 150.00"
                         className={`w-full p-3 pr-10 rounded-lg border transition-colors focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        }`}
-                      />
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
                       {/* Clear button for Greigh Rate */}
                       {item.greighRate && (
                         <button
@@ -2103,7 +2093,7 @@ export default function CreateFabricPage() {
 
             >
               <PlusIcon className="h-6 w-6 group-hover:scale-110 transition-transform" />
-              <span className="text-lg font-medium">Add Another Item</span>
+                              <span className="text-lg font-medium">Add Another Weaver</span>
               </button>
           </div>
 
@@ -2114,21 +2104,21 @@ export default function CreateFabricPage() {
               <button
                 type="button"
                 onClick={() => {
-                  // Reset to different sample data for testing
+                  // Reset to empty fields
                   setFormData({
                     items: [{
-                      qualityCode: '9999',
-                      qualityName: 'Sample Quality',
-                      weaver: 'Test Weaver',
-                      weaverQualityName: 'Test Quality',
-                      greighWidth: '60.0',
-                      finishWidth: '58.0',
-                      weight: '25.5',
-                      gsm: '75.0',
-                      danier: '40*20D',
-                      reed: '100',
-                      pick: '60',
-                      greighRate: '200.00',
+                      qualityCode: '',
+                      qualityName: '',
+                      weaver: '',
+                      weaverQualityName: '',
+                      greighWidth: '',
+                      finishWidth: '',
+                      weight: '',
+                      gsm: '',
+                      danier: '',
+                      reed: '',
+                      pick: '',
+                      greighRate: '',
                       images: []
                     }]
                   });
@@ -2136,7 +2126,7 @@ export default function CreateFabricPage() {
                   setErrors({});
                   setIsQualityCodeValid(false);
                   setQualityCodeCache({});
-                  showValidationMessage('info', 'Form reset with new sample data');
+                  showValidationMessage('info', 'Form reset to empty fields');
                 }}
                 className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg border transition-colors text-sm sm:text-base ${
                   isDarkMode 

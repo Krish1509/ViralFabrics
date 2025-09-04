@@ -32,6 +32,7 @@ export default function FabricsPage() {
   const [showDetails, setShowDetails] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [selectedFabric, setSelectedFabric] = useState<Fabric | null>(null);
+  const [selectedFabricGroup, setSelectedFabricGroup] = useState<Fabric[]>([]);
   const [deletingFabric, setDeletingFabric] = useState<Fabric | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteDependencies, setDeleteDependencies] = useState<string[]>([]);
@@ -64,8 +65,8 @@ export default function FabricsPage() {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(5);
-  const itemsPerPageOptions = [5, 10, 50, 100, 'All'] as const;
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(50);
+  const itemsPerPageOptions = [10, 50, 100, 'All'] as const;
   
   // Enhanced UI states
   const [viewMode, setViewMode] = useState<'table' | 'cards'>(() => {
@@ -94,7 +95,7 @@ export default function FabricsPage() {
       setViewMode(savedViewMode);
     }
   }, []);
-
+  
   // Auto-switch view mode based on screen size (only on mount and resize, not on manual changes)
   useEffect(() => {
     const handleResize = () => {
@@ -375,8 +376,15 @@ export default function FabricsPage() {
   };
 
   const handleView = (fabric: Fabric) => {
+    // Find all fabrics with the same quality code
+    const allFabricsInGroup = fabrics.filter(f => f.qualityCode === fabric.qualityCode);
+    
+    // Set the selected fabric and show details
     setSelectedFabric(fabric);
     setShowDetails(true);
+    
+    // Store the group for FabricDetails component
+    setSelectedFabricGroup(allFabricsInGroup);
   };
 
   const handleDelete = async (fabric: Fabric) => {
@@ -1110,12 +1118,12 @@ export default function FabricsPage() {
 
 
               {/* Search and View Controls */}
-       <div className={`mb-3 sm:mb-4 lg:mb-6 p-2.5 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl border ${
+       <div className={`mb-3 sm:mb-4 lg:mb-6 p-3 sm:p-4 lg:p-5 rounded-lg sm:rounded-xl border ${
          isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
        } shadow-lg`}>
-                  <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col space-y-5 sm:flex-row sm:items-start sm:justify-between">
           {/* Top row - Search Bar */}
-          <div className="flex-1 w-full mr-3 sm:mr-5 lg:mr-5 ">
+          <div className="flex-1 w-full mr-3 sm:mr-5 lg:mr-5">
             <div className="relative">
               <MagnifyingGlassIcon className={`absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 ${
                 isDarkMode ? 'text-gray-400' : 'text-gray-500'
@@ -1145,7 +1153,7 @@ export default function FabricsPage() {
           </div>
 
            {/* Bottom row - Controls Grid for small screens */}
-          <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:items-center sm:space-x-3 lg:space-x-4 xl:space-x-6 gap-2 sm:gap-0 ml-2 sm:ml-3 lg:ml-4">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:items-center sm:space-x-3 lg:space-x-4 xl:space-x-6 gap-2 sm:gap-0 ml-2 sm:ml-3 lg:ml-4 mt-1">
             {/* Sort Controls */}
             <div className="flex items-center justify-center sm:justify-start space-x-1.5 sm:space-x-2">
              <span className={`text-xs sm:text-sm font-medium ${
@@ -1407,8 +1415,8 @@ export default function FabricsPage() {
                 }`}>
                   {[1, 2, 3, 4, 5].map((row) => (
                     <tr key={row} className={`hover:${
-                      isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
-                    } transition-colors duration-200`}>
+                      isDarkMode ? 'bg-gray-700/30' : 'bg-gray-100/80'
+                    } transition-all duration-300 ease-in-out`}>
                           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((cell) => (
                         <td key={cell} className="px-6 py-4">
                           <div className={`w-24 h-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
@@ -1475,10 +1483,10 @@ export default function FabricsPage() {
             }`}>
               <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:space-x-3 lg:space-x-4">
                 <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <span className="hidden sm:inline">Showing {totalQualityGroups > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? totalQualityGroups : itemsPerPage) + 1 : 0} to{' '}
-                  {Math.min(currentPage * (itemsPerPage === 'All' ? totalQualityGroups : itemsPerPage), totalQualityGroups)} of{' '}
-                  {totalQualityGroups} quality groups</span>
-                  <span className="sm:hidden">{totalQualityGroups > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? totalQualityGroups : itemsPerPage) + 1 : 0}-{Math.min(currentPage * (itemsPerPage === 'All' ? totalQualityGroups : itemsPerPage), totalQualityGroups)} of {totalQualityGroups}</span>
+                  <span className="hidden sm:inline">Showing {filteredAndSortedFabrics.length > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? filteredAndSortedFabrics.length : itemsPerPage) + 1 : 0} to{' '}
+                  {Math.min(currentPage * (itemsPerPage === 'All' ? filteredAndSortedFabrics.length : itemsPerPage), filteredAndSortedFabrics.length)} of{' '}
+                  {filteredAndSortedFabrics.length} fabrics</span>
+                  <span className="sm:hidden">{filteredAndSortedFabrics.length > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? filteredAndSortedFabrics.length : itemsPerPage) + 1 : 0}-{Math.min(currentPage * (itemsPerPage === 'All' ? filteredAndSortedFabrics.length : itemsPerPage), filteredAndSortedFabrics.length)} of {filteredAndSortedFabrics.length}</span>
                 </span>
                 
                 {/* Items per page dropdown */}
@@ -1598,16 +1606,39 @@ export default function FabricsPage() {
                     
                     return (
                       <div key={qualityCode} className={`rounded-lg sm:rounded-xl border ${
-                        isDarkMode ? 'bg-blue-900/30 border-blue-600' : 'bg-blue-50 border-blue-300'
+                        isDarkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-blue-50 border-blue-300'
                       }`}>
-                        {/* Image Section - Responsive */}
+                        {/* Image Section - Responsive with Touch Support */}
                         <div className="relative h-28 sm:h-32 md:h-36 lg:h-40 xl:h-48 overflow-hidden rounded-t-lg sm:rounded-t-xl group">
                           {mainFabric.images && mainFabric.images.length > 0 ? (
-                            <div className="relative w-full h-full">
+                            <div 
+                              className="relative w-full h-full"
+                              onTouchStart={(e) => {
+                                const touch = e.touches[0];
+                                const target = e.currentTarget as HTMLElement;
+                                target.dataset.touchStartX = touch.clientX.toString();
+                              }}
+                              onTouchEnd={(e) => {
+                                const target = e.currentTarget as HTMLElement;
+                                const startX = parseInt(target.dataset.touchStartX || '0');
+                                const endX = e.changedTouches[0].clientX;
+                                const distance = startX - endX;
+                                
+                                if (Math.abs(distance) > 50) { // Minimum swipe distance
+                                  if (distance > 0 && mainFabric.images.length > 1) {
+                                    // Swipe left - next image
+                                    handleCardImageNavigation(qualityCode, 'next');
+                                  } else if (distance < 0 && mainFabric.images.length > 1) {
+                                    // Swipe right - previous image
+                                    handleCardImageNavigation(qualityCode, 'prev');
+                                  }
+                                }
+                              }}
+                            >
                               <img 
                                 src={getCurrentCardImage(mainFabric, qualityCode) || mainFabric.images[0]} 
                                 alt="Fabric"
-                                className="w-full h-full object-cover cursor-pointer transition-transform duration-200 hover:scale-105"
+                                className="w-full h-full object-cover cursor-pointer transition-transform duration-200 hover:scale-105 select-none"
                                 onClick={() => handleImageClick(mainFabric, cardImageIndices[qualityCode] || 0)}
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
@@ -1625,6 +1656,17 @@ export default function FabricsPage() {
                                   isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                 }`} />
                               </div>
+                              
+                              {/* Touch hint for mobile */}
+                              {mainFabric.images.length > 1 && (
+                                <div className={`absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 rounded-full text-xs font-medium ${
+                                  isDarkMode 
+                                    ? 'bg-gray-800/80 text-gray-300 border border-gray-600' 
+                                    : 'bg-white/90 text-gray-600 border border-gray-200'
+                                } shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200`}>
+                                  ← Swipe →
+                                </div>
+                              )}
                               
                               {/* Navigation buttons for multiple images */}
                               {mainFabric.images.length > 1 && (
@@ -1701,7 +1743,7 @@ export default function FabricsPage() {
                                 ? 'bg-green-600 text-white' 
                                 : 'bg-green-100 text-green-800 border border-green-200'
                             }`}>
-                              <span className="hidden sm:inline">{fabrics.length} item{fabrics.length !== 1 ? 's' : ''}</span>
+                              <span className="hidden sm:inline">{fabrics.length} weaver{fabrics.length !== 1 ? 's' : ''}</span>
                               <span className="sm:hidden">{fabrics.length}</span>
                             </span>
                           </div>
@@ -1714,7 +1756,7 @@ export default function FabricsPage() {
                             <div className={`text-xs sm:text-sm mb-1 ${
                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
                             }`}>
-                              <span className="font-medium">Code:</span>
+                              <span className="font-medium">Quality Code:</span>
                               <span className={`ml-1 font-bold ${
                                 isDarkMode ? 'text-blue-400' : 'text-blue-600'
                               }`}>
@@ -1724,7 +1766,7 @@ export default function FabricsPage() {
                             <div className={`text-xs sm:text-sm ${
                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
                             }`}>
-                              <span className="font-medium">Name:</span>
+                              <span className="font-medium">Quality Name:</span>
                               <span className="ml-1">{mainFabric.qualityName}</span>
                             </div>
                           </div>
@@ -1739,7 +1781,7 @@ export default function FabricsPage() {
                               <h4 className={`text-xs sm:text-sm font-semibold mb-1 sm:mb-1.5 flex items-center justify-between ${
                                 isDarkMode ? 'text-gray-300' : 'text-gray-700'
                               }`}>
-                                <span>Items ({fabrics.length})</span>
+                                <span>Weavers ({fabrics.length})</span>
                               </h4>
                               
                               {/* Show items based on expansion state */}
@@ -1747,7 +1789,7 @@ export default function FabricsPage() {
                                 {itemsToShow.map((fabric, index) => (
                                   <div key={fabric._id} className={`p-2 sm:p-2.5 lg:p-3 rounded-lg border ${
                                     isDarkMode 
-                                      ? 'bg-gray-800/40 border-gray-600/40 hover:bg-gray-800/60' 
+                                      ? 'bg-gray-800/40 border-gray-600/40 hover:bg-gray-700/70' 
                                       : 'bg-white border-gray-200 hover:bg-gray-50'
                                   } transition-colors duration-200`}>
                                     {/* Item Header */}
@@ -1758,11 +1800,20 @@ export default function FabricsPage() {
                                         }`}>
                                           #{index + 1}
                                         </span>
-                                        <span className={`text-base sm:text-lg font-bold ${
-                                          isDarkMode ? 'text-green-400' : 'text-green-600'
+                                        <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                          <span className="text-sm sm:text-base">Rate:</span>
+                                          <span className={`ml-1 font-bold text-sm sm:text-base ${
+                                            fabric.greighRate > 0 
+                                              ? isDarkMode 
+                                                ? 'text-green-400' 
+                                                : 'text-green-600'
+                                              : isDarkMode 
+                                                ? 'text-red-400' 
+                                                : 'text-red-600'
                                         }`}>
                                           {fabric.greighRate > 0 ? `₹${fabric.greighRate}` : '-'}
                                         </span>
+                                        </div>
                                       </div>
                                       <button
                                         onClick={() => handleDelete(fabric)}
@@ -1771,67 +1822,96 @@ export default function FabricsPage() {
                                             ? 'text-red-400 hover:bg-red-900/20' 
                                             : 'text-red-600 hover:bg-red-50'
                                         }`}
-                                        title={`Delete Item ${index + 1}`}
+                                        title={`Delete Weaver ${index + 1}`}
                                       >
                                         <TrashIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                       </button>
                                     </div>
                                     
                                     {/* Item Details Grid */}
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 text-xs sm:text-sm">
-                                      <div className="space-y-0.5 sm:space-y-1">
-                                        <span className={`text-xs font-medium uppercase tracking-wide ${
-                                          isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                        }`}>Weaver</span>
-                                        <div className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 text-sm sm:text-base">
+                                      <div className="space-y-1">
+                                        <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                          Weaver Name:
+                                        </div>
+                                        <div className={`font-bold ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>
                                           {fabric.weaver}
                                         </div>
                                       </div>
                                       
-                                      <div className="space-y-0.5 sm:space-y-1">
-                                        <span className={`text-xs font-medium uppercase tracking-wide ${
-                                          isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                        }`}>Weight</span>
-                                        <div className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                          {fabric.weight > 0 ? `${fabric.weight}kg` : '-'}
+                                      <div className="space-y-1">
+                                        <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                          Weaver Quality Name:
+                                        </div>
+                                        <div className={`font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-600'}`}>
+                                          {fabric.weaverQualityName || '-'}
                                         </div>
                                       </div>
                                       
-                                      <div className="space-y-0.5 sm:space-y-1">
-                                        <span className={`text-xs font-medium uppercase tracking-wide ${
-                                          isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                        }`}>GSM</span>
-                                        <div className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                      <div className="space-y-1">
+                                        <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                          Greigh Width:
+                                        </div>
+                                        <div className={`font-bold ${isDarkMode ? 'text-green-300' : 'text-green-600'}`}>
+                                          {fabric.greighWidth > 0 ? fabric.greighWidth : '-'}
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="space-y-1">
+                                        <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                          Finish:
+                                        </div>
+                                        <div className={`font-bold ${isDarkMode ? 'text-teal-300' : 'text-teal-600'}`}>
+                                          {fabric.finishWidth > 0 ? `${fabric.finishWidth}"` : '-'}
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="space-y-1">
+                                        <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                          Weight:
+                                        </div>
+                                        <div className={`font-bold ${isDarkMode ? 'text-orange-300' : 'text-orange-600'}`}>
+                                          {fabric.weight > 0 ? `${fabric.weight} KG` : '-'}
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="space-y-1">
+                                        <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                          GSM:
+                                        </div>
+                                        <div className={`font-bold ${isDarkMode ? 'text-pink-300' : 'text-pink-600'}`}>
                                           {fabric.gsm > 0 ? fabric.gsm : '-'}
                                         </div>
                                       </div>
                                       
-                                      <div className="space-y-0.5 sm:space-y-1">
-                                        <span className={`text-xs font-medium uppercase tracking-wide ${
-                                          isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                        }`}>Reed</span>
-                                        <div className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                      <div className="space-y-1">
+                                        <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                          Danier:
+                                        </div>
+                                        <div className={`font-bold ${isDarkMode ? 'text-yellow-300' : 'text-yellow-600'}`}>
+                                          {fabric.danier || '-'}
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="space-y-1">
+                                        <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                          Reed:
+                                        </div>
+                                        <div className={`font-bold ${isDarkMode ? 'text-cyan-300' : 'text-cyan-600'}`}>
                                           {fabric.reed > 0 ? fabric.reed : '-'}
                                         </div>
                                       </div>
                                       
-                                      <div className="space-y-0.5 sm:space-y-1">
-                                        <span className={`text-xs font-medium uppercase tracking-wide ${
-                                          isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                        }`}>Pick</span>
-                                        <div className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                          {fabric.pick > 0 ? fabric.pick : '-'}
+                                      <div className="space-y-1">
+                                        <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                                          Pick:
                                         </div>
+                                        <div className={`font-bold ${isDarkMode ? 'text-rose-300' : 'text-rose-600'}`}>
+                                          {fabric.pick > 0 ? fabric.pick : '-'}
+                                      </div>
                                       </div>
                                       
-                                      <div className="space-y-0.5 sm:space-y-1">
-                                        <span className={`text-xs font-medium uppercase tracking-wide ${
-                                          isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                        }`}>Finish</span>
-                                        <div className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                          {fabric.finishWidth > 0 ? `${fabric.finishWidth}"` : '-'}
-                                        </div>
-                                      </div>
+
                                     </div>
                                   </div>
                                 ))}
@@ -1850,8 +1930,8 @@ export default function FabricsPage() {
                                       {isExpanded 
                                         ? 'Show Less' 
                                         : fabrics.length === 2 
-                                          ? 'View 1 more item'
-                                          : `View ${fabrics.length - 1} more items`
+                                                                                  ? 'View 1 more weaver'
+                                        : `View ${fabrics.length - 1} more weavers`
                                       }
                                     </span>
                                     <span className="hidden sm:inline lg:hidden">
@@ -1875,8 +1955,8 @@ export default function FabricsPage() {
                                       ? 'border-gray-700 text-gray-500' 
                                       : 'border-gray-200 text-gray-400'
                                   }`}>
-                                    <span className="hidden lg:inline">Only 1 item</span>
-                                    <span className="hidden sm:inline lg:hidden">Only 1 item</span>
+                                    <span className="hidden lg:inline">Only 1 weaver</span>
+                                    <span className="hidden sm:inline lg:hidden">Only 1 weaver</span>
                                     <span className="sm:hidden">1</span>
                                   </div>
                                 )}
@@ -1950,52 +2030,52 @@ export default function FabricsPage() {
                 }`}>
                   <tr>
                     <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black/50 bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Quality Information</span>
                       <span className="sm:hidden">Quality</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
                     }`}>
                       Images
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
                     }`}>
-                      Items
+                      Weavers
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Weaver Information</span>
                       <span className="sm:hidden">Weaver</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Dimensions</span>
                       <span className="sm:hidden">Size</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Specifications</span>
                       <span className="sm:hidden">Specs</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black  bg-blue-50'
                     }`}>
                       <span className="hidden sm:inline">Technical Details</span>
                       <span className="sm:hidden">Tech</span>
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
                     }`}>
                       Pricing
                     </th>
                     <th className={`px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 ${
-                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-blue-800 border-blue-400 bg-blue-50'
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
                     }`}>
                       Actions
                     </th>
@@ -2031,8 +2111,8 @@ export default function FabricsPage() {
                       
                       return (
                         <tr key={qualityCode} className={`hover:${
-                          isDarkMode ? 'bg-gray-700/30' : 'bg-gray-50'
-                        } transition-all duration-200 border-b ${
+                          isDarkMode ? 'bg-gray-700/40' : 'bg-gray-100/90'
+                        } transition-all duration-300 ease-in-out border-b ${
                           isDarkMode ? 'border-gray-600' : 'border-gray-300'
                         }`}>
                           {/* Quality Information */}
@@ -2043,7 +2123,7 @@ export default function FabricsPage() {
                               <div className="text-sm sm:text-base">
                                 <span className={`font-semibold ${
                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                                }`}>Code:</span>
+                                }`}>Quality Code:</span>
                                 <span className={`ml-1 sm:ml-2 font-bold text-base sm:text-lg ${
                                   isDarkMode ? 'text-blue-400' : 'text-blue-600'
                                 }`}>
@@ -2053,7 +2133,7 @@ export default function FabricsPage() {
                               <div className="text-sm sm:text-base">
                                 <span className={`font-semibold ${
                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                                }`}>Name:</span>
+                                }`}>Quality Name:</span>
                                 <span className={`ml-1 sm:ml-2 font-bold ${
                                   isDarkMode ? 'text-purple-300' : 'text-purple-600'
                                 }`}>
@@ -2076,7 +2156,7 @@ export default function FabricsPage() {
                               <div className="text-xs sm:text-sm">
                                 <span className={`font-medium ${
                                   isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                }`}>Items:</span>
+                                }`}>Weavers:</span>
                                 <span className={`ml-1 sm:ml-2 font-bold text-base sm:text-lg ${
                                   isDarkMode ? 'text-green-400' : 'text-green-600'
                                 }`}>
@@ -2142,7 +2222,7 @@ export default function FabricsPage() {
                             )}
                           </td>
                           
-                          {/* Items Column - Show Item 1, Item 2 labels */}
+                          {/* Weavers Column - Show Weaver 1, Weaver 2 labels */}
                           <td className={`px-2 sm:px-3 lg:px-4 py-2 sm:py-3 ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-900'
                           }`}>
@@ -2154,7 +2234,7 @@ export default function FabricsPage() {
                                                                   <div className={`text-sm sm:text-base font-bold ${
                                    isDarkMode ? 'text-blue-300' : 'text-blue-600'
                                   }`}>
-                                    Item {index + 1}
+                                    Weaver {index + 1}
                                   </div>
                                 </div>
                               ))}
@@ -2171,13 +2251,13 @@ export default function FabricsPage() {
                                     index > 0 ? `mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
                                   }`}>
                                    <div className={`mb-1.5 sm:mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                     <span className="hidden sm:inline">Weaver:</span>
-                                     <span className="sm:hidden">W:</span>
+                                     <span className="hidden sm:inline">Weaver Name:</span>
+                                     <span className="sm:hidden">WN:</span>
                                      <span className={`font-bold ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>{fabric.weaver}</span>
                                     </div>
                                    <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                     <span className="hidden sm:inline">Quality:</span>
-                                     <span className="sm:hidden">Q:</span>
+                                     <span className="hidden sm:inline">Weaver Quality Name:</span>
+                                     <span className="sm:hidden">WQ:</span>
                                      <span className={`font-bold ${isDarkMode ? 'text-purple-300' : 'text-purple-600'}`}>{fabric.weaverQualityName || '-'}</span>
                                   </div>
                                 </div>
@@ -2272,8 +2352,8 @@ export default function FabricsPage() {
                                     index > 0 ? `mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-dashed ${isDarkMode ? 'border-gray-500/60' : 'border-gray-400/60'}` : ''
                                    }`}>
                                   <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                                    <span className="hidden sm:inline">Price:</span>
-                                    <span className="sm:hidden">P:</span>
+                                    <span className="hidden sm:inline">Rate:</span>
+                                    <span className="sm:hidden">R:</span>
                                     <span className={`font-bold text-lg sm:text-xl ${
                                       fabric.greighRate > 0 
                                         ? isDarkMode 
@@ -2293,7 +2373,7 @@ export default function FabricsPage() {
                                         ? 'text-red-400 hover:text-red-300 hover:bg-red-900/20 border border-red-500/30' 
                                         : 'text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-300'
                                       }`}
-                                      title={`Delete Item ${index + 1}`}
+                                      title={`Delete Weaver ${index + 1}`}
                                     >
                                       <TrashIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                     </button>
@@ -2426,10 +2506,25 @@ export default function FabricsPage() {
       {showDetails && selectedFabric && (
         <FabricDetails
           fabric={selectedFabric}
+          allFabricsInGroup={selectedFabricGroup}
           onClose={() => setShowDetails(false)}
           onEdit={() => {
             setShowDetails(false);
             handleEdit(selectedFabric);
+          }}
+          onDelete={(fabric) => {
+            setShowDetails(false);
+            handleDelete(fabric);
+          }}
+          onBulkDelete={(fabrics) => {
+            setShowDetails(false);
+            const group = {
+              qualityCode: selectedFabric?.qualityCode || '',
+              qualityName: selectedFabric?.qualityName || '',
+              items: fabrics
+            };
+            setBulkDeleteGroup(group);
+            setShowBulkDeleteConfirmation(true);
           }}
         />
       )}
