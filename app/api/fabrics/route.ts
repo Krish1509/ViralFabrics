@@ -11,6 +11,8 @@ export async function GET(req: NextRequest) {
     const qualityName = searchParams.get('qualityName') || '';
     const weaver = searchParams.get('weaver') || '';
     const weaverQualityName = searchParams.get('weaverQualityName') || '';
+    const qualityCode = searchParams.get('qualityCode') || '';
+    const exact = searchParams.get('exact') === 'true';
     const limit = parseInt(searchParams.get('limit') || '50'); // Default limit for performance
     
     // Build query
@@ -36,6 +38,17 @@ export async function GET(req: NextRequest) {
     
     if (weaverQualityName) {
       query.weaverQualityName = weaverQualityName;
+    }
+    
+    // Handle exact quality code check
+    if (qualityCode) {
+      if (exact) {
+        // Exact match for quality code checking
+        query.qualityCode = qualityCode.trim();
+      } else {
+        // Partial match for search
+        query.qualityCode = { $regex: qualityCode, $options: 'i' };
+      }
     }
     
     // Optimized query with limits and timeout

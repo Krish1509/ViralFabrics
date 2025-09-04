@@ -121,7 +121,11 @@ export async function PUT(
       reed,
       pick,
       greighRate,
-      images
+      images,
+      updateAllItems,
+      allItems,
+      updateAllWithQualityCode,
+      originalQualityCode
     } = await req.json();
     
     // Basic validation for required fields
@@ -150,16 +154,108 @@ export async function PUT(
       }), { status: 400 });
     }
     
-    // For updates, we need to be more flexible with validation
-    // Since this is an edit operation, we should allow the user to change any field
-    // Only check for duplicates if the user is not changing the quality code/name
-    
     const currentFabric = await Fabric.findById(id);
     if (!currentFabric) {
       return new Response(JSON.stringify({ 
         success: false, 
         message: "Fabric not found" 
       }), { status: 404 });
+    }
+    
+         // Handle quality code change updates
+     if (updateAllWithQualityCode && originalQualityCode) {
+       console.log('Updating all items with quality code change from', originalQualityCode, 'to', qualityCode);
+       
+       // IMPORTANT: Check if the new quality code already exists
+       const existingFabricsWithNewQuality = await Fabric.find({
+         qualityCode: qualityCode.trim()
+       }).select('qualityName weaver weaverQualityName');
+       
+       if (existingFabricsWithNewQuality.length > 0) {
+         // Quality code already exists - prevent the change
+         console.log('Quality code change blocked - new code already exists');
+         return new Response(JSON.stringify({ 
+           success: false, 
+           message: `Quality code "${qualityCode.trim()}" already exists and cannot be used. Please choose a different quality code.`,
+           existingFabrics: existingFabricsWithNewQuality
+         }), { status: 400 });
+       }
+       
+       // Quality code is unique - proceed with update
+       console.log('Quality code is unique - proceeding with update');
+       
+       // Update ALL fabrics that share the original quality code
+       const updateResult = await Fabric.updateMany(
+         { qualityCode: originalQualityCode },
+         { 
+           qualityCode: qualityCode.trim(),
+           qualityName: qualityName.trim()
+         }
+       );
+       
+       console.log(`Updated ${updateResult.modifiedCount} fabrics with new quality code`);
+       
+       // Return success
+       return new Response(JSON.stringify({ 
+         success: true, 
+         message: `Successfully updated ${updateResult.modifiedCount} fabric(s) with new quality code`,
+         updatedCount: updateResult.modifiedCount
+       }), { status: 200 });
+     }
+    
+    // Handle updating all items in a quality code group
+    if (updateAllItems && allItems && Array.isArray(allItems)) {
+      console.log('Updating all items in quality code group:', qualityCode);
+      
+      // First, get all existing fabrics with this quality code
+      const existingFabrics = await Fabric.find({ 
+        qualityCode: currentFabric.qualityCode 
+      }).sort({ createdAt: 1 });
+      
+      console.log(`Found ${existingFabrics.length} existing fabrics to update`);
+      
+      // Update each existing fabric with the new data
+      const updatePromises = existingFabrics.map(async (existingFabric, index) => {
+        const newData = allItems[index] || allItems[0]; // Use corresponding item or fallback to first
+        
+        if (newData) {
+          return Fabric.findByIdAndUpdate(
+            existingFabric._id,
+            {
+              qualityCode: newData.qualityCode.trim(),
+              qualityName: newData.qualityName.trim(),
+              weaver: newData.weaver.trim(),
+              weaverQualityName: newData.weaverQualityName.trim(),
+              greighWidth: newData.greighWidth || 0,
+              finishWidth: newData.finishWidth || 0,
+              weight: newData.weight || 0,
+              gsm: newData.gsm || 0,
+              danier: newData.danier?.trim() || '',
+              reed: newData.reed || 0,
+              pick: newData.pick || 0,
+              greighRate: newData.greighRate || 0,
+              images: newData.images || []
+            },
+            { new: true, runValidators: true }
+          );
+        }
+      });
+      
+      // Wait for all updates to complete
+      const updatedFabrics = await Promise.all(updatePromises.filter(Boolean));
+      
+      console.log(`Successfully updated ${updatedFabrics.length} fabrics`);
+      
+      // Invalidate cache after update
+      fabricCache.delete(id);
+      
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: `Successfully updated ${updatedFabrics.length} fabric(s)`,
+        updatedCount: updatedFabrics.length,
+        originalItemCount: existingFabrics.length, // Return original count for frontend logic
+        data: updatedFabrics[0] // Return first updated fabric for reference
+      }), { status: 200 });
     }
     
     // Check if this is a quality code/name change

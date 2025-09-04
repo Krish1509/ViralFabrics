@@ -68,7 +68,14 @@ export default function FabricsPage() {
   const itemsPerPageOptions = [5, 10, 50, 100, 'All'] as const;
   
   // Enhanced UI states
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>(() => {
+    // Load view mode from localStorage on component mount
+    if (typeof window !== 'undefined') {
+      const savedViewMode = localStorage.getItem('fabricsViewMode');
+      return savedViewMode === 'table' ? 'table' : 'cards';
+    }
+    return 'cards';
+  });
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showStats, setShowStats] = useState(true);
   const [selectedFabrics, setSelectedFabrics] = useState<Set<string>>(new Set());
@@ -80,6 +87,14 @@ export default function FabricsPage() {
   // Track current image index for each card
   const [cardImageIndices, setCardImageIndices] = useState<Record<string, number>>({});
   
+  // Load view mode from localStorage on mount
+  useEffect(() => {
+    const savedViewMode = localStorage.getItem('fabricsViewMode');
+    if (savedViewMode === 'table' || savedViewMode === 'cards') {
+      setViewMode(savedViewMode);
+    }
+  }, []);
+
   // Auto-switch view mode based on screen size (only on mount and resize, not on manual changes)
   useEffect(() => {
     const handleResize = () => {
@@ -106,6 +121,8 @@ export default function FabricsPage() {
   // Handle manual view mode changes
   const handleViewModeChange = (newMode: 'table' | 'cards') => {
     setViewMode(newMode);
+    // Save view mode to localStorage for persistence
+    localStorage.setItem('fabricsViewMode', newMode);
     // Store timestamp of manual change
     localStorage.setItem('lastViewModeChange', Date.now().toString());
   };
@@ -2375,7 +2392,7 @@ export default function FabricsPage() {
                     <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                        className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+                        className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-colors ${
                         currentPage === pageNum
                             ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
                             : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
