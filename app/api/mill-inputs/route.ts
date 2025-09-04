@@ -143,66 +143,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(notFoundResponse('Mill'), { status: 404 });
     }
 
-    // Check if a mill input with the same orderId, mill, millDate, and chalanNo already exists
-    const existingMillInput = await MillInput.findOne({
+    // Create new mill input (always create new record for each entry)
+    const millInput = new MillInput({
       orderId,
+      order: order._id,
       mill,
       millDate: new Date(millDate),
-      chalanNo: chalanNo.trim()
+      chalanNo: chalanNo.trim(),
+      greighMtr: parseFloat(greighMtr),
+      pcs: parseInt(pcs),
+      additionalMeters: additionalMeters && Array.isArray(additionalMeters) ? additionalMeters.map(additional => ({
+        greighMtr: parseFloat(additional.greighMtr),
+        pcs: parseInt(additional.pcs),
+        notes: additional.notes?.trim()
+      })) : undefined,
+      notes: notes?.trim()
     });
 
-    if (existingMillInput) {
-      // Update existing record with additional meters
-      if (additionalMeters && Array.isArray(additionalMeters)) {
-        existingMillInput.additionalMeters = additionalMeters.map(additional => ({
-          greighMtr: parseFloat(additional.greighMtr),
-          pcs: parseInt(additional.pcs),
-          notes: additional.notes?.trim()
-        }));
-        existingMillInput.notes = notes?.trim();
-        await existingMillInput.save();
-      }
-    } else {
-      // Create new mill input
-      const millInput = new MillInput({
-        orderId,
-        order: order._id,
-        mill,
-        millDate: new Date(millDate),
-        chalanNo: chalanNo.trim(),
-        greighMtr: parseFloat(greighMtr),
-        pcs: parseInt(pcs),
-        additionalMeters: additionalMeters && Array.isArray(additionalMeters) ? additionalMeters.map(additional => ({
-          greighMtr: parseFloat(additional.greighMtr),
-          pcs: parseInt(additional.pcs),
-          notes: additional.notes?.trim()
-        })) : undefined,
-        notes: notes?.trim(),
-        // Test field to see if new fields are being saved
-        testField: 'test_value_' + Date.now()
-      });
-
-              console.log('Creating new mill input with data:', {
-          orderId,
-          mill,
-          millDate,
-          chalanNo,
-          greighMtr,
-          pcs,
-          additionalMeters: millInput.additionalMeters
-        });
-
-        await millInput.save();
-        console.log('Mill input saved successfully with ID:', millInput._id);
-      }
-
-    // Get the final record (either updated or newly created)
-    const finalMillInput = await MillInput.findOne({
+    console.log('Creating new mill input with data:', {
       orderId,
       mill,
-      millDate: new Date(millDate),
-      chalanNo: chalanNo.trim()
-    }).populate('mill', 'name contactPerson contactPhone')
+      millDate,
+      chalanNo,
+      greighMtr,
+      pcs,
+      additionalMeters: millInput.additionalMeters
+    });
+
+    await millInput.save();
+    console.log('Mill input saved successfully with ID:', millInput._id);
+
+    // Get the final record (newly created)
+    const finalMillInput = await MillInput.findById(millInput._id)
+      .populate('mill', 'name contactPerson contactPhone')
       .populate('order', 'orderId orderType party')
       .lean();
 

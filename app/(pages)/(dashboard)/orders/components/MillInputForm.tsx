@@ -150,11 +150,11 @@ export default function MillInputForm({
             id: (index + 1).toString(),
             millDate: group.millDate,
             chalanNo: group.chalanNo,
-            greighMtr: group.mainInput.greighMtr,
-            pcs: group.mainInput.pcs,
+            greighMtr: group.mainInput.greighMtr.toString(),
+            pcs: group.mainInput.pcs.toString(),
             additionalMeters: group.additionalInputs.map((input: any) => ({
-              meters: input.greighMtr,
-              pieces: input.pcs
+              meters: input.greighMtr.toString(),
+              pieces: input.pcs.toString()
             }))
           }))
         };

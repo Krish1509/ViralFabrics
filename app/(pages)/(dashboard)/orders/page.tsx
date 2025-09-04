@@ -2817,7 +2817,7 @@ export default function OrdersPage() {
       {/* Dispatch Form */}
       {showDispatchForm && selectedOrderForDispatch && (
         <DispatchForm
-          orderId={selectedOrderForDispatch.orderId}
+          order={selectedOrderForDispatch}
           onClose={() => {
             setShowDispatchForm(false);
             setSelectedOrderForDispatch(null);

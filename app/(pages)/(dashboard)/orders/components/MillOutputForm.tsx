@@ -31,6 +31,8 @@ interface MillOutputFormProps {
   order: Order | null;
   onClose: () => void;
   onSuccess: () => void;
+  isEditing?: boolean;
+  existingMillOutputs?: any[];
 }
 
 interface ValidationErrors {
@@ -40,7 +42,9 @@ interface ValidationErrors {
 export default function MillOutputForm({ 
   order, 
   onClose, 
-  onSuccess 
+  onSuccess,
+  isEditing = false,
+  existingMillOutputs = []
 }: MillOutputFormProps) {
   const { isDarkMode } = useDarkMode();
   const [formData, setFormData] = useState<MillOutputFormData>({
@@ -56,10 +60,18 @@ export default function MillOutputForm({
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [saving, setSaving] = useState(false);
+  const [loadingExistingData, setLoadingExistingData] = useState(false);
 
-  // Reset form when order changes
+  // Load existing mill outputs when editing
   useEffect(() => {
-    if (order) {
+    if (isEditing && existingMillOutputs.length > 0) {
+      loadExistingMillOutputs();
+    }
+  }, [isEditing, existingMillOutputs]);
+
+  // Reset form when order changes (but not when editing)
+  useEffect(() => {
+    if (order && !isEditing) {
       setFormData({
         orderId: order.orderId,
         millOutputItems: [{
@@ -73,7 +85,81 @@ export default function MillOutputForm({
       });
       setErrors({});
     }
-  }, [order?.orderId]);
+  }, [order?.orderId, isEditing]);
+
+  // Function to load existing mill outputs
+  const loadExistingMillOutputs = async () => {
+    console.log('loadExistingMillOutputs called with:', { order, existingMillOutputs });
+    
+    if (!order || existingMillOutputs.length === 0) {
+      console.log('Early return - no order or existing outputs');
+      return;
+    }
+    
+    setLoadingExistingData(true);
+    try {
+      // Group mill outputs by bill number and date
+      const groupedOutputs = groupMillOutputsByBillAndDate(existingMillOutputs);
+      console.log('Grouped outputs:', groupedOutputs);
+      
+      if (groupedOutputs.length > 0) {
+        const newFormData = {
+          orderId: order.orderId,
+          millOutputItems: groupedOutputs.map((group, index) => ({
+            id: (index + 1).toString(),
+            recdDate: group.recdDate,
+            millBillNo: group.millBillNo,
+            finishedMtr: group.mainOutput.finishedMtr.toString(),
+            millRate: group.mainOutput.millRate.toString(),
+            additionalFinishedMtr: group.additionalOutputs.map((output: any) => ({
+              meters: output.finishedMtr.toString(),
+              rate: output.millRate.toString()
+            }))
+          }))
+        };
+        
+        console.log('New form data to be set:', newFormData);
+        setFormData(newFormData);
+        console.log('Form data set successfully');
+      }
+    } catch (error) {
+      console.error('Error loading existing mill outputs:', error);
+    } finally {
+      setLoadingExistingData(false);
+    }
+  };
+
+  // Helper function to group mill outputs by bill and date
+  const groupMillOutputsByBillAndDate = (millOutputs: any[]) => {
+    const groups: any[] = [];
+    
+    millOutputs.forEach((output: any) => {
+      const existingGroup = groups.find(group => 
+        group.millBillNo === output.millBillNo && group.recdDate === output.recdDate
+      );
+      
+      if (existingGroup) {
+        // Add as additional output
+        existingGroup.additionalOutputs.push({
+          finishedMtr: output.finishedMtr,
+          millRate: output.millRate
+        });
+      } else {
+        // Create new group
+        groups.push({
+          recdDate: output.recdDate,
+          millBillNo: output.millBillNo,
+          mainOutput: {
+            finishedMtr: output.finishedMtr,
+            millRate: output.millRate
+          },
+          additionalOutputs: []
+        });
+      }
+    });
+    
+    return groups;
+  };
 
   // Add new mill output item
   const addMillOutputItem = () => {
@@ -219,72 +305,101 @@ export default function MillOutputForm({
     setSaving(true);
 
     try {
-      // Create multiple mill outputs, one for each item
-      const allMillOutputPromises: Promise<any>[] = [];
-
-             formData.millOutputItems.forEach((item) => {
-         // Main mill output
-         const millOutputData = {
-           orderId: formData.orderId,
-           recdDate: item.recdDate,
-           millBillNo: item.millBillNo.trim(),
-           finishedMtr: parseFloat(item.finishedMtr),
-           millRate: parseFloat(item.millRate)
-         };
-
-         allMillOutputPromises.push(
-           fetch('/api/mill-outputs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-             body: JSON.stringify(millOutputData)
-           }).then(response => response.json())
-         );
-
-         // Additional finished meters and rates
-         item.additionalFinishedMtr.forEach((additional) => {
-           const additionalMillOutputData = {
-          orderId: formData.orderId,
-             recdDate: item.recdDate,
-             millBillNo: item.millBillNo.trim(),
-             finishedMtr: parseFloat(additional.meters),
-             millRate: parseFloat(additional.rate)
-           };
-
-           allMillOutputPromises.push(
-             fetch('/api/mill-outputs', {
-               method: 'POST',
-               headers: {
-                 'Content-Type': 'application/json',
-               },
-               body: JSON.stringify(additionalMillOutputData)
-             }).then(response => response.json())
-           );
-         });
-       });
-
-      // Wait for all mill outputs to be created
-      const results = await Promise.all(allMillOutputPromises);
-      
-      // Check if all were successful
-      const allSuccessful = results.every((result: any) => result.success);
-      
-      if (allSuccessful) {
-        onSuccess();
-        onClose();
+      if (isEditing && existingMillOutputs.length > 0) {
+        // Update existing mill outputs
+        await updateExistingMillOutputs();
       } else {
-        const errorMessages = results
-          .filter((result: any) => !result.success)
-          .map((result: any) => result.message || result.error)
-          .join(', ');
-        setErrors({ submit: `Failed to create some mill outputs: ${errorMessages}` });
+        // Create new mill outputs
+        await createNewMillOutputs();
       }
+      
+      onSuccess();
+      onClose();
     } catch (error) {
-      setErrors({ submit: 'Network error occurred' });
+      console.error('Error handling mill output:', error);
+      setErrors({ submit: 'Failed to handle mill output' });
     } finally {
       setSaving(false);
     }
+  };
+
+  // Function to create new mill outputs
+  const createNewMillOutputs = async () => {
+    const allMillOutputPromises: Promise<any>[] = [];
+
+    formData.millOutputItems.forEach((item) => {
+      // Main mill output
+      const millOutputData = {
+        orderId: formData.orderId,
+        recdDate: item.recdDate,
+        millBillNo: item.millBillNo.trim(),
+        finishedMtr: parseFloat(item.finishedMtr),
+        millRate: parseFloat(item.millRate)
+      };
+
+      allMillOutputPromises.push(
+        fetch('/api/mill-outputs', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(millOutputData)
+        }).then(response => response.json())
+      );
+
+      // Additional finished meters and rates
+      item.additionalFinishedMtr.forEach((additional) => {
+        const additionalMillOutputData = {
+          orderId: formData.orderId,
+          recdDate: item.recdDate,
+          millBillNo: item.millBillNo.trim(),
+          finishedMtr: parseFloat(additional.meters),
+          millRate: parseFloat(additional.rate)
+        };
+
+        allMillOutputPromises.push(
+          fetch('/api/mill-outputs', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(additionalMillOutputData)
+          }).then(response => response.json())
+        );
+      });
+    });
+
+    // Wait for all mill outputs to be created
+    const results = await Promise.all(allMillOutputPromises);
+    
+    // Check if all were successful
+    const allSuccessful = results.every((result: any) => result.success);
+    
+    if (!allSuccessful) {
+      const errorMessages = results
+        .filter((result: any) => !result.success)
+        .map((result: any) => result.message || result.error)
+        .join(', ');
+      throw new Error(`Failed to create some mill outputs: ${errorMessages}`);
+    }
+  };
+
+  // Function to update existing mill outputs
+  const updateExistingMillOutputs = async () => {
+    // First delete existing mill outputs for this order
+    const deletePromises = existingMillOutputs.map((output: any) =>
+      fetch(`/api/mill-outputs/${output._id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+    );
+
+    await Promise.all(deletePromises);
+
+    // Then create new ones with updated data
+    await createNewMillOutputs();
   };
 
   if (!order) {
@@ -315,6 +430,18 @@ export default function MillOutputForm({
         <div className={`relative w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
           isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
         }`}>
+          {/* Loading Overlay for Loading Existing Data */}
+          {loadingExistingData && (
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
+              <div className={`p-4 rounded-lg ${
+                isDarkMode ? 'bg-gray-800' : 'bg-white'
+              }`}>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-sm">Loading existing mill outputs...</p>
+              </div>
+            </div>
+          )}
+
           {/* Loading Overlay for Saving */}
           {saving && (
             <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
@@ -344,7 +471,9 @@ export default function MillOutputForm({
               
               <div className="flex items-center space-x-3">
                 <DocumentTextIcon className="h-8 w-8 text-blue-500" />
-                <h2 className="text-2xl font-bold">Add Mill Output</h2>
+                <h2 className="text-2xl font-bold">
+                  {isEditing ? 'Edit Mill Output' : 'Add Mill Output'}
+                </h2>
               </div>
               <div className="flex items-center space-x-2">
                 <span className={`text-sm px-2 py-1 rounded-full ${
@@ -700,7 +829,7 @@ export default function MillOutputForm({
                       : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
                 }`}
               >
-                {saving ? 'Saving...' : 'Add Mill Output'}
+                {saving ? 'Saving...' : isEditing ? 'Update Mill Output' : 'Add Mill Output'}
             </button>
           </div>
           </div>

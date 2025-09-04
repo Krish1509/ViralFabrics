@@ -33,7 +33,7 @@ export default function OrderDetailsPage() {
   const { isDarkMode, mounted } = useDarkMode();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const orderId = searchParams.get('id');
+  const orderMongoId = searchParams.get('id');
   
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,6 +50,8 @@ export default function OrderDetailsPage() {
   const [showOrderLogs, setShowOrderLogs] = useState(false);
   const [showLabModal, setShowLabModal] = useState(false);
   const [showDispatchModal, setShowDispatchModal] = useState(false);
+  const [showMillInputDetails, setShowMillInputDetails] = useState(false);
+  const [selectedMillInput, setSelectedMillInput] = useState<any>(null);
   const [logsLoading, setLogsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string>('');
 
@@ -68,7 +70,13 @@ export default function OrderDetailsPage() {
   const handleEditMillInput = (millInput: any) => {
     // Navigate to edit mill input form with order ID
     showSuccessMessage(`Opening edit form for mill input from ${millInput.mill?.name || 'Unknown Mill'}`);
-    router.push(`/orders?editMillInput=${orderId}&millInputId=${millInput._id}`);
+    router.push(`/orders?editMillInput=${orderMongoId}&millInputId=${millInput._id}`);
+  };
+
+  // Handle mill input view details
+  const handleViewMillInputDetails = (millInput: any) => {
+    setSelectedMillInput(millInput);
+    setShowMillInputDetails(true);
   };
 
   // Handle mill input delete
@@ -96,12 +104,12 @@ export default function OrderDetailsPage() {
 
   // Fetch order data
   useEffect(() => {
-    if (orderId) {
+    if (orderMongoId) {
       const fetchOrder = async () => {
         try {
           setLoading(true);
           const token = localStorage.getItem('token');
-          const response = await fetch(`/api/orders/${orderId}`, {
+          const response = await fetch(`/api/orders/${orderMongoId}`, {
             headers: {
               'Authorization': `Bearer ${token}`,
             }
@@ -121,16 +129,16 @@ export default function OrderDetailsPage() {
       
       fetchOrder();
     }
-  }, [orderId]);
+  }, [orderMongoId]);
 
   // Pre-fetch logs and labs when order details open
   useEffect(() => {
-    if (orderId) {
+    if (orderMongoId) {
       // Pre-fetch logs in background
       const preloadLogs = async () => {
         try {
           const token = localStorage.getItem('token');
-          await fetch(`/api/orders/${orderId}/logs`, {
+          await fetch(`/api/orders/${orderMongoId}/logs`, {
             headers: {
               ...(token && { 'Authorization': `Bearer ${token}` }),
               'Cache-Control': 'max-age=30' // Cache for 30 seconds
@@ -147,7 +155,7 @@ export default function OrderDetailsPage() {
         try {
           setLoadingLabs(true);
           const token = localStorage.getItem('token');
-          const response = await fetch(`/api/labs/by-order/${orderId}`, {
+          const response = await fetch(`/api/labs/by-order/${orderMongoId}`, {
             headers: {
               'Cache-Control': 'max-age=30', // Reduced cache time for more frequent updates
               'Authorization': `Bearer ${token}`,
@@ -170,17 +178,26 @@ export default function OrderDetailsPage() {
       // Fetch mill inputs data
       const fetchMillInputs = async () => {
         try {
+          const actualOrderId = order?.orderId;
+          if (!actualOrderId) {
+            setMillInputs([]);
+            return;
+          }
           setLoadingMillInputs(true);
           const token = localStorage.getItem('token');
-          const response = await fetch(`/api/mill-inputs?orderId=${orderId}`, {
+          const response = await fetch(`/api/mill-inputs?orderId=${actualOrderId}`, {
             headers: {
               'Cache-Control': 'max-age=30',
               'Authorization': `Bearer ${token}`,
             }
           });
           const data = await response.json();
-          console.log('Mill inputs API response:', data); // Debug log
-          if (data.success && Array.isArray(data.data)) {
+          if (data.success && data.data && Array.isArray(data.data.millInputs)) {
+            setMillInputs(data.data.millInputs);
+            if (data.data.millInputs.length > 0) {
+              showSuccessMessage(`Loaded ${data.data.millInputs.length} mill input entries`);
+            }
+          } else if (data.success && Array.isArray(data.data)) {
             setMillInputs(data.data);
             if (data.data.length > 0) {
               showSuccessMessage(`Loaded ${data.data.length} mill input entries`);
@@ -190,6 +207,8 @@ export default function OrderDetailsPage() {
             if (data.millInputs.length > 0) {
               showSuccessMessage(`Loaded ${data.millInputs.length} mill input entries`);
             }
+          } else {
+            setMillInputs([]);
           }
         } catch (error) {
           console.error('Error fetching mill inputs:', error);
@@ -201,9 +220,14 @@ export default function OrderDetailsPage() {
       // Fetch mill outputs data
       const fetchMillOutputs = async () => {
         try {
+          const actualOrderId = order?.orderId;
+          if (!actualOrderId) {
+            setMillOutputs([]);
+            return;
+          }
           setLoadingMillOutputs(true);
           const token = localStorage.getItem('token');
-          const response = await fetch(`/api/mill-outputs?orderId=${orderId}`, {
+          const response = await fetch(`/api/mill-outputs?orderId=${actualOrderId}`, {
             headers: {
               'Cache-Control': 'max-age=30',
               'Authorization': `Bearer ${token}`,
@@ -223,9 +247,14 @@ export default function OrderDetailsPage() {
       // Fetch dispatch data
       const fetchDispatches = async () => {
         try {
+          const actualOrderId = order?.orderId;
+          if (!actualOrderId) {
+            setDispatches([]);
+            return;
+          }
           setLoadingDispatches(true);
           const token = localStorage.getItem('token');
-          const response = await fetch(`/api/dispatch?orderId=${orderId}`, {
+          const response = await fetch(`/api/dispatch?orderId=${actualOrderId}`, {
             headers: {
               'Cache-Control': 'max-age=30',
               'Authorization': `Bearer ${token}`,
@@ -248,19 +277,19 @@ export default function OrderDetailsPage() {
       fetchMillOutputs();
       fetchDispatches();
     }
-  }, [orderId]);
+  }, [orderMongoId, order]);
 
   // Listen for lab updates and refresh labs data
   useEffect(() => {
     const handleLabUpdate = (event: CustomEvent) => {
-      if (event.detail?.orderId === orderId && event.detail?.action === 'lab_add') {
+      if (event.detail?.orderId === orderMongoId && event.detail?.action === 'lab_add') {
         // Refresh labs data after a short delay to ensure server has updated
         setTimeout(() => {
           const fetchLabs = async () => {
             try {
               setLoadingLabs(true);
               const token = localStorage.getItem('token');
-              const response = await fetch(`/api/labs/by-order/${orderId}`, {
+              const response = await fetch(`/api/labs/by-order/${orderMongoId}`, {
                 headers: {
                   'Cache-Control': 'no-cache', // Force fresh data
                   'Authorization': `Bearer ${token}`,
@@ -287,7 +316,7 @@ export default function OrderDetailsPage() {
     return () => {
       window.removeEventListener('orderUpdated', handleLabUpdate as EventListener);
     };
-  }, [orderId]);
+  }, [orderMongoId]);
 
   const handleViewLogs = async () => {
     setLogsLoading(true);
@@ -300,7 +329,7 @@ export default function OrderDetailsPage() {
   const refreshLogs = () => {
     if (showOrderLogs) {
       // Trigger a refresh in the OrderLogsModal
-      const event = new CustomEvent('refreshOrderLogs', { detail: { orderId: orderId } });
+      const event = new CustomEvent('refreshOrderLogs', { detail: { orderId: orderMongoId } });
       window.dispatchEvent(event);
     }
   };
@@ -406,7 +435,7 @@ export default function OrderDetailsPage() {
         const timeoutId = setTimeout(() => controller.abort(), 2000); // Reduced timeout to 2 seconds
         
         const token = localStorage.getItem('token');
-        const response = await fetch(`/api/labs/by-order/${orderId}`, {
+        const response = await fetch(`/api/labs/by-order/${orderMongoId}`, {
           signal: controller.signal,
           headers: {
             'Cache-Control': 'max-age=60', // Increased cache to 60 seconds
@@ -437,7 +466,7 @@ export default function OrderDetailsPage() {
     };
 
     fetchLabs();
-  }, [orderId]);
+  }, [orderMongoId]);
 
 
 
@@ -1607,7 +1636,7 @@ export default function OrderDetailsPage() {
                       <button
                         onClick={() => {
                           showSuccessMessage('Opening add mill input form...');
-                          router.push(`/orders?addMillInput=${orderId}`);
+                          router.push(`/orders?addMillInput=${orderMongoId}`);
                         }}
                         className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                           isDarkMode
@@ -1624,7 +1653,7 @@ export default function OrderDetailsPage() {
                             try {
                               setLoadingMillInputs(true);
                               const token = localStorage.getItem('token');
-                              const response = await fetch(`/api/mill-inputs?orderId=${orderId}`, {
+                              const response = await fetch(`/api/mill-inputs?orderId=${order?.orderId}`, {
                                 headers: {
                                   'Cache-Control': 'no-cache',
                                   'Authorization': `Bearer ${token}`,
@@ -1632,12 +1661,18 @@ export default function OrderDetailsPage() {
                               });
                                                             const data = await response.json();
                               console.log('Refresh mill inputs API response:', data); // Debug log
-                              if (data.success && Array.isArray(data.data)) {
+                              if (data.success && data.data && Array.isArray(data.data.millInputs)) {
+                                setMillInputs(data.data.millInputs);
+                                showSuccessMessage(`Refreshed ${data.data.millInputs.length} mill input entries`);
+                              } else if (data.success && Array.isArray(data.data)) {
                                 setMillInputs(data.data);
                                 showSuccessMessage(`Refreshed ${data.data.length} mill input entries`);
                               } else if (data.success && Array.isArray(data.millInputs)) {
                                 setMillInputs(data.millInputs);
                                 showSuccessMessage(`Refreshed ${data.millInputs.length} mill input entries`);
+                              } else {
+                                console.log('No mill inputs found or unexpected response format:', data);
+                                setMillInputs([]);
                               }
                             } catch (error) {
                               console.error('Error refreshing mill inputs:', error);
@@ -1664,10 +1699,15 @@ export default function OrderDetailsPage() {
                   {loadingMillInputs ? (
                     <div className="text-center py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500 mx-auto mb-4"></div>
-                      <p className={`text-sm ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                      <p className={`text-sm font-medium ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
                       }`}>
                         Loading mill inputs...
+                      </p>
+                      <p className={`text-xs mt-1 ${
+                        isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                      }`}>
+                        Fetching mill input data for order {order?.orderId}
                       </p>
                     </div>
                   ) : millInputs.length > 0 ? (
@@ -1831,15 +1871,44 @@ export default function OrderDetailsPage() {
                                   <td className={`px-4 py-3 text-sm font-medium ${
                                     isDarkMode ? 'text-white' : 'text-gray-900'
                                   }`}>
-                                    {millInput.greighMtr ? `${millInput.greighMtr.toLocaleString()} mtr` : '-'}
+                                    <div>
+                                      <div>{millInput.greighMtr ? `${millInput.greighMtr.toLocaleString()} mtr` : '-'}</div>
+                                      {millInput.additionalMeters && millInput.additionalMeters.length > 0 && (
+                                        <div className={`text-xs mt-1 ${
+                                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                                        }`}>
+                                          +{millInput.additionalMeters.length} additional
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className={`px-4 py-3 text-sm font-medium ${
                                     isDarkMode ? 'text-white' : 'text-gray-900'
                                   }`}>
-                                    {millInput.pcs ? millInput.pcs.toLocaleString() : '-'}
+                                    <div>
+                                      <div>{millInput.pcs ? millInput.pcs.toLocaleString() : '-'}</div>
+                                      {millInput.additionalMeters && millInput.additionalMeters.length > 0 && (
+                                        <div className={`text-xs mt-1 ${
+                                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                                        }`}>
+                                          +{millInput.additionalMeters.reduce((sum: number, additional: any) => sum + (additional.pcs || 0), 0).toLocaleString()} pcs
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className={`px-4 py-3 text-sm`}>
                                     <div className="flex items-center space-x-2">
+                                      <button
+                                        onClick={() => handleViewMillInputDetails(millInput)}
+                                        className={`p-1.5 rounded-lg transition-all duration-200 ${
+                                          isDarkMode 
+                                            ? 'text-green-400 hover:text-green-300 hover:bg-green-900/20' 
+                                            : 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                                        }`}
+                                        title="View Details"
+                                      >
+                                        <InformationCircleIcon className="h-4 w-4" />
+                                      </button>
                                       <button
                                         onClick={() => handleEditMillInput(millInput)}
                                         className={`p-1.5 rounded-lg transition-all duration-200 ${
@@ -1889,13 +1958,31 @@ export default function OrderDetailsPage() {
                           <h4 className={`text-lg font-semibold ${
                             isDarkMode ? 'text-gray-400' : 'text-gray-600'
                           }`}>
-                            No Mill Inputs
+                            No Mill Inputs Found
                           </h4>
-                          <p className={`text-sm ${
+                          <p className={`text-sm mb-3 ${
                             isDarkMode ? 'text-gray-500' : 'text-gray-400'
                           }`}>
-                            Mill inputs can be added from the orders page
+                            No mill input data has been added for this order yet.
                           </p>
+                          <div className={`text-xs ${
+                            isDarkMode ? 'text-gray-600' : 'text-gray-500'
+                          }`}>
+                            <p>• Go to the Orders page</p>
+                            <p>• Click the Mill Input button for this order</p>
+                            <p>• Add mill input data and save</p>
+                            <p>• Return here to view the data</p>
+                          </div>
+                          <button
+                            onClick={() => router.push('/orders')}
+                            className={`mt-4 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                              isDarkMode
+                                ? 'bg-cyan-600 hover:bg-cyan-700 text-white shadow-lg hover:shadow-cyan-500/25'
+                                : 'bg-cyan-600 hover:bg-cyan-700 text-white shadow-lg hover:shadow-cyan-500/25'
+                            }`}
+                          >
+                            Go to Orders Page
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -2340,7 +2427,7 @@ export default function OrderDetailsPage() {
       {/* Order Activity Log Modal */}
       {showOrderLogs && (
         <OrderLogsModal
-          orderId={orderId || ''}
+          orderId={orderMongoId || ''}
           onClose={() => setShowOrderLogs(false)}
         />
       )}
@@ -2357,7 +2444,7 @@ export default function OrderDetailsPage() {
               try {
                 // Force refresh by adding timestamp to avoid cache
                 const token = localStorage.getItem('token');
-                const response = await fetch(`/api/labs/by-order/${orderId}?t=${Date.now()}`, {
+                const response = await fetch(`/api/labs/by-order/${orderMongoId}?t=${Date.now()}`, {
                   headers: {
                     'Cache-Control': 'no-cache',
                     'Pragma': 'no-cache',
@@ -2386,7 +2473,7 @@ export default function OrderDetailsPage() {
       {/* Dispatch Add/Edit Modal */}
       {showDispatchModal && order?.orderId && (
         <DispatchForm
-          orderId={order.orderId}
+          order={order}
           onClose={() => setShowDispatchModal(false)}
           onSuccess={() => {
             // Refresh dispatch data after successful dispatch operation
@@ -2417,6 +2504,246 @@ export default function OrderDetailsPage() {
             setTimeout(fetchDispatches, 500);
           }}
         />
+      )}
+
+      {/* Mill Input Details Modal */}
+      {showMillInputDetails && selectedMillInput && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl ${
+            isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
+          }`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between p-6 border-b ${
+              isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+            }`}>
+              <div className="flex items-center space-x-3">
+                <BuildingOfficeIcon className="h-8 w-8 text-blue-500" />
+                <div>
+                  <h2 className="text-xl font-bold">Mill Input Details</h2>
+                  <p className={`text-sm ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    {selectedMillInput.mill?.name || 'Unknown Mill'} • {selectedMillInput.chalanNo}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMillInputDetails(false)}
+                className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+                  isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+                }`}
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Basic Information */}
+              <div className={`p-4 rounded-lg border ${
+                isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'
+              }`}>
+                <h3 className={`text-lg font-semibold mb-4 ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                  Basic Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={`text-sm font-medium ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      Mill Name
+                    </label>
+                    <p className={`text-sm ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {selectedMillInput.mill?.name || 'Unknown Mill'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className={`text-sm font-medium ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      Mill Date
+                    </label>
+                    <p className={`text-sm ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {selectedMillInput.millDate ? new Date(selectedMillInput.millDate).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      }) : 'No Date'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className={`text-sm font-medium ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      Chalan Number
+                    </label>
+                    <p className={`text-sm ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {selectedMillInput.chalanNo || '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className={`text-sm font-medium ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      Created At
+                    </label>
+                    <p className={`text-sm ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {selectedMillInput.createdAt ? new Date(selectedMillInput.createdAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : '-'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Input */}
+              <div className={`p-4 rounded-lg border ${
+                isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'
+              }`}>
+                <h3 className={`text-lg font-semibold mb-4 ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                  Main Input
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={`text-sm font-medium ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      Greigh Meters
+                    </label>
+                    <p className={`text-lg font-bold ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {selectedMillInput.greighMtr ? `${selectedMillInput.greighMtr.toLocaleString()} mtr` : '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className={`text-sm font-medium ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      Number of Pieces
+                    </label>
+                    <p className={`text-lg font-bold ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {selectedMillInput.pcs ? selectedMillInput.pcs.toLocaleString() : '-'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Meters */}
+              {selectedMillInput.additionalMeters && selectedMillInput.additionalMeters.length > 0 && (
+                <div className={`p-4 rounded-lg border ${
+                  isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <h3 className={`text-lg font-semibold mb-4 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Additional Meters ({selectedMillInput.additionalMeters.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {selectedMillInput.additionalMeters.map((additional: any, index: number) => (
+                      <div key={index} className={`p-3 rounded-lg border ${
+                        isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
+                      }`}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className={`text-sm font-medium ${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              Additional Meters #{index + 1}
+                            </label>
+                            <p className={`text-sm ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              {additional.greighMtr ? `${additional.greighMtr.toLocaleString()} mtr` : '-'}
+                            </p>
+                          </div>
+                          <div>
+                            <label className={`text-sm font-medium ${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              Additional Pieces #{index + 1}
+                            </label>
+                            <p className={`text-sm ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              {additional.pcs ? additional.pcs.toLocaleString() : '-'}
+                            </p>
+                          </div>
+                        </div>
+                        {additional.notes && (
+                          <div className="mt-2">
+                            <label className={`text-sm font-medium ${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              Notes
+                            </label>
+                            <p className={`text-sm ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              {additional.notes}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {selectedMillInput.notes && (
+                <div className={`p-4 rounded-lg border ${
+                  isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <h3 className={`text-lg font-semibold mb-4 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Notes
+                  </h3>
+                  <p className={`text-sm ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    {selectedMillInput.notes}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className={`flex justify-end p-6 border-t ${
+              isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+            }`}>
+              <button
+                onClick={() => setShowMillInputDetails(false)}
+                className={`px-6 py-2 rounded-lg transition-all duration-200 ${
+                  isDarkMode 
+                    ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                }`}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
