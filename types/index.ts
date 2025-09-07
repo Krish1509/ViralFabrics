@@ -53,7 +53,7 @@ export interface Order {
   deliveryDate?: string;
   // weaverSupplierName and purchaseRate moved to item level
   items: OrderItem[];
-  status?: "Not set" | "Not selected" | "pending" | "delivered";
+  status?: "Not set" | "Not selected" | "pending" | "in_progress" | "completed" | "delivered" | "cancelled";
   labData?: any;
   createdAt: string;
   updatedAt: string;

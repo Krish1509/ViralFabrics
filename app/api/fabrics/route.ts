@@ -14,6 +14,8 @@ export async function GET(req: NextRequest) {
     const qualityCode = searchParams.get('qualityCode') || '';
     const exact = searchParams.get('exact') === 'true';
     const limit = parseInt(searchParams.get('limit') || '50'); // Default limit for performance
+    const page = parseInt(searchParams.get('page') || '1'); // Default page 1
+    const skip = (page - 1) * limit; // Calculate skip value for pagination
     
     // Build query
     const query: any = {};
@@ -51,22 +53,39 @@ export async function GET(req: NextRequest) {
       }
     }
     
-    // Optimized query with limits and timeout
+    // Get total count for pagination info
+    const totalCount = await Fabric.countDocuments(query).maxTimeMS(5000);
+    
+    // Optimized query with pagination, limits and timeout
     const fabrics = await Fabric.find(query)
       .sort({ createdAt: -1 })
+      .skip(skip)
       .limit(limit)
       .lean()
-      .maxTimeMS(3000); // 3 second timeout
+      .maxTimeMS(5000); // 5 second timeout for reliable loading
     
-    // Add cache headers
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+    
+    // Add cache headers for super fast loading
     const headers = {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=30, stale-while-revalidate=60',
+      'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
     };
     
     return new Response(JSON.stringify({ 
       success: true, 
-      data: fabrics 
+      data: fabrics,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalCount,
+        limit,
+        hasNextPage,
+        hasPrevPage
+      }
     }), { status: 200, headers });
     
   } catch (error) {

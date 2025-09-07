@@ -22,6 +22,7 @@ import { Fabric, FabricFilters } from '@/types/fabric';
 import FabricDetails from './components/FabricDetails';
 import DeleteConfirmation from './components/DeleteConfirmation';
 import BulkDeleteConfirmation from './components/BulkDeleteConfirmation';
+import DeleteSuccessPopup from './components/DeleteSuccessPopup';
 
 export default function FabricsPage() {
   const { isDarkMode, mounted } = useDarkMode();
@@ -40,6 +41,9 @@ export default function FabricsPage() {
   const [showBulkDeleteConfirmation, setShowBulkDeleteConfirmation] = useState(false);
   const [bulkDeleteGroup, setBulkDeleteGroup] = useState<{ qualityCode: string; qualityName: string; items: Fabric[] } | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
+  const [deletedFabricInfo, setDeletedFabricInfo] = useState<{ code: string; name: string } | null>(null);
+  const [fadeOutRows, setFadeOutRows] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<FabricFilters>({
     qualityName: '',
     weaver: '',
@@ -65,8 +69,15 @@ export default function FabricsPage() {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(50);
-  const itemsPerPageOptions = [10, 50, 100, 'All'] as const;
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(5);
+  const itemsPerPageOptions = [10, 20, 50, 100, 'All'] as const;
+  const [paginationInfo, setPaginationInfo] = useState({
+    totalCount: 0,
+    totalPages: 0,
+    currentPage: 1,
+    hasNextPage: false,
+    hasPrevPage: false
+  });
   
   // Enhanced UI states
   const [viewMode, setViewMode] = useState<'table' | 'cards'>(() => {
@@ -166,33 +177,39 @@ export default function FabricsPage() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+  const [retryCount, setRetryCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch fabrics with caching
-  const fetchFabrics = async (forceRefresh = false) => {
-    // Cache for 30 seconds to prevent excessive API calls
+  // Optimized fetch fabrics with better caching and faster loading
+  const fetchFabrics = async (forceRefresh = false, page = currentPage, limit = itemsPerPage, retryCount = 0) => {
+    // Better caching - cache for 2 minutes to reduce API calls
     const now = Date.now();
-    if (!forceRefresh && (now - lastFetchTime) < 30000 && fabrics.length > 0) {
+    if (!forceRefresh && (now - lastFetchTime) < 300000 && fabrics.length > 0) {
       return; // Use cached data
     }
     
     setLoading(true);
-    setFiltersLoading(true);
     
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout - increased to prevent timeout errors
+      const timeoutId = setTimeout(() => controller.abort(), 12000); // Balanced timeout for reliability
       
       const params = new URLSearchParams();
       if (filters.search) params.append('search', filters.search);
       if (filters.qualityName) params.append('qualityName', filters.qualityName);
       if (filters.weaver) params.append('weaver', filters.weaver);
       if (filters.weaverQualityName) params.append('weaverQualityName', filters.weaverQualityName);
-      // Remove the refresh parameter to keep URL clean and prevent issues
-      // if (forceRefresh) params.append('refresh', Date.now().toString());
 
-      const response = await fetch(`/api/fabrics?${params}&limit=50`, { // Limit for faster loading
+      // Add pagination parameters
+      const limitValue = limit === 'All' ? 1000 : limit;
+      params.append('limit', limitValue.toString());
+      params.append('page', page.toString());
+
+      const response = await fetch(`/api/fabrics?${params}`, {
         headers: {
-          'Cache-Control': forceRefresh ? 'no-cache' : 'max-age=30' // Force refresh if needed
+          'Cache-Control': forceRefresh ? 'no-cache' : 'max-age=120', // Cache for 2 minutes
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
         },
         signal: controller.signal
       });
@@ -205,27 +222,70 @@ export default function FabricsPage() {
       
       const data = await response.json();
       
-             if (data.success) {
-         setFabrics(data.data);
-         setLastFetchTime(now); // Update cache timestamp
-         // Only show refresh message when user manually clicks refresh button (not on initial load)
-         if (forceRefresh && fabrics.length > 0) {
-           setRefreshMessage('Data refreshed successfully!');
-           setTimeout(() => setRefreshMessage(null), 3000);
-         }
-       } else {
-         throw new Error(data.message || 'Failed to fetch fabrics');
-       }
+      if (data.success) {
+        setFabrics(data.data);
+        setLastFetchTime(now);
+        setRetryCount(0); // Reset retry count on success
+        
+        // Update pagination info if available
+        if (data.pagination) {
+          setPaginationInfo({
+            totalCount: data.pagination.totalCount,
+            totalPages: data.pagination.totalPages,
+            currentPage: data.pagination.currentPage,
+            hasNextPage: data.pagination.hasNextPage,
+            hasPrevPage: data.pagination.hasPrevPage
+          });
+        }
+        
+        // Only show refresh message when user manually clicks refresh button
+        if (forceRefresh && fabrics.length > 0) {
+          setRefreshMessage('Data refreshed successfully!');
+          setTimeout(() => setRefreshMessage(null), 3000);
+        }
+      } else {
+        throw new Error(data.message || 'Failed to fetch fabrics');
+      }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        console.error('Request timeout');
+        console.error('Request timeout - server is slow, trying again...');
+        // Retry with exponential backoff (max 3 retries)
+        if (retryCount < 3) {
+          const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+          setRetryCount(retryCount + 1);
+          setError(`Server is slow, retrying in ${delay/1000}s... (${retryCount + 1}/3)`);
+          setTimeout(() => {
+            setError(null);
+            fetchFabrics(true, page, limit, retryCount + 1);
+          }, delay);
+          return;
+        } else {
+          setRetryCount(0);
+          setError('Server is too slow. Please try again later.');
+        }
       } else {
         console.error('Error fetching fabrics:', error);
+        setError('Failed to load fabrics. Please try again.');
       }
     } finally {
       setLoading(false);
-      setFiltersLoading(false);
     }
+  };
+
+  // Pagination handlers
+  const handlePageChange = async (newPage: number) => {
+    if (newPage === currentPage) return;
+    
+    setCurrentPage(newPage);
+    await fetchFabrics(false, newPage, itemsPerPage);
+  };
+
+  const handleItemsPerPageChange = async (newItemsPerPage: number | 'All') => {
+    if (newItemsPerPage === itemsPerPage) return;
+    
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Reset to first page
+    await fetchFabrics(false, 1, newItemsPerPage);
   };
 
   // Fetch quality names for filter
@@ -331,10 +391,13 @@ export default function FabricsPage() {
   };
 
   useEffect(() => {
-    setFiltersLoading(true);
-    // Load data without any refresh message
-    fetchFabrics(false);
-    fetchQualityNames();
+    // Super fast initial load - only 5 items
+    fetchFabrics(false, 1, 5);
+    
+    // Load filter data much later (lazy loading for speed)
+    setTimeout(() => {
+      fetchQualityNames();
+    }, 1000);
   }, []);
 
   // Removed auto-refresh on visibility change - was causing unnecessary refreshes
@@ -356,12 +419,26 @@ export default function FabricsPage() {
     };
   }, []);
 
+  // Lazy load weavers only when needed
   useEffect(() => {
-    fetchWeavers();
+    if (filters.qualityName) {
+      // Add small delay to prevent rapid API calls
+      const timeoutId = setTimeout(() => {
+        fetchWeavers();
+      }, 800);
+      return () => clearTimeout(timeoutId);
+    }
   }, [filters.qualityName]);
 
+  // Lazy load weaver quality names only when needed
   useEffect(() => {
-    fetchWeaverQualityNames();
+    if (filters.weaver) {
+      // Add small delay to prevent rapid API calls
+      const timeoutId = setTimeout(() => {
+        fetchWeaverQualityNames();
+      }, 800);
+      return () => clearTimeout(timeoutId);
+    }
   }, [filters.weaver]);
 
   const handleCreate = () => {
@@ -431,10 +508,26 @@ export default function FabricsPage() {
       const data = await response.json();
       
       if (data.success) {
-        // Optimistic update: remove deleted fabric from state immediately
-        if (deletingFabric) {
+        // Start fade out animation
+        setFadeOutRows(prev => new Set([...prev, deletingFabric._id]));
+        
+        // Show success popup
+        setDeletedFabricInfo({
+          code: deletingFabric.qualityCode,
+          name: deletingFabric.qualityName
+        });
+        setShowDeleteSuccess(true);
+        
+        // Remove from state after animation
+        setTimeout(() => {
           setFabrics(prev => prev.filter(f => f._id !== deletingFabric._id));
-        }
+          setFadeOutRows(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(deletingFabric._id);
+            return newSet;
+          });
+        }, 1000);
+        
         setShowDeleteConfirmation(false);
         setDeletingFabric(null);
         setDeleteDependencies([]);
@@ -509,9 +602,26 @@ export default function FabricsPage() {
         // Update UI immediately without full fetch
         const deletedCount = data.deletedCount || bulkDeleteGroup.items.length;
         
-        // Optimistic update: remove deleted items from current state
+        // Start fade out animation for all deleted items
         const deletedIds = new Set(bulkDeleteGroup.items.map(item => item._id));
-        setFabrics(prev => prev.filter(fabric => !deletedIds.has(fabric._id)));
+        setFadeOutRows(prev => new Set([...prev, ...deletedIds]));
+        
+        // Show success popup
+        setDeletedFabricInfo({
+          code: bulkDeleteGroup.qualityCode === 'Multiple' ? 'Multiple' : bulkDeleteGroup.qualityCode,
+          name: bulkDeleteGroup.qualityCode === 'Multiple' ? `${deletedCount} fabrics` : bulkDeleteGroup.qualityName
+        });
+        setShowDeleteSuccess(true);
+        
+        // Remove from state after animation
+        setTimeout(() => {
+          setFabrics(prev => prev.filter(fabric => !deletedIds.has(fabric._id)));
+          setFadeOutRows(prev => {
+            const newSet = new Set(prev);
+            deletedIds.forEach(id => newSet.delete(id));
+            return newSet;
+          });
+        }, 1000);
         
         // Clear states immediately
         setBulkDeleteGroup(null);
@@ -931,8 +1041,8 @@ export default function FabricsPage() {
 
   const totalPages = useMemo(() => {
     if (itemsPerPage === 'All') return 1;
-    return Math.ceil(totalQualityGroups / (itemsPerPage as number));
-  }, [totalQualityGroups, itemsPerPage]);
+    return paginationInfo.totalPages || Math.ceil(totalQualityGroups / (itemsPerPage as number));
+  }, [paginationInfo.totalPages, totalQualityGroups, itemsPerPage]);
 
   // Get paginated quality groups
   const paginatedFabrics = useMemo(() => {
@@ -1024,6 +1134,27 @@ export default function FabricsPage() {
     setSelectedFabrics(new Set());
     setBulkActions(false);
   };
+
+  // Skeleton loading component
+  const SkeletonCard = () => (
+    <div className={`p-4 rounded-lg border animate-pulse ${
+      isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+    }`}>
+      <div className="flex items-center space-x-4">
+        <div className={`w-16 h-16 rounded-lg ${
+          isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+        }`}></div>
+        <div className="flex-1 space-y-2">
+          <div className={`h-4 rounded ${
+            isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+          }`} style={{ width: '60%' }}></div>
+          <div className={`h-3 rounded ${
+            isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+          }`} style={{ width: '40%' }}></div>
+        </div>
+      </div>
+    </div>
+  );
 
   if (!mounted) return null;
 
@@ -1373,7 +1504,7 @@ export default function FabricsPage() {
             {viewMode === 'cards' ? (
               // Card View Skeleton
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                {[1, 2, 3, 4, 5, 6].map((i) => (
                   <div key={i} className={`p-3 sm:p-4 lg:p-6 rounded-lg sm:rounded-xl border ${
                     isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'
                   } animate-pulse`}>
@@ -1496,8 +1627,7 @@ export default function FabricsPage() {
                     value={itemsPerPage}
                     onChange={(e) => {
                       const value = e.target.value === 'All' ? 'All' : parseInt(e.target.value);
-                      setItemsPerPage(value);
-                      setCurrentPage(1);
+                      handleItemsPerPageChange(value);
                     }}
                     className={`px-2 sm:px-3 py-1 rounded-lg border text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       isDarkMode 
@@ -1516,7 +1646,7 @@ export default function FabricsPage() {
               {itemsPerPage !== 'All' && totalPages > 1 && (
                 <div className="flex items-center space-x-1 sm:space-x-2">
                   <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
                     className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
                       currentPage === 1
@@ -1545,7 +1675,7 @@ export default function FabricsPage() {
                       return (
                         <button
                           key={pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
+                          onClick={() => handlePageChange(pageNum)}
                           className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
                             currentPage === pageNum
                               ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
@@ -1559,7 +1689,7 @@ export default function FabricsPage() {
                   </div>
                   
                   <button
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages}
                     className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
                       currentPage === totalPages
@@ -1787,11 +1917,35 @@ export default function FabricsPage() {
                               {/* Show items based on expansion state */}
                               <div className="space-y-2">
                                 {itemsToShow.map((fabric, index) => (
-                                  <div key={fabric._id} className={`p-2 sm:p-2.5 lg:p-3 rounded-lg border ${
-                                    isDarkMode 
-                                      ? 'bg-gray-800/40 border-gray-600/40 hover:bg-gray-700/70' 
-                                      : 'bg-white border-gray-200 hover:bg-gray-50'
-                                  } transition-colors duration-200`}>
+                                  <div key={fabric._id} className={`p-2 sm:p-2.5 lg:p-3 rounded-lg border transition-all duration-1000 ease-in-out relative overflow-hidden ${
+                                    fadeOutRows.has(fabric._id) 
+                                      ? 'opacity-0 scale-75 -translate-y-4 rotate-1 blur-sm' 
+                                      : 'opacity-100 scale-100 translate-y-0 rotate-0 blur-0'
+                                  } ${
+                                    fadeOutRows.has(fabric._id)
+                                      ? isDarkMode 
+                                        ? 'bg-red-900/20 border-red-700/50' 
+                                        : 'bg-red-50 border-red-200'
+                                      : isDarkMode 
+                                        ? 'bg-gray-800/40 border-gray-600/40 hover:bg-gray-700/70' 
+                                        : 'bg-white border-gray-200 hover:bg-gray-50'
+                                  }`}>
+                                    {/* Delete Animation Overlay */}
+                                    {fadeOutRows.has(fabric._id) && (
+                                      <>
+                                        <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-red-600/10 animate-pulse"></div>
+                                        <div className="absolute top-2 right-2 z-10">
+                                          <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center animate-bounce">
+                                            <TrashIcon className="h-4 w-4 text-white" />
+                                          </div>
+                                        </div>
+                                        <div className="absolute inset-0 flex items-center justify-center z-10">
+                                          <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-medium animate-pulse">
+                                            Deleting...
+                                          </div>
+                                        </div>
+                                      </>
+                                    )}
                                     {/* Item Header */}
                                     <div className="flex items-center justify-between mb-2 sm:mb-3">
                                       <div className="flex items-center gap-2 sm:gap-3">
@@ -2442,7 +2596,7 @@ export default function FabricsPage() {
             }`}>
             <div className="flex items-center space-x-1 sm:space-x-2">
               <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                   currentPage === 1
@@ -2471,7 +2625,7 @@ export default function FabricsPage() {
                   return (
                     <button
                       key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
+                      onClick={() => handlePageChange(pageNum)}
                         className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-colors ${
                         currentPage === pageNum
                             ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
@@ -2485,7 +2639,7 @@ export default function FabricsPage() {
               </div>
               
               <button
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                   currentPage === totalPages
@@ -2537,6 +2691,19 @@ export default function FabricsPage() {
           isDeleting={isDeleting}
           dependencies={deleteDependencies}
           isLoadingDependencies={isLoadingDependencies}
+        />
+      )}
+
+      {/* Delete Success Popup */}
+      {showDeleteSuccess && deletedFabricInfo && (
+        <DeleteSuccessPopup
+          fabricCode={deletedFabricInfo.code}
+          fabricName={deletedFabricInfo.name}
+          onClose={() => {
+            setShowDeleteSuccess(false);
+            setDeletedFabricInfo(null);
+          }}
+          show={showDeleteSuccess}
         />
       )}
 
