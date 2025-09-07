@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   PlusIcon, 
   MagnifyingGlassIcon, 
@@ -69,7 +69,7 @@ export default function FabricsPage() {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(5);
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(10);
   const itemsPerPageOptions = [10, 20, 50, 100, 'All'] as const;
   const [paginationInfo, setPaginationInfo] = useState({
     totalCount: 0,
@@ -179,14 +179,18 @@ export default function FabricsPage() {
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const [retryCount, setRetryCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [isChangingPage, setIsChangingPage] = useState(false);
 
   // Optimized fetch fabrics with better caching and faster loading
   const fetchFabrics = async (forceRefresh = false, page = currentPage, limit = itemsPerPage, retryCount = 0) => {
-    // Better caching - cache for 2 minutes to reduce API calls
-    const now = Date.now();
-    if (!forceRefresh && (now - lastFetchTime) < 300000 && fabrics.length > 0) {
-      return; // Use cached data
-    }
+    console.log('fetchFabrics called with:', { forceRefresh, page, limit, retryCount });
+    console.log('Current state:', { currentPage, itemsPerPage });
+    
+    // Disable caching for now to ensure pagination works correctly
+    // const now = Date.now();
+    // if (!forceRefresh && (now - lastFetchTime) < 300000 && fabrics.length > 0) {
+    //   return; // Use cached data
+    // }
     
     setLoading(true);
     
@@ -204,6 +208,14 @@ export default function FabricsPage() {
       const limitValue = limit === 'All' ? 1000 : limit;
       params.append('limit', limitValue.toString());
       params.append('page', page.toString());
+      
+      console.log('API call parameters:', { 
+        page, 
+        limit, 
+        limitValue,
+        filters,
+        url: `/api/fabrics?${params.toString()}`
+      });
 
       const response = await fetch(`/api/fabrics?${params}`, {
         headers: {
@@ -223,12 +235,19 @@ export default function FabricsPage() {
       const data = await response.json();
       
       if (data.success) {
+        console.log('Server response:', { 
+          dataCount: data.data.length, 
+          pagination: data.pagination,
+          currentPage,
+          itemsPerPage 
+        });
         setFabrics(data.data);
-        setLastFetchTime(now);
+        setLastFetchTime(Date.now());
         setRetryCount(0); // Reset retry count on success
         
         // Update pagination info if available
         if (data.pagination) {
+          console.log('Setting pagination info:', data.pagination);
           setPaginationInfo({
             totalCount: data.pagination.totalCount,
             totalPages: data.pagination.totalPages,
@@ -276,16 +295,35 @@ export default function FabricsPage() {
   const handlePageChange = async (newPage: number) => {
     if (newPage === currentPage) return;
     
+    // Validate page number
+    if (newPage < 1 || newPage > totalPages) {
+      console.log('Invalid page number:', { newPage, totalPages, currentPage });
+      return;
+    }
+    
+    console.log('Page change:', { from: currentPage, to: newPage, itemsPerPage, totalPages });
+    console.log('Calling fetchFabrics with:', { forceRefresh: false, page: newPage, limit: itemsPerPage });
+    
+    setIsChangingPage(true);
     setCurrentPage(newPage);
     await fetchFabrics(false, newPage, itemsPerPage);
+    setIsChangingPage(false);
   };
 
   const handleItemsPerPageChange = async (newItemsPerPage: number | 'All') => {
     if (newItemsPerPage === itemsPerPage) return;
     
+    console.log('Items per page change:', { from: itemsPerPage, to: newItemsPerPage });
+    console.log('Calling fetchFabrics with:', { forceRefresh: false, page: 1, limit: newItemsPerPage });
+    
+    setIsChangingPage(true);
+    // Update state first
     setItemsPerPage(newItemsPerPage);
-    setCurrentPage(1); // Reset to first page
+    setCurrentPage(1); // Always reset to first page when changing items per page
+    
+    // Then fetch new data
     await fetchFabrics(false, 1, newItemsPerPage);
+    setIsChangingPage(false);
   };
 
   // Fetch quality names for filter
@@ -392,7 +430,7 @@ export default function FabricsPage() {
 
   useEffect(() => {
     // Super fast initial load - only 5 items
-    fetchFabrics(false, 1, 5);
+    fetchFabrics(false, 1, 10);
     
     // Load filter data much later (lazy loading for speed)
     setTimeout(() => {
@@ -408,7 +446,7 @@ export default function FabricsPage() {
       // F5 or Ctrl+R to refresh
       if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
         e.preventDefault();
-        fetchFabrics(true);
+        fetchFabrics(true, currentPage, itemsPerPage);
       }
     };
 
@@ -417,7 +455,7 @@ export default function FabricsPage() {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [currentPage, itemsPerPage]);
 
   // Lazy load weavers only when needed
   useEffect(() => {
@@ -915,115 +953,10 @@ export default function FabricsPage() {
 
 
 
-  // Enhanced filtering and sorting
+  // Use server-side filtered data directly (no client-side filtering)
   const filteredAndSortedFabrics = useMemo(() => {
-    let filtered = [...fabrics];
-    
-    // Apply filters
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      filtered = filtered.filter(fabric => 
-        fabric.qualityCode.toLowerCase().includes(searchLower) ||
-        fabric.qualityName.toLowerCase().includes(searchLower) ||
-        fabric.weaver.toLowerCase().includes(searchLower) ||
-        fabric.weaverQualityName.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    if (filters.qualityName) {
-      filtered = filtered.filter(fabric => fabric.qualityName === filters.qualityName);
-    }
-    
-    if (filters.weaver) {
-      filtered = filtered.filter(fabric => fabric.weaver === filters.weaver);
-    }
-    
-    if (filters.weaverQualityName) {
-      filtered = filtered.filter(fabric => fabric.weaverQualityName === filters.weaverQualityName);
-    }
-    
-    if (filters.minGsm) {
-      filtered = filtered.filter(fabric => fabric.gsm >= parseFloat(filters.minGsm));
-    }
-    
-    if (filters.maxGsm) {
-      filtered = filtered.filter(fabric => fabric.gsm <= parseFloat(filters.maxGsm));
-    }
-    
-    if (filters.minWeight) {
-      filtered = filtered.filter(fabric => fabric.weight >= parseFloat(filters.minWeight));
-    }
-    
-    if (filters.maxWeight) {
-      filtered = filtered.filter(fabric => fabric.weight <= parseFloat(filters.maxWeight));
-    }
-    
-    if (filters.minRate) {
-      filtered = filtered.filter(fabric => fabric.greighRate >= parseFloat(filters.minRate));
-    }
-    
-    if (filters.maxRate) {
-      filtered = filtered.filter(fabric => fabric.greighRate <= parseFloat(filters.maxRate));
-    }
-    
-    if (filters.minWidth) {
-      filtered = filtered.filter(fabric => fabric.finishWidth >= parseFloat(filters.minWidth));
-    }
-    
-    if (filters.maxWidth) {
-      filtered = filtered.filter(fabric => fabric.finishWidth <= parseFloat(filters.maxWidth));
-    }
-    
-    if (filters.hasImages) {
-      filtered = filtered.filter(fabric => fabric.images && fabric.images.length > 0);
-    }
-    
-    // Group by quality code and quality name first
-    const qualityGroups = filtered.reduce((groups, fabric) => {
-      const key = `${fabric.qualityCode}-${fabric.qualityName}`;
-      if (!groups[key]) {
-        groups[key] = [];
-      }
-      groups[key].push(fabric);
-      return groups;
-    }, {} as Record<string, Fabric[]>);
-
-    // Find the earliest creation date for each quality group (quality creation date)
-    const qualityCreationDates = new Map<string, number>();
-    Object.entries(qualityGroups).forEach(([key, group]) => {
-      const earliestTime = Math.min(...group.map(item => new Date(item.createdAt || 0).getTime()));
-      qualityCreationDates.set(key, earliestTime);
-    });
-
-    // Sort qualities by their creation date (earliest item date)
-    const sortedQualityEntries = Object.entries(qualityGroups).sort(([keyA], [keyB]) => {
-      const aEarliestTime = qualityCreationDates.get(keyA) || 0;
-      const bEarliestTime = qualityCreationDates.get(keyB) || 0;
-      
-      if (filters.sortOrder === 'asc') {
-        return aEarliestTime - bEarliestTime; // Oldest quality first
-      } else {
-        return bEarliestTime - aEarliestTime; // Latest quality first (DEFAULT)
-      }
-    });
-
-    // Sort each group internally by createdAt (oldest first within quality)
-    sortedQualityEntries.forEach(([, group]) => {
-      group.sort((a, b) => {
-        const aDate = new Date(a.createdAt || 0);
-        const bDate = new Date(b.createdAt || 0);
-        return aDate.getTime() - bDate.getTime(); // Always oldest first within group
-      });
-    });
-
-    // Flatten back to single array while preserving quality-based order
-    const result: Fabric[] = [];
-    sortedQualityEntries.forEach(([, group]) => {
-      result.push(...group);
-    });
-    
-    return result;
-  }, [fabrics, filters]);
+    return [...fabrics]; // Server already sends filtered and sorted data
+  }, [fabrics]);
 
   // Pagination calculations
   const totalQualityGroups = useMemo(() => {
@@ -1041,41 +974,41 @@ export default function FabricsPage() {
 
   const totalPages = useMemo(() => {
     if (itemsPerPage === 'All') return 1;
-    return paginationInfo.totalPages || Math.ceil(totalQualityGroups / (itemsPerPage as number));
-  }, [paginationInfo.totalPages, totalQualityGroups, itemsPerPage]);
-
-  // Get paginated quality groups
-  const paginatedFabrics = useMemo(() => {
-    if (itemsPerPage === 'All') return filteredAndSortedFabrics;
-    
-    // Group fabrics to get quality groups first
-    const groups = filteredAndSortedFabrics.reduce((groups, fabric) => {
-      const key = `${fabric.qualityCode}-${fabric.qualityName}`;
-      if (!groups[key]) {
-        groups[key] = [];
-      }
-      groups[key].push(fabric);
-      return groups;
-    }, {} as Record<string, Fabric[]>);
-
-    const groupKeys = Object.keys(groups);
-    const startIndex = (currentPage - 1) * (itemsPerPage as number);
-    const endIndex = startIndex + (itemsPerPage as number);
-    const paginatedGroupKeys = groupKeys.slice(startIndex, endIndex);
-    
-    // Return all fabrics from the selected quality groups
-    const result: Fabric[] = [];
-    paginatedGroupKeys.forEach(key => {
-      result.push(...groups[key]);
+    const pages = paginationInfo.totalPages || 1;
+    console.log('Total pages calculation:', { 
+      itemsPerPage, 
+      totalCount: paginationInfo.totalCount, 
+      totalPages: paginationInfo.totalPages,
+      calculatedPages: pages 
     });
-    
-    return result;
+    return pages;
+  }, [paginationInfo.totalPages, itemsPerPage, paginationInfo.totalCount]);
+
+  // Use server-side paginated data directly (no client-side pagination)
+  const paginatedFabrics = useMemo(() => {
+    console.log('Using server paginated data:', { 
+      fabricsCount: filteredAndSortedFabrics.length, 
+      currentPage, 
+      itemsPerPage,
+      fabricIds: filteredAndSortedFabrics.map(f => f._id)
+    });
+    return filteredAndSortedFabrics; // Server already sends paginated data
   }, [filteredAndSortedFabrics, currentPage, itemsPerPage]);
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 and fetch new data when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters]);
+    fetchFabrics(false, 1, itemsPerPage);
+  }, [filters, itemsPerPage]);
+
+  // Auto-correct current page if it exceeds total pages
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      console.log('Auto-correcting page:', { currentPage, totalPages });
+      setCurrentPage(totalPages);
+      fetchFabrics(false, totalPages, itemsPerPage);
+    }
+  }, [totalPages, currentPage, itemsPerPage]);
 
   // Group fabrics by Quality Code and Quality Name (using paginated data)
   const groupedFabrics = paginatedFabrics.reduce((groups, fabric) => {
@@ -1199,7 +1132,7 @@ export default function FabricsPage() {
           </div>
                      <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:flex-row sm:items-center sm:space-x-1.5 lg:space-x-2 xl:space-x-3 gap-2 sm:gap-0">
              <button
-               onClick={() => fetchFabrics(true)}
+               onClick={() => fetchFabrics(true, currentPage, itemsPerPage)}
                disabled={loading}
                className={`p-1.5 sm:p-2 lg:p-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
                  loading ? 'opacity-50 cursor-not-allowed' : ''
@@ -1614,10 +1547,10 @@ export default function FabricsPage() {
             }`}>
               <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:space-x-3 lg:space-x-4">
                 <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <span className="hidden sm:inline">Showing {filteredAndSortedFabrics.length > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? filteredAndSortedFabrics.length : itemsPerPage) + 1 : 0} to{' '}
-                  {Math.min(currentPage * (itemsPerPage === 'All' ? filteredAndSortedFabrics.length : itemsPerPage), filteredAndSortedFabrics.length)} of{' '}
-                  {filteredAndSortedFabrics.length} fabrics</span>
-                  <span className="sm:hidden">{filteredAndSortedFabrics.length > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? filteredAndSortedFabrics.length : itemsPerPage) + 1 : 0}-{Math.min(currentPage * (itemsPerPage === 'All' ? filteredAndSortedFabrics.length : itemsPerPage), filteredAndSortedFabrics.length)} of {filteredAndSortedFabrics.length}</span>
+                  <span className="hidden sm:inline">Showing {paginationInfo.totalCount > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage) + 1 : 0} to{' '}
+                  {Math.min(currentPage * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage), paginationInfo.totalCount)} of{' '}
+                  {paginationInfo.totalCount} fabrics</span>
+                  <span className="sm:hidden">{paginationInfo.totalCount > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage) + 1 : 0}-{Math.min(currentPage * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage), paginationInfo.totalCount)} of {paginationInfo.totalCount}</span>
                 </span>
                 
                 {/* Items per page dropdown */}
@@ -1629,11 +1562,12 @@ export default function FabricsPage() {
                       const value = e.target.value === 'All' ? 'All' : parseInt(e.target.value);
                       handleItemsPerPageChange(value);
                     }}
+                    disabled={isChangingPage || loading}
                     className={`px-2 sm:px-3 py-1 rounded-lg border text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       isDarkMode 
                         ? 'bg-gray-700 border-gray-600 text-white' 
                         : 'bg-white border-gray-300 text-gray-900'
-                    }`}
+                    } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     {itemsPerPageOptions.map(option => (
                       <option key={option} value={option}>{option}</option>
@@ -1647,9 +1581,9 @@ export default function FabricsPage() {
                 <div className="flex items-center space-x-1 sm:space-x-2">
                   <button
                     onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
+                    disabled={currentPage === 1 || isChangingPage || loading}
                     className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
-                      currentPage === 1
+                      currentPage === 1 || isChangingPage || loading
                         ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
                     }`}
@@ -1671,16 +1605,18 @@ export default function FabricsPage() {
                       } else {
                         pageNum = currentPage - 2 + i;
                       }
+                      console.log('Page number calculation:', { i, pageNum, currentPage, totalPages });
                       
                       return (
                         <button
                           key={pageNum}
                           onClick={() => handlePageChange(pageNum)}
+                          disabled={isChangingPage || loading}
                           className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
                             currentPage === pageNum
                               ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
                               : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-                          }`}
+                          } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           {pageNum}
                         </button>
@@ -1690,9 +1626,9 @@ export default function FabricsPage() {
                   
                   <button
                     onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
+                    disabled={currentPage === totalPages || isChangingPage || loading}
                     className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
-                      currentPage === totalPages
+                      currentPage === totalPages || isChangingPage || loading
                         ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
                     }`}
