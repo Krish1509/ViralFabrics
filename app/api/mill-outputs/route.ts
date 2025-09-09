@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import { requireAuth } from '@/lib/session';
 import { logError } from '@/lib/logger';
+import mongoose from 'mongoose';
 
 // GET /api/mill-outputs - Get all mill outputs
 export async function GET(request: NextRequest) {
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
     const { MillOutput } = await import('@/models');
     const [millOutputs, total] = await Promise.all([
       MillOutput.find(query)
-        .populate('order')
+        .populate('order quality')
         .sort({ recdDate: -1 })
         .skip(skip)
         .limit(limit)
@@ -41,14 +42,27 @@ export async function GET(request: NextRequest) {
       MillOutput.countDocuments(query)
     ]);
 
+    // Ensure quality field is included even if null
+    const millOutputsWithQuality = millOutputs.map(output => ({
+      ...output,
+      quality: output.quality || null
+    }));
+
+    console.log('Mill Output API: Sample mill output:', millOutputs[0]);
+    console.log('Mill Output API: Raw mill output (first one):', await MillOutput.findById(millOutputs[0]?._id).lean());
+
     return NextResponse.json({
       success: true,
-      data: millOutputs,
+      data: millOutputsWithQuality,
       pagination: {
         page,
         limit,
         total,
         pages: Math.ceil(total / limit)
+      }
+    }, {
+      headers: {
+        'Content-Type': 'application/json'
       }
     });
 
@@ -76,8 +90,10 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     console.log('Mill Output API: Request body:', body);
+    console.log('Mill Output API: Quality field in request:', body.quality);
+    console.log('Mill Output API: Quality field type:', typeof body.quality);
     
-    const { orderId, recdDate, millBillNo, finishedMtr, millRate } = body;
+    const { orderId, recdDate, millBillNo, finishedMtr, millRate, quality } = body;
 
     // Validate required fields
     if (!orderId || !recdDate || !millBillNo || !finishedMtr || !millRate) {
@@ -124,33 +140,39 @@ export async function POST(request: NextRequest) {
     
     // Create new mill output
     console.log('Mill Output API: Creating MillOutput document');
+    
     const millOutputData = {
       orderId,
       order: order._id, // Use the actual ObjectId reference
       recdDate: new Date(recdDate),
       millBillNo: millBillNo.trim(),
       finishedMtr: Number(finishedMtr),
-      millRate: Number(millRate)
+      millRate: Number(millRate),
+      quality: quality && quality.trim() !== '' ? new mongoose.Types.ObjectId(quality) : null
     };
     
     console.log('Mill Output API: Data to create:', millOutputData);
+    console.log('Mill Output API: Quality field in data:', millOutputData.quality);
     
     const millOutput = await MillOutput.create(millOutputData);
     console.log('Mill Output API: MillOutput created successfully:', millOutput._id);
+    console.log('Mill Output API: Created mill output object:', millOutput.toObject());
 
-    // Safely populate the order reference
+    // Safely populate the order and quality references
     let populatedMillOutput;
     try {
-      populatedMillOutput = await millOutput.populate('order');
-      console.log('Mill Output API: Successfully populated order');
+      populatedMillOutput = await millOutput.populate('order quality');
+      console.log('Mill Output API: Successfully populated order and quality');
     } catch (populateError) {
       console.log('Mill Output API: Populate failed, using unpopulated document:', populateError);
       populatedMillOutput = millOutput;
     }
 
+    // Return raw mill output to debug quality field
     return NextResponse.json({
       success: true,
-      data: populatedMillOutput,
+      data: millOutput.toObject(),
+      populatedData: populatedMillOutput,
       message: 'Mill output created successfully'
     });
 

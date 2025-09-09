@@ -204,6 +204,10 @@ export default function FabricsPage() {
       if (filters.weaver) params.append('weaver', filters.weaver);
       if (filters.weaverQualityName) params.append('weaverQualityName', filters.weaverQualityName);
 
+      // Add sorting parameters
+      if (filters.sortBy) params.append('sortBy', filters.sortBy);
+      if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
+
       // Add pagination parameters
       const limitValue = limit === 'All' ? 1000 : limit;
       params.append('limit', limitValue.toString());
@@ -214,6 +218,8 @@ export default function FabricsPage() {
         limit, 
         limitValue,
         filters,
+        sortBy: filters.sortBy,
+        sortOrder: filters.sortOrder,
         url: `/api/fabrics?${params.toString()}`
       });
 
@@ -1070,7 +1076,7 @@ export default function FabricsPage() {
 
   // Skeleton loading component
   const SkeletonCard = () => (
-    <div className={`p-4 rounded-lg border animate-pulse ${
+    <div className={` rounded-lg border animate-pulse ${
       isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
     }`}>
       <div className="flex items-center space-x-4">
@@ -1093,81 +1099,10 @@ export default function FabricsPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <div className="mb-4 sm:mb-6 lg:mb-8">
-        {filtersLoading ? (
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-            <div className="flex items-center space-x-2 sm:space-x-4">
-              <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg sm:rounded-xl animate-pulse`}></div>
-              <div>
-                <div className={`w-24 sm:w-40 lg:w-48 h-5 sm:h-6 lg:h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse mb-1 sm:mb-2`}></div>
-                <div className={`w-32 sm:w-48 lg:w-64 h-3 sm:h-4 lg:h-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
-              </div>
-            </div>
-            <div className={`w-20 sm:w-28 lg:w-32 h-8 sm:h-10 lg:h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
-          </div>
-        ) : (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-4">
-              <div className="p-1.5 sm:p-2 lg:p-3 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-blue-600 via-blue-500 to-purple-600 shadow-lg">
-                <svg className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4-8-4m16 0v10l-8 4-8-4V7" />
-                </svg>
-            </div>
-            <div>
-                <h1 className={`text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
-                }`}>
-                <span className="hidden sm:inline">Fabric Management</span>
-                <span className="sm:hidden">Fabrics</span>
-              </h1>
-                <p className={`text-xs sm:text-sm lg:text-base xl:text-lg mt-0.5 sm:mt-1 lg:mt-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
-              }`}>
-                  <span className="hidden lg:inline">Manage fabric inventory and specifications with advanced filtering</span>
-                  <span className="hidden sm:inline lg:hidden">Manage fabric inventory and specifications</span>
-                  <span className="sm:hidden">Manage fabrics</span>
-              </p>
-            </div>
-          </div>
-                     <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:flex-row sm:items-center sm:space-x-1.5 lg:space-x-2 xl:space-x-3 gap-2 sm:gap-0">
-             <button
-               onClick={() => fetchFabrics(true, currentPage, itemsPerPage)}
-               disabled={loading}
-               className={`p-1.5 sm:p-2 lg:p-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
-                 loading ? 'opacity-50 cursor-not-allowed' : ''
-               } ${
-                 isDarkMode 
-                   ? 'bg-gray-700 hover:bg-gray-600 text-white shadow-lg' 
-                   : 'bg-gray-100 hover:bg-gray-200 text-gray-700 shadow-lg'
-               }`}
-               title="Refresh Data"
-             >
-               <ArrowPathIcon className={`h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 ${loading ? 'animate-spin' : ''}`} />
-             </button>
-
-             <button
-               onClick={handleCreate}
-               className={`px-2 sm:px-2.5 lg:px-4 xl:px-6 py-1.5 sm:py-2 lg:py-2.5 xl:py-3 rounded-lg font-medium transition-colors text-xs sm:text-sm lg:text-base ${
-                 isDarkMode 
-                   ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                   : 'bg-blue-500 hover:bg-blue-600 text-white'
-               }`}
-             >
-               <PlusIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 inline mr-1 sm:mr-1.5 lg:mr-2" />
-               <span className="hidden xl:inline">Add Fabrics</span>
-               <span className="hidden sm:inline xl:hidden">Add Fabrics</span>
-               <span className="sm:hidden">Add</span>
-             </button>
-
-           </div>
-        </div>
-        )}
-             </div>
 
        {/* Refresh Message */}
        {refreshMessage && (
-         <div className={`mb-4 p-3 rounded-lg border ${
+         <div className={`mb-4  rounded-lg border ${
            isDarkMode 
              ? 'border-green-500/40 bg-green-900/30 text-green-300' 
              : 'border-green-200 bg-green-50 text-green-800'
@@ -1181,248 +1116,210 @@ export default function FabricsPage() {
 
 
 
-              {/* Search and View Controls */}
-       <div className={`mb-3 sm:mb-4 lg:mb-6 p-3 sm:p-4 lg:p-5 rounded-lg sm:rounded-xl border ${
-         isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-       } shadow-lg`}>
-                  <div className="flex flex-col space-y-5 sm:flex-row sm:items-start sm:justify-between">
-          {/* Top row - Search Bar */}
-          <div className="flex-1 w-full mr-3 sm:mr-5 lg:mr-5">
-            <div className="relative">
-              <MagnifyingGlassIcon className={`absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-              }`} />
-              <input
-                type="text"
-                placeholder="Search fabrics..."
-                value={filters.search}
-                onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                className={`w-full pl-8 sm:pl-9 lg:pl-10 pr-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg border transition-colors text-xs sm:text-sm lg:text-base ${
-                  isDarkMode 
-                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500' 
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
-                } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
-              />
-              {filters.search && (
-                <button
-                  onClick={() => setFilters(prev => ({ ...prev, search: '' }))}
-                  className={`absolute right-2.5 sm:right-3 top-1/2 transform -translate-y-1/2 ${
-                    isDarkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                </button>
-              )}
+      {/* Search and Controls Bar */}
+      <div className={`mb-4 p-2 sm:p-3 rounded-lg border ${
+        isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+      } shadow-sm`}>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          {/* Left Side - Search Bar + Sort + View */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-1">
+            {/* Search Bar */}
+            <div className="flex-1 max-w-md">
+              <div className="relative">
+                <MagnifyingGlassIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                }`} />
+                <input
+                  type="text"
+                  placeholder="Search fabrics..."
+                  value={filters.search}
+                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                  className={`w-full pl-10 pr-10 py-2.5 rounded-lg border transition-colors text-sm ${
+                    isDarkMode 
+                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500' 
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                />
+                {filters.search && (
+                  <button
+                    onClick={() => setFilters(prev => ({ ...prev, search: '' }))}
+                    className={`absolute right-3 top-1/2 transform -translate-y-1/2 ${
+                      isDarkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <XMarkIcon className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Sort and View Controls */}
+            <div className="flex items-center gap-4">
+              {/* Sort Controls */}
+              <div className="flex items-center space-x-2">
+                <span className={`text-sm font-medium ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>Sort:</span>
+                <div className="flex rounded-lg border overflow-hidden">
+                  <button
+                    onClick={() => setFilters(prev => ({ ...prev, sortBy: 'createdAt', sortOrder: 'desc' }))}
+                    className={`px-3 py-2 text-sm transition-colors ${
+                      filters.sortBy === 'createdAt' && filters.sortOrder === 'desc'
+                        ? isDarkMode
+                          ? 'bg-green-600 text-white'
+                          : 'bg-green-500 text-white'
+                        : isDarkMode
+                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                    title="Latest First"
+                  >
+                    Latest
+                  </button>
+                  <button
+                    onClick={() => setFilters(prev => ({ ...prev, sortBy: 'createdAt', sortOrder: 'asc' }))}
+                    className={`px-3 py-2 text-sm transition-colors ${
+                      filters.sortBy === 'createdAt' && filters.sortOrder === 'asc'
+                        ? isDarkMode
+                          ? 'bg-green-600 text-white'
+                          : 'bg-green-500 text-white'
+                        : isDarkMode
+                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                    title="Oldest First"
+                  >
+                    Oldest
+                  </button>
+                </div>
+              </div>
+
+              {/* View Mode Toggle */}
+              <div className="flex items-center space-x-2">
+                <span className={`text-sm font-medium ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>View:</span>
+                <div className="flex rounded-lg border overflow-hidden">
+                  <button
+                    onClick={() => handleViewModeChange('table')}
+                    className={`px-3 py-2 text-sm transition-colors ${
+                      viewMode === 'table'
+                        ? isDarkMode
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-blue-500 text-white'
+                        : isDarkMode
+                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                    title="Table View"
+                  >
+                    <ListBulletIcon className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleViewModeChange('cards')}
+                    className={`px-3 py-2 text-sm transition-colors ${
+                      viewMode === 'cards'
+                        ? isDarkMode
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-blue-500 text-white'
+                        : isDarkMode
+                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                    title="Card View"
+                  >
+                    <Squares2X2Icon className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
-           {/* Bottom row - Controls Grid for small screens */}
-          <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:items-center sm:space-x-3 lg:space-x-4 xl:space-x-6 gap-2 sm:gap-0 ml-2 sm:ml-3 lg:ml-4 mt-1">
-            {/* Sort Controls */}
-            <div className="flex items-center justify-center sm:justify-start space-x-1.5 sm:space-x-2">
-             <span className={`text-xs sm:text-sm font-medium ${
-               isDarkMode ? 'text-gray-300' : 'text-gray-700'
-              }`}>Sort:</span>
-             <div className="flex rounded-lg border overflow-hidden">
-               <button
-                  onClick={() => setFilters(prev => ({ ...prev, sortBy: 'createdAt', sortOrder: 'desc' }))}
-                 className={`px-1.5 sm:px-2 lg:px-3 py-1 sm:py-1.5 lg:py-2 text-xs sm:text-sm transition-colors ${
-                    filters.sortBy === 'createdAt' && filters.sortOrder === 'desc'
-                     ? isDarkMode
-                        ? 'bg-green-600 text-white'
-                        : 'bg-green-500 text-white'
-                     : isDarkMode
-                       ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                 }`}
-                  title="Latest First"
-               >
-                  <span className="hidden lg:inline">Latest</span>
-                  <span className="hidden sm:inline lg:hidden">Latest</span>
-                  <span className="sm:hidden">New</span>
-               </button>
-               <button
-                  onClick={() => setFilters(prev => ({ ...prev, sortBy: 'createdAt', sortOrder: 'asc' }))}
-                 className={`px-1.5 sm:px-2 lg:px-3 py-1 sm:py-1.5 lg:py-2 text-xs sm:text-sm transition-colors ${
-                    filters.sortBy === 'createdAt' && filters.sortOrder === 'asc'
-                      ? isDarkMode
-                        ? 'bg-green-600 text-white'
-                        : 'bg-green-500 text-white'
-                      : isDarkMode
-                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          {/* Right Side - Action Buttons */}
+          <div className="flex items-center space-x-2">
+            {/* Add Fabric Button */}
+            <button
+              onClick={handleCreate}
+              className={`px-4 py-2.5 rounded-lg font-medium transition-colors text-sm ${
+                isDarkMode 
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+            >
+              <PlusIcon className="h-4 w-4 inline mr-2" />
+              Add Fabric
+            </button>
+
+            {/* Refresh Button */}
+            <button
+              onClick={() => fetchFabrics(true, currentPage, itemsPerPage)}
+              disabled={loading}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                loading ? 'opacity-50 cursor-not-allowed' : ''
+              } ${
+                isDarkMode 
+                  ? 'bg-gray-600 hover:bg-gray-700 text-white' 
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+              }`}
+              title="Refresh Data"
+            >
+              <ArrowPathIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Bulk Actions */}
+        {bulkActions && (
+          <div className="mt- border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <CheckCircleIcon className={`h-5 w-5 ${
+                  isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                }`} />
+                <span className={`text-sm font-medium ${
+                  isDarkMode ? 'text-blue-300' : 'text-blue-700'
+                }`}>
+                  {selectedFabrics.size} fabric{selectedFabrics.size !== 1 ? 's' : ''} selected
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={selectAllVisible}
+                  className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                    isDarkMode 
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
                   }`}
-                  title="Oldest First"
                 >
-                  <span className="hidden lg:inline">Oldest</span>
-                  <span className="hidden sm:inline lg:hidden">Oldest</span>
-                  <span className="sm:hidden">Old</span>
+                  Select All
+                </button>
+                <button
+                  onClick={invertSelection}
+                  className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                    isDarkMode 
+                      ? 'bg-gray-600 hover:bg-gray-700 text-white' 
+                      : 'bg-gray-500 hover:bg-gray-600 text-white'
+                  }`}
+                >
+                  Invert
+                </button>
+                <button
+                  onClick={clearSelection}
+                  className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                    isDarkMode 
+                      ? 'bg-gray-600 hover:bg-gray-700 text-white' 
+                      : 'bg-gray-500 hover:bg-gray-600 text-white'
+                  }`}
+                >
+                  Clear
                 </button>
               </div>
             </div>
-
-           {/* View Mode Toggle */}
-            <div className="flex items-center justify-center sm:justify-start space-x-1.5 sm:space-x-2">
-             <span className={`text-xs sm:text-sm font-medium ${
-               isDarkMode ? 'text-gray-300' : 'text-gray-700'
-             }`}>View:</span>
-             <div className="flex rounded-lg border overflow-hidden">
-               <button
-                 onClick={() => handleViewModeChange('table')}
-                 className={`px-1.5 sm:px-2 lg:px-3 py-1 sm:py-1.5 lg:py-2 text-xs sm:text-sm transition-colors ${
-                   viewMode === 'table'
-                     ? isDarkMode
-                       ? 'bg-blue-600 text-white'
-                       : 'bg-blue-500 text-white'
-                     : isDarkMode
-                       ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                 }`}
-                title="Table View"
-               >
-                 <ListBulletIcon className="h-3 w-3 sm:h-4 sm:w-4" />
-               </button>
-               <button
-                 onClick={() => handleViewModeChange('cards')}
-                 className={`px-1.5 sm:px-2 lg:px-3 py-1 sm:py-1.5 lg:py-2 text-xs sm:text-sm transition-colors ${
-                   viewMode === 'cards'
-                     ? isDarkMode
-                       ? 'bg-blue-600 text-white'
-                       : 'bg-blue-500 text-white'
-                     : isDarkMode
-                       ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                 }`}
-                title="Card View"
-               >
-                <Squares2X2Icon className="h-3 w-3 sm:h-4 sm:w-4" />
-               </button>
-             </div>
-           </div>
-
-           {/* Bulk Actions - Integrated into controls grid */}
-           {bulkActions && (
-             <div className="flex items-center justify-center sm:justify-start space-x-2 col-span-1 xs:col-span-2 sm:col-span-1">
-               <span className={`text-xs sm:text-sm ${
-                 isDarkMode ? 'text-gray-300' : 'text-gray-700'
-               }`}>
-                 {selectedFabrics.size} selected
-               </span>
-               <button
-                 onClick={clearSelection}
-                 className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
-                   isDarkMode 
-                     ? 'bg-gray-600 hover:bg-gray-700 text-white' 
-                     : 'bg-gray-500 hover:bg-gray-600 text-white'
-                 }`}
-               >
-                 Clear
-               </button>
-             </div>
-           )}
-         </div>
+          </div>
+        )}
+      </div>
 
 
-         </div>
-       </div>
-
-       {/* Selection Toolbar */}
-       {showSelectionToolbar && (
-         <div className={`mb-3 sm:mb-4 p-2.5 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl border ${
-           isDarkMode ? 'bg-blue-800/30 border-blue-600' : 'bg-blue-100 border-blue-300'
-         } shadow-lg`}>
-                                               <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-              <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:space-x-3 lg:space-x-4 xl:space-x-6">
-                <div className="flex items-center space-x-1.5 sm:space-x-2">
-                  <CheckCircleIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 ${
-                    isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                  }`} />
-                  <span className={`text-xs sm:text-sm lg:text-base font-medium ${
-                    isDarkMode ? 'text-blue-300' : 'text-blue-700'
-                  }`}>
-                    <span className="hidden sm:inline">{selectedFabrics.size} fabric{selectedFabrics.size !== 1 ? 's' : ''} selected</span>
-                    <span className="sm:hidden">{selectedFabrics.size} selected</span>
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 xs:grid-cols-3 sm:flex sm:flex-row sm:space-y-0 sm:items-center sm:space-x-1.5 lg:space-x-2 gap-1.5 sm:gap-0">
-                  <button
-                    onClick={selectAllVisible}
-                    className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
-                      isDarkMode 
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                        : 'bg-blue-500 hover:bg-blue-600 text-white'
-                    }`}
-                  >
-                    <span className="hidden lg:inline">Select All</span>
-                    <span className="hidden sm:inline lg:hidden">Select All</span>
-                    <span className="sm:hidden">All</span>
-                  </button>
-                  <button
-                    onClick={invertSelection}
-                    className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
-                      isDarkMode 
-                        ? 'bg-gray-600 hover:bg-gray-700 text-white' 
-                        : 'bg-gray-500 hover:bg-gray-600 text-white'
-                    }`}
-                  >
-                    <span className="hidden lg:inline">Invert</span>
-                    <span className="hidden sm:inline lg:hidden">Invert</span>
-                    <span className="sm:hidden">Flip</span>
-                  </button>
-                  <button
-                    onClick={clearAllSelection}
-                    className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
-                      isDarkMode 
-                        ? 'bg-gray-600 hover:bg-gray-700 text-white' 
-                        : 'bg-gray-500 hover:bg-gray-600 text-white'
-                    }`}
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 xs:grid-cols-3 sm:flex sm:flex-row sm:space-y-0 sm:items-center sm:space-x-1.5 lg:space-x-2 gap-1.5 sm:gap-0">
-                <button
-                  onClick={() => setShowExportModal(true)}
-                  className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
-                    isDarkMode 
-                      ? 'bg-green-600 hover:bg-green-700 text-white' 
-                      : 'bg-green-500 hover:bg-green-600 text-white'
-                  }`}
-                >
-                  <span className="hidden lg:inline">Export</span>
-                  <span className="hidden sm:inline lg:hidden">Export</span>
-                  <span className="sm:hidden">Export</span>
-                </button>
-                <button
-                  onClick={handleBulkEdit}
-                  className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
-                    isDarkMode 
-                      ? 'bg-yellow-600 hover:bg-yellow-700 text-white' 
-                      : 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                  }`}
-                >
-                  <span className="hidden lg:inline">Edit</span>
-                  <span className="hidden sm:inline lg:hidden">Edit</span>
-                  <span className="sm:hidden">Edit</span>
-                </button>
-                <button
-                  onClick={handleBulkDeleteSelected}
-                  className={`px-1.5 sm:px-2 lg:px-3 py-1 text-xs sm:text-sm rounded-lg transition-colors ${
-                    isDarkMode 
-                      ? 'bg-red-600 hover:bg-red-700 text-white' 
-                      : 'bg-red-500 hover:bg-red-600 text-white'
-                  }`}
-                >
-                  <span className="hidden lg:inline">Delete</span>
-                  <span className="hidden sm:inline lg:hidden">Delete</span>
-                  <span className="sm:hidden">Del</span>
-                </button>
-              </div>
-            </div>
-         </div>
-       )}
 
 
 
@@ -1433,7 +1330,7 @@ export default function FabricsPage() {
         isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
       } shadow-lg`}>
         {loading ? (
-          <div className="p-8">
+          <div>
             {viewMode === 'cards' ? (
               // Card View Skeleton
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">

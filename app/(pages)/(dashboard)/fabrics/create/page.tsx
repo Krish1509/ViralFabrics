@@ -983,7 +983,7 @@ export default function CreateFabricPage() {
             ? 'border-gray-600/50 bg-gray-800' 
             : 'border-gray-200 bg-white'
         }`}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto px-1 sm:px-2 lg:px-3 xl:px-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-4 sm:py-6 lg:h-20 space-y-4 sm:space-y-0">
               <div className="flex items-center space-x-3 sm:space-x-6">
                 <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl animate-pulse ${
@@ -1005,7 +1005,7 @@ export default function CreateFabricPage() {
           </div>
         </div>
         
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="max-w-7xl mx-auto px-1 sm:px-2 lg:px-3 xl:px-4 py-6 sm:py-8">
           <div className="space-y-6 sm:space-y-8">
             {/* Form skeleton */}
             <div className="space-y-4 sm:space-y-6">
@@ -1103,7 +1103,7 @@ export default function CreateFabricPage() {
           ? 'border-gray-600/50 bg-gray-800' 
           : 'border-gray-200 bg-white'
       }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-1 sm:px-2 lg:px-3 xl:px-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-4 sm:py-6 lg:h-20 space-y-4 sm:space-y-0">
             <div className="flex items-center space-x-3 sm:space-x-6">
               <button
@@ -1239,7 +1239,7 @@ export default function CreateFabricPage() {
       </div>
 
       {/* Main Content */}
-      <div className={`max-w-6xl mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 transition-all duration-300 animate-in fade-in-0 slide-in-from-top-4 delay-100 ${
+      <div className={`max-w-7xl mx-auto px-1 sm:px-2 lg:px-3 xl:px-4 py-2 transition-all duration-300 animate-in fade-in-0 slide-in-from-top-4 delay-100 ${
         isDarkMode ? 'text-white' : 'text-gray-900'
       }`}>
 
@@ -1276,11 +1276,11 @@ export default function CreateFabricPage() {
            
            
           {/* Shared Fabric Information */}
-          <div className={`p-3 sm:p-4 lg:p-6 rounded-xl border mb-4 sm:mb-6 lg:mb-8 transition-all duration-500 ease-out animate-in fade-in-0 slide-in-from-top-4 delay-200 ${
+          <div className={`p-2 sm:p-3 lg:p-4 rounded-xl border mb-3 sm:mb-4 lg:mb-6 transition-all duration-500 ease-out animate-in fade-in-0 slide-in-from-top-4 delay-200 ${
             isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
           }`}>
-                            <h3 className="text-base sm:text-lg font-semibold mb-4 sm:mb-6">Quality Information</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
+                            <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Quality Information</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
               {/* Quality Code */}
               <div>
                 <label className="block text-xs sm:text-sm font-medium mb-2">
@@ -1415,7 +1415,7 @@ export default function CreateFabricPage() {
             </div>
 
             {/* Quality Images Section */}
-            <div className="mt-8">
+            <div className="mt-4 sm:mt-6">
               <div className="flex items-center justify-between mb-4">
                 <label className="block text-sm font-medium">Quality Images</label>
                 <span className={`text-xs px-2 py-1 rounded ${
@@ -1598,7 +1598,7 @@ export default function CreateFabricPage() {
           </div>
 
           {/* Fabric Items */}
-          <div className="space-y-8">
+          <div className="space-y-4 sm:space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <h3 className="text-xl font-semibold">Weaver Information</h3>
@@ -1692,13 +1692,13 @@ export default function CreateFabricPage() {
               <div 
                 key={index}
                 id={`fabric-item-${index}`}
-                className={`p-3 sm:p-4 lg:p-6 rounded-xl border shadow-lg transition-all duration-300 animate-in fade-in-0 slide-in-from-top-4 delay-300 ${
+                className={`p-2 sm:p-3 lg:p-4 rounded-xl border shadow-lg transition-all duration-300 animate-in fade-in-0 slide-in-from-top-4 delay-300 ${
                   isDarkMode 
                     ? 'border-gray-600 bg-gray-800' 
                     : 'border-gray-200 bg-white'
                 }`}
               >
-                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
                   <h4 className="text-base sm:text-lg font-semibold">Weaver {index + 1}</h4>
                   {formData.items.length > 1 && (
                     <button
@@ -1715,7 +1715,7 @@ export default function CreateFabricPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
                   {/* Weaver */}
                   <div>
                     <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">
@@ -2098,7 +2098,7 @@ export default function CreateFabricPage() {
           </div>
 
           {/* Submit Buttons - Sticky */}
-          <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 z-50 min-[1200px]:sticky min-[1200px]:bottom-4">
+          <div className="mt-4 sm:mt-6 flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 z-50 min-[1200px]:sticky min-[1200px]:bottom-4">
             {/* Reset Button - Only show on create page */}
             {!isEditMode && (
               <button

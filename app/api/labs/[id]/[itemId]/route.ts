@@ -34,15 +34,20 @@ export async function GET(
       });
     }
     
+    const responseData = {
+      labData: {
+        labSendDate: labData.labSendDate ? labData.labSendDate.toISOString().split('T')[0] : '',
+        approvalDate: labData.labSendData?.approvalDate ? labData.labSendData.approvalDate.toISOString().split('T')[0] : '',
+        sampleNumber: labData.labSendData?.sampleNumber || ''
+      }
+    };
+    
+    console.log('Lab API: Retrieved lab data:', responseData);
+    console.log('Lab API: Raw labData.labSendData:', labData.labSendData);
+    
     return NextResponse.json({
       success: true,
-      data: {
-        labData: {
-          labSendDate: labData.labSendDate ? labData.labSendDate.toISOString().split('T')[0] : '',
-          approvalDate: labData.labSendData?.approvalDate ? labData.labSendData.approvalDate.toISOString().split('T')[0] : '',
-          sampleNumber: labData.labSendData?.sampleNumber || ''
-        }
-      }
+      data: responseData
     });
     
   } catch (error) {
@@ -103,6 +108,9 @@ export async function POST(
       approvalDate: approvalDate ? new Date(approvalDate) : null,
       specifications: {}
     };
+    
+    console.log('Lab API: Saving lab data with sampleNumber:', sampleNumber);
+    console.log('Lab API: Full labDataToSave:', labDataToSave);
     
     // Find existing lab data or create new one
     let labData = await Lab.findOne({ 

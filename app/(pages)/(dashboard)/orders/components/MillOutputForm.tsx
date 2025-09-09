@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   XMarkIcon,
   PlusIcon,
@@ -8,7 +8,10 @@ import {
   DocumentTextIcon,
   ExclamationTriangleIcon,
   CheckIcon,
-  TrashIcon
+  TrashIcon,
+  ChevronDownIcon,
+  MagnifyingGlassIcon,
+  BeakerIcon
 } from '@heroicons/react/24/outline';
 import { Order } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
@@ -19,7 +22,8 @@ interface MillOutputItem {
   millBillNo: string;
   finishedMtr: string;
   millRate: string;
-  additionalFinishedMtr: { meters: string; rate: string }[];
+  quality: string; // Add quality field
+  additionalFinishedMtr: { meters: string; rate: string; quality: string }[]; // Add quality to additional fields
 }
 
 interface MillOutputFormData {
@@ -29,6 +33,7 @@ interface MillOutputFormData {
 
 interface MillOutputFormProps {
   order: Order | null;
+  qualities: any[]; // Add qualities prop
   onClose: () => void;
   onSuccess: () => void;
   isEditing?: boolean;
@@ -39,14 +44,184 @@ interface ValidationErrors {
   [key: string]: string;
 }
 
+// Enhanced Dropdown Component
+function EnhancedDropdown({
+  options,
+  value,
+  onChange,
+  placeholder,
+  searchValue,
+  onSearchChange,
+  showDropdown,
+  onToggleDropdown,
+  onSelect,
+  isDarkMode,
+  error,
+  recentlyAddedId
+}: {
+  options: any[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+  showDropdown: boolean;
+  onToggleDropdown: () => void;
+  onSelect: (item: any) => void;
+  isDarkMode: boolean;
+  error?: string;
+  recentlyAddedId?: string | null;
+}) {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        const target = event.target as HTMLElement;
+        if (target.closest('.calendar-container') || target.closest('.date-picker')) {
+          return;
+        }
+        onToggleDropdown();
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdown, onToggleDropdown]);
+
+  // Get selected item name for display
+  const selectedItem = options.find(option => (option._id || (option as any).id) === value);
+  const displayValue = selectedItem ? selectedItem.name : searchValue;
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div className="flex-1 relative">
+        <input
+          type="text"
+          placeholder={placeholder}
+          value={displayValue}
+          onChange={(e) => {
+            const newValue = e.target.value;
+            onSearchChange(newValue);
+            // Clear selection if user is typing something different
+            if (selectedItem && newValue !== selectedItem.name) {
+              onChange('');
+            }
+          }}
+          onFocus={() => onToggleDropdown()}
+          className={`w-full p-3 rounded-lg border ${
+            isDarkMode 
+              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+          } ${error ? 'border-red-500' : ''} focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+        />
+        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+          {searchValue && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onSearchChange('');
+                onChange('');
+              }}
+              className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                isDarkMode ? 'text-gray-400 hover:text-red-400' : 'text-gray-500 hover:text-red-500'
+              }`}
+              title="Clear"
+            >
+              <XMarkIcon className="h-3 w-3" />
+            </button>
+          )}
+          <ChevronDownIcon className={`h-4 w-4 transition-transform duration-200 ${
+            showDropdown ? 'rotate-180' : ''
+          } ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+        </div>
+      </div>
+
+      {showDropdown && (
+        <div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-xl max-h-60 overflow-y-auto ${
+          isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+        }`}>
+          {options.length > 0 ? (
+            [...options].sort((a, b) => {
+              const aIsRecent = recentlyAddedId === (a._id || (a as any).id);
+              const bIsRecent = recentlyAddedId === (b._id || (b as any).id);
+              if (aIsRecent && !bIsRecent) return 1;
+              if (!aIsRecent && bIsRecent) return -1;
+              return a.name.localeCompare(b.name);
+            }).map((option, index) => (
+              <button
+                key={option._id || (option as any).id || `quality-${index}-${option.name}`}
+                type="button"
+                onClick={() => onSelect(option)}
+                className={`w-full p-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                } ${value === (option._id || (option as any).id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${
+                  recentlyAddedId === (option._id || (option as any).id) ? 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium">{option.name}</span>
+                      {recentlyAddedId === (option._id || (option as any).id) && (
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          isDarkMode 
+                            ? 'bg-green-600 text-white' 
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          New
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {value === (option._id || (option as any).id) && (
+                    <CheckIcon className="h-4 w-4 text-blue-500" />
+                  )}
+                  </div>
+                </div>
+              </button>
+            ))
+          ) : (
+            <div className={`p-4 text-center ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-500'
+            }`}>
+              <div className="flex flex-col items-center space-y-2">
+                <MagnifyingGlassIcon className="h-8 w-8 opacity-50" />
+                <p className="font-medium">No qualities found</p>
+                <p className="text-sm">Try adjusting your search</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MillOutputForm({ 
   order, 
+  qualities,
   onClose, 
   onSuccess,
   isEditing = false,
   existingMillOutputs = []
 }: MillOutputFormProps) {
   const { isDarkMode } = useDarkMode();
+  
+  // Debug logging for qualities prop
+  console.log('=== MillOutputForm Debug ===');
+  console.log('qualities prop:', qualities);
+  console.log('qualities type:', typeof qualities);
+  console.log('qualities is array:', Array.isArray(qualities));
+  console.log('qualities length:', qualities?.length);
   const [formData, setFormData] = useState<MillOutputFormData>({
     orderId: order?.orderId || '',
     millOutputItems: [{
@@ -55,12 +230,19 @@ export default function MillOutputForm({
     millBillNo: '',
     finishedMtr: '',
       millRate: '',
+      quality: '', // Add quality field
       additionalFinishedMtr: []
     }]
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [saving, setSaving] = useState(false);
   const [loadingExistingData, setLoadingExistingData] = useState(false);
+  
+  // Quality-related state
+  const [activeQualityDropdown, setActiveQualityDropdown] = useState<{ itemId: string; type: 'main' | 'additional'; index?: number } | null>(null);
+  const [qualitySearchStates, setQualitySearchStates] = useState<{ [key: string]: string }>({});
+  const [currentQualitySearch, setCurrentQualitySearch] = useState('');
+  const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
 
   // Load existing mill outputs when editing
   useEffect(() => {
@@ -80,6 +262,7 @@ export default function MillOutputForm({
         millBillNo: '',
         finishedMtr: '',
           millRate: '',
+          quality: '', // Add quality field
           additionalFinishedMtr: []
         }]
       });
@@ -111,9 +294,11 @@ export default function MillOutputForm({
             millBillNo: group.millBillNo,
             finishedMtr: group.mainOutput.finishedMtr.toString(),
             millRate: group.mainOutput.millRate.toString(),
+            quality: group.mainOutput.quality || '', // Add quality field
             additionalFinishedMtr: group.additionalOutputs.map((output: any) => ({
               meters: output.finishedMtr.toString(),
-              rate: output.millRate.toString()
+              rate: output.millRate.toString(),
+              quality: output.quality || '' // Add quality field
             }))
           }))
         };
@@ -142,7 +327,8 @@ export default function MillOutputForm({
         // Add as additional output
         existingGroup.additionalOutputs.push({
           finishedMtr: output.finishedMtr,
-          millRate: output.millRate
+          millRate: output.millRate,
+          quality: output.quality || ''
         });
       } else {
         // Create new group
@@ -151,7 +337,8 @@ export default function MillOutputForm({
           millBillNo: output.millBillNo,
           mainOutput: {
             finishedMtr: output.finishedMtr,
-            millRate: output.millRate
+            millRate: output.millRate,
+            quality: output.quality || ''
           },
           additionalOutputs: []
         });
@@ -174,6 +361,7 @@ export default function MillOutputForm({
           millBillNo: '',
           finishedMtr: '',
           millRate: '',
+          quality: '', // Add quality field
           additionalFinishedMtr: []
         }
       ]
@@ -219,7 +407,7 @@ export default function MillOutputForm({
         item.id === itemId
           ? {
               ...item,
-              additionalFinishedMtr: [...item.additionalFinishedMtr, { meters: '', rate: '' }]
+              additionalFinishedMtr: [...item.additionalFinishedMtr, { meters: '', rate: '', quality: '' }]
             }
           : item
       )
@@ -242,7 +430,7 @@ export default function MillOutputForm({
   };
 
   // Update additional finished meters and rates
-  const updateAdditionalFinishedMtr = (itemId: string, index: number, field: 'meters' | 'rate', value: string) => {
+  const updateAdditionalFinishedMtr = (itemId: string, index: number, field: 'meters' | 'rate' | 'quality', value: string) => {
     setFormData({
       ...formData,
       millOutputItems: formData.millOutputItems.map(item =>
@@ -256,6 +444,56 @@ export default function MillOutputForm({
           : item
       )
     });
+  };
+
+  // Quality helper functions
+  const getQualityId = (quality: any) => {
+    return quality?._id || quality?.id || quality;
+  };
+
+  const getFilteredQualities = (itemId: string, type: 'main' | 'additional', index?: number) => {
+    // Debug logging
+    console.log('=== getFilteredQualities Debug ===');
+    console.log('qualities:', qualities);
+    console.log('qualities type:', typeof qualities);
+    console.log('qualities is array:', Array.isArray(qualities));
+    console.log('qualities length:', qualities?.length);
+    
+    // Safety check for undefined qualities
+    if (!qualities || !Array.isArray(qualities)) {
+      console.log('⚠️ QUALITIES IS EMPTY OR NOT ARRAY!');
+      return [];
+    }
+    
+    const searchKey = `${itemId}_${type}${index !== undefined ? `_${index}` : ''}`;
+    const searchTerm = activeQualityDropdown?.itemId === itemId && activeQualityDropdown?.type === type && activeQualityDropdown?.index === index 
+      ? currentQualitySearch 
+      : (qualitySearchStates[searchKey] || '');
+    
+    const filtered = qualities.filter(quality =>
+      quality?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.createdAt || 0);
+      const dateB = new Date(b.createdAt || 0);
+      return dateA.getTime() - dateB.getTime();
+    });
+  };
+
+  const handleQualitySelect = (itemId: string, type: 'main' | 'additional', quality: any, index?: number) => {
+    const qualityId = getQualityId(quality);
+    const searchKey = `${itemId}_${type}${index !== undefined ? `_${index}` : ''}`;
+    
+    if (type === 'main') {
+      updateMillOutputItem(itemId, 'quality', qualityId);
+    } else {
+      updateAdditionalFinishedMtr(itemId, index!, 'quality', qualityId);
+    }
+    
+    setQualitySearchStates(prev => ({ ...prev, [searchKey]: quality.name }));
+    setCurrentQualitySearch(quality.name);
+    setActiveQualityDropdown(null);
   };
 
   // Validate form
@@ -279,6 +517,10 @@ export default function MillOutputForm({
         newErrors[`millRate_${item.id}`] = 'Valid mill rate is required';
       }
 
+      if (!item.quality) {
+        newErrors[`quality_${item.id}`] = 'Quality is required';
+      }
+
       // Validate additional finished meters and rates
       item.additionalFinishedMtr.forEach((additional, additionalIndex) => {
         if (!additional.meters || parseFloat(additional.meters) <= 0) {
@@ -286,6 +528,9 @@ export default function MillOutputForm({
         }
         if (!additional.rate || parseFloat(additional.rate) <= 0) {
           newErrors[`additionalFinishedMtr_${item.id}_${additionalIndex}_rate`] = 'Valid additional mill rate is required';
+        }
+        if (!additional.quality) {
+          newErrors[`additionalQuality_${item.id}_${additionalIndex}`] = 'Quality is required';
         }
       });
     });
@@ -334,8 +579,13 @@ export default function MillOutputForm({
         recdDate: item.recdDate,
         millBillNo: item.millBillNo.trim(),
         finishedMtr: parseFloat(item.finishedMtr),
-        millRate: parseFloat(item.millRate)
+        millRate: parseFloat(item.millRate),
+        quality: item.quality // Add quality field
       };
+
+      console.log('Mill Output Data being sent:', millOutputData);
+      console.log('Quality field value:', item.quality);
+      console.log('Quality field type:', typeof item.quality);
 
       allMillOutputPromises.push(
         fetch('/api/mill-outputs', {
@@ -354,8 +604,11 @@ export default function MillOutputForm({
           recdDate: item.recdDate,
           millBillNo: item.millBillNo.trim(),
           finishedMtr: parseFloat(additional.meters),
-          millRate: parseFloat(additional.rate)
+          millRate: parseFloat(additional.rate),
+          quality: additional.quality // Add quality field
         };
+
+        console.log('Additional Mill Output Data being sent:', additionalMillOutputData);
 
         allMillOutputPromises.push(
           fetch('/api/mill-outputs', {
@@ -529,7 +782,8 @@ export default function MillOutputForm({
                     <div key={item.id} id={`mill-output-item-${item.id}`} className={`p-6 rounded-xl border transition-all duration-200 hover:shadow-lg ${
                       isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
                     }`}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                      {/* RECD DATE and Mill Bill No - Full Width Horizontal Layout */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {/* RECD DATE */}
             <div>
                           <label className={`block text-sm font-medium mb-3 ${
@@ -614,7 +868,45 @@ export default function MillOutputForm({
             </h6>
             <div className="space-y-4">
               {/* M1 and R1 Fields (Always visible) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Quality for M1 */}
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Quality M1 <span className="text-red-500">*</span>
+                  </label>
+                  <EnhancedDropdown
+                    options={getFilteredQualities(item.id, 'main')}
+                    value={item.quality}
+                    onChange={(value) => updateMillOutputItem(item.id, 'quality', value)}
+                    placeholder="Search quality..."
+                    searchValue={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main' 
+                      ? currentQualitySearch 
+                      : (qualitySearchStates[`${item.id}_main`] || '')}
+                    onSearchChange={(value) => {
+                      if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main') {
+                        setCurrentQualitySearch(value);
+                      } else {
+                        setQualitySearchStates(prev => ({ ...prev, [`${item.id}_main`]: value }));
+                      }
+                    }}
+                    showDropdown={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main'}
+                    onToggleDropdown={() => {
+                      if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main') {
+                        setActiveQualityDropdown(null);
+                        setCurrentQualitySearch('');
+                      } else {
+                        setActiveQualityDropdown({ itemId: item.id, type: 'main' });
+                        setCurrentQualitySearch(qualitySearchStates[`${item.id}_main`] || '');
+                      }
+                    }}
+                    onSelect={(quality) => handleQualitySelect(item.id, 'main', quality)}
+                    isDarkMode={isDarkMode}
+                    error={errors[`quality_${item.id}`]}
+                    recentlyAddedId={recentlyAddedQuality}
+                  />
+                </div>
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${
                     isDarkMode ? 'text-gray-300' : 'text-gray-700'
@@ -681,7 +973,45 @@ export default function MillOutputForm({
 
               {/* Additional Fields (M2, R2, M3, R3, etc.) */}
               {item.additionalFinishedMtr.map((additional, index) => (
-                <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Quality for Additional Meters */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Quality M{index + 2} <span className="text-red-500">*</span>
+                    </label>
+                    <EnhancedDropdown
+                      options={getFilteredQualities(item.id, 'additional', index)}
+                      value={additional.quality}
+                      onChange={(value) => updateAdditionalFinishedMtr(item.id, index, 'quality', value)}
+                      placeholder="Search quality..."
+                      searchValue={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index
+                        ? currentQualitySearch 
+                        : (qualitySearchStates[`${item.id}_additional_${index}`] || '')}
+                      onSearchChange={(value) => {
+                        if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index) {
+                          setCurrentQualitySearch(value);
+                        } else {
+                          setQualitySearchStates(prev => ({ ...prev, [`${item.id}_additional_${index}`]: value }));
+                        }
+                      }}
+                      showDropdown={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index}
+                      onToggleDropdown={() => {
+                        if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index) {
+                          setActiveQualityDropdown(null);
+                          setCurrentQualitySearch('');
+                        } else {
+                          setActiveQualityDropdown({ itemId: item.id, type: 'additional', index });
+                          setCurrentQualitySearch(qualitySearchStates[`${item.id}_additional_${index}`] || '');
+                        }
+                      }}
+                      onSelect={(quality) => handleQualitySelect(item.id, 'additional', quality, index)}
+                      isDarkMode={isDarkMode}
+                      error={errors[`additionalQuality_${item.id}_${index}`]}
+                      recentlyAddedId={recentlyAddedQuality}
+                    />
+                  </div>
                   <div>
                     <label className={`block text-sm font-medium mb-2 ${
                       isDarkMode ? 'text-gray-300' : 'text-gray-700'

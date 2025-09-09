@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
-import { MillInput, Order } from '@/models';
+import { MillInput, Order, Mill, Quality } from '@/models';
 import { getSession } from '@/lib/session';
 import { successResponse, errorResponse, validationErrorResponse, unauthorizedResponse, notFoundResponse, createdResponse } from '@/lib/response';
 import { logCreate, logError } from '@/lib/logger';
@@ -51,13 +51,38 @@ export async function GET(request: NextRequest) {
     const totalCount = await MillInput.countDocuments(query);
     
     // Get mill inputs with pagination and populate references
-    const millInputs = await MillInput.find(query)
-      .populate('mill', 'name contactPerson contactPhone')
-      .populate('order', 'orderId orderType party')
-      .sort({ millDate: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    let millInputs;
+    try {
+      // Use a more robust population approach
+      const queryBuilder = MillInput.find(query)
+        .populate('mill', 'name contactPerson contactPhone')
+        .populate('order', 'orderId orderType party');
+      
+      // Try to populate quality fields safely
+      try {
+        queryBuilder.populate('quality', 'name');
+        queryBuilder.populate('additionalMeters.quality', 'name');
+      } catch (qualityError) {
+        console.log('Quality population skipped:', qualityError.message);
+      }
+      
+      millInputs = await queryBuilder
+        .sort({ millDate: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+        
+    } catch (populateError) {
+      console.log('Population failed, getting basic data:', populateError);
+      // Fallback: get basic data with minimal population
+      millInputs = await MillInput.find(query)
+        .populate('mill', 'name')
+        .populate('order', 'orderId')
+        .sort({ millDate: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+    }
 
     const totalPages = Math.ceil(totalCount / limit);
 
@@ -89,7 +114,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { orderId, mill, millDate, chalanNo, greighMtr, pcs, additionalMeters, notes } = body;
+    const { orderId, mill, millDate, chalanNo, greighMtr, pcs, quality, additionalMeters, notes } = body;
 
     // Debug logging
     console.log('API received body:', body);
@@ -116,6 +141,10 @@ export async function POST(request: NextRequest) {
     if (!pcs || pcs <= 0) {
       return NextResponse.json(validationErrorResponse('Valid number of pieces is required'), { status: 400 });
     }
+    // Quality is optional for now to maintain backward compatibility
+    // if (!quality) {
+    //   return NextResponse.json(validationErrorResponse('Quality is required'), { status: 400 });
+    // }
 
     // Validate additional meters if provided
     if (additionalMeters && Array.isArray(additionalMeters)) {
@@ -127,6 +156,18 @@ export async function POST(request: NextRequest) {
         if (!additional.pcs || additional.pcs <= 0) {
           return NextResponse.json(validationErrorResponse(`Valid number of pieces is required for additional entry ${i + 1}`), { status: 400 });
         }
+        // Quality is optional for additional meters too
+        // if (!additional.quality) {
+        //   return NextResponse.json(validationErrorResponse(`Quality is required for additional entry ${i + 1}`), { status: 400 });
+        // }
+        
+        // Check if additional quality exists only if provided
+        if (additional.quality) {
+          const additionalQualityExists = await Quality.findById(additional.quality);
+          if (!additionalQualityExists) {
+            return NextResponse.json(notFoundResponse(`Quality for additional entry ${i + 1}`), { status: 404 });
+          }
+        }
       }
     }
 
@@ -137,10 +178,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if mill exists
-    const { Mill } = await import('@/models');
     const millExists = await Mill.findById(mill);
     if (!millExists) {
       return NextResponse.json(notFoundResponse('Mill'), { status: 404 });
+    }
+
+    // Check if quality exists only if provided
+    if (quality) {
+      const qualityExists = await Quality.findById(quality);
+      if (!qualityExists) {
+        return NextResponse.json(notFoundResponse('Quality'), { status: 404 });
+      }
     }
 
     // Create new mill input (always create new record for each entry)
@@ -152,9 +200,11 @@ export async function POST(request: NextRequest) {
       chalanNo: chalanNo.trim(),
       greighMtr: parseFloat(greighMtr),
       pcs: parseInt(pcs),
+      quality: quality || undefined,
       additionalMeters: additionalMeters && Array.isArray(additionalMeters) ? additionalMeters.map(additional => ({
         greighMtr: parseFloat(additional.greighMtr),
         pcs: parseInt(additional.pcs),
+        quality: additional.quality || undefined,
         notes: additional.notes?.trim()
       })) : undefined,
       notes: notes?.trim()
@@ -173,24 +223,44 @@ export async function POST(request: NextRequest) {
     await millInput.save();
     console.log('Mill input saved successfully with ID:', millInput._id);
 
-    // Get the final record (newly created)
-    const finalMillInput = await MillInput.findById(millInput._id)
-      .populate('mill', 'name contactPerson contactPhone')
-      .populate('order', 'orderId orderType party')
-      .lean();
+    // Get the final record (newly created) - populate quality safely
+    let finalMillInput;
+    try {
+      finalMillInput = await MillInput.findById(millInput._id)
+        .populate('mill', 'name contactPerson contactPhone')
+        .populate('order', 'orderId orderType party')
+        .populate('quality', 'name')
+        .populate('additionalMeters.quality', 'name')
+        .lean();
+    } catch (populateError) {
+      console.log('Populate failed, getting without quality:', populateError);
+      // Fallback: get without quality population
+      finalMillInput = await MillInput.findById(millInput._id)
+        .populate('mill', 'name contactPerson contactPhone')
+        .populate('order', 'orderId orderType party')
+        .lean();
+    }
 
-    await logCreate('mill_input', (finalMillInput as any)?._id?.toString() || 'unknown', { 
-      orderId, 
-      chalanNo, 
-      millName: millExists.name,
-      hasAdditionalMeters: additionalMeters && additionalMeters.length > 0
-    }, request);
+    try {
+      await logCreate('mill_input', (finalMillInput as any)?._id?.toString() || 'unknown', { 
+        orderId, 
+        chalanNo, 
+        millName: millExists.name,
+        hasAdditionalMeters: additionalMeters && additionalMeters.length > 0
+      }, request);
+    } catch (logError) {
+      console.log('Logging failed, continuing:', logError);
+    }
 
     return NextResponse.json(createdResponse(finalMillInput, 'Mill input created successfully'));
 
   } catch (error: any) {
     console.error('Error creating mill input:', error);
-    await logError('mill_input_create', 'mill_input', error.message, request);
+    try {
+      await logError('mill_input_create', 'mill_input', error.message, request);
+    } catch (logError) {
+      console.log('Error logging failed, continuing:', logError);
+    }
     return NextResponse.json(errorResponse('Failed to create mill input'), { status: 500 });
   }
 }

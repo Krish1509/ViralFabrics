@@ -69,6 +69,7 @@ export interface OrderFormData {
   styleNo?: string;
   poDate?: string;
   deliveryDate?: string;
+  status?: "Not set" | "Not selected" | "pending" | "in_progress" | "completed" | "delivered" | "cancelled";
   // weaverSupplierName and purchaseRate moved to item level
   items: OrderItem[];
 }
@@ -101,6 +102,12 @@ export interface MillInput {
   chalanNo: string;
   greighMtr: number;
   pcs: number;
+  quality?: string | Quality;
+  additionalMeters?: {
+    greighMtr: number;
+    pcs: number;
+    quality?: string | Quality;
+  }[];
   notes?: string;
   createdAt: string;
   updatedAt: string;

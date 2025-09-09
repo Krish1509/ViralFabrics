@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50'); // Default limit for performance
     const page = parseInt(searchParams.get('page') || '1'); // Default page 1
     const skip = (page - 1) * limit; // Calculate skip value for pagination
+    const sortBy = searchParams.get('sortBy') || 'createdAt'; // Default sort field
+    const sortOrder = searchParams.get('sortOrder') || 'desc'; // Default sort order
     
     // Build query
     const query: any = {};
@@ -56,9 +58,15 @@ export async function GET(req: NextRequest) {
     // Get total count for pagination info
     const totalCount = await Fabric.countDocuments(query).maxTimeMS(5000);
     
+    // Build sort object dynamically
+    const sortObj: any = {};
+    sortObj[sortBy] = sortOrder === 'asc' ? 1 : -1;
+    
+    console.log('Fabrics API - Sorting parameters:', { sortBy, sortOrder, sortObj });
+    
     // Optimized query with pagination, limits and timeout
     const fabrics = await Fabric.find(query)
-      .sort({ createdAt: -1 })
+      .sort(sortObj)
       .skip(skip)
       .limit(limit)
       .lean()

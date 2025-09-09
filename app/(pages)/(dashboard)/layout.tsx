@@ -364,11 +364,11 @@ export default function SuperAdminLayout({
   // Memoize content padding calculation
   const contentPadding = useMemo(() => {
     if (screenSize >= 1350) {
-      return 'px-4 lg:px-6';
+      return '';
     } else if (screenSize >= 1200) {
-      return 'px-3 lg:px-4';
+      return '';
     } else {
-      return 'px-3 sm:px-4';
+      return '';
     }
   }, [screenSize]);
 
@@ -421,8 +421,8 @@ export default function SuperAdminLayout({
         />
 
         {/* Main Content - Starts immediately below navbar */}
-        <main className="pt-4">
-          <div className={`${contentPadding} py-8 transition-colors duration-300 ${
+        <main className="">
+          <div className={`${contentPadding} transition-colors duration-300 ${
             mounted && isDarkMode ? 'text-white' : 'text-gray-900'
           }`}>
             {children}

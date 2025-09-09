@@ -8,6 +8,7 @@ export interface IDispatch extends Document {
   billNo: string;
   finishMtr: number;
   saleRate: number;
+  quality?: mongoose.Types.ObjectId;
   totalValue: number;
   createdAt: Date;
   updatedAt: Date;
@@ -51,6 +52,11 @@ const DispatchSchema = new Schema<IDispatch>({
     required: true,
     min: 0
   },
+  quality: {
+    type: Schema.Types.ObjectId,
+    ref: "Quality",
+    index: true
+  },
   totalValue: {
     type: Number,
     required: false,
@@ -59,6 +65,7 @@ const DispatchSchema = new Schema<IDispatch>({
   }
 }, {
   timestamps: true,
+  strictPopulate: false,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });

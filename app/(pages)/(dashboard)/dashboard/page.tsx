@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   ShoppingBagIcon, 
@@ -13,13 +13,16 @@ import {
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
 import MetricsCard from './components/MetricsCard';
-import OrderTrendsChart from './components/OrderTrendsChart';
-import OrderTypeChart from './components/OrderTypeChart';
-import StatusChart from './components/StatusChart';
 import OrdersTable from './components/OrdersTable';
 import UpcomingDeliveriesTable from './components/UpcomingDeliveriesTable';
 import DashboardFilters from './components/DashboardFilters';
-import RecentActivity from './components/RecentActivity';
+import EnhancedProfessionalPieChart from './components/EnhancedProfessionalPieChart';
+
+// Lazy load heavy components for better performance
+const OrderTrendsChart = lazy(() => import('./components/OrderTrendsChart'));
+const OrderTypeChart = lazy(() => import('./components/OrderTypeChart'));
+const StatusChart = lazy(() => import('./components/StatusChart'));
+const RecentActivity = lazy(() => import('./components/RecentActivity'));
 import { Order } from '@/types';
 
 interface DashboardStats {
@@ -33,6 +36,16 @@ interface DashboardStats {
     not_set: number;
   };
   typeStats: {
+    Dying: number;
+    Printing: number;
+    not_set: number;
+  };
+  pendingTypeStats: {
+    Dying: number;
+    Printing: number;
+    not_set: number;
+  };
+  deliveredTypeStats: {
     Dying: number;
     Printing: number;
     not_set: number;
@@ -62,6 +75,11 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [autoRefreshing, setAutoRefreshing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [loadedSections, setLoadedSections] = useState({
+    tables: false,
+    charts: false,
+    activity: false
+  });
   const [filters, setFilters] = useState<DashboardFilters>({
     startDate: '',
     endDate: '',
@@ -69,42 +87,7 @@ export default function DashboardPage() {
     financialYear: 'all'
   });
 
-  useEffect(() => {
-    if (mounted) {
-      fetchDashboardData();
-    }
-  }, [mounted, filters]);
-
-  // Listen for order updates from other pages
-  useEffect(() => {
-    const handleOrderUpdate = (event: CustomEvent) => {
-      console.log('Dashboard: Order update detected, refreshing data...', event.detail);
-      // Show auto-refresh indicator
-      setAutoRefreshing(true);
-      setError(null); // Clear any previous errors
-      // Refresh dashboard data when orders are updated
-      fetchDashboardData().then(() => {
-        setSuccessMessage('Dashboard updated successfully');
-        // Clear success message after 3 seconds
-        setTimeout(() => setSuccessMessage(null), 3000);
-      }).catch((error) => {
-        console.error('Dashboard: Failed to refresh after order update:', error);
-        setError('Failed to refresh dashboard data');
-      }).finally(() => {
-        setAutoRefreshing(false);
-      });
-    };
-
-    // Add event listener for order updates
-    window.addEventListener('orderUpdated', handleOrderUpdate as EventListener);
-
-    // Cleanup event listener on unmount
-    return () => {
-      window.removeEventListener('orderUpdated', handleOrderUpdate as EventListener);
-    };
-  }, [mounted, filters]); // Include filters in dependencies to ensure fresh data
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -161,6 +144,26 @@ export default function DashboardPage() {
           not_set: allOrders.filter((order: Order) => !order.orderType).length
         };
 
+        // Calculate type breakdown for pending orders
+        const pendingOrdersForStats = allOrders.filter((order: Order) => 
+          order.status === 'pending' || !order.status || order.status === 'Not set' || order.status === 'Not selected'
+        );
+        const pendingTypeStats = {
+          Dying: pendingOrdersForStats.filter((order: Order) => order.orderType === 'Dying').length,
+          Printing: pendingOrdersForStats.filter((order: Order) => order.orderType === 'Printing').length,
+          not_set: pendingOrdersForStats.filter((order: Order) => !order.orderType).length
+        };
+
+        // Calculate type breakdown for delivered orders
+        const deliveredOrdersForStats = allOrders.filter((order: Order) => 
+          order.status === 'delivered' || order.status === 'completed'
+        );
+        const deliveredTypeStats = {
+          Dying: deliveredOrdersForStats.filter((order: Order) => order.orderType === 'Dying').length,
+          Printing: deliveredOrdersForStats.filter((order: Order) => order.orderType === 'Printing').length,
+          not_set: deliveredOrdersForStats.filter((order: Order) => !order.orderType).length
+        };
+
 
         // Calculate monthly trends (last 12 months)
         const monthlyTrends = [];
@@ -180,6 +183,8 @@ export default function DashboardPage() {
           totalOrders,
           statusStats,
           typeStats,
+          pendingTypeStats,
+          deliveredTypeStats,
           monthlyTrends,
           recentOrders: allOrders.slice(0, 10)
         });
@@ -188,23 +193,45 @@ export default function DashboardPage() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
-        // Pending orders: orders that are not yet completed/delivered
+        // Pending orders: orders that are pending, in progress, or not set
         const pendingOrders = allOrders.filter((order: Order) => {
           const status = order.status;
-          return status === 'pending' || 
-                 status === 'in_progress' || 
-                 !status || 
-                 status === 'Not set' || 
-                 status === 'Not selected';
-        }).sort((a: Order, b: Order) => {
+          const isPendingStatus = status === 'pending' || 
+                                 status === 'in_progress' || 
+                                 !status || 
+                                 status === 'Not set' || 
+                                 status === 'Not selected';
+          
+          // Apply order type filter if specified
+          if (filters.orderType !== 'all' && order.orderType !== filters.orderType) {
+            return false;
+          }
+          
+          return isPendingStatus;
+        }).map((order: Order) => ({
+          ...order,
+          // Normalize status display for pending orders
+          status: (!order.status || order.status === 'Not set' || order.status === 'Not selected') 
+            ? 'pending' 
+            : order.status
+        })).sort((a: Order, b: Order) => {
           // Sort by creation date (newest first)
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         }).slice(0, 10);
         
+        // Remove unassigned orders - they're now included in pending
+
         // Delivered orders: orders that are completed or delivered
         const deliveredOrders = allOrders.filter((order: Order) => {
           const status = order.status;
-          return status === 'delivered' || status === 'completed';
+          const isDeliveredStatus = status === 'delivered' || status === 'completed';
+          
+          // Apply order type filter if specified
+          if (filters.orderType !== 'all' && order.orderType !== filters.orderType) {
+            return false;
+          }
+          
+          return isDeliveredStatus;
         }).sort((a: Order, b: Order) => {
           // Sort by delivery date (most recent first), then by creation date
           if (a.deliveryDate && b.deliveryDate) {
@@ -225,6 +252,11 @@ export default function DashboardPage() {
           const status = order.status;
           const isNotDelivered = status !== 'delivered' && status !== 'completed';
           const isFutureDelivery = deliveryDate >= today;
+          
+          // Apply order type filter if specified
+          if (filters.orderType !== 'all' && order.orderType !== filters.orderType) {
+            return false;
+          }
           
           return isNotDelivered && isFutureDelivery;
         }).sort((a: Order, b: Order) => {
@@ -254,7 +286,71 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+
+  useEffect(() => {
+    if (mounted) {
+      fetchDashboardData();
+    }
+  }, [mounted, fetchDashboardData]);
+
+  // Lazy load sections on scroll for better performance
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const section = entry.target.getAttribute('data-section');
+            if (section) {
+              setLoadedSections(prev => ({ ...prev, [section]: true }));
+            }
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    // Observe sections
+    const tablesSection = document.querySelector('[data-section="tables"]');
+    const chartsSection = document.querySelector('[data-section="charts"]');
+    const activitySection = document.querySelector('[data-section="activity"]');
+
+    if (tablesSection) observer.observe(tablesSection);
+    if (chartsSection) observer.observe(chartsSection);
+    if (activitySection) observer.observe(activitySection);
+
+    return () => observer.disconnect();
+  }, [mounted]);
+
+  // Listen for order updates from other pages
+  useEffect(() => {
+    const handleOrderUpdate = (event: CustomEvent) => {
+      console.log('Dashboard: Order update detected, refreshing data...', event.detail);
+      // Show auto-refresh indicator
+      setAutoRefreshing(true);
+      setError(null); // Clear any previous errors
+      // Refresh dashboard data when orders are updated
+      fetchDashboardData().then(() => {
+        setSuccessMessage('Dashboard updated successfully');
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccessMessage(null), 3000);
+      }).catch((error) => {
+        console.error('Dashboard: Failed to refresh after order update:', error);
+        setError('Failed to refresh dashboard data');
+      }).finally(() => {
+        setAutoRefreshing(false);
+      });
+    };
+
+    // Add event listener for order updates
+    window.addEventListener('orderUpdated', handleOrderUpdate as EventListener);
+
+    // Cleanup event listener on unmount
+    return () => {
+      window.removeEventListener('orderUpdated', handleOrderUpdate as EventListener);
+    };
+  }, [mounted, fetchDashboardData]); // Include fetchDashboardData in dependencies
 
   const handleFiltersChange = (newFilters: DashboardFilters) => {
     setFilters(newFilters);
@@ -281,9 +377,38 @@ export default function DashboardPage() {
     );
   }
 
+  // Show loading skeleton for initial load
+  if (loading && !stats) {
+    return (
+      <div className={`min-h-screen transition-all duration-500 ${isDarkMode ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'}`}>
+        <div className="max-w-7xl mx-auto px-1 sm:px-2 lg:px-3 xl:px-4 py-4 sm:py-6 lg:py-8">
+          {/* Header Skeleton */}
+          <div className="mb-6 sm:mb-8">
+            <div className="h-8 bg-gray-200 animate-pulse rounded-lg w-48 mb-2"></div>
+            <div className="h-4 bg-gray-200 animate-pulse rounded-lg w-64"></div>
+          </div>
+          
+          {/* Metrics Cards Skeleton */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-24 bg-gray-200 animate-pulse rounded-lg"></div>
+            ))}
+          </div>
+          
+          {/* Tables Skeleton */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+            {[1, 2].map((i) => (
+              <div key={i} className="h-64 bg-gray-200 animate-pulse rounded-lg"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen transition-all duration-500 ${isDarkMode ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'}`}>
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8">
+      <div className="max-w-7xl mx-auto px-1 sm:px-2 lg:px-3 xl:px-4 py-4 sm:py-6 lg:py-8">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -377,39 +502,8 @@ export default function DashboardPage() {
           loading={loading}
         />
 
-        {/* Orders Tables - Moved to Top */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          {/* Pending Orders Table */}
-          <OrdersTable
-            orders={pendingOrders}
-            title="Pending Orders"
-            loading={loading}
-            onViewOrder={handleViewOrder}
-            onEditOrder={handleEditOrder}
-          />
 
-          {/* Delivered Orders Table */}
-          <OrdersTable
-            orders={deliveredOrders}
-            title="Delivered Orders"
-            loading={loading}
-            onViewOrder={handleViewOrder}
-            onEditOrder={handleEditOrder}
-          />
-        </div>
-
-        {/* Upcoming Deliveries Table - Separate Row */}
-        <div className="mb-6 sm:mb-8">
-          <UpcomingDeliveriesTable
-            orders={upcomingDeliveryOrders}
-            title="Upcoming Deliveries"
-            loading={loading}
-            onViewOrder={handleViewOrder}
-            onEditOrder={handleEditOrder}
-          />
-        </div>
-
-        {/* Metrics Cards */}
+        {/* Metrics Cards - Updated */}
         {stats && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
             <MetricsCard
@@ -421,7 +515,7 @@ export default function DashboardPage() {
             />
             <MetricsCard
               title="Pending Orders"
-              value={stats.statusStats.pending}
+              value={stats.statusStats.pending + stats.statusStats.not_set}
               icon={ClockIcon}
               color="yellow"
               subtitle="Awaiting processing"
@@ -443,37 +537,74 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          {/* Order Trends Chart */}
+        {/* Professional Pie Charts Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8" data-section="charts">
+          {/* Pending Orders Pie Chart */}
           {stats && (
-            <OrderTrendsChart 
-              data={stats.monthlyTrends}
-              title="Order Trends (Last 12 Months)"
+            <EnhancedProfessionalPieChart 
+              title="Pending Orders"
+              data={{
+                pending: stats.statusStats.pending + stats.statusStats.not_set,
+                in_progress: 0,
+                completed: 0,
+                delivered: 0,
+                cancelled: 0,
+                not_set: 0
+              }}
+              typeBreakdown={stats.pendingTypeStats}
+              loading={loading}
+              variant="pending"
             />
           )}
 
-          {/* Order Type Distribution */}
+          {/* Delivered Orders Pie Chart */}
           {stats && (
-            <OrderTypeChart 
-              data={stats.typeStats}
-              title="Order Types Distribution"
+            <EnhancedProfessionalPieChart 
+              title="Delivered Orders"
+              data={{
+                pending: 0,
+                in_progress: 0,
+                completed: 0,
+                delivered: stats.statusStats.delivered + stats.statusStats.completed,
+                cancelled: 0,
+                not_set: 0
+              }}
+              typeBreakdown={stats.deliveredTypeStats}
+              loading={loading}
+              variant="delivered"
             />
           )}
         </div>
 
+        {/* Upcoming Deliveries Table */}
+        <div className="mb-6 sm:mb-8">
+          <UpcomingDeliveriesTable
+            orders={upcomingDeliveryOrders}
+            title="Upcoming Deliveries"
+            loading={loading}
+            onViewOrder={handleViewOrder}
+            onEditOrder={handleEditOrder}
+          />
+        </div>
+
         {/* Status Overview and Recent Activity */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8" data-section="activity">
           {/* Status Chart */}
-          {stats && (
-            <StatusChart 
-              data={stats.statusStats}
-              title="Order Status Overview"
-            />
+          {stats && loadedSections.activity && (
+            <Suspense fallback={<div className="h-64 bg-gray-200 animate-pulse rounded-lg"></div>}>
+              <StatusChart 
+                data={stats.statusStats}
+                title="Order Status Overview"
+              />
+            </Suspense>
           )}
 
           {/* Recent Activity */}
-          <RecentActivity userRole="superadmin" />
+          {loadedSections.activity && (
+            <Suspense fallback={<div className="h-64 bg-gray-200 animate-pulse rounded-lg"></div>}>
+              <RecentActivity userRole="superadmin" />
+            </Suspense>
+          )}
         </div>
 
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSession } from '@/app/(pages)/(dashboard)/hooks/useSession';
 import { useRouter } from 'next/navigation';
 import { useDarkMode } from '@/app/(pages)/(dashboard)/hooks/useDarkMode';
@@ -56,6 +56,16 @@ import {
   Hash,
   Upload
 } from 'lucide-react';
+
+// Simple loading component
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center min-h-[400px]">
+    <div className="text-center">
+      <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+      <p className="text-sm text-gray-600">Loading logs...</p>
+    </div>
+  </div>
+);
 
 interface Log {
   _id: string;
@@ -115,8 +125,8 @@ export default function LogsPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
 
-  // Fetch logs with pagination
-  const fetchLogs = async (loadMore = false) => {
+  // Optimized fetch logs with better caching and performance
+  const fetchLogs = useCallback(async (loadMore = false) => {
     try {
       if (loadMore) {
         setIsLoadingMore(true);
@@ -125,11 +135,6 @@ export default function LogsPage() {
         setError(null);
       }
       
-      // Remove the artificial delay that causes white screen flicker
-      // if (!loadMore) {
-      //   await new Promise(resolve => setTimeout(resolve, 300));
-      // }
-      
       const token = localStorage.getItem('token');
       if (!token) {
         setError('Authentication token not found');
@@ -137,9 +142,9 @@ export default function LogsPage() {
         return;
       }
       
-      // Build query parameters
+      // Build query parameters with optimized settings
       const params = new URLSearchParams();
-      params.append('limit', '50'); // Reduced to 50 for faster initial load
+      params.append('limit', '100'); // Increased for better performance
       params.append('includeStats', 'true');
       
       if (dateFilter !== 'all') {
@@ -151,12 +156,19 @@ export default function LogsPage() {
         params.append('cursor', nextCursor);
       }
       
+      // Add timeout and abort controller for better performance
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
       const response = await fetch(`/api/logs?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=30'
-        }
+          'Cache-Control': 'max-age=60, stale-while-revalidate=120'
+        },
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
         if (response.status === 401) {
@@ -176,14 +188,11 @@ export default function LogsPage() {
             const newLogs = data.logs || [];
             const existingIds = new Set(prevLogs.map(log => log._id));
             const uniqueNewLogs = newLogs.filter(log => !existingIds.has(log._id));
-            const updatedLogs = [...prevLogs, ...uniqueNewLogs];
-            console.log(`Load more: Previous ${prevLogs.length}, New ${newLogs.length}, Unique ${uniqueNewLogs.length}, Total ${updatedLogs.length}`);
-            return updatedLogs;
+            return [...prevLogs, ...uniqueNewLogs];
           });
         } else {
           // Replace logs for new search/filter
           setLogs(data.logs || []);
-          console.log(`Initial load: ${data.logs?.length || 0} logs`);
         }
         
         // Update pagination state
@@ -191,24 +200,27 @@ export default function LogsPage() {
           setHasMore(data.pagination.hasMore);
           setNextCursor(data.pagination.nextCursor);
           setTotalLogs(data.pagination.total);
-          console.log(`Pagination: hasMore=${data.pagination.hasMore}, nextCursor=${data.pagination.nextCursor}, total=${data.pagination.total}`);
         }
         
         // Update stats only on first load
         if (!loadMore && data.statistics) {
-        setStats(data.statistics);
+          setStats(data.statistics);
         }
       } else {
         setError('Failed to fetch logs');
       }
     } catch (err) {
-      console.error('Error fetching logs:', err);
-      setError('Error loading logs');
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Request timeout. Please try again.');
+      } else {
+        console.error('Error fetching logs:', err);
+        setError('Error loading logs');
+      }
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  };
+  }, [dateFilter, nextCursor]);
 
   // Load logs on component mount
   useEffect(() => {
@@ -266,83 +278,90 @@ export default function LogsPage() {
     }
   }, [sessionLoading, isLoading, user, router]);
 
-  // Filter and sort logs - exclude view page logs and only show important operations
-  const filteredAndSortedLogs = logs
-    .filter(log => {
-      // Exclude routine page view logs
-      if (log.action === 'view' && log.resource === 'log') {
-        return false;
-      }
-      
-      // Only show important operations (exclude routine views)
-      const importantActions = [
-        'login', 'logout', 'login_failed', 'password_change', 'password_reset',
-        'user_create', 'user_update', 'user_delete', 'user_activate', 'user_deactivate',
-        'order_create', 'order_update', 'order_delete', 'order_status_change',
-        'lab_create', 'lab_update', 'lab_delete', 'lab_status_change',
-        'party_create', 'party_update', 'party_delete',
-        'quality_create', 'quality_update', 'quality_delete',
-        'file_upload', 'file_delete', 'file_download',
-        'system_backup', 'system_restore', 'system_config_change',
-        'export', 'import', 'search', 'filter'
-      ];
-      
-      if (!importantActions.includes(log.action)) {
-        return false;
-      }
-      
-    const matchesSearch = searchTerm === '' || 
-      log.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.resource.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesAction = actionFilter === 'all' || log.action === actionFilter;
-    const matchesSuccess = successFilter === 'all' || 
-      (successFilter === 'success' && log.success) ||
-      (successFilter === 'failed' && !log.success);
-    
-    const matchesUserRole = userRoleFilter === 'all' || 
-      (userRoleFilter === 'user' && log.userRole === 'user') ||
-      (userRoleFilter === 'superadmin' && log.userRole === 'superadmin');
-    
-    return matchesSearch && matchesAction && matchesSuccess && matchesUserRole;
-    })
-    .sort((a, b) => {
-      let aValue: any = a[sortField as keyof Log];
-      let bValue: any = b[sortField as keyof Log];
-      
-      // Handle timestamp sorting
-      if (sortField === 'timestamp') {
-        aValue = new Date(aValue).getTime();
-        bValue = new Date(bValue).getTime();
-      }
-      
-      // Handle string sorting
-      if (typeof aValue === 'string') {
-        aValue = aValue.toLowerCase();
-        bValue = bValue.toLowerCase();
-      }
-      
-      if (sortDirection === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
+  // Optimized filtering and sorting with useMemo for better performance
+  const filteredAndSortedLogs = useMemo(() => {
+    return logs
+      .filter(log => {
+        // Exclude routine page view logs
+        if (log.action === 'view' && log.resource === 'log') {
+          return false;
+        }
+        
+        // Only show important operations (exclude routine views)
+        const importantActions = [
+          'login', 'logout', 'login_failed', 'password_change', 'password_reset',
+          'user_create', 'user_update', 'user_delete', 'user_activate', 'user_deactivate',
+          'order_create', 'order_update', 'order_delete', 'order_status_change',
+          'lab_create', 'lab_update', 'lab_delete', 'lab_status_change',
+          'party_create', 'party_update', 'party_delete',
+          'quality_create', 'quality_update', 'quality_delete',
+          'fabric_create', 'fabric_update', 'fabric_delete', // Added fabric operations
+          'file_upload', 'file_delete', 'file_download',
+          'system_backup', 'system_restore', 'system_config_change',
+          'export', 'import', 'search', 'filter'
+        ];
+        
+        if (!importantActions.includes(log.action)) {
+          return false;
+        }
+        
+        const matchesSearch = searchTerm === '' || 
+          log.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          log.resource.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        const matchesAction = actionFilter === 'all' || log.action === actionFilter;
+        const matchesSuccess = successFilter === 'all' || 
+          (successFilter === 'success' && log.success) ||
+          (successFilter === 'failed' && !log.success);
+        
+        const matchesUserRole = userRoleFilter === 'all' || 
+          (userRoleFilter === 'user' && log.userRole === 'user') ||
+          (userRoleFilter === 'superadmin' && log.userRole === 'superadmin');
+        
+        return matchesSearch && matchesAction && matchesSuccess && matchesUserRole;
+      })
+      .sort((a, b) => {
+        let aValue: any = a[sortField as keyof Log];
+        let bValue: any = b[sortField as keyof Log];
+        
+        // Handle timestamp sorting
+        if (sortField === 'timestamp') {
+          aValue = new Date(aValue).getTime();
+          bValue = new Date(bValue).getTime();
+        }
+        
+        // Handle string sorting
+        if (typeof aValue === 'string') {
+          aValue = aValue.toLowerCase();
+          bValue = bValue.toLowerCase();
+        }
+        
+        if (sortDirection === 'asc') {
+          return aValue > bValue ? 1 : -1;
+        } else {
+          return aValue < bValue ? 1 : -1;
+        }
+      });
+  }, [logs, searchTerm, actionFilter, successFilter, userRoleFilter, sortField, sortDirection]);
 
   // Ensure we don't show more logs than total
-  const displayLogs = filteredAndSortedLogs.slice(0, Math.min(filteredAndSortedLogs.length, totalLogs));
+  const displayLogs = useMemo(() => {
+    return filteredAndSortedLogs.slice(0, Math.min(filteredAndSortedLogs.length, totalLogs));
+  }, [filteredAndSortedLogs, totalLogs]);
 
   // Get unique actions for filter dropdown
-  const uniqueActions = [...new Set(logs.map(log => log.action))].sort();
+  const uniqueActions = useMemo(() => {
+    return [...new Set(logs.map(log => log.action))].sort();
+  }, [logs]);
 
-  // Format timestamp
-  const formatTimestamp = (timestamp: string) => {
+  // Optimized utility functions with useCallback
+  const formatTimestamp = useCallback((timestamp: string) => {
     return new Date(timestamp).toLocaleString();
-  };
+  }, []);
 
   // Get severity icon
-  const getSeverityIcon = (severity: string) => {
+  const getSeverityIcon = useCallback((severity: string) => {
     switch (severity) {
       case 'error':
       case 'critical':
@@ -353,10 +372,10 @@ export default function LogsPage() {
       default:
         return <CheckCircle className="w-4 h-4 text-green-500" />;
     }
-  };
+  }, []);
 
   // Get action icon based on action type
-  const getActionIcon = (action: string) => {
+  const getActionIcon = useCallback((action: string) => {
     const actionLower = action.toLowerCase();
     
     // Authentication actions
@@ -405,10 +424,10 @@ export default function LogsPage() {
     
     // Default action icon
     return <ActivityIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />;
-  };
+  }, []);
 
   // Get resource icon based on resource type
-  const getResourceIcon = (resource: string) => {
+  const getResourceIcon = useCallback((resource: string) => {
     const resourceLower = resource.toLowerCase();
     
     // User-related resources
@@ -491,10 +510,10 @@ export default function LogsPage() {
     
     // Default resource icon
     return <Hash className="w-4 h-4 text-gray-600 dark:text-gray-400" />;
-  };
+  }, []);
 
   // Get action background color based on action type
-  const getActionBgColor = (action: string) => {
+  const getActionBgColor = useCallback((action: string) => {
     const actionLower = action.toLowerCase();
     
     // Authentication actions
@@ -532,10 +551,10 @@ export default function LogsPage() {
     
     // Default action background
     return isDarkMode ? 'bg-purple-900/30' : 'bg-purple-100';
-  };
+  }, [isDarkMode]);
 
   // Get user role icon based on user role
-  const getUserRoleIcon = (userRole: string) => {
+  const getUserRoleIcon = useCallback((userRole: string) => {
     const roleLower = userRole.toLowerCase();
     
     if (roleLower.includes('superadmin') || roleLower.includes('admin')) {
@@ -544,10 +563,10 @@ export default function LogsPage() {
     
     // Default user icon
     return <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
-  };
+  }, []);
 
   // Get user role background color based on user role
-  const getUserRoleBgColor = (userRole: string) => {
+  const getUserRoleBgColor = useCallback((userRole: string) => {
     const roleLower = userRole.toLowerCase();
     
     if (roleLower.includes('superadmin') || roleLower.includes('admin')) {
@@ -556,10 +575,10 @@ export default function LogsPage() {
     
     // Default user background
     return isDarkMode ? 'bg-blue-900/30' : 'bg-blue-100';
-  };
+  }, [isDarkMode]);
 
   // Get resource background color based on resource type
-  const getResourceBgColor = (resource: string) => {
+  const getResourceBgColor = useCallback((resource: string) => {
     const resourceLower = resource.toLowerCase();
     
     // User-related resources
@@ -599,10 +618,10 @@ export default function LogsPage() {
     
     // Default resource background
     return isDarkMode ? 'bg-gray-900/30' : 'bg-gray-100';
-  };
+  }, [isDarkMode]);
 
   // Get success status
-  const getSuccessStatus = (success: boolean) => {
+  const getSuccessStatus = useCallback((success: boolean) => {
     return success ? (
       <div className="flex items-center">
         <div className={`w-6 h-6 rounded-lg flex items-center justify-center mr-2 ${
@@ -634,75 +653,14 @@ export default function LogsPage() {
         </span>
       </div>
     );
-  };
+  }, [isDarkMode]);
 
-  // Show skeleton immediately on mount or when session is loading
+  // Show simple loading spinner
   if (sessionLoading || isLoading) {
     return (
       <div className={`min-h-screen ${isDarkMode ? 'bg-[#1D293D]' : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header Skeleton */}
-          <div className="mb-8">
-            <div className={`inline-block w-48 h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-full animate-pulse mb-4`}></div>
-            <div className={`w-80 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse mb-3`}></div>
-            <div className={`w-96 h-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
-          </div>
-
-          {/* Statistics Cards Skeleton */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} p-6`}>
-                <div className="flex items-center">
-                  <div className={`w-12 h-12 rounded-xl ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse mr-4`}></div>
-                  <div className="flex-1">
-                    <div className={`w-20 h-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse mb-2`}></div>
-                    <div className={`w-16 h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Filters Skeleton */}
-          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} mb-8`}>
-            <div className="p-8">
-              <div className="flex items-center justify-between mb-6">
-                <div className={`w-40 h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
-                <div className={`w-24 h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="space-y-3">
-                    <div className={`w-20 h-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
-                    <div className={`w-full h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-xl animate-pulse`}></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Table Skeleton */}
-          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} overflow-hidden`}>
-            <div className={`px-8 py-6 border-b ${isDarkMode ? 'border-gray-700 bg-gray-700' : 'border-gray-200 bg-gray-50'}`}>
-              <div className="flex items-center justify-between">
-                <div className={`w-60 h-8 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
-                <div className={`w-32 h-8 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
-              </div>
-            </div>
-            <div className="p-8">
-              <div className="space-y-4">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="flex items-center space-x-6">
-                    <div className={`w-32 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
-                    <div className={`w-40 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
-                    <div className={`w-36 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
-                    <div className={`w-24 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
-                    <div className={`w-20 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <LoadingSpinner />
         </div>
       </div>
     );
@@ -761,9 +719,6 @@ export default function LogsPage() {
                 <div>
                   <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total Logs</p>
                   <p className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.total}</p>
-                  <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                    {logs.length} loaded
-                  </p>
                 </div>
               </div>
             </div>
@@ -964,7 +919,7 @@ export default function LogsPage() {
           </div>
         </div>
 
-        {/* Enhanced Logs Table */}
+        {/* Logs Table */}
         <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white/90 backdrop-blur-sm'} rounded-2xl shadow-lg border ${isDarkMode ? 'border-gray-700' : 'border-gray-200/50'} overflow-hidden`}>
           <div className={`px-8 py-6 border-b ${isDarkMode ? 'border-gray-700 bg-gray-700' : 'border-gray-200 bg-gray-50'}`}>
             <div className="flex items-center justify-between">
@@ -974,16 +929,7 @@ export default function LogsPage() {
                     <span className="text-blue-600 dark:text-blue-400">🔒</span>
                   </div>
                   Activity Logs ({displayLogs.length} of {totalLogs} total)
-                  {isInfiniteScrollEnabled && (
-                    <span className={`ml-3 text-xs font-medium px-3 py-1 rounded-full ${
-                      isDarkMode 
-                        ? 'text-blue-400 bg-blue-900/50' 
-                        : 'text-blue-700 bg-blue-100'
-                    }`}>
-                      🔄 Auto Load
-                    </span>
-                  )}
-              </h2>
+                </h2>
                 {totalLogs > 0 && (
                   <div className="mt-3">
                     <div className="flex items-center text-sm">
@@ -1005,17 +951,17 @@ export default function LogsPage() {
                 )}
               </div>
               <div className="flex items-center space-x-3">
-              <button
+                <button
                   onClick={() => fetchLogs(false)}
                   className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 shadow-sm ${
                     isDarkMode 
                       ? 'text-gray-300 bg-gray-600 border border-gray-500 hover:bg-gray-500 hover:text-white' 
                       : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
                   }`}
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh
-              </button>
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Refresh
+                </button>
                 {isLoadingMore && (
                   <div className={`flex items-center text-sm px-4 py-2.5 rounded-xl border ${
                     isDarkMode 
@@ -1026,8 +972,6 @@ export default function LogsPage() {
                     Loading...
                   </div>
                 )}
-
-
                 {hasMore && !isInfiniteScrollEnabled && (
                   <button
                     onClick={loadMoreLogs}
@@ -1042,7 +986,6 @@ export default function LogsPage() {
                     Load More
                   </button>
                 )}
-
               </div>
             </div>
           </div>
@@ -1051,17 +994,17 @@ export default function LogsPage() {
             <table className={`w-full divide-y ${isDarkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
               <thead className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} sticky top-0 z-10`}>
                 <tr>
-                                      <th 
-                      className={`px-4 py-3 text-left text-xs font-semibold ${isDarkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-600 hover:bg-gray-100'} uppercase tracking-wider cursor-pointer transition-colors w-24`}
-                      onClick={() => {
-                        if (sortField === 'username') {
-                          setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-                        } else {
-                          setSortField('username');
-                          setSortDirection('asc');
-                        }
-                      }}
-                    >
+                  <th 
+                    className={`px-4 py-3 text-left text-xs font-semibold ${isDarkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-600 hover:bg-gray-100'} uppercase tracking-wider cursor-pointer transition-colors w-24`}
+                    onClick={() => {
+                      if (sortField === 'username') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortField('username');
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
                     <div className="flex items-center space-x-1">
                       <span>👤 User</span>
                       {sortField === 'username' && (
@@ -1137,7 +1080,6 @@ export default function LogsPage() {
                   <th className={`px-4 py-3 text-left text-xs font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} uppercase tracking-wider w-20`}>
                     🚨 Level
                   </th>
-
                 </tr>
               </thead>
               <tbody className={`${isDarkMode ? 'bg-gray-800 divide-gray-700' : 'bg-white divide-gray-200'} divide-y`}>

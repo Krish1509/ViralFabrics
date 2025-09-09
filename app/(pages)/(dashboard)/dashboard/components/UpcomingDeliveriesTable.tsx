@@ -97,20 +97,22 @@ export default function UpcomingDeliveriesTable({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'in_progress': return 'bg-blue-100 text-blue-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'delivered': return 'bg-green-100 text-green-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'pending': return isDarkMode ? 'bg-yellow-900/30 text-yellow-300 border border-yellow-700/50' : 'bg-yellow-100 text-yellow-800';
+      case 'in_progress': return isDarkMode ? 'bg-blue-900/30 text-blue-300 border border-blue-700/50' : 'bg-blue-100 text-blue-800';
+      case 'completed': return isDarkMode ? 'bg-green-900/30 text-green-300 border border-green-700/50' : 'bg-green-100 text-green-800';
+      case 'delivered': return isDarkMode ? 'bg-green-900/30 text-green-300 border border-green-700/50' : 'bg-green-100 text-green-800';
+      case 'cancelled': return isDarkMode ? 'bg-red-900/30 text-red-300 border border-red-700/50' : 'bg-red-100 text-red-800';
+      case 'Not set':
+      case 'Not selected':
+      default: return isDarkMode ? 'bg-gray-700/50 text-gray-300 border border-gray-600/50' : 'bg-gray-100 text-gray-800';
     }
   };
 
   const getOrderTypeColor = (orderType: string) => {
     switch (orderType) {
-      case 'Dying': return 'bg-blue-100 text-blue-800';
-      case 'Printing': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'Dying': return isDarkMode ? 'bg-red-900/30 text-red-300 border border-red-700/50' : 'bg-red-100 text-red-800';
+      case 'Printing': return isDarkMode ? 'bg-blue-900/30 text-blue-300 border border-blue-700/50' : 'bg-blue-100 text-blue-800';
+      default: return isDarkMode ? 'bg-gray-700/50 text-gray-300 border border-gray-600/50' : 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -177,7 +179,7 @@ export default function UpcomingDeliveriesTable({
   return (
     <div className={`rounded-xl border shadow-lg transition-all duration-500 ${
       isDarkMode 
-        ? 'bg-slate-800/80 border-slate-700 shadow-slate-900/30 backdrop-blur-sm' 
+        ? 'bg-gray-800/90 border-gray-600 shadow-gray-900/40 backdrop-blur-sm' 
         : 'bg-white/80 border-gray-200 shadow-gray-200/50 backdrop-blur-sm'
     }`}>
       {/* Header with Filters */}
@@ -365,7 +367,7 @@ export default function UpcomingDeliveriesTable({
                     ) : (
                       <span className={`text-sm transition-colors duration-300 ${
                         isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                      }`}>Not set</span>
+                      }`}>Pending</span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -407,7 +409,7 @@ export default function UpcomingDeliveriesTable({
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status || 'pending')}`}>
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status || 'Not set')}`}>
                       {order.status || 'Not set'}
                     </span>
                   </td>

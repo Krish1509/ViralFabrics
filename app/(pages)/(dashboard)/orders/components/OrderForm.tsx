@@ -273,24 +273,7 @@ function CustomDatePicker({
                       </button>
           </div>
 
-          {/* Quick Navigation Buttons */}
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setCurrentDate(new Date());
-              }}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                isDarkMode 
-                  ? 'bg-blue-500 hover:bg-blue-600 text-white' 
-                  : 'bg-blue-500 hover:bg-blue-600 text-white'
-              }`}
-            >
-              Today
-            </button>
-          </div>
+        
       </div>
 
              {showCalendar && (
@@ -1612,6 +1595,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
           changedFields.push('deliveryDate');
         }
         
+        
 
         
         // Check if items have changed - more accurate comparison
@@ -1887,6 +1871,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                 </div>
                 {errors.orderType && <p className="text-red-500 text-sm mt-2">{errors.orderType}</p>}
               </div>
+
 
 
 

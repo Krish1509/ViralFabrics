@@ -26,16 +26,21 @@ export async function GET(
       return NextResponse.json(validationErrorResponse('Invalid order ID'), { status: 400 });
     }
     
-    // Optimized: Get labs only with minimal data and faster timeout
+    // Get labs with all necessary data including labSendData
     const labs = await Lab.find({
       order: orderId,
       softDeleted: false
     })
-    .select('_id orderItemId status labSendDate labSendNumber remarks createdAt')
+    .select('_id orderItemId status labSendDate labSendNumber labSendData remarks createdAt')
     .sort({ createdAt: -1 })
     .lean()
     .maxTimeMS(2000); // Reduced timeout to 2 seconds
 
+    console.log('Labs by-order API: Retrieved labs:', labs);
+    if (labs.length > 0) {
+      console.log('Labs by-order API: First lab labSendData:', labs[0].labSendData);
+    }
+    
     return NextResponse.json(successResponse(labs, 'Labs fetched successfully'));
     
   } catch (error: any) {

@@ -131,10 +131,9 @@ export async function DELETE(
     const millInputsCount = await MillInput.countDocuments({ mill: id });
     
     if (millInputsCount > 0) {
-      return NextResponse.json(
-        validationErrorResponse(`Cannot delete mill. It is being used in ${millInputsCount} mill input(s). Consider deactivating instead.`), 
-        { status: 400 }
-      );
+      // Delete all mill inputs that use this mill first
+      await MillInput.deleteMany({ mill: id });
+      console.log(`Deleted ${millInputsCount} mill inputs that were using mill ${id}`);
     }
 
     // Delete mill

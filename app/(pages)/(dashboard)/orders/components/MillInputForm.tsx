@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   XMarkIcon,
   PlusIcon,
@@ -10,9 +10,12 @@ import {
   BeakerIcon,
   ExclamationTriangleIcon,
   CheckIcon,
-  TrashIcon
+  TrashIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
-import { Order, Mill } from '@/types';
+import { Order, Mill, Quality } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
 
 interface MillItem {
@@ -21,7 +24,8 @@ interface MillItem {
   chalanNo: string;
   greighMtr: string;
   pcs: string;
-  additionalMeters: { meters: string; pieces: string }[];
+  quality: string; // Add quality field
+  additionalMeters: { meters: string; pieces: string; quality: string }[]; // Add quality to additional meters
 }
 
 interface MillInputFormData {
@@ -33,6 +37,7 @@ interface MillInputFormData {
 interface MillInputFormProps {
   order: Order | null;
   mills: Mill[];
+  qualities: Quality[];
   onClose: () => void;
   onSuccess: () => void;
   onAddMill: () => void;
@@ -45,9 +50,224 @@ interface ValidationErrors {
   [key: string]: string;
 }
 
+// Enhanced Dropdown Component
+function EnhancedDropdown({
+  options,
+  value,
+  onChange,
+  placeholder,
+  searchValue,
+  onSearchChange,
+  showDropdown,
+  onToggleDropdown,
+  onSelect,
+  isDarkMode,
+  error,
+  onAddNew,
+  onDelete,
+  itemIndex,
+  recentlyAddedId
+}: {
+  options: any[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+  showDropdown: boolean;
+  onToggleDropdown: () => void;
+  onSelect: (item: any) => void;
+  isDarkMode: boolean;
+  error?: string;
+  onAddNew?: () => void;
+  onDelete?: (item: any) => void;
+  itemIndex?: number;
+  recentlyAddedId?: string | null;
+}) {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        const target = event.target as HTMLElement;
+        if (target.closest('.calendar-container') || target.closest('.date-picker')) {
+          return;
+        }
+        onToggleDropdown();
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdown, onToggleDropdown]);
+
+  // Get selected item name for display
+  const selectedItem = options.find(option => (option._id || (option as any).id) === value);
+  const displayValue = selectedItem ? selectedItem.name : searchValue;
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div className="flex space-x-2">
+        <div className="flex-1 relative">
+          <input
+            type="text"
+            placeholder={placeholder}
+            value={displayValue}
+            onChange={(e) => {
+              const newValue = e.target.value;
+              onSearchChange(newValue);
+              // Clear selection if user is typing something different
+              if (selectedItem && newValue !== selectedItem.name) {
+                onChange('');
+              }
+            }}
+            onFocus={() => onToggleDropdown()}
+            className={`w-full p-3 rounded-lg border ${
+              isDarkMode 
+                ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+            } ${error ? 'border-red-500' : ''} focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+          />
+          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+            {searchValue && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onSearchChange('');
+                  onChange('');
+                }}
+                className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                  isDarkMode ? 'text-gray-400 hover:text-red-400' : 'text-gray-500 hover:text-red-500'
+                }`}
+                title="Clear"
+              >
+                <XMarkIcon className="h-3 w-3" />
+              </button>
+            )}
+            <ChevronDownIcon className={`h-4 w-4 transition-transform duration-200 ${
+              showDropdown ? 'rotate-180' : ''
+            } ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+          </div>
+        </div>
+        {onAddNew && (
+          <button
+            type="button"
+            onClick={onAddNew}
+            className={`px-3 py-3 rounded-lg border-2 border-dashed transition-all duration-200 hover:scale-105 ${
+              isDarkMode 
+                ? 'border-gray-600 hover:border-blue-500 text-gray-300 hover:text-blue-400' 
+                : 'border-gray-300 hover:border-blue-400 text-gray-600 hover:text-blue-600'
+            }`}
+            title="Add New Mill"
+          >
+            <PlusIcon className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {showDropdown && (
+        <div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-xl max-h-60 overflow-y-auto ${
+          isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+        }`}>
+          {options.length > 0 ? (
+            [...options].sort((a, b) => {
+              const aIsRecent = recentlyAddedId === (a._id || (a as any).id);
+              const bIsRecent = recentlyAddedId === (b._id || (b as any).id);
+              if (aIsRecent && !bIsRecent) return 1;
+              if (!aIsRecent && bIsRecent) return -1;
+              return a.name.localeCompare(b.name);
+            }).map((option, index) => (
+              <button
+                key={option._id || (option as any).id || `quality-${index}-${option.name}`}
+                type="button"
+                onClick={() => onSelect(option)}
+                className={`w-full p-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                } ${value === (option._id || (option as any).id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${
+                  recentlyAddedId === (option._id || (option as any).id) ? 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium">{option.name}</span>
+                      {recentlyAddedId === (option._id || (option as any).id) && (
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          isDarkMode 
+                            ? 'bg-green-600 text-white' 
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          New
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {value === (option._id || (option as any).id) && (
+                    <CheckIcon className="h-4 w-4 text-blue-500" />
+                  )}
+                    {onDelete && (
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(option);
+                        }}
+                        className={`p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors cursor-pointer ${
+                          isDarkMode 
+                            ? 'text-gray-400 hover:text-red-400' 
+                            : 'text-gray-500 hover:text-red-600'
+                        }`}
+                        title="Delete"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </button>
+            ))
+          ) : (
+            <div className={`p-4 text-center ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-500'
+            }`}>
+              <div className="flex flex-col items-center space-y-2">
+                <MagnifyingGlassIcon className="h-8 w-8 opacity-50" />
+                <p className="font-medium">No mills found</p>
+                <p className="text-sm">Try adjusting your search or add a new one</p>
+                {onAddNew && (
+                  <button
+                    type="button"
+                    onClick={onAddNew}
+                    className={`mt-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
+                      isDarkMode 
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                        : 'bg-blue-500 hover:bg-blue-600 text-white'
+                    }`}
+                  >
+                    <PlusIcon className="h-3 w-3 inline mr-1" />
+                    Add New Mill
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MillInputForm({
   order,
   mills,
+  qualities,
   onClose,
   onSuccess,
   onAddMill,
@@ -56,14 +276,6 @@ export default function MillInputForm({
   existingMillInputs = []
 }: MillInputFormProps) {
   const { isDarkMode } = useDarkMode();
-  
-  // Debug logging
-  console.log('MillInputForm rendered with props:', {
-    orderId: order?.orderId,
-    isEditing,
-    existingMillInputsCount: existingMillInputs.length,
-    existingMillInputs
-  });
   
   const [formData, setFormData] = useState<MillInputFormData>({
     orderId: order?.orderId || '',
@@ -74,11 +286,32 @@ export default function MillInputForm({
       chalanNo: '',
       greighMtr: '',
       pcs: '',
+      quality: '', // Add quality field
       additionalMeters: []
     }],
   });
+
+  // Debug logging
+  console.log('=== MillInputForm Debug ===');
+  console.log('Order ID:', order?.orderId);
+  console.log('Is Editing:', isEditing);
+  console.log('Existing Mill Inputs Count:', existingMillInputs.length);
+  console.log('Mills Count:', mills.length);
+  console.log('Mills Array:', mills);
+  console.log('Mills Type:', typeof mills);
+  console.log('Is Mills Array:', Array.isArray(mills));
+  console.log('Mills Details:', mills.map(m => ({ id: m._id, name: m.name })));
+  console.log('Form Data Mill:', formData.mill);
+  
+  // Additional debugging for empty mills
+  if (mills.length === 0) {
+    console.log('⚠️ MILLS ARRAY IS EMPTY!');
+    console.log('Mills prop received:', mills);
+    console.log('Mills prop type:', typeof mills);
+  }
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [saving, setSaving] = useState(false);
+  const [savingProgress, setSavingProgress] = useState('');
   const [showAddMillModal, setShowAddMillModal] = useState(false);
   const [addMillForm, setAddMillForm] = useState({
     name: '',
@@ -88,13 +321,41 @@ export default function MillInputForm({
     email: ''
   });
   const [loadingExistingData, setLoadingExistingData] = useState(false);
+  const [addingMill, setAddingMill] = useState(false);
+  
+  // Mill-related state
+  const [millSearch, setMillSearch] = useState('');
+  const [showMillDropdown, setShowMillDropdown] = useState(false);
+  const [recentlyAddedMill, setRecentlyAddedMill] = useState<string | null>(null);
+  
+  // Quality-related state
+  const [activeQualityDropdown, setActiveQualityDropdown] = useState<{ itemId: string; type: 'main' | 'additional'; index?: number } | null>(null);
+  const [qualitySearchStates, setQualitySearchStates] = useState<{ [key: string]: string }>({});
+  const [currentQualitySearch, setCurrentQualitySearch] = useState('');
+  const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
 
   // Load existing mill inputs when editing
   useEffect(() => {
+    console.log('=== useEffect for loading existing data ===');
+    console.log('isEditing:', isEditing);
+    console.log('existingMillInputs.length:', existingMillInputs.length);
+    console.log('existingMillInputs:', existingMillInputs);
+    
     if (isEditing && existingMillInputs.length > 0) {
+      console.log('Calling loadExistingMillInputs...');
       loadExistingMillInputs();
+    } else {
+      console.log('Not loading existing data - conditions not met');
     }
   }, [isEditing, existingMillInputs]);
+
+  // Monitor mills array changes
+  useEffect(() => {
+    console.log('Mills array updated:', mills.length, 'mills');
+    mills.forEach(mill => {
+      console.log('Available mill:', mill._id, mill.name);
+    });
+  }, [mills]);
 
   // Reset form when order changes (but not when editing)
   useEffect(() => {
@@ -108,6 +369,7 @@ export default function MillInputForm({
           chalanNo: '',
           greighMtr: '',
           pcs: '',
+          quality: '', // Add quality field
           additionalMeters: []
         }],
       });
@@ -126,7 +388,10 @@ export default function MillInputForm({
 
   // Function to load existing mill inputs
   const loadExistingMillInputs = async () => {
-    console.log('loadExistingMillInputs called with:', { order, existingMillInputs });
+    console.log('=== loadExistingMillInputs called ===');
+    console.log('order:', order);
+    console.log('existingMillInputs:', existingMillInputs);
+    console.log('existingMillInputs.length:', existingMillInputs.length);
     
     if (!order || existingMillInputs.length === 0) {
       console.log('Early return - no order or existing inputs');
@@ -152,9 +417,11 @@ export default function MillInputForm({
             chalanNo: group.chalanNo,
             greighMtr: group.mainInput.greighMtr.toString(),
             pcs: group.mainInput.pcs.toString(),
+            quality: group.mainInput.quality || '', // Add quality field
             additionalMeters: group.additionalInputs.map((input: any) => ({
               meters: input.greighMtr.toString(),
-              pieces: input.pcs.toString()
+              pieces: input.pcs.toString(),
+              quality: input.quality || '' // Add quality field
             }))
           }))
         };
@@ -162,6 +429,8 @@ export default function MillInputForm({
         console.log('New form data to be set:', newFormData);
         setFormData(newFormData);
         console.log('Form data set successfully');
+      } else {
+        console.log('No grouped inputs found');
       }
     } catch (error) {
       console.error('Error loading existing mill inputs:', error);
@@ -172,20 +441,31 @@ export default function MillInputForm({
 
   // Helper function to group mill inputs by mill and chalan
   const groupMillInputsByMillAndChalan = (millInputs: any[]) => {
+    console.log('=== groupMillInputsByMillAndChalan called ===');
+    console.log('Input millInputs:', millInputs);
+    
     const groups: any[] = [];
     
-    millInputs.forEach((input: any) => {
+    millInputs.forEach((input: any, index: number) => {
+      console.log(`Processing input ${index}:`, input);
+      console.log('input.mill:', input.mill);
+      console.log('input.mill._id:', input.mill?._id);
+      console.log('input.chalanNo:', input.chalanNo);
+      
       const existingGroup = groups.find(group => 
         group.millId === input.mill._id && group.chalanNo === input.chalanNo
       );
       
       if (existingGroup) {
+        console.log('Adding to existing group');
         // Add as additional input
         existingGroup.additionalInputs.push({
           greighMtr: input.greighMtr,
-          pcs: input.pcs
+          pcs: input.pcs,
+          quality: input.quality || ''
         });
       } else {
+        console.log('Creating new group');
         // Create new group
         groups.push({
           millId: input.mill._id,
@@ -193,14 +473,89 @@ export default function MillInputForm({
           chalanNo: input.chalanNo,
           mainInput: {
             greighMtr: input.greighMtr,
-            pcs: input.pcs
+            pcs: input.pcs,
+            quality: input.quality || ''
           },
           additionalInputs: []
         });
       }
     });
     
+    console.log('Final groups:', groups);
     return groups;
+  };
+
+  // Helper function to show which orders are using this mill
+  const showMillUsage = async (millId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/mill-inputs?millId=${millId}&limit=100`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        }
+      });
+      
+      const data = await response.json();
+      if (data.success && data.data.millInputs) {
+        console.log('📋 Mill inputs using this mill:');
+        data.data.millInputs.forEach((input: any, index: number) => {
+          console.log(`   ${index + 1}. Order ID: ${input.orderId}, Date: ${input.millDate}, Chalan: ${input.chalanNo}`);
+        });
+        console.log(`📊 Total: ${data.data.millInputs.length} mill inputs using this mill`);
+      }
+    } catch (error) {
+      console.error('Error fetching mill usage:', error);
+    }
+  };
+
+  // Simple delete mill function - no confirmations or alerts
+  const handleDeleteMill = async (millId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      console.log('Attempting to delete mill:', millId);
+      
+      const response = await fetch(`/api/mills/${millId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('Delete response status:', response.status);
+      
+      const data = await response.json();
+      console.log('Delete response data:', data);
+      
+      if (data.success) {
+        // Clear the selected mill and search
+        setFormData(prev => ({ ...prev, mill: '' }));
+        setMillSearch('');
+        // Refresh mills list
+        onRefreshMills();
+        console.log('✅ Mill deleted successfully');
+      } else {
+        // This is expected behavior when mill is in use, not an error
+        console.log('ℹ️ Cannot delete mill:', data.message);
+        
+        // If the error mentions mill inputs, show more details
+        if (data.message && data.message.includes('mill input')) {
+          console.log('🔍 This mill is being used in mill inputs. Checking usage...');
+          await showMillUsage(millId);
+          console.log('📋 To delete this mill, you need to:');
+          console.log('   1. Go to the Orders page');
+          console.log('   2. Find the orders listed above');
+          console.log('   3. Delete those mill inputs first');
+          console.log('   4. Then come back and delete this mill');
+          console.log('💡 Or you can keep this mill and use it for new mill inputs');
+        } else {
+          console.log('❓ Unknown issue occurred:', data.message);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error deleting mill:', error);
+    }
   };
 
   // Form handlers
@@ -216,6 +571,7 @@ export default function MillInputForm({
           chalanNo: '',
           greighMtr: '',
           pcs: '',
+          quality: '', // Add quality field
           additionalMeters: []
         }
       ]
@@ -251,6 +607,35 @@ export default function MillInputForm({
     });
   };
 
+  // Increment/decrement functions for number inputs
+  const incrementValue = (itemId: string, field: 'greighMtr' | 'pcs', step: number = 1) => {
+    setFormData({
+      ...formData,
+      millItems: formData.millItems.map(item => {
+        if (item.id === itemId) {
+          const currentValue = parseFloat(item[field]) || 0;
+          const newValue = currentValue + step;
+          return { ...item, [field]: newValue.toString() };
+        }
+        return item;
+      })
+    });
+  };
+
+  const decrementValue = (itemId: string, field: 'greighMtr' | 'pcs', step: number = 1) => {
+    setFormData({
+      ...formData,
+      millItems: formData.millItems.map(item => {
+        if (item.id === itemId) {
+          const currentValue = parseFloat(item[field]) || 0;
+          const newValue = Math.max(0, currentValue - step);
+          return { ...item, [field]: newValue.toString() };
+        }
+        return item;
+      })
+    });
+  };
+
   const addAdditionalMeters = (itemId: string) => {
     setFormData({
       ...formData,
@@ -258,7 +643,7 @@ export default function MillInputForm({
         item.id === itemId
           ? {
               ...item,
-              additionalMeters: [...item.additionalMeters, { meters: '', pieces: '' }]
+              additionalMeters: [...item.additionalMeters, { meters: '', pieces: '', quality: '' }]
             }
           : item
       )
@@ -279,7 +664,7 @@ export default function MillInputForm({
     });
   };
 
-  const updateAdditionalMeters = (itemId: string, index: number, field: 'meters' | 'pieces', value: string) => {
+  const updateAdditionalMeters = (itemId: string, index: number, field: 'meters' | 'pieces' | 'quality', value: string) => {
     setFormData({
       ...formData,
       millItems: formData.millItems.map(item =>
@@ -295,6 +680,49 @@ export default function MillInputForm({
     });
   };
 
+  // Quality helper functions
+  const getQualityId = (quality: any) => {
+    return quality?._id || quality?.id || quality;
+  };
+
+  const getFilteredQualities = (itemId: string, type: 'main' | 'additional', index?: number) => {
+    // Safety check for undefined qualities
+    if (!qualities || !Array.isArray(qualities)) {
+      return [];
+    }
+    
+    const searchKey = `${itemId}_${type}${index !== undefined ? `_${index}` : ''}`;
+    const searchTerm = activeQualityDropdown?.itemId === itemId && activeQualityDropdown?.type === type && activeQualityDropdown?.index === index 
+      ? currentQualitySearch 
+      : (qualitySearchStates[searchKey] || '');
+    
+    const filtered = qualities.filter(quality =>
+      quality?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.createdAt || 0);
+      const dateB = new Date(b.createdAt || 0);
+      return dateA.getTime() - dateB.getTime();
+    });
+  };
+
+  const handleQualitySelect = (itemId: string, type: 'main' | 'additional', quality: any, index?: number) => {
+    const qualityId = getQualityId(quality);
+    const searchKey = `${itemId}_${type}${index !== undefined ? `_${index}` : ''}`;
+    
+    if (type === 'main') {
+      updateMillItem(itemId, 'quality', qualityId);
+    } else {
+      updateAdditionalMeters(itemId, index!, 'quality', qualityId);
+    }
+    
+    setQualitySearchStates(prev => ({ ...prev, [searchKey]: quality.name }));
+    setCurrentQualitySearch(quality.name);
+    setActiveQualityDropdown(null);
+  };
+
+
   const validateForm = () => {
     const newErrors: ValidationErrors = {};
 
@@ -303,6 +731,9 @@ export default function MillInputForm({
     }
 
     formData.millItems.forEach((item, itemIndex) => {
+      if (!item.quality) {
+        newErrors[`quality_${item.id}`] = 'Quality is required';
+      }
       if (!item.millDate) {
         newErrors[`millDate_${item.id}`] = 'Mill date is required';
       }
@@ -317,6 +748,9 @@ export default function MillInputForm({
       }
 
       item.additionalMeters.forEach((additional, additionalIndex) => {
+        if (!additional.quality) {
+          newErrors[`additionalQuality_${item.id}_${additionalIndex}`] = 'Quality is required';
+        }
         if (!additional.meters) {
           newErrors[`additionalMeters_${item.id}_${additionalIndex}_meters`] = 'Additional meters is required';
         }
@@ -336,44 +770,50 @@ export default function MillInputForm({
     if (!validateForm()) return;
 
     setSaving(true);
+    setSavingProgress('Preparing data...');
     try {
       const token = localStorage.getItem('token');
       
       if (isEditing && existingMillInputs.length > 0) {
+        setSavingProgress('Updating existing mill inputs...');
         // Update existing mill inputs
         await updateExistingMillInputs(token);
       } else {
+        setSavingProgress('Creating new mill inputs...');
         // Create new mill inputs
         await createNewMillInputs(token);
       }
       
+      setSavingProgress('Saving completed successfully!');
       onSuccess();
       onClose();
     } catch (error) {
       console.error('Error handling mill input:', error);
-      setErrors({ submit: 'Failed to handle mill input' });
+      setErrors({ submit: error instanceof Error ? error.message : 'Failed to handle mill input' });
     } finally {
       setSaving(false);
+      setSavingProgress('');
     }
   };
 
-  // Function to create new mill inputs
+  // Function to create new mill inputs (optimized with parallel requests)
   const createNewMillInputs = async (token: string | null) => {
     if (!token) throw new Error('No authentication token');
 
-    for (const item of formData.millItems) {
+    // Prepare all requests in parallel
+    const requests = formData.millItems.map(async (item) => {
       // Prepare additional meters data
       const additionalMeters = item.additionalMeters
-        .filter(additional => additional.meters && additional.pieces)
+        .filter(additional => additional.meters && additional.pieces && additional.quality)
         .map(additional => ({
           greighMtr: parseFloat(additional.meters),
-          pcs: parseInt(additional.pieces)
+          pcs: parseInt(additional.pieces),
+          quality: additional.quality
         }));
 
       // Debug log to see what's being sent
       console.log('Form Data for item:', item);
       console.log('Additional Meters prepared:', additionalMeters);
-      console.log('Filtered additional meters:', item.additionalMeters.filter(additional => additional.meters && additional.pieces));
 
       // Send single request with all data for this item
       const requestBody = {
@@ -383,11 +823,16 @@ export default function MillInputForm({
         chalanNo: item.chalanNo,
         greighMtr: parseFloat(item.greighMtr),
         pcs: parseInt(item.pcs),
+        quality: item.quality, // Add quality field
         additionalMeters: additionalMeters.length > 0 ? additionalMeters : undefined,
         notes: ''
       };
 
       console.log('Request body being sent:', requestBody);
+
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
       const response = await fetch('/api/mill-inputs', {
         method: 'POST',
@@ -396,15 +841,42 @@ export default function MillInputForm({
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(requestBody),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
       
       console.log('API Response:', data);
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        console.error('HTTP Error:', response.status, response.statusText);
+        throw new Error(`HTTP ${response.status}: ${data.message || 'Server error'}`);
+      }
       
       if (!data.success) {
+        console.error('API Error:', data);
         throw new Error(data.message || 'Failed to add mill input');
       }
+
+      return data;
+    });
+
+    // Execute all requests in parallel
+    try {
+      const results = await Promise.all(requests);
+      console.log('All mill inputs created successfully:', results);
+    } catch (error) {
+      console.error('Error creating mill inputs:', error);
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('Request timeout - please try again');
+        }
+        throw error;
+      }
+      throw new Error('Unknown error occurred while saving mill inputs');
     }
   };
 
@@ -436,6 +908,7 @@ export default function MillInputForm({
       return;
     }
 
+    setAddingMill(true);
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/mills', {
@@ -444,14 +917,38 @@ export default function MillInputForm({
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(addMillForm)
+        body: JSON.stringify({
+          name: addMillForm.name.trim()
+        })
       });
 
       const data = await response.json();
       if (data.success) {
-        onAddMill();
+        console.log('New mill added successfully:', data.data);
+        
+        // Auto-select the newly added mill
+        const newMillId = data.data._id;
+        const newMillName = data.data.name;
+        console.log('Auto-selecting new mill:', newMillId, newMillName);
+        
+        setFormData(prev => ({ ...prev, mill: newMillId }));
+        setMillSearch(newMillName);
+        
+        // Set recently added indicator
+        setRecentlyAddedMill(newMillId);
+        
+        // Refresh mills list
         onRefreshMills();
+        
+        // Close modal and show success
         setShowAddMillModal(false);
+        console.log(`✅ Mill "${newMillName}" added and selected successfully!`);
+        
+        // Clear the "recently added" indicator after 3 seconds
+        setTimeout(() => {
+          setRecentlyAddedMill(null);
+        }, 3000);
+        
         setAddMillForm({
           name: '',
           contactPerson: '',
@@ -466,6 +963,8 @@ export default function MillInputForm({
     } catch (error) {
       console.error('Error adding mill:', error);
       setErrors({ addMill: 'Failed to add mill' });
+    } finally {
+      setAddingMill(false);
     }
   };
 
@@ -514,7 +1013,10 @@ export default function MillInputForm({
               }`}>
                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto"></div>
                 <p className="mt-3 text-sm font-medium">Saving mill input data...</p>
-                <p className="mt-1 text-xs text-gray-500">Please wait while we process your data</p>
+                <p className="mt-1 text-xs text-gray-500">{savingProgress || 'Please wait while we process your data'}</p>
+                <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                  <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{width: '60%'}}></div>
+                </div>
               </div>
             </div>
           )}
@@ -588,42 +1090,62 @@ export default function MillInputForm({
                 }`}>
                     Mill Name <span className="text-red-500">*</span>
                 </label>
-                <div className="flex gap-2">
-                  <select
-                    value={formData.mill}
-                    onChange={(e) => setFormData({ ...formData, mill: e.target.value })}
-                      className={`flex-1 px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      errors.mill
-                        ? isDarkMode
-                            ? 'border-red-500 bg-gray-800 text-white'
-                            : 'border-red-500 bg-white text-gray-900'
-                        : isDarkMode
-                            ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                            : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                    }`}
-                  >
-                    <option value="">Select Mill</option>
-                    {mills.map((mill) => (
-                      <option key={mill._id} value={mill._id}>
-                        {mill.name}
-                      </option>
-                    ))}
-                    <option value="add_new">➕ Add New Mill</option>
-                  </select>
-                  {formData.mill === 'add_new' && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAddMillModal(true)}
-                        className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
-                        isDarkMode
-                            ? 'bg-green-600 hover:bg-green-700 text-white'
-                            : 'bg-green-600 hover:bg-green-700 text-white'
-                      }`}
-                    >
-                      Add Mill
-                    </button>
-                  )}
+                
+                {/* Debug info */}
+                <div className={`text-xs mb-2 p-2 rounded ${
+                  isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  Debug: Mills count: {mills.length} | Type: {typeof mills} | Is Array: {Array.isArray(mills).toString()}
                 </div>
+                
+                {mills.length === 0 ? (
+                  <div className={`p-4 text-center rounded-lg border ${
+                    isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-300 text-gray-600'
+                  }`}>
+                    <div className="flex flex-col items-center space-y-2">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                      <p className="text-sm">Loading mills...</p>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddMillModal(true)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          isDarkMode 
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                            : 'bg-blue-500 hover:bg-blue-600 text-white'
+                        }`}
+                      >
+                        Add New Mill
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <EnhancedDropdown
+                    options={mills}
+                    value={formData.mill}
+                    onChange={(value) => {
+                      console.log('Mill selection changed to:', value);
+                      setFormData({ ...formData, mill: value });
+                    }}
+                    placeholder="Search mills..."
+                    searchValue={millSearch}
+                    onSearchChange={setMillSearch}
+                    showDropdown={showMillDropdown}
+                    onToggleDropdown={() => setShowMillDropdown(!showMillDropdown)}
+                    onSelect={(mill) => {
+                      console.log('Mill selected:', mill);
+                      setFormData({ ...formData, mill: mill._id });
+                      setMillSearch(mill.name);
+                      setShowMillDropdown(false);
+                    }}
+                    isDarkMode={isDarkMode}
+                    error={errors.mill}
+                    onAddNew={() => setShowAddMillModal(true)}
+                    onDelete={(mill) => {
+                      handleDeleteMill(mill._id);
+                    }}
+                    recentlyAddedId={recentlyAddedMill}
+                  />
+                )}
                 {errors.mill && (
                   <p className={`text-sm mt-1 ${
                     isDarkMode ? 'text-red-400' : 'text-red-600'
@@ -729,7 +1251,46 @@ export default function MillInputForm({
                       
                       <div className="space-y-4">
                         {/* M1 and P1 Fields (Always visible) */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {/* Quality for M1 */}
+                          <div>
+                            <label className={`block text-sm font-medium mb-2 ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                            }`}>
+                              Quality M1 <span className="text-red-500">*</span>
+                            </label>
+                            <EnhancedDropdown
+                              options={getFilteredQualities(item.id, 'main')}
+                              value={item.quality}
+                              onChange={(value) => updateMillItem(item.id, 'quality', value)}
+                              placeholder="Search quality..."
+                              searchValue={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main' 
+                                ? currentQualitySearch 
+                                : (qualitySearchStates[`${item.id}_main`] || '')}
+                              onSearchChange={(value) => {
+                                if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main') {
+                                  setCurrentQualitySearch(value);
+                                } else {
+                                  setQualitySearchStates(prev => ({ ...prev, [`${item.id}_main`]: value }));
+                                }
+                              }}
+                              showDropdown={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main'}
+                              onToggleDropdown={() => {
+                                if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main') {
+                                  setActiveQualityDropdown(null);
+                                  setCurrentQualitySearch('');
+                                } else {
+                                  setActiveQualityDropdown({ itemId: item.id, type: 'main' });
+                                  setCurrentQualitySearch(qualitySearchStates[`${item.id}_main`] || '');
+                                }
+                              }}
+                              onSelect={(quality) => handleQualitySelect(item.id, 'main', quality)}
+                              isDarkMode={isDarkMode}
+                              error={errors[`quality_${item.id}`]}
+                              recentlyAddedId={recentlyAddedQuality}
+                            />
+                          </div>
+
                           <div>
                             <label className={`block text-sm font-medium mb-2 ${
                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
@@ -782,7 +1343,46 @@ export default function MillInputForm({
                         </div>
 
                         {item.additionalMeters.map((additional, index) => (
-                          <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Quality for Additional Meters */}
+                            <div>
+                              <label className={`block text-sm font-medium mb-2 ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                              }`}>
+                                Quality M{index + 2} <span className="text-red-500">*</span>
+                              </label>
+                              <EnhancedDropdown
+                                options={getFilteredQualities(item.id, 'additional', index)}
+                                value={additional.quality}
+                                onChange={(value) => updateAdditionalMeters(item.id, index, 'quality', value)}
+                                placeholder="Search quality..."
+                                searchValue={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index
+                                  ? currentQualitySearch 
+                                  : (qualitySearchStates[`${item.id}_additional_${index}`] || '')}
+                                onSearchChange={(value) => {
+                                  if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index) {
+                                    setCurrentQualitySearch(value);
+                                  } else {
+                                    setQualitySearchStates(prev => ({ ...prev, [`${item.id}_additional_${index}`]: value }));
+                                  }
+                                }}
+                                showDropdown={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index}
+                                onToggleDropdown={() => {
+                                  if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index) {
+                                    setActiveQualityDropdown(null);
+                                    setCurrentQualitySearch('');
+                                  } else {
+                                    setActiveQualityDropdown({ itemId: item.id, type: 'additional', index });
+                                    setCurrentQualitySearch(qualitySearchStates[`${item.id}_additional_${index}`] || '');
+                                  }
+                                }}
+                                onSelect={(quality) => handleQualitySelect(item.id, 'additional', quality, index)}
+                                isDarkMode={isDarkMode}
+                                error={errors[`additionalQuality_${item.id}_${index}`]}
+                                recentlyAddedId={recentlyAddedQuality}
+                              />
+                            </div>
+
                             <div>
                               <label className={`block text-sm font-medium mb-2 ${
                                 isDarkMode ? 'text-gray-300' : 'text-gray-700'
@@ -1005,81 +1605,6 @@ export default function MillInputForm({
                   />
                 </div>
 
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Contact Person
-                  </label>
-                  <input
-                    type="text"
-                    value={addMillForm.contactPerson}
-                    onChange={(e) => setAddMillForm({ ...addMillForm, contactPerson: e.target.value })}
-                    placeholder="Enter contact person name"
-                    className={`w-full px-3 py-2 rounded-lg border transition-colors ${
-                      isDarkMode
-                          ? 'bg-gray-800 border-gray-600 text-white focus:border-blue-500'
-                        : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Contact Phone
-                  </label>
-                  <input
-                    type="text"
-                    value={addMillForm.contactPhone}
-                    onChange={(e) => setAddMillForm({ ...addMillForm, contactPhone: e.target.value })}
-                    placeholder="Enter contact phone"
-                    className={`w-full px-3 py-2 rounded-lg border transition-colors ${
-                      isDarkMode
-                          ? 'bg-gray-800 border-gray-600 text-white focus:border-blue-500'
-                        : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Address
-                  </label>
-                  <textarea
-                    value={addMillForm.address}
-                    onChange={(e) => setAddMillForm({ ...addMillForm, address: e.target.value })}
-                    rows={2}
-                    placeholder="Enter mill address"
-                    className={`w-full px-3 py-2 rounded-lg border transition-colors ${
-                      isDarkMode
-                          ? 'bg-gray-800 border-gray-600 text-white focus:border-blue-500'
-                        : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={addMillForm.email}
-                    onChange={(e) => setAddMillForm({ ...addMillForm, email: e.target.value })}
-                    placeholder="Enter email address"
-                    className={`w-full px-3 py-2 rounded-lg border transition-colors ${
-                      isDarkMode
-                          ? 'bg-gray-800 border-gray-600 text-white focus:border-blue-500'
-                        : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-                    }`}
-                  />
-                </div>
 
                 {/* Modal Actions */}
                 <div className="flex items-center justify-end space-x-3 pt-4">
@@ -1096,19 +1621,23 @@ export default function MillInputForm({
                   </button>
                   <button
                     type="submit"
+                    disabled={addingMill}
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 ${
-                      isDarkMode
-                        ? 'bg-green-600 hover:bg-green-700 text-white'
-                        : 'bg-green-600 hover:bg-green-700 text-white'
+                      addingMill
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : isDarkMode
+                          ? 'bg-green-600 hover:bg-green-700 text-white'
+                          : 'bg-green-600 hover:bg-green-700 text-white'
                     }`}
                   >
-                    Add Mill
+                    {addingMill ? 'Adding...' : 'Add Mill'}
                   </button>
                 </div>
               </form>
             </div>
           </div>
         )}
+
       </div>
     </div>
     </>

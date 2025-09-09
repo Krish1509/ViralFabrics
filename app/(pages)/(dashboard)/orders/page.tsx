@@ -395,10 +395,13 @@ export default function OrdersPage() {
   // Fetch mills
   const fetchMills = useCallback(async () => {
     try {
+      console.log('=== fetchMills called ===');
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
       
       const token = localStorage.getItem('token');
+      console.log('Token available:', !!token);
+      
       const response = await fetch('/api/mills?limit=100', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -410,13 +413,21 @@ export default function OrdersPage() {
       
       clearTimeout(timeoutId);
       
+      console.log('Mills API response status:', response.status);
+      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
+      console.log('Mills API response data:', data);
+      
       if (data.success) {
-        setMills(data.data.mills || []);
+        const millsData = data.data.mills || [];
+        console.log('Setting mills:', millsData.length, 'mills');
+        setMills(millsData);
+      } else {
+        console.error('Mills API returned error:', data.message);
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -2037,64 +2048,7 @@ export default function OrdersPage() {
                                        {/* Actions Column */}
                     <td className="px-6 py-4">
                       <div className="grid grid-cols-4 gap-2 w-full max-w-sm">
-                        {/* First Row - Primary Actions */}
-                        {/* View Button */}
-                        <button
-                          onClick={() => handleView(order)}
-                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
-                            isDarkMode
-                              ? 'bg-blue-600/25 text-blue-200 border border-blue-500/50 hover:bg-blue-600/35 hover:border-blue-400/60 hover:shadow-blue-500/25'
-                              : 'bg-blue-100 text-blue-800 border border-blue-300 hover:bg-blue-200 hover:border-blue-400 hover:shadow-blue-200'
-                          }`}
-                          title="View order details"
-                        >
-                          <EyeIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                          <span className="hidden sm:inline font-medium">View</span>
-                        </button>
-
-                        {/* Edit Button */}
-                        <button
-                          onClick={() => handleEdit(order)}
-                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
-                            isDarkMode
-                              ? 'bg-emerald-600/25 text-emerald-200 border border-emerald-500/50 hover:bg-emerald-600/35 hover:border-emerald-400/60 hover:shadow-emerald-500/25'
-                              : 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 hover:border-emerald-400 hover:shadow-emerald-200'
-                          }`}
-                          title="Edit order"
-                        >
-                          <PencilIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                          <span className="hidden sm:inline font-medium">Edit</span>
-                        </button>
-
-                        {/* Logs Button */}
-                        <button
-                          onClick={() => handleViewLogs(order)}
-                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
-                            isDarkMode
-                              ? 'bg-violet-600/25 text-violet-200 border border-violet-500/50 hover:bg-violet-600/35 hover:border-violet-400/60 hover:shadow-violet-500/25'
-                              : 'bg-violet-100 text-violet-800 border border-violet-300 hover:bg-violet-200 hover:border-violet-400 hover:shadow-violet-200'
-                          }`}
-                          title="View order logs"
-                        >
-                          <ChartBarIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                          <span className="hidden sm:inline font-medium">Logs</span>
-                        </button>
-
-                        {/* Delete Button */}
-                        <button
-                          onClick={() => handleDeleteClick(order)}
-                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
-                            isDarkMode
-                              ? 'bg-red-600/25 text-red-200 border border-red-500/50 hover:bg-red-600/35 hover:border-red-400/60 hover:shadow-red-500/25'
-                              : 'bg-red-100 text-red-800 border border-red-300 hover:bg-red-200 hover:border-red-400 hover:shadow-red-200'
-                          }`}
-                          title="Delete order"
-                        >
-                          <TrashIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                          <span className="hidden sm:inline font-medium">Delete</span>
-                        </button>
-
-                        {/* Second Row - Secondary Actions */}
+                        {/* First Row - Secondary Actions */}
                         {/* Lab Data Button */}
                         <button
                           onClick={() => handleLabData(order)}
@@ -2160,7 +2114,7 @@ export default function OrdersPage() {
                         >
                           <BuildingOfficeIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
                           <span className="hidden sm:inline font-medium">
-                            {orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? 'Edit Mill' : 'Mill In'}
+                            {orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? 'Edit Mill Input' : 'Add Mill Input'}
                           </span>
                         </button>
 
@@ -2196,6 +2150,63 @@ export default function OrdersPage() {
                         >
                           <TruckIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
                           <span className="hidden sm:inline font-medium">Dispatch</span>
+                        </button>
+
+                        {/* Second Row - Primary Actions */}
+                        {/* View Button */}
+                        <button
+                          onClick={() => handleView(order)}
+                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
+                            isDarkMode
+                              ? 'bg-blue-600/25 text-blue-200 border border-blue-500/50 hover:bg-blue-600/35 hover:border-blue-400/60 hover:shadow-blue-500/25'
+                              : 'bg-blue-100 text-blue-800 border border-blue-300 hover:bg-blue-200 hover:border-blue-400 hover:shadow-blue-200'
+                          }`}
+                          title="View order details"
+                        >
+                          <EyeIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline font-medium">View</span>
+                        </button>
+
+                        {/* Edit Button */}
+                        <button
+                          onClick={() => handleEdit(order)}
+                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
+                            isDarkMode
+                              ? 'bg-emerald-600/25 text-emerald-200 border border-emerald-500/50 hover:bg-emerald-600/35 hover:border-emerald-400/60 hover:shadow-emerald-500/25'
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 hover:border-emerald-400 hover:shadow-emerald-200'
+                          }`}
+                          title="Edit order"
+                        >
+                          <PencilIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline font-medium">Edit</span>
+                        </button>
+
+                        {/* Logs Button */}
+                        <button
+                          onClick={() => handleViewLogs(order)}
+                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
+                            isDarkMode
+                              ? 'bg-violet-600/25 text-violet-200 border border-violet-500/50 hover:bg-violet-600/35 hover:border-violet-400/60 hover:shadow-violet-500/25'
+                              : 'bg-violet-100 text-violet-800 border border-violet-300 hover:bg-violet-200 hover:border-violet-400 hover:shadow-violet-200'
+                          }`}
+                          title="View order logs"
+                        >
+                          <ChartBarIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline font-medium">Logs</span>
+                        </button>
+
+                        {/* Delete Button */}
+                        <button
+                          onClick={() => handleDeleteClick(order)}
+                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
+                            isDarkMode
+                              ? 'bg-red-600/25 text-red-200 border border-red-500/50 hover:bg-red-600/35 hover:border-red-400/60 hover:shadow-red-500/25'
+                              : 'bg-red-100 text-red-800 border border-red-300 hover:bg-red-200 hover:border-red-400 hover:shadow-red-200'
+                          }`}
+                          title="Delete order"
+                        >
+                          <TrashIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                          <span className="hidden sm:inline font-medium">Delete</span>
                         </button>
                       </div>
                     </td>
@@ -2763,6 +2774,7 @@ export default function OrdersPage() {
           key={`mill-input-form-${selectedOrderForMillInputForm.orderId}`}
           order={selectedOrderForMillInputForm}
           mills={mills}
+          qualities={qualities}
           onClose={() => {
             setShowMillInputForm(false);
             setSelectedOrderForMillInputForm(null);
@@ -2790,9 +2802,18 @@ export default function OrdersPage() {
               showMessage('success', message);
             }}
           onAddMill={() => {
-            // This will be handled within the form
+            // Refresh mills when a new mill is added
+            console.log('onAddMill called - refreshing mills...');
+            fetchMills();
           }}
           onRefreshMills={fetchMills}
+          onAddQuality={(newQualityData?: any) => {
+            if (newQualityData) {
+              setQualities(prev => [...prev, newQualityData]);
+            } else {
+              fetchQualities();
+            }
+          }}
           isEditing={isEditingMillInput}
           existingMillInputs={existingMillInputs}
         />
@@ -2802,6 +2823,7 @@ export default function OrdersPage() {
       {showMillOutputForm && selectedOrderForMillOutput && (
         <MillOutputForm
           order={selectedOrderForMillOutput}
+          qualities={qualities}
           onClose={() => {
             setShowMillOutputForm(false);
             setSelectedOrderForMillOutput(null);
@@ -2818,6 +2840,7 @@ export default function OrdersPage() {
       {showDispatchForm && selectedOrderForDispatch && (
         <DispatchForm
           order={selectedOrderForDispatch}
+          qualities={qualities}
           onClose={() => {
             setShowDispatchForm(false);
             setSelectedOrderForDispatch(null);

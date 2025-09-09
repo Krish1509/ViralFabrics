@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Order } from '@/types';
 import { 
   EyeIcon, 
@@ -10,7 +10,8 @@ import {
   BuildingOfficeIcon,
   DocumentTextIcon,
   TruckIcon,
-  ClockIcon
+  ClockIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../../hooks/useDarkMode';
 
@@ -34,6 +35,8 @@ export default function OrdersTable({
   const { isDarkMode } = useDarkMode();
   const [sortField, setSortField] = useState<keyof Order>('createdAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const handleSort = (field: keyof Order) => {
     if (sortField === field) {
@@ -43,6 +46,26 @@ export default function OrdersTable({
       setSortDirection('desc');
     }
   };
+
+  const handleLatestOldestSort = (type: 'latest' | 'oldest') => {
+    setSortField('createdAt');
+    setSortDirection(type === 'latest' ? 'desc' : 'asc');
+    setShowSortDropdown(false);
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowSortDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const sortedOrders = [...orders].sort((a, b) => {
     const aValue = a[sortField];
@@ -113,14 +136,66 @@ export default function OrdersTable({
       <div className={`p-4 sm:p-6 border-b transition-colors duration-300 ${
         isDarkMode ? 'border-slate-700' : 'border-gray-200'
       }`}>
-        <h3 className={`text-base sm:text-lg font-semibold transition-colors duration-300 ${
-          isDarkMode ? 'text-white' : 'text-gray-900'
-        }`}>{title}</h3>
-        <p className={`text-sm mt-1 transition-colors duration-300 ${
-          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-        }`}>
-          {orders.length} {orders.length === 1 ? 'order' : 'orders'}
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className={`text-base sm:text-lg font-semibold transition-colors duration-300 ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>{title}</h3>
+            <p className={`text-sm mt-1 transition-colors duration-300 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              {orders.length} {orders.length === 1 ? 'order' : 'orders'}
+            </p>
+          </div>
+          
+          {/* Latest/Oldest Sort Dropdown */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setShowSortDropdown(!showSortDropdown)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-300 ${
+                isDarkMode 
+                  ? 'bg-slate-700 border-slate-600 hover:bg-slate-600 text-white' 
+                  : 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'
+              }`}
+            >
+              <span className="text-sm font-medium">
+                {sortDirection === 'desc' ? 'Latest' : 'Oldest'}
+              </span>
+              <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ${
+                showSortDropdown ? 'rotate-180' : ''
+              }`} />
+            </button>
+            
+            {showSortDropdown && (
+              <div className={`absolute right-0 mt-2 w-32 rounded-lg border shadow-lg z-10 transition-all duration-300 ${
+                isDarkMode 
+                  ? 'bg-slate-800 border-slate-700' 
+                  : 'bg-white border-gray-200'
+              }`}>
+                <button
+                  onClick={() => handleLatestOldestSort('latest')}
+                  className={`w-full px-4 py-2 text-left text-sm transition-colors duration-300 ${
+                    sortDirection === 'desc' 
+                      ? (isDarkMode ? 'bg-slate-700 text-white' : 'bg-blue-50 text-blue-700')
+                      : (isDarkMode ? 'hover:bg-slate-700 text-gray-300' : 'hover:bg-gray-50 text-gray-700')
+                  }`}
+                >
+                  Latest
+                </button>
+                <button
+                  onClick={() => handleLatestOldestSort('oldest')}
+                  className={`w-full px-4 py-2 text-left text-sm transition-colors duration-300 ${
+                    sortDirection === 'asc' 
+                      ? (isDarkMode ? 'bg-slate-700 text-white' : 'bg-blue-50 text-blue-700')
+                      : (isDarkMode ? 'hover:bg-slate-700 text-gray-300' : 'hover:bg-gray-50 text-gray-700')
+                  }`}
+                >
+                  Oldest
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {orders.length === 0 ? (

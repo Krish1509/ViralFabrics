@@ -22,6 +22,7 @@ export async function GET(
 
     const millOutput = await MillOutput.findById(id)
       .populate('order', 'orderId orderType party')
+      .populate('quality', 'name')
       .lean();
     
     if (!millOutput) {
@@ -51,7 +52,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { recdDate, millBillNo, finishedMtr, millRate } = body;
+    const { recdDate, millBillNo, finishedMtr, millRate, quality } = body;
 
     // Check if mill output exists
     const existingMillOutput = await MillOutput.findById(id);
@@ -80,7 +81,8 @@ export async function PUT(
         recdDate: new Date(recdDate),
         millBillNo: millBillNo.trim(),
         finishedMtr: parseFloat(finishedMtr),
-        millRate: parseFloat(millRate)
+        millRate: parseFloat(millRate),
+        quality: quality || null
       },
       { new: true, runValidators: true }
     );
@@ -92,6 +94,7 @@ export async function PUT(
     // Populate references for response
     const populatedMillOutput = await MillOutput.findById(updatedMillOutput._id)
       .populate('order', 'orderId orderType party')
+      .populate('quality', 'name')
       .lean();
 
     await logUpdate('mill_output', id, { 

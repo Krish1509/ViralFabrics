@@ -102,6 +102,29 @@ export default function OrderDetailsPage() {
     }
   };
 
+  // Handle mill output delete
+  const handleDeleteMillOutput = async (millOutputId: string) => {
+    if (confirm('Are you sure you want to delete this mill output?')) {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/mill-outputs/${millOutputId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          }
+        });
+        
+        if (response.ok) {
+          // Refresh mill outputs by filtering out the deleted one
+          setMillOutputs(prev => prev.filter(output => output._id !== millOutputId));
+          showSuccessMessage('Mill output deleted successfully!');
+        }
+      } catch (error) {
+        console.error('Error deleting mill output:', error);
+      }
+    }
+  };
+
   // Fetch order data
   useEffect(() => {
     if (orderMongoId) {
@@ -164,7 +187,9 @@ export default function OrderDetailsPage() {
           const data = await response.json();
           if (data.success && Array.isArray(data.data)) {
             setLabs(data.data);
+            console.log('Labs data structure:', data.data);
             if (data.data.length > 0) {
+              console.log('First lab data:', data.data[0]);
               showSuccessMessage(`Loaded ${data.data.length} lab records`);
             }
           }
@@ -599,17 +624,22 @@ export default function OrderDetailsPage() {
                 </button>
                                <button
                   onClick={() => {
-                    showSuccessMessage(labs.length > 0 ? 'Opening lab data editor...' : 'Opening lab data form...');
-                    setShowLabModal(true);
+                    if (!loadingLabs) {
+                      showSuccessMessage(labs.length > 0 ? 'Opening lab data editor...' : 'Opening lab data form...');
+                      setShowLabModal(true);
+                    }
                   }}
+                  disabled={loadingLabs}
                    className={`inline-flex items-center px-1.5 py-1.5 xs:px-2 sm:px-3 lg:px-4 xs:py-2 sm:py-2.5 rounded-lg font-medium transition-all duration-300 shadow-md hover:shadow-lg text-xs ${
-                     labs.length > 0
-                       ? isDarkMode
-                         ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
-                         : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600'
-                       : isDarkMode
-                         ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white hover:from-orange-700 hover:to-red-700'
-                         : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
+                     loadingLabs
+                       ? 'bg-gray-400 cursor-not-allowed text-white'
+                       : labs.length > 0
+                         ? isDarkMode
+                           ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
+                           : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600'
+                         : isDarkMode
+                           ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white hover:from-orange-700 hover:to-red-700'
+                           : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
                    }`}
                  >
                   <BeakerIcon className="h-3 w-3 xs:h-3.5 xs:w-3.5 sm:h-4 sm:w-4 mr-0.5 xs:mr-1 sm:mr-1.5 lg:mr-2" />
@@ -1288,7 +1318,7 @@ export default function OrderDetailsPage() {
                                         <p className={`text-sm ${
                                           isDarkMode ? 'text-purple-300' : 'text-purple-600'
                                         }`}>
-                                          Sample Number: {lab.labSendNumber || 'Not specified'}
+                                          Sample Number: {lab.labSendData?.sampleNumber || lab.labSendNumber || 'Not specified'}
                                         </p>
                                       </div>
                                     </div>
@@ -1396,12 +1426,12 @@ export default function OrderDetailsPage() {
                                      <h4 className={`text-lg font-semibold ${
                                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
                                      }`}>
-                                       No Lab Record
+                                       All Lab Records
                                      </h4>
                                      <p className={`text-sm ${
                                        isDarkMode ? 'text-gray-500' : 'text-gray-400'
                                      }`}>
-                                       Lab data can be added after order is saved
+                                       Lab data will be displayed here
                                      </p>
                                    </div>
                                  </div>
@@ -1433,15 +1463,22 @@ export default function OrderDetailsPage() {
                      </div>
                      <div className="flex items-center space-x-3">
                        <button
-                         onClick={() => setShowLabModal(true)}
+                         onClick={() => {
+                           if (!loadingLabs) {
+                             setShowLabModal(true);
+                           }
+                         }}
+                         disabled={loadingLabs}
                          className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                           labs.length > 0
-                             ? isDarkMode
-                               ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25'
-                               : 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25'
-                             : isDarkMode
-                               ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg hover:shadow-orange-500/25'
-                               : 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg hover:shadow-orange-500/25'
+                           loadingLabs
+                             ? 'bg-gray-400 cursor-not-allowed text-white'
+                             : labs.length > 0
+                               ? isDarkMode
+                                 ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25'
+                                 : 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25'
+                               : isDarkMode
+                                 ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg hover:shadow-orange-500/25'
+                                 : 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg hover:shadow-orange-500/25'
                          }`}
                        >
                          <BeakerIcon className="h-4 w-4 mr-2" />
@@ -1557,7 +1594,7 @@ export default function OrderDetailsPage() {
                                    <td className={`px-4 py-3 text-sm font-medium ${
                                      isDarkMode ? 'text-white' : 'text-gray-900'
                                    }`}>
-                                     {lab.labSendNumber || '-'}
+                                     {lab.labSendData?.sampleNumber || lab.labSendNumber || '-'}
                                    </td>
                                    <td className={`px-4 py-3 text-sm ${
                                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
@@ -1602,12 +1639,12 @@ export default function OrderDetailsPage() {
                            <h4 className={`text-lg font-semibold ${
                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
                            }`}>
-                             No Lab Records
+                             All Lab Records
                            </h4>
                            <p className={`text-sm ${
                              isDarkMode ? 'text-gray-500' : 'text-gray-400'
                            }`}>
-                             Lab data can be added after order is saved
+                             Lab data will be displayed here
                            </p>
                          </div>
                        </div>
@@ -1635,17 +1672,23 @@ export default function OrderDetailsPage() {
                     <div className="flex items-center space-x-3">
                       <button
                         onClick={() => {
-                          showSuccessMessage('Opening add mill input form...');
-                          router.push(`/orders?addMillInput=${orderMongoId}`);
+                          const hasExistingData = millInputs && millInputs.length > 0;
+                          const action = hasExistingData ? 'edit' : 'add';
+                          showSuccessMessage(`Opening ${action} mill input form...`);
+                          router.push(`/orders?${action}MillInput=${orderMongoId}`);
                         }}
                         className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                          isDarkMode
+                          millInputs && millInputs.length > 0
+                            ? isDarkMode
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg hover:shadow-emerald-500/25'
+                              : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg hover:shadow-emerald-500/25'
+                            : isDarkMode
                             ? 'bg-cyan-600 hover:bg-cyan-700 text-white shadow-lg hover:shadow-cyan-500/25'
                             : 'bg-cyan-600 hover:bg-cyan-700 text-white shadow-lg hover:shadow-cyan-500/25'
                         }`}
                       >
                         <BuildingOfficeIcon className="h-4 w-4 mr-2" />
-                        Add Mill Input
+                        {millInputs && millInputs.length > 0 ? 'Edit Mill Input' : 'Add Mill Input'}
                       </button>
                       <button
                         onClick={() => {
@@ -1835,6 +1878,11 @@ export default function OrderDetailsPage() {
                                 <th className={`px-4 py-3 text-left text-xs font-medium ${
                                   isDarkMode ? 'text-gray-300' : 'text-gray-600'
                                 }`}>
+                                  Quality
+                                </th>
+                                <th className={`px-4 py-3 text-left text-xs font-medium ${
+                                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                }`}>
                                   Actions
                                 </th>
                               </tr>
@@ -1892,6 +1940,26 @@ export default function OrderDetailsPage() {
                                           isDarkMode ? 'text-gray-400' : 'text-gray-600'
                                         }`}>
                                           +{millInput.additionalMeters.reduce((sum: number, additional: any) => sum + (additional.pcs || 0), 0).toLocaleString()} pcs
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className={`px-4 py-3 text-sm ${
+                                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                  }`}>
+                                    <div>
+                                      <div className="font-medium">
+                                        {millInput.quality?.name || millInput.quality || '-'}
+                                      </div>
+                                      {millInput.additionalMeters && millInput.additionalMeters.length > 0 && (
+                                        <div className={`text-xs mt-1 ${
+                                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                                        }`}>
+                                          {millInput.additionalMeters.map((additional: any, idx: number) => (
+                                            <div key={idx}>
+                                              +{additional.quality?.name || additional.quality || 'Unknown'}
+                                            </div>
+                                          ))}
                                         </div>
                                       )}
                                     </div>
@@ -2021,100 +2089,201 @@ export default function OrderDetailsPage() {
                       </p>
                     </div>
                   ) : millOutputs.length > 0 ? (
-                    <div className="space-y-4">
-                      {millOutputs.map((millOutput, index) => (
-                        <div key={millOutput._id || index} className={`p-4 rounded-lg border-l-4 ${
-                          isDarkMode 
-                            ? 'bg-white/5 border-green-500/50' 
-                            : 'bg-gray-50 border-green-500'
-                        }`}>
-                          <div className="flex justify-between items-start mb-3">
-                            <h4 className={`font-semibold ${
-                              isDarkMode ? 'text-white' : 'text-gray-900'
-                            }`}>
-                              Mill Output #{index + 1}
-                            </h4>
-                            <span className={`text-sm font-medium px-2 py-1 rounded-full ${
-                              isDarkMode 
-                                ? 'bg-green-900/20 text-green-400' 
-                                : 'bg-green-100 text-green-700'
-                            }`}>
-                              {millOutput.millBillNo}
-                            </span>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div>
-                              <span className={`text-sm font-medium ${
+                    <div className="space-y-6">
+                      {/* Mill Output Summary Stats */}
+                      <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-lg border ${
+                        isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'
+                      }`}>
+                        <div className="text-center">
+                          <span className={`text-xs font-medium ${
                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
                               }`}>
-                                Bill Number
+                            Total Entries
                               </span>
-                              <p className={`text-sm font-semibold ${
+                          <p className={`text-xl font-bold ${
                                 isDarkMode ? 'text-white' : 'text-gray-900'
                               }`}>
-                                {millOutput.millBillNo || 'Not specified'}
+                            {millOutputs.length}
                               </p>
                             </div>
-                            
-                            <div>
-                              <span className={`text-sm font-medium ${
+                        <div className="text-center">
+                          <span className={`text-xs font-medium ${
                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
                               }`}>
-                                Received Date
+                            Total Finished Meters
                               </span>
-                              <p className={`text-sm font-semibold ${
+                          <p className={`text-xl font-bold ${
                                 isDarkMode ? 'text-white' : 'text-gray-900'
                               }`}>
-                                {millOutput.recdDate ? new Date(millOutput.recdDate).toLocaleDateString('en-US', {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric'
-                                }) : 'Not specified'}
+                            {millOutputs.reduce((total: number, output: any) => total + (output.finishedMtr || 0), 0).toLocaleString()} mtr
                               </p>
                             </div>
-                            
-                            <div>
-                              <span className={`text-sm font-medium ${
+                        <div className="text-center">
+                          <span className={`text-xs font-medium ${
                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
                               }`}>
-                                Finished Meters
+                            Average Rate
                               </span>
-                              <p className={`text-sm font-semibold ${
-                                isDarkMode ? 'text-green-400' : 'text-green-600'
+                          <p className={`text-xl font-bold ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
                               }`}>
-                                {millOutput.finishedMtr ? `${millOutput.finishedMtr.toLocaleString()} mtr` : 'Not specified'}
+                            ₹{millOutputs.length > 0 ? Math.round(millOutputs.reduce((total: number, output: any) => total + (output.millRate || 0), 0) / millOutputs.length).toLocaleString() : '0'}
                               </p>
+                        </div>
                             </div>
                             
+                      {/* Mill Output Data - Grouped by Bill and Date */}
+                      <div className="space-y-4">
+                        {(() => {
+                          // Group mill outputs by bill number and date
+                          const groupedOutputs = millOutputs.reduce((groups: any, output: any) => {
+                            const key = `${output.millBillNo}_${output.recdDate}`;
+                            if (!groups[key]) {
+                              groups[key] = {
+                                billNo: output.millBillNo,
+                                date: output.recdDate,
+                                outputs: []
+                              };
+                            }
+                            groups[key].outputs.push(output);
+                            return groups;
+                          }, {});
+
+                          return Object.values(groupedOutputs).map((group: any, groupIndex: number) => (
+                            <div key={`${group.billNo}_${group.date}`} className={`p-4 rounded-lg border ${
+                              isDarkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'
+                            }`}>
+                              {/* Group Header */}
+                              <div className="flex justify-between items-center mb-4">
                             <div>
-                              <span className={`text-sm font-medium ${
-                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                              }`}>
-                                Mill Rate
-                              </span>
-                              <p className={`text-sm font-semibold ${
-                                isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
-                              }`}>
-                                {millOutput.millRate ? `₹${millOutput.millRate.toLocaleString()}` : 'Not specified'}
-                              </p>
+                                  <h4 className={`text-lg font-semibold ${
+                                    isDarkMode ? 'text-white' : 'text-gray-900'
+                                  }`}>
+                                    Bill #{group.billNo}
+                                  </h4>
+                                  <p className={`text-sm ${
+                                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                                  }`}>
+                                    {group.date ? new Date(group.date).toLocaleDateString('en-US', {
+                                      year: 'numeric',
+                                      month: 'long',
+                                      day: 'numeric'
+                                    }) : 'No Date'}
+                                  </p>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => {
+                                      const hasExistingData = millOutputs && millOutputs.length > 0;
+                                      const action = hasExistingData ? 'edit' : 'add';
+                                      showSuccessMessage(`Opening ${action} mill output form...`);
+                                      router.push(`/orders?${action}MillOutput=${orderMongoId}`);
+                                    }}
+                                    className={`inline-flex items-center px-3 py-1 rounded text-sm font-medium transition-all duration-200 ${
+                                      isDarkMode
+                                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                        : 'bg-blue-500 hover:bg-blue-600 text-white'
+                                    }`}
+                                  >
+                                    <PencilIcon className="h-4 w-4 mr-1" />
+                                    Edit
+                                  </button>
+                                </div>
                             </div>
                             
-                            <div className="md:col-span-2 lg:col-span-4">
-                              <span className={`text-sm font-medium ${
+                              {/* Output Items Table */}
+                              <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                  <thead className={`${
+                                    isDarkMode ? 'bg-gray-800' : 'bg-gray-50'
+                                  }`}>
+                                    <tr>
+                                      <th className={`px-3 py-2 text-left text-xs font-medium ${
+                                        isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                      }`}>
+                                        #
+                                      </th>
+                                      <th className={`px-3 py-2 text-left text-xs font-medium ${
+                                        isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                      }`}>
+                                        Quality
+                                      </th>
+                                      <th className={`px-3 py-2 text-left text-xs font-medium ${
+                                        isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                      }`}>
+                                        Finished Meters
+                                      </th>
+                                      <th className={`px-3 py-2 text-left text-xs font-medium ${
+                                        isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                      }`}>
+                                        Mill Rate
+                                      </th>
+                                      <th className={`px-3 py-2 text-left text-xs font-medium ${
                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
                               }`}>
                                 Total Value
-                              </span>
-                              <p className={`text-lg font-bold ${
+                                      </th>
+                                      <th className={`px-3 py-2 text-left text-xs font-medium ${
+                                        isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                      }`}>
+                                        Actions
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                    {group.outputs.map((output: any, outputIndex: number) => (
+                                      <tr key={output._id || outputIndex} className={`hover:${
+                                        isDarkMode ? 'bg-white/5' : 'bg-gray-50'
+                                      } transition-colors`}>
+                                        <td className={`px-3 py-2 text-sm font-medium ${
+                                          isDarkMode ? 'text-white' : 'text-gray-900'
+                                        }`}>
+                                          {outputIndex + 1}
+                                        </td>
+                                        <td className={`px-3 py-2 text-sm ${
+                                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                        }`}>
+                                          {output.quality?.name || (output.quality ? 'Unknown Quality' : 'No Quality')}
+                                        </td>
+                                        <td className={`px-3 py-2 text-sm font-medium ${
+                                          isDarkMode ? 'text-white' : 'text-gray-900'
+                                        }`}>
+                                          {output.finishedMtr ? `${output.finishedMtr.toLocaleString()} mtr` : '-'}
+                                        </td>
+                                        <td className={`px-3 py-2 text-sm font-medium ${
+                                          isDarkMode ? 'text-white' : 'text-gray-900'
+                                        }`}>
+                                          {output.millRate ? `₹${output.millRate.toLocaleString()}` : '-'}
+                                        </td>
+                                        <td className={`px-3 py-2 text-sm font-bold ${
                                 isDarkMode ? 'text-purple-400' : 'text-purple-600'
                               }`}>
-                                ₹{(millOutput.finishedMtr * millOutput.millRate).toLocaleString()}
-                              </p>
+                                          {output.finishedMtr && output.millRate ? `₹${(output.finishedMtr * output.millRate).toLocaleString()}` : '-'}
+                                        </td>
+                                        <td className={`px-3 py-2 text-sm font-medium ${
+                                          isDarkMode ? 'text-white' : 'text-gray-900'
+                                        }`}>
+                                          <button
+                                            onClick={() => handleDeleteMillOutput(output._id)}
+                                            className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium transition-all duration-200 ${
+                                              isDarkMode
+                                                ? 'bg-red-600 hover:bg-red-700 text-white'
+                                                : 'bg-red-500 hover:bg-red-600 text-white'
+                                            }`}
+                                          >
+                                            <TrashIcon className="h-3 w-3 mr-1" />
+                                            Delete
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
                             </div>
                           </div>
+                          ));
+                        })()}
                         </div>
-                      ))}
                     </div>
                   ) : (
                     <div className={`p-6 rounded-2xl border-2 border-dashed ${
@@ -2179,100 +2348,137 @@ export default function OrderDetailsPage() {
                        </p>
                      </div>
                    ) : dispatches.length > 0 ? (
-                     <div className="space-y-4">
-                       {dispatches.map((dispatch, index) => (
-                         <div key={dispatch._id || index} className={`p-4 rounded-lg border-l-4 ${
+                     <div className="space-y-6">
+                       {(() => {
+                         // Group dispatches by dispatchDate and billNo
+                         const groupedDispatches = dispatches.reduce((groups: any, dispatch: any) => {
+                           const key = `${dispatch.dispatchDate}_${dispatch.billNo}`;
+                           if (!groups[key]) {
+                             groups[key] = {
+                               dispatchDate: dispatch.dispatchDate,
+                               billNo: dispatch.billNo,
+                               items: []
+                             };
+                           }
+                           groups[key].items.push(dispatch);
+                           return groups;
+                         }, {});
+
+                         return Object.values(groupedDispatches).map((group: any, groupIndex: number) => (
+                           <div key={`${group.dispatchDate}_${group.billNo}`} className={`p-6 rounded-xl border-l-4 ${
                            isDarkMode 
                              ? 'bg-white/5 border-orange-500/50' 
                              : 'bg-gray-50 border-orange-500'
                          }`}>
-                           <div className="flex justify-between items-start mb-3">
-                             <h4 className={`font-semibold ${
+                             {/* Group Header */}
+                             <div className="flex justify-between items-start mb-4">
+                               <h4 className={`text-lg font-semibold ${
                                isDarkMode ? 'text-white' : 'text-gray-900'
                              }`}>
-                               Dispatch #{index + 1}
+                                 Dispatch Group #{groupIndex + 1}
                              </h4>
-                             <span className={`text-sm font-medium px-2 py-1 rounded-full ${
+                               <div className="flex space-x-2">
+                                 <span className={`text-sm font-medium px-3 py-1 rounded-full ${
                                isDarkMode 
                                  ? 'bg-orange-900/20 text-orange-400' 
                                  : 'bg-orange-100 text-orange-700'
                              }`}>
-                               {dispatch.billNo}
+                                   Bill: {group.billNo}
                              </span>
-                           </div>
-                           
-                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                             <div>
-                               <span className={`text-sm font-medium ${
-                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                               }`}>
-                                 Bill Number
-                               </span>
-                               <p className={`text-sm font-semibold ${
-                                 isDarkMode ? 'text-white' : 'text-gray-900'
-                               }`}>
-                                 {dispatch.billNo || 'Not specified'}
-                               </p>
-                             </div>
-                             
-                             <div>
-                               <span className={`text-sm font-medium ${
-                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                               }`}>
-                                 Dispatch Date
-                               </span>
-                               <p className={`text-sm font-semibold ${
-                                 isDarkMode ? 'text-white' : 'text-gray-900'
-                               }`}>
-                                 {dispatch.dispatchDate ? new Date(dispatch.dispatchDate).toLocaleDateString('en-US', {
+                                 <span className={`text-sm font-medium px-3 py-1 rounded-full ${
+                                   isDarkMode 
+                                     ? 'bg-blue-900/20 text-blue-400' 
+                                     : 'bg-blue-100 text-blue-700'
+                                 }`}>
+                                   {group.dispatchDate ? new Date(group.dispatchDate).toLocaleDateString('en-US', {
                                    year: 'numeric',
                                    month: 'short',
                                    day: 'numeric'
-                                 }) : 'Not specified'}
-                               </p>
+                                   }) : 'No Date'}
+                                 </span>
+                               </div>
                              </div>
                              
-                             <div>
-                               <span className={`text-sm font-medium ${
-                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                               }`}>
-                                 Finish Meters
-                               </span>
-                               <p className={`text-sm font-semibold ${
-                                 isDarkMode ? 'text-green-400' : 'text-green-600'
-                               }`}>
-                                 {dispatch.finishMtr ? `${dispatch.finishMtr.toLocaleString()} mtr` : 'Not specified'}
-                               </p>
-                             </div>
-                             
-                             <div>
-                               <span className={`text-sm font-medium ${
-                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                             {/* Quality & Finish Items Table */}
+                             <div className="overflow-x-auto">
+                               <table className="w-full">
+                                 <thead>
+                                   <tr className={`border-b ${
+                                     isDarkMode ? 'border-gray-600' : 'border-gray-200'
+                                   }`}>
+                                     <th className={`text-left py-3 px-4 font-semibold ${
+                                       isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                     }`}>
+                                       Quality
+                                     </th>
+                                     <th className={`text-left py-3 px-4 font-semibold ${
+                                       isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                     }`}>
+                                       Finish Meters
+                                     </th>
+                                     <th className={`text-left py-3 px-4 font-semibold ${
+                                       isDarkMode ? 'text-gray-300' : 'text-gray-700'
                                }`}>
                                  Sale Rate
-                               </span>
-                               <p className={`text-sm font-semibold ${
+                                     </th>
+                                     <th className={`text-left py-3 px-4 font-semibold ${
+                                       isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                     }`}>
+                                       Total Value
+                                     </th>
+                                   </tr>
+                                 </thead>
+                                 <tbody>
+                                   {group.items.map((item: any, itemIndex: number) => (
+                                     <tr key={item._id || itemIndex} className={`border-b ${
+                                       isDarkMode ? 'border-gray-700' : 'border-gray-100'
+                                     }`}>
+                                       <td className={`py-3 px-4 ${
+                                         isDarkMode ? 'text-white' : 'text-gray-900'
+                                       }`}>
+                                         {item.quality?.name || 'No Quality'}
+                                       </td>
+                                       <td className={`py-3 px-4 font-semibold ${
+                                         isDarkMode ? 'text-green-400' : 'text-green-600'
+                                       }`}>
+                                         {item.finishMtr ? `${item.finishMtr.toLocaleString()} mtr` : 'Not specified'}
+                                       </td>
+                                       <td className={`py-3 px-4 font-semibold ${
                                  isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
                                }`}>
-                                 {dispatch.saleRate ? `₹${dispatch.saleRate.toLocaleString()}` : 'Not specified'}
-                               </p>
+                                         {item.saleRate ? `₹${item.saleRate.toLocaleString()}` : 'Not specified'}
+                                       </td>
+                                       <td className={`py-3 px-4 font-bold ${
+                                         isDarkMode ? 'text-orange-400' : 'text-orange-600'
+                                       }`}>
+                                         ₹{(item.finishMtr * item.saleRate).toLocaleString()}
+                                       </td>
+                                     </tr>
+                                   ))}
+                                 </tbody>
+                               </table>
                              </div>
                              
-                             <div className="md:col-span-2 lg:col-span-4">
+                             {/* Group Summary */}
+                             <div className={`mt-4 pt-4 border-t ${
+                               isDarkMode ? 'border-gray-600' : 'border-gray-200'
+                             }`}>
+                               <div className="flex justify-between items-center">
                                <span className={`text-sm font-medium ${
                                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
                                }`}>
-                                 Total Value
+                                   Group Total ({group.items.length} items):
                                </span>
-                               <p className={`text-lg font-bold ${
+                                 <span className={`text-lg font-bold ${
                                  isDarkMode ? 'text-orange-400' : 'text-orange-600'
                                }`}>
-                                 ₹{(dispatch.finishMtr * dispatch.saleRate).toLocaleString()}
-                               </p>
+                                   ₹{group.items.reduce((sum: number, item: any) => sum + (item.finishMtr * item.saleRate), 0).toLocaleString()}
+                                 </span>
                              </div>
                            </div>
                          </div>
-                       ))}
+                         ));
+                       })()}
                      </div>
                    ) : (
                      <div className={`p-6 rounded-2xl border-2 border-dashed ${
@@ -2365,7 +2571,7 @@ export default function OrderDetailsPage() {
                 />
                 
                 {/* Fallback for failed images */}
-                <div className="hidden max-w-full max-h-[70vh] w-96 h-64 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center border border-gray-300 dark:border-gray-600">
+                <div className="max-w-full max-h-[70vh] w-96 h-64 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center border border-gray-300 dark:border-gray-600">
                   <div className="text-center">
                     <PhotoIcon className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
                     <p className="text-gray-500 dark:text-gray-400 font-medium">Image not available</p>
@@ -2456,6 +2662,10 @@ export default function OrderDetailsPage() {
                    setLabs(data.data);
                    showSuccessMessage(`Updated ${data.data.length} lab records`);
                    console.log('Labs refreshed successfully:', data.data.length, 'labs');
+                   console.log('Refreshed lab data:', data.data);
+                   if (data.data.length > 0) {
+                     console.log('First refreshed lab labSendData:', data.data[0].labSendData);
+                   }
                  } else {
                    console.log('Failed to refresh labs:', data);
                  }
@@ -2619,7 +2829,19 @@ export default function OrderDetailsPage() {
                 }`}>
                   Main Input
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className={`text-sm font-medium ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      Quality
+                    </label>
+                    <p className={`text-lg font-bold ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {selectedMillInput.quality?.name || selectedMillInput.quality || '-'}
+                    </p>
+                  </div>
                   <div>
                     <label className={`text-sm font-medium ${
                       isDarkMode ? 'text-gray-400' : 'text-gray-600'
@@ -2662,7 +2884,19 @@ export default function OrderDetailsPage() {
                       <div key={index} className={`p-3 rounded-lg border ${
                         isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
                       }`}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className={`text-sm font-medium ${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              Quality #{index + 1}
+                            </label>
+                            <p className={`text-sm font-bold ${
+                              isDarkMode ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              {additional.quality?.name || additional.quality || '-'}
+                            </p>
+                          </div>
                           <div>
                             <label className={`text-sm font-medium ${
                               isDarkMode ? 'text-gray-400' : 'text-gray-600'

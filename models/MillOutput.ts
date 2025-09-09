@@ -8,6 +8,7 @@ export interface IMillOutput extends Document {
   millBillNo: string;
   finishedMtr: number;
   millRate: number;
+  quality?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,9 +53,15 @@ const MillOutputSchema = new Schema<IMillOutput>({
     type: Number,
     required: [true, "Mill rate is required"],
     min: [0, "Mill rate cannot be negative"]
+  },
+  quality: {
+    type: Schema.Types.ObjectId,
+    ref: "Quality",
+    index: true
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  strictPopulate: false
 });
 
 // Indexes for better performance (removed duplicates that are already defined in schema)
@@ -62,7 +69,7 @@ const MillOutputSchema = new Schema<IMillOutput>({
 
 // Static methods for MillOutput
 MillOutputSchema.statics.findByOrderId = function(orderId: string) {
-  return this.find({ orderId }).populate('order').sort({ recdDate: -1 });
+  return this.find({ orderId }).populate('order quality').sort({ recdDate: -1 });
 };
 
 MillOutputSchema.statics.findByDateRange = function(startDate: Date, endDate: Date) {
@@ -71,7 +78,7 @@ MillOutputSchema.statics.findByDateRange = function(startDate: Date, endDate: Da
       $gte: startDate,
       $lte: endDate
     }
-  }).populate('order').sort({ recdDate: -1 });
+  }).populate('order quality').sort({ recdDate: -1 });
 };
 
 MillOutputSchema.statics.getMillOutputStats = function() {

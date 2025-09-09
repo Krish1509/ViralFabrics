@@ -21,9 +21,11 @@ export interface IMillInput extends Document {
   chalanNo: string;
   greighMtr: number;
   pcs: number;
+  quality?: mongoose.Types.ObjectId;
   additionalMeters?: Array<{
     greighMtr: number;
     pcs: number;
+    quality?: mongoose.Types.ObjectId;
     notes?: string;
   }>;
   notes?: string;
@@ -125,6 +127,11 @@ const MillInputSchema = new Schema<IMillInput>({
     required: [true, "Number of pieces is required"],
     min: [1, "Number of pieces must be at least 1"]
   },
+  quality: {
+    type: Schema.Types.ObjectId,
+    ref: "Quality",
+    index: true
+  },
   additionalMeters: [
     {
       greighMtr: {
@@ -136,6 +143,10 @@ const MillInputSchema = new Schema<IMillInput>({
         type: Number,
         required: [true, "Additional pieces is required"],
         min: [1, "Additional pieces must be at least 1"]
+      },
+      quality: {
+        type: Schema.Types.ObjectId,
+        ref: "Quality"
       },
       notes: {
         type: String,
@@ -150,7 +161,8 @@ const MillInputSchema = new Schema<IMillInput>({
     maxlength: [500, "Notes cannot exceed 500 characters"]
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  strictPopulate: false
 });
 
 // Indexes for better performance

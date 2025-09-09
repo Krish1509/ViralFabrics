@@ -206,11 +206,11 @@ function CustomDatePicker({
         <div 
           ref={calendarRef}
           onClick={handleCalendarClick}
-          className={`fixed z-[9999999] p-4 rounded-lg border shadow-2xl calendar-container date-picker ${
+          className={`fixed z-[9999999] p-4 rounded-lg border shadow-2xl calendar-container date-picker max-w-sm ${
             isDarkMode ? 'bg-[#1D293D] border-white/20' : 'bg-white border-gray-200'
           }`}
           style={{
-            top: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().top - 450 : '50%',
+            top: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().bottom + 10 : '50%',
             left: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().left : '50%',
             transform: 'translateX(-50%)'
           }}
@@ -433,7 +433,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       setLocalItems([...order.items]);
       setEditingItemId(null);
       setLabData({
-        labSendDate: new Date().toISOString().split('T')[0], // Default to today
+        labSendDate: '', // Empty by default
         approvalDate: '',
         sampleNumber: ''
       });
@@ -464,9 +464,9 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
           sampleNumber: result.data.labData?.sampleNumber || ''
         });
       } else {
-        // New lab data - initialize with today's date
+        // New lab data - initialize with empty date
         setLabData({
-          labSendDate: new Date().toISOString().split('T')[0],
+          labSendDate: '',
           approvalDate: '',
           sampleNumber: ''
         });
@@ -474,9 +474,9 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
     } catch (err) {
       console.error('Error loading lab data:', err);
       setError('Failed to load lab data. Please try again.');
-      // Initialize with today's date even on error
+      // Initialize with empty date even on error
       setLabData({
-        labSendDate: new Date().toISOString().split('T')[0],
+        labSendDate: '',
         approvalDate: '',
         sampleNumber: ''
       });
@@ -518,6 +518,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
 
       if (result.success) {
         // Immediately update local state for better UX
+        console.log('LabDataModal: Updating local state with sampleNumber:', labData.sampleNumber);
         setLocalItems(prevItems => 
           prevItems.map(item => 
             item._id === editingItemId 
@@ -543,7 +544,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
         // Close editing mode
         setEditingItemId(null);
         setLabData({
-          labSendDate: new Date().toISOString().split('T')[0],
+          labSendDate: '',
           approvalDate: '',
           sampleNumber: ''
         });
@@ -593,7 +594,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
         if (editingItemId === itemId) {
           setEditingItemId(null);
           setLabData({
-            labSendDate: new Date().toISOString().split('T')[0],
+            labSendDate: '',
             approvalDate: '',
             sampleNumber: ''
           });
@@ -624,7 +625,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
   const handleCancelEdit = () => {
     setEditingItemId(null);
     setLabData({
-      labSendDate: new Date().toISOString().split('T')[0],
+      labSendDate: '',
       approvalDate: '',
       sampleNumber: ''
     });
