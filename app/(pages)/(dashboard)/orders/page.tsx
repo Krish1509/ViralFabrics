@@ -20,13 +20,18 @@ import {
   BeakerIcon,
   PhotoIcon,
   DocumentTextIcon,
-  TruckIcon
+  TruckIcon,
+  CubeIcon,
+  Squares2X2Icon,
+  ListBulletIcon,
+  DocumentArrowDownIcon
 } from '@heroicons/react/24/outline';
 import OrderForm from './components/OrderForm';
 
 import PartyModal from './components/PartyModal';
 import QualityModal from './components/QualityModal';
 import LabAddModal from './components/LabDataModal';
+import { generateOrderPDF } from '@/lib/pdfGenerator';
 import OrderLogsModal from './components/OrderLogsModal';
 import LabDataModal from './components/LabDataModal';
 import MillInputForm from './components/MillInputForm';
@@ -69,6 +74,23 @@ export default function OrdersPage() {
   const [deleting, setDeleting] = useState(false);
   const [screenSize, setScreenSize] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(10);
+  const itemsPerPageOptions = [10, 25, 50, 100, 'All'] as const;
+  const [paginationInfo, setPaginationInfo] = useState({
+    totalCount: 0,
+    totalPages: 0,
+    currentPage: 1,
+    hasNextPage: false,
+    hasPrevPage: false
+  });
+  const [isChangingPage, setIsChangingPage] = useState(false);
+  
+  // Handle view mode changes
+  const handleViewModeChange = (newMode: 'table' | 'cards') => {
+    setViewMode(newMode);
+    localStorage.setItem('ordersViewMode', newMode);
+  };
+  
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
   const [resettingCounter, setResettingCounter] = useState(false);
@@ -78,10 +100,12 @@ export default function OrdersPage() {
   const [previewImage, setPreviewImage] = useState<{ url: string; alt: string } | null>(null);
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [selectedOrderForLogs, setSelectedOrderForLogs] = useState<Order | null>(null);
   const [showLabDataModal, setShowLabDataModal] = useState(false);
   const [selectedOrderForLabData, setSelectedOrderForLabData] = useState<Order | null>(null);
+  
 
 
   const [showMillInputForm, setShowMillInputForm] = useState(false);
@@ -96,13 +120,21 @@ export default function OrdersPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
   const [isValidating, setIsValidating] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline' | 'slow'>('online');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>(() => {
+    if (typeof window !== 'undefined') {
+      const savedViewMode = localStorage.getItem('ordersViewMode');
+      return savedViewMode === 'table' ? 'table' : 'cards';
+    }
+    return 'cards';
+  });
 
-  const ordersPerPage = 50; // Show 50 orders per page
 
   // Filters
   const [filters, setFilters] = useState({
     orderFilter: 'latest_first', // latest_first, oldest_first - default to latest first (by creation date)
-    typeFilter: 'all' // all, Dying, Printing
+    typeFilter: 'all', // all, Dying, Printing
+    statusFilter: 'all' // all, pending, delivered
   });
 
   // Track screen size
@@ -114,6 +146,39 @@ export default function OrdersPage() {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Monitor connection status
+  useEffect(() => {
+    const updateConnectionStatus = () => {
+      if (navigator.onLine) {
+        setConnectionStatus('online');
+      } else {
+        setConnectionStatus('offline');
+        // Show offline message
+        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const newMessage: ValidationMessage = {
+          id: messageId,
+          type: 'error',
+          text: 'You are offline. Some features may not work.',
+          timestamp: Date.now(),
+          autoDismiss: false
+        };
+        setMessages(prev => [...prev, newMessage]);
+      }
+    };
+
+    // Check initial status
+    updateConnectionStatus();
+
+    // Listen for online/offline events
+    window.addEventListener('online', updateConnectionStatus);
+    window.addEventListener('offline', updateConnectionStatus);
+
+    return () => {
+      window.removeEventListener('online', updateConnectionStatus);
+      window.removeEventListener('offline', updateConnectionStatus);
+    };
   }, []);
 
     const isLargeScreen = screenSize > 1200;
@@ -152,13 +217,11 @@ export default function OrdersPage() {
     setMessages([]);
   }, []);
 
-  // Validation helper functions
+  // Validation helper functions - Removed restrictive search validation
   const validateSearchTerm = useCallback((term: string) => {
-    if (term.length > 0 && term.length < 2) {
-      return 'Search term must be at least 2 characters';
-    }
-    if (term.length > 50) {
-      return 'Search term is too long (max 50 characters)';
+    // Only validate for extremely long search terms
+    if (term.length > 100) {
+      return 'Search term is too long (max 100 characters)';
     }
     return null;
   }, []);
@@ -177,75 +240,232 @@ export default function OrdersPage() {
     return errors;
   }, []);
 
-  // Real-time validation
-  useEffect(() => {
-    const errors: {[key: string]: string} = {};
+  // Enhanced search with helpful notifications
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchTerm(value);
     
-    // Validate search term
-    const searchError = validateSearchTerm(searchTerm);
-    if (searchError) {
-      errors.searchTerm = searchError;
+    // Show helpful search tips for single character searches
+    if (value.length === 1) {
+      showMessage('info', '💡 Tip: Search by order ID, PO number, style, or party name', { 
+        autoDismiss: true, 
+        dismissTime: 3000 
+      });
     }
     
-    // Validate filters
-    const filterErrors = validateFilters(filters);
-    Object.assign(errors, filterErrors);
-    
-    setValidationErrors(errors);
-  }, [searchTerm, filters, validateSearchTerm, validateFilters]);
+    // Show search result count when user stops typing
+    if (value.length > 0) {
+      const timeoutId = setTimeout(() => {
+        const filtered = orders.filter(order => {
+          const matchesSearch = 
+            order.orderId?.toLowerCase().includes(value.toLowerCase()) ||
+            order.poNumber?.toLowerCase().includes(value.toLowerCase()) ||
+            order.styleNo?.toLowerCase().includes(value.toLowerCase()) ||
+            (order.party as any)?.name?.toLowerCase().includes(value.toLowerCase());
+          return matchesSearch;
+        });
+        
+        if (filtered.length === 0 && value.length > 0) {
+          showMessage('info', `No orders found for "${value}". Try a different search term.`, { 
+            autoDismiss: true, 
+            dismissTime: 4000 
+          });
+        } else if (filtered.length > 0) {
+          showMessage('success', `Found ${filtered.length} order${filtered.length !== 1 ? 's' : ''} matching "${value}"`, { 
+            autoDismiss: true, 
+            dismissTime: 2000 
+          });
+        }
+      }, 1000); // Wait 1 second after user stops typing
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [orders, showMessage]);
 
-  // Optimized fetch functions with retry logic
-  const fetchOrders = useCallback(async (retryCount = 0) => {
-    const maxRetries = 3;
+  // Optimized fetch functions with retry logic and better timeout handling
+  const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage) => {
+    console.log('🔄 fetchOrders called with:', { retryCount, page, limit });
+    
+    const maxRetries = 2; // Reduced retries for faster failure
+    const baseTimeout = 10000; // 10 seconds base timeout
+    const timeoutIncrement = 2000; // Add 2 seconds per retry
     
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased to 15s timeout
+      const timeout = baseTimeout + (retryCount * timeoutIncrement);
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/orders?limit=50', { // Reduced limit for faster loading
+      if (!token) {
+        console.error('❌ No token found');
+        showMessage('error', 'Please login to view orders', { autoDismiss: true, dismissTime: 3000 });
+        return;
+      }
+      
+      // Build URL with pagination and filter parameters
+      const url = new URL('/api/orders', window.location.origin);
+      const limitValue = limit === 'All' ? 1000 : limit;
+      url.searchParams.append('limit', limitValue.toString());
+      url.searchParams.append('page', page.toString());
+      
+      // Add search and filter parameters
+      if (searchTerm) {
+        url.searchParams.append('search', searchTerm);
+      }
+      if (filters.typeFilter && filters.typeFilter !== 'all') {
+        url.searchParams.append('type', filters.typeFilter);
+      }
+      if (filters.statusFilter && filters.statusFilter !== 'all') {
+        url.searchParams.append('status', filters.statusFilter);
+      }
+      if (filters.orderFilter && filters.orderFilter !== 'latest_first') {
+        url.searchParams.append('sort', filters.orderFilter);
+      }
+      
+      console.log('📡 Making API request to:', url.toString());
+      
+      const response = await fetch(url.toString(), {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=30, must-revalidate', // Better caching
-          'Pragma': 'no-cache'
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
         },
         signal: controller.signal
       });
       
       clearTimeout(timeoutId);
+      console.log('📡 API response status:', response.status);
       
       if (!response.ok) {
+        if (response.status === 401) {
+          // Handle authentication error
+          showMessage('error', 'Session expired. Please login again.', { autoDismiss: false });
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
+      console.log('📊 API response data:', data);
       
       if (data.success) {
-        // OrdersPage: Fetched orders successfully
-        setOrders(data.data || []);
+        const ordersData = data.data || [];
+        console.log('✅ Setting orders:', ordersData.length, 'orders');
+        setOrders(ordersData);
         setLastRefreshTime(new Date());
+        
+        // Update pagination info if available, otherwise use fallback
+        if (data.pagination) {
+          console.log('📊 Server pagination data:', data.pagination);
+          setPaginationInfo({
+            totalCount: data.pagination.total || 0,
+            totalPages: data.pagination.pages || 1,
+            currentPage: data.pagination.page || 1,
+            hasNextPage: (data.pagination.page || 1) < (data.pagination.pages || 1),
+            hasPrevPage: (data.pagination.page || 1) > 1
+          });
+        } else {
+          // Fallback pagination info based on orders length
+          const ordersLength = ordersData.length;
+          const calculatedPages = Math.ceil(ordersLength / (limitValue as number));
+          
+          console.log('📊 Fallback pagination calculation:', {
+            ordersLength,
+            limitValue,
+            calculatedPages,
+            page,
+            limit
+          });
+          
+          // If we have orders but no pagination data, use orders length
+          // If we have no orders, check if there's a totalCount in the response
+          const totalCount = ordersLength > 0 ? ordersLength : (data.totalCount || 0);
+          
+          setPaginationInfo({
+            totalCount: totalCount,
+            totalPages: Math.max(1, Math.ceil(totalCount / (limitValue as number))),
+            currentPage: page,
+            hasNextPage: page < Math.ceil(totalCount / (limitValue as number)),
+            hasPrevPage: page > 1
+          });
+        }
       } else {
         throw new Error(data.message || 'Failed to fetch orders');
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
         if (retryCount < maxRetries) {
-          // OrdersPage: Retry attempt for orders fetch
-          showMessage('warning', `Loading timeout. Retrying... (${retryCount + 1}/${maxRetries + 1})`, { autoDismiss: true, dismissTime: 3000 });
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Reduced wait time
-          return fetchOrders(retryCount + 1);
+          // Show retry message with progress
+          showMessage('warning', `Connection slow, retrying... (${retryCount + 1}/${maxRetries})`, { 
+            autoDismiss: true, 
+            dismissTime: 2000 
+          });
+          // Exponential backoff
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+          return fetchOrders(retryCount + 1, page, limit);
         } else {
-          showMessage('error', 'Loading timeout. Please refresh the page.', { autoDismiss: false });
-          setLoading(false); // Stop loading state
+          showMessage('error', 'Connection timeout. Please check your internet and try again.', { 
+            autoDismiss: false 
+          });
+          setLoading(false);
         }
+      } else if (error.message?.includes('Failed to fetch')) {
+        showMessage('error', 'Network error. Please check your connection.', { 
+          autoDismiss: false 
+        });
+        setLoading(false);
       } else {
         console.error('Error fetching orders:', error);
-        showMessage('error', 'Failed to fetch orders. Please try again.', { autoDismiss: false });
-        setLoading(false); // Stop loading state
+        showMessage('error', 'Failed to load orders. Please try again.', { 
+          autoDismiss: false 
+        });
+        setLoading(false);
       }
-      throw error; // Re-throw to be caught by the useEffect
+      throw error;
     }
-  }, [showMessage]);
+  }, [showMessage, currentPage, itemsPerPage, searchTerm, filters]);
+
+  // Pagination handlers
+  const handlePageChange = async (newPage: number) => {
+    if (newPage === currentPage) return;
+    
+    // Validate page number
+    if (newPage < 1 || newPage > totalPages) {
+      console.log('Invalid page number:', { newPage, totalPages, currentPage });
+      return;
+    }
+    
+    console.log('Page change:', { from: currentPage, to: newPage, itemsPerPage, totalPages });
+    
+    setIsChangingPage(true);
+    setCurrentPage(newPage);
+    await fetchOrders(0, newPage, itemsPerPage);
+    setIsChangingPage(false);
+  };
+
+  const handleItemsPerPageChange = async (newItemsPerPage: number | 'All') => {
+    if (newItemsPerPage === itemsPerPage) return;
+    
+    console.log('Items per page change:', { from: itemsPerPage, to: newItemsPerPage });
+    
+    setIsChangingPage(true);
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Reset to first page
+    await fetchOrders(0, 1, newItemsPerPage);
+    setIsChangingPage(false);
+  };
+
+  // Calculate total pages
+  const totalPages = useMemo(() => {
+    if (itemsPerPage === 'All') return 1;
+    
+    const totalCount = paginationInfo.totalCount || 0;
+    const itemsPerPageValue = itemsPerPage as number;
+    const calculatedPages = Math.ceil(totalCount / itemsPerPageValue);
+    const result = Math.max(1, calculatedPages);
+    
+    
+    return result;
+  }, [paginationInfo.totalCount, itemsPerPage]);
 
   // Function to fetch existing mill inputs for an order
   const fetchExistingMillInputs = useCallback(async (orderId: string) => {
@@ -327,14 +547,15 @@ export default function OrdersPage() {
   const fetchParties = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/parties?limit=10', { // Slightly increased limit
+      const response = await fetch('/api/parties?limit=50', { // Increased limit for better UX
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=60, must-revalidate', // Better caching
-          'Pragma': 'no-cache'
+          'Cache-Control': 'max-age=300, must-revalidate', // 5 minute cache
+          'Pragma': 'no-cache',
+          'Accept': 'application/json'
         },
         signal: controller.signal
       });
@@ -342,6 +563,7 @@ export default function OrdersPage() {
       clearTimeout(timeoutId);
       
       if (!response.ok) {
+        if (response.status === 401) return; // Skip on auth error
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
@@ -352,7 +574,7 @@ export default function OrdersPage() {
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.warn('Parties fetch timeout - continuing without parties');
-      } else {
+      } else if (!error.message?.includes('401')) {
         console.error('Error fetching parties:', error);
       }
     }
@@ -361,14 +583,15 @@ export default function OrdersPage() {
   const fetchQualities = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/qualities?limit=20', { // Slightly increased limit
+      const response = await fetch('/api/qualities?limit=100', { // Increased limit for better UX
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=60, must-revalidate', // Better caching
-          'Pragma': 'no-cache'
+          'Cache-Control': 'max-age=300, must-revalidate', // 5 minute cache
+          'Pragma': 'no-cache',
+          'Accept': 'application/json'
         },
         signal: controller.signal
       });
@@ -376,6 +599,7 @@ export default function OrdersPage() {
       clearTimeout(timeoutId);
       
       if (!response.ok) {
+        if (response.status === 401) return; // Skip on auth error
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
@@ -386,45 +610,41 @@ export default function OrdersPage() {
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.warn('Qualities fetch timeout - continuing without qualities');
-      } else {
+      } else if (!error.message?.includes('401')) {
         console.error('Error fetching qualities:', error);
       }
     }
   }, []);
 
-  // Fetch mills
+  // Fetch mills with optimized timeout
   const fetchMills = useCallback(async () => {
     try {
-      console.log('=== fetchMills called ===');
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 second timeout
       
       const token = localStorage.getItem('token');
-      console.log('Token available:', !!token);
       
       const response = await fetch('/api/mills?limit=100', {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=60, must-revalidate',
-          'Pragma': 'no-cache'
+          'Cache-Control': 'max-age=300, must-revalidate', // 5 minute cache
+          'Pragma': 'no-cache',
+          'Accept': 'application/json'
         },
         signal: controller.signal
       });
       
       clearTimeout(timeoutId);
       
-      console.log('Mills API response status:', response.status);
-      
       if (!response.ok) {
+        if (response.status === 401) return; // Skip on auth error
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
-      console.log('Mills API response data:', data);
       
       if (data.success) {
-        const millsData = data.data.mills || [];
-        console.log('Setting mills:', millsData.length, 'mills');
+        const millsData = data.data?.mills || data.data || [];
         setMills(millsData);
       } else {
         console.error('Mills API returned error:', data.message);
@@ -432,67 +652,86 @@ export default function OrdersPage() {
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.warn('Mills fetch timeout - continuing without mills');
-      } else {
+      } else if (!error.message?.includes('401')) {
         console.error('Error fetching mills:', error);
       }
     }
   }, []);
 
-  // Fetch orders, parties, and qualities with better error handling
+  // Optimized data initialization with better timeout handling
   useEffect(() => {
     // Prevent multiple initializations
     if (isInitialized) return;
     
     const initializeData = async () => {
+      console.log('🚀 Starting data initialization...');
       setLoading(true);
       let ordersLoaded = false;
+      let criticalDataLoaded = false;
       
       try {
-        // Fetch orders first (most important)
+        // Fetch orders first (most critical)
+        console.log('📡 Fetching orders...');
         await fetchOrders();
         ordersLoaded = true;
+        criticalDataLoaded = true;
+        console.log('✅ Orders fetched successfully');
         
-        // Fetch parties, qualities, mills, and mill inputs in parallel (non-critical)
-        Promise.allSettled([
+        // Show success message for orders
+        showMessage('success', 'Orders loaded successfully', { 
+          autoDismiss: true, 
+          dismissTime: 2000 
+        });
+        
+        // Fetch additional data in background (non-blocking)
+        const backgroundPromises = [
           fetchParties(),
           fetchQualities(),
           fetchMills(),
           fetchAllOrderMillInputs()
-        ]).then((results) => {
-          const [partiesResult, qualitiesResult, millsResult] = results;
-          if (partiesResult.status === 'rejected') {
-            console.warn('Failed to load parties:', partiesResult.reason);
-          }
-          if (qualitiesResult.status === 'rejected') {
-            console.warn('Failed to load qualities:', qualitiesResult.reason);
-          }
-          if (millsResult.status === 'rejected') {
-            console.warn('Failed to load mills:', millsResult.reason);
-          }
+        ];
+        
+        // Process background data as it loads
+        backgroundPromises.forEach((promise, index) => {
+          promise.then(() => {
+            const dataTypes = ['parties', 'qualities', 'mills', 'mill inputs'];
+            console.log(`${dataTypes[index]} loaded successfully`);
+          }).catch((error) => {
+            const dataTypes = ['parties', 'qualities', 'mills', 'mill inputs'];
+            console.warn(`Failed to load ${dataTypes[index]}:`, error);
+          });
         });
         
       } catch (error) {
         console.error('Error initializing data:', error);
         if (!ordersLoaded) {
-          showMessage('error', 'Failed to load orders. Please refresh the page.', { autoDismiss: false });
+          showMessage('error', 'Failed to load orders. Please check your connection and try again.', { 
+            autoDismiss: false 
+          });
         }
       } finally {
         setLoading(false);
         setIsInitialized(true);
+        console.log('🏁 Initialization complete');
       }
     };
     
     initializeData();
     
-    // Fallback timeout to prevent infinite loading
+    // Fallback timeout to prevent infinite loading (increased to 12 seconds)
     const timeoutId = setTimeout(() => {
-      setLoading(false);
-      setIsInitialized(true);
-      showMessage('error', 'Loading timeout. Please refresh the page.', { autoDismiss: false });
-    }, 8000); // Reduced to 8 second timeout
+      if (!isInitialized) {
+        setLoading(false);
+        setIsInitialized(true);
+        showMessage('error', 'Loading is taking longer than expected. Some data may not be available.', { 
+          autoDismiss: true,
+          dismissTime: 5000
+        });
+      }
+    }, 12000); // 12 second timeout
     
     return () => clearTimeout(timeoutId);
-  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderMillInputs, showMessage, isInitialized]); // Added isInitialized to dependencies
+  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderMillInputs, showMessage, isInitialized]);
 
   // Keyboard navigation for image preview
   useEffect(() => {
@@ -541,33 +780,73 @@ export default function OrdersPage() {
     };
   }, [fetchOrders, showMessage]);
 
-  // Optimized refresh function with retry
+  // Optimized refresh function with better error handling
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    let retryCount = 0;
-    const maxRetries = 2;
     
-    const attemptRefresh = async () => {
-      try {
-        await fetchOrders();
-        showMessage('success', 'Orders refreshed successfully', { autoDismiss: true, dismissTime: 3000 });
-        return true;
-      } catch (error: any) {
-        retryCount++;
-        if (retryCount < maxRetries) {
-          // Retry attempt for orders refresh
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
-          return await attemptRefresh();
-        } else {
-          showMessage('error', 'Failed to refresh orders after multiple attempts', { autoDismiss: false });
-          return false;
+    try {
+      // Refresh orders with current settings
+      await fetchOrders();
+      
+      // Refresh additional data in background
+      Promise.allSettled([
+        fetchParties(),
+        fetchQualities(),
+        fetchMills(),
+        fetchAllOrderMillInputs()
+      ]).then((results) => {
+        const successCount = results.filter(result => result.status === 'fulfilled').length;
+        const totalCount = results.length;
+        
+        if (successCount === totalCount) {
+          showMessage('success', 'All data refreshed successfully', { 
+            autoDismiss: true, 
+            dismissTime: 3000 
+          });
+        } else if (successCount > 0) {
+          showMessage('warning', `Orders refreshed, but ${totalCount - successCount} data sources failed`, { 
+            autoDismiss: true, 
+            dismissTime: 4000 
+          });
         }
-      }
-    };
-    
-    await attemptRefresh();
-    setRefreshing(false);
-  }, [fetchOrders, showMessage]);
+      });
+      
+    } catch (error: any) {
+      console.error('Refresh error:', error);
+      showMessage('error', 'Failed to refresh data. Please try again.', { 
+        autoDismiss: true,
+        dismissTime: 4000
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderMillInputs, showMessage]);
+
+  // PDF Download function for individual items
+  const handleDownloadItemPDF = useCallback((order: any, item: any, itemIndex: number) => {
+    try {
+      // Create a modified order object with only the specific item
+      const itemOrder = {
+        ...order,
+        items: [item], // Only include the specific item
+        // Add item-specific information to the order
+        itemIndex: itemIndex + 1,
+        qualityName: (item.quality as any)?.name || 'Not selected'
+      };
+      
+      generateOrderPDF(itemOrder);
+      showMessage('success', `PDF downloaded for ${(item.quality as any)?.name || 'Item'}`, { 
+        autoDismiss: true, 
+        dismissTime: 3000 
+      });
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      showMessage('error', 'Failed to generate PDF', { 
+        autoDismiss: true,
+        dismissTime: 4000
+      });
+    }
+  }, [showMessage]);
 
   // Reset order counter function
   const handleResetCounter = useCallback(async () => {
@@ -714,8 +993,12 @@ export default function OrdersPage() {
           (order.party as any)?.name?.toLowerCase().includes(searchTerm.toLowerCase());
 
         const matchesType = filters.typeFilter === 'all' || order.orderType === filters.typeFilter;
+        
+        // Fix status logic - if no status set, default to pending
+        const orderStatus = order.status || 'pending';
+        const matchesStatus = filters.statusFilter === 'all' || orderStatus === filters.statusFilter;
 
-        return matchesSearch && matchesType;
+        return matchesSearch && matchesType && matchesStatus;
       });
 
     // Apply order filter
@@ -744,6 +1027,39 @@ export default function OrdersPage() {
     setOrderToDelete(order);
     setShowDeleteModal(true);
   }, []);
+
+  const handleDeleteItem = async (orderId: string, itemId: string | number) => {
+    try {
+      console.log('Deleting item - OrderId:', orderId, 'ItemId:', itemId);
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'deleteItem',
+          itemIndex: itemId
+        }),
+      });
+
+      if (response.ok) {
+        // Refresh the orders list
+        fetchOrders();
+        showMessage('success', 'Item deleted successfully');
+      } else {
+        try {
+          const errorData = await response.json();
+          showMessage('error', errorData.message || 'Failed to delete item');
+        } catch (parseError) {
+          console.error('Error parsing response:', parseError);
+          showMessage('error', 'Failed to delete item - server error');
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      showMessage('error', 'Failed to delete item');
+    }
+  };
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!orderToDelete) return;
@@ -896,37 +1212,27 @@ export default function OrdersPage() {
     }
   };
 
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-
-  // Pagination logic
-  const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
-  const indexOfLastOrder = currentPage * ordersPerPage;
-  const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
-  const currentOrders = filteredOrders.slice(indexOfFirstOrder, indexOfLastOrder);
+  // Use server-side paginated data directly (no client-side pagination)
+  const currentOrders = orders;
   
   // Pagination debug info removed for production
 
-  // Reset to first page when filters change
+  // Reset to page 1 and fetch new data when filters change
+    useEffect(() => {
+      setCurrentPage(1);
+      fetchOrders(0, 1, itemsPerPage);
+    }, [filters, itemsPerPage]);
+
+  // Auto-correct current page if it exceeds total pages
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, filters.orderFilter, filters.typeFilter]);
-
-  // Page navigation functions
-  const goToPage = (pageNumber: number) => {
-    setCurrentPage(pageNumber);
-  };
-
-  const goToNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
+    if (currentPage > totalPages && totalPages > 0) {
+      console.log('Auto-correcting page:', { currentPage, totalPages });
+      setCurrentPage(totalPages);
+      fetchOrders(0, totalPages, itemsPerPage);
     }
-  };
+  }, [totalPages, currentPage, itemsPerPage]);
 
-  const goToPreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
+
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -935,6 +1241,27 @@ export default function OrdersPage() {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  // Format date and time on separate lines
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const dateStr = date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+    const timeStr = date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    return (
+      <div className="flex flex-col">
+        <span>{dateStr}</span>
+        <span className="text-xs opacity-75">{timeStr}</span>
+      </div>
+    );
   };
 
   // Get total quantity for an order
@@ -976,42 +1303,25 @@ export default function OrdersPage() {
           ? 'bg-white/5 border-white/10'
           : 'bg-white border-gray-200'
       }`}>
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="overflow-x-auto min-w-full">
+          <table className="w-full min-w-max">
             {/* Table Header Skeleton */}
             <thead className={`${
-              isDarkMode
-                ? 'bg-white/5 border-b border-white/10'
-                : 'bg-gray-50 border-b border-gray-200'
+              isDarkMode ? 'bg-gradient-to-r from-slate-800/80 to-slate-700/80 border-b border-slate-600' : 'bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-300'
             }`}>
               <tr>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[300px] ${
+                  isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black/50 bg-blue-50'
                 }`}>
-                  Order Info
+                  Order Information
                 </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                }`}>
-                  Party Details
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                }`}>
-                  Dates
-                </th>
-                <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[350px] ${
+                  isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
                 }`}>
                   Items
                 </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                }`}>
-                  Status
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[200px] ${
+                  isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
                 }`}>
                   Actions
                 </th>
@@ -1027,7 +1337,7 @@ export default function OrdersPage() {
                   isDarkMode ? 'bg-white/5' : 'bg-white'
                 }`}>
                   {/* Order Info Column Skeleton */}
-                  <td className="px-6 py-4">
+                  <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
                     <div className="flex items-center">
                       <div className={`h-12 w-12 rounded-full ${
                         isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
@@ -1047,7 +1357,7 @@ export default function OrdersPage() {
                   </td>
 
                   {/* Party Details Column Skeleton */}
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3">
                     <div className="space-y-2">
                       <div className={`h-4 w-24 rounded ${
                         isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
@@ -1062,7 +1372,7 @@ export default function OrdersPage() {
                   </td>
 
                   {/* Dates Column Skeleton */}
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3">
                     <div className="space-y-2">
                       <div className={`h-4 w-20 rounded ${
                         isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
@@ -1077,7 +1387,7 @@ export default function OrdersPage() {
                   </td>
 
                   {/* Items Column Skeleton */}
-                  <td className="px-4 py-4">
+                  <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
                     <div className="space-y-2">
                       <div className={`h-4 w-12 rounded ${
                         isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
@@ -1101,14 +1411,14 @@ export default function OrdersPage() {
                   </td>
 
                   {/* Status Column Skeleton */}
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3">
                     <div className={`h-6 w-16 rounded-full ${
                       isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
                     }`}></div>
                   </td>
 
                   {/* Actions Column Skeleton */}
-                  <td className="px-6 py-4">
+                  <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
                     <div className="flex items-center gap-2">
                       <div className={`h-8 w-8 rounded ${
                         isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
@@ -1138,7 +1448,7 @@ export default function OrdersPage() {
     return (
       <div className="space-y-6">
         <LoadingSkeleton />
-        {/* Simple loading message for better UX */}
+        {/* Enhanced loading message with progress */}
         <div className={`text-center py-8 ${
           isDarkMode ? 'text-gray-300' : 'text-gray-600'
         }`}>
@@ -1146,15 +1456,22 @@ export default function OrdersPage() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             <span className="text-xl font-semibold">Loading Orders...</span>
           </div>
-          <p className="text-sm text-gray-500 mb-2">This may take a few moments depending on your connection</p>
-          <p className="text-xs text-gray-400">If loading takes too long, please check your internet connection</p>
+          <div className="max-w-md mx-auto">
+            <div className={`w-full bg-gray-200 rounded-full h-2 mb-3 ${
+              isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+            }`}>
+              <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{width: '60%'}}></div>
+            </div>
+            <p className="text-sm text-gray-500 mb-2">Loading your orders and data...</p>
+            <p className="text-xs text-gray-400">Optimized for faster loading • Auto-retry enabled</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <>
+    <div>
       {/* Enhanced Message System Styles */}
       <style jsx>{`
         @keyframes slideInRight {
@@ -1258,49 +1575,31 @@ export default function OrdersPage() {
       `}</style>
       
       <div className="space-y-4">
-      {/* Enhanced Header with Stats */}
-      <div className="space-y-6">
-        {/* Main Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-              Manage Orders
-            </h1>
-            <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-              Create, edit, and manage your orders • Last updated: {lastRefreshTime.toLocaleTimeString()}
-            </p>
+        {/* Connection Status Indicator */}
+        {connectionStatus !== 'online' && (
+          <div className={`p-3 rounded-lg border ${
+            connectionStatus === 'offline' 
+              ? 'bg-red-50 border-red-200 text-red-800' 
+              : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+          } ${isDarkMode ? 'bg-red-900/30 border-red-500/40 text-red-300' : ''}`}>
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${
+                connectionStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
+              }`}></div>
+              <span className="text-sm font-medium">
+                {connectionStatus === 'offline' ? 'You are offline' : 'Slow connection detected'}
+              </span>
+              {connectionStatus === 'offline' && (
+                <span className="text-xs opacity-75">• Some features may not work</span>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={() => setShowQuickActions(!showQuickActions)}
-              className={`inline-flex items-center px-3 py-2 rounded-lg font-medium transition-all duration-200 ${
-                showQuickActions
-                  ? isDarkMode
-                    ? 'bg-blue-500/20 border border-blue-500/30 text-blue-400'
-                    : 'bg-blue-100 border border-blue-300 text-blue-700'
-                  : isDarkMode
-                    ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
-                    : 'bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <BoltIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Quick Actions</span>
-              <span className="sm:hidden">Actions</span>
-            </button>
-            <button
-              onClick={() => setShowForm(true)}
-              className={`inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-all duration-200 hover:scale-105 ${
-                isDarkMode
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg'
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg'
-              }`}
-            >
-              <PlusIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Create New Order</span>
-              <span className="sm:hidden">New Order</span>
-            </button>
+        )}
 
-          </div>
+        {/* Enhanced Header with Stats */}
+        <div className="space-y-6">
+          {/* Main Header - Removed */}
+          {/* Action buttons moved to search bar row */}
         </div>
 
         {/* Quick Actions Panel */}
@@ -1326,37 +1625,21 @@ export default function OrdersPage() {
               </button>
             </div>
             
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-              {/* New Order */}
-              <button
-                onClick={() => {
-                  setShowForm(true);
-                  setShowQuickActions(false);
-                }}
-                className={`group p-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
-                  isDarkMode
-                    ? 'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20 hover:border-blue-500/40'
-                    : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300'
-                }`}
-              >
-                <PlusIcon className="h-5 w-5 mx-auto mb-1 group-hover:scale-110 transition-transform" />
-                <div className="text-xs font-medium">New Order</div>
-              </button>
-              
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-1.5">
               {/* Add Party */}
               <button
                 onClick={() => {
                   setShowPartyModal(true);
                   setShowQuickActions(false);
                 }}
-                className={`group p-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
+                className={`group p-2 rounded-md border transition-all duration-200 hover:scale-105 ${
                   isDarkMode
                     ? 'bg-green-500/10 border-green-500/20 text-green-400 hover:bg-green-500/20 hover:border-green-500/40'
                     : 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100 hover:border-green-300'
                 }`}
               >
-                <BuildingOfficeIcon className="h-5 w-5 mx-auto mb-1 group-hover:scale-110 transition-transform" />
-                <div className="text-xs font-medium">Add Party</div>
+                <BuildingOfficeIcon className="h-4 w-4 mx-auto mb-0.5 group-hover:scale-110 transition-transform" />
+                <div className="text-[10px] font-medium">Add Party</div>
               </button>
               
               {/* Add Quality */}
@@ -1365,14 +1648,14 @@ export default function OrdersPage() {
                   setShowQualityModal(true);
                   setShowQuickActions(false);
                 }}
-                className={`group p-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
+                className={`group p-2 rounded-md border transition-all duration-200 hover:scale-105 ${
                   isDarkMode
                     ? 'bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20 hover:border-purple-500/40'
                     : 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300'
                 }`}
               >
-                <ChartBarIcon className="h-5 w-5 mx-auto mb-1 group-hover:scale-110 transition-transform" />
-                <div className="text-xs font-medium">Add Quality</div>
+                <ChartBarIcon className="h-4 w-4 mx-auto mb-0.5 group-hover:scale-110 transition-transform" />
+                <div className="text-[10px] font-medium">Add Quality</div>
               </button>
               
               {/* Add Mill Input */}
@@ -1382,48 +1665,30 @@ export default function OrdersPage() {
                   // Show a message to select a specific order
                   showMessage('info', 'Please select a specific order to add mill input', { autoDismiss: true, dismissTime: 3000 });
                 }}
-                className={`group p-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
+                className={`group p-2 rounded-md border transition-all duration-200 hover:scale-105 ${
                   isDarkMode
                     ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-500/40'
                     : 'bg-cyan-50 border-cyan-200 text-cyan-700 hover:bg-cyan-100 hover:border-cyan-300'
                 }`}
-              > gi
-                <BuildingOfficeIcon className="h-5 w-5 mx-auto mb-1 group-hover:scale-110 transition-transform" />
-                <div className="text-xs font-medium">Add Mill Input</div>
+              >
+                <BuildingOfficeIcon className="h-4 w-4 mx-auto mb-0.5 group-hover:scale-110 transition-transform" />
+                <div className="text-[10px] font-medium">Mill Input</div>
               </button>
               
 
-              
-              {/* Refresh */}
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className={`group p-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
-                  refreshing
-                    ? 'opacity-50 cursor-not-allowed'
-                    : ''
-                } ${
-                  isDarkMode
-                    ? 'bg-orange-500/10 border-orange-500/20 text-orange-400 hover:bg-orange-500/20 hover:border-orange-500/40'
-                    : 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100 hover:border-orange-300'
-                }`}
-              >
-                <ArrowPathIcon className={`h-5 w-5 mx-auto mb-1 ${refreshing ? 'animate-spin' : 'group-hover:scale-110 transition-transform'}`} />
-                <div className="text-xs font-medium">Refresh</div>
-              </button>
               
               {/* Delete All Orders - Only show when orders exist */}
               {orders.length > 0 && (
                 <button
                   onClick={() => setShowDeleteAllModal(true)}
-                  className={`group p-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
+                  className={`group p-2 rounded-md border transition-all duration-200 hover:scale-105 ${
                     isDarkMode
                       ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20 hover:border-red-500/40'
                       : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100 hover:border-red-300'
                   }`}
                 >
-                  <TrashIcon className="h-5 w-5 mx-auto mb-1 group-hover:scale-110 transition-transform" />
-                  <div className="text-xs font-medium">Delete All</div>
+                  <TrashIcon className="h-4 w-4 mx-auto mb-0.5 group-hover:scale-110 transition-transform" />
+                  <div className="text-[10px] font-medium">Delete All</div>
                 </button>
               )}
               
@@ -1432,7 +1697,7 @@ export default function OrdersPage() {
                 <button
                   onClick={handleResetCounter}
                   disabled={resettingCounter}
-                  className={`group p-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
+                  className={`group p-2 rounded-md border transition-all duration-200 hover:scale-105 ${
                     resettingCounter
                       ? 'opacity-50 cursor-not-allowed'
                       : ''
@@ -1442,8 +1707,8 @@ export default function OrdersPage() {
                       : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100 hover:border-red-300'
                   }`}
                 >
-                  <ArrowPathIcon className={`h-5 w-5 mx-auto mb-1 ${resettingCounter ? 'animate-spin' : 'group-hover:scale-110 transition-transform'}`} />
-                  <div className="text-xs font-medium">Reset Counter</div>
+                  <ArrowPathIcon className={`h-4 w-4 mx-auto mb-0.5 ${resettingCounter ? 'animate-spin' : 'group-hover:scale-110 transition-transform'}`} />
+                  <div className="text-[10px] font-medium">Reset Counter</div>
                 </button>
               )}
             </div>
@@ -1541,54 +1806,6 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      {/* Validation Errors Summary */}
-      {Object.keys(validationErrors).length > 0 && (
-        <div className={`p-4 rounded-lg border mb-4 transition-all duration-300 ${
-          isDarkMode 
-            ? 'bg-red-900/30 border-red-500/40 shadow-red-500/20 backdrop-blur-sm' 
-            : 'bg-red-50 border-red-200'
-        }`}
-        style={{
-          boxShadow: isDarkMode ? '0 4px 20px rgba(239, 68, 68, 0.2)' : undefined
-        }}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center space-x-2">
-              <div className={`p-1.5 rounded-full ${
-                isDarkMode ? 'bg-red-500/20' : 'bg-red-100'
-              }`}>
-                <ExclamationTriangleIcon className={`h-5 w-5 ${
-                  isDarkMode ? 'text-red-400' : 'text-red-600'
-                }`} />
-              </div>
-              <span className={`font-semibold ${
-                isDarkMode ? 'text-red-300' : 'text-red-700'
-              }`}>
-                Validation Issues Found
-              </span>
-            </div>
-            <button
-              onClick={() => setValidationErrors({})}
-              className={`p-2 rounded-full transition-all duration-200 hover:scale-110 ${
-                isDarkMode ? 'hover:bg-red-500/20 text-red-400 hover:text-red-300' : 'hover:bg-red-100 text-red-600'
-              }`}
-            >
-              <XMarkIcon className="h-4 w-4" />
-            </button>
-          </div>
-          <ul className={`text-sm space-y-2 ${
-            isDarkMode ? 'text-red-200' : 'text-red-600'
-          }`}>
-            {Object.entries(validationErrors).map(([field, error]) => (
-              <li key={field} className="flex items-center p-2 rounded-lg transition-all duration-200 hover:bg-red-500/10">
-                <span className={`w-2 h-2 rounded-full mr-3 ${
-                  isDarkMode ? 'bg-red-400' : 'bg-red-500'
-                }`}></span>
-                <span className="flex-1">{error}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {/* Filters */}
       <div className={`p-4 rounded-lg border ${
@@ -1596,184 +1813,346 @@ export default function OrdersPage() {
           ? 'bg-white/5 border-white/10'
           : 'bg-white border-gray-200'
       }`}>
-        <div className="flex flex-col gap-4">
-          {/* Top Row - Search and Refresh */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1">
+        <div className="flex flex-col gap-3">
+          {/* Top Row - Left: Create Order + Refresh, Center: Search, Right: Quick Actions */}
+          <div className="flex flex-col lg:flex-row gap-3 items-center">
+            {/* Left Side - Create Order + Refresh */}
+            <div className="flex items-center gap-2 order-1 lg:order-1">
+              {/* Create Order Button */}
+              <button
+                onClick={() => setShowForm(true)}
+                className={`inline-flex items-center px-3 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
+                  isDarkMode
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg'
+                }`}
+              >
+                <PlusIcon className="h-4 w-4 mr-1" />
+                <span className="text-sm font-medium">Create Order</span>
+              </button>
+
+              {/* Refresh Button */}
+              <button
+                onClick={() => handleRefresh()}
+                disabled={refreshing}
+                className={`inline-flex items-center px-3 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
+                  refreshing
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
+                } ${
+                  isDarkMode
+                    ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-white/30'
+                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                }`}
+              >
+                <ArrowPathIcon className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+                <span className="text-sm font-medium">Refresh</span>
+              </button>
+            </div>
+
+            {/* Center - Search */}
+            <div className="flex-1 order-2 lg:order-2">
               <div className="relative">
-                <MagnifyingGlassIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
+                <MagnifyingGlassIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
                   isDarkMode ? 'text-gray-400' : 'text-gray-500'
                 }`} />
                 <input
                   type="text"
                   placeholder="Search orders by ID, PO number, style, or party..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className={`w-full pl-10 pr-4 py-2 rounded-lg border transition-all duration-300 ${
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className={`w-full pl-9 pr-4 py-2 rounded-lg border transition-all duration-300 font-medium text-sm ${
                     isDarkMode
                       ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
                       : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                  } ${validationErrors.searchTerm ? 
-                    isDarkMode 
-                      ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20 shadow-red-500/20' 
-                      : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
-                    : ''}`}
-                  style={{
-                    boxShadow: validationErrors.searchTerm && isDarkMode ? '0 0 0 3px rgba(248, 113, 113, 0.1)' : undefined
-                  }}
+                  }`}
                 />
-                {validationErrors.searchTerm && (
-                  <div className={`absolute -bottom-6 left-0 text-xs flex items-center p-1.5 rounded-md transition-all duration-200 ${
-                    isDarkMode 
-                      ? 'bg-red-900/50 text-red-300 border border-red-500/30' 
-                      : 'bg-red-50 text-red-600 border border-red-200'
-                  }`}>
-                    <ExclamationTriangleIcon className="h-3 w-3 mr-1.5 flex-shrink-0" />
-                    <span className="font-medium">{validationErrors.searchTerm}</span>
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Refresh Button */}
-            <div className="sm:w-auto">
+            {/* Right Side - Quick Actions */}
+            <div className="flex items-center order-3 lg:order-3">
               <button
-                onClick={() => {
-                  // Manual refresh clicked
-                  handleRefresh();
-                }}
-                disabled={refreshing}
-                className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
-                  refreshing
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:scale-105 active:scale-95'
-                } ${
-                  isDarkMode
-                    ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-white/30'
-                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                onClick={() => setShowQuickActions(!showQuickActions)}
+                className={`inline-flex items-center px-3 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
+                  showQuickActions
+                    ? isDarkMode
+                      ? 'bg-white/20 border border-white/30 text-white'
+                      : 'bg-gray-200 border border-gray-400 text-gray-800'
+                    : isDarkMode
+                      ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
+                      : 'bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200'
                 }`}
-                title="Refresh orders list"
               >
-                <ArrowPathIcon className={`h-5 w-5 ${screenSize > 1000 ? 'mr-2' : ''} ${refreshing ? 'animate-spin' : ''}`} />
-                {screenSize > 1000 && (refreshing ? 'Refreshing...' : 'Refresh')}
+                <BoltIcon className="h-4 w-4 mr-1" />
+                <span className="text-sm font-medium">Quick Actions</span>
               </button>
             </div>
-            
-
           </div>
 
-          {/* Bottom Row - Filters */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            {/* Order Filter Dropdown */}
-            <div className="sm:w-48">
+          {/* Second Row - Left: Filters (Types, Status), Right: View Toggle */}
+          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+            {/* Left Side - Filters */}
+            <div className="flex flex-col sm:flex-row gap-3 order-2 sm:order-1">
+
+            {/* Status Filter - Dropdown Select */}
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-medium ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                Status:
+              </span>
               <select
-                value={filters.orderFilter}
-                onChange={(e) => setFilters({ ...filters, orderFilter: e.target.value })}
-                className={`w-full px-3 py-2 rounded-lg border transition-all duration-300 appearance-none cursor-pointer ${
+                value={filters.statusFilter}
+                onChange={(e) => setFilters({ ...filters, statusFilter: e.target.value })}
+                className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
                   isDarkMode
-                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 hover:border-white/30'
-                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                } ${validationErrors.orderFilter ? 
-                  isDarkMode 
-                    ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20 shadow-red-500/20' 
-                    : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
-                  : ''}`}
-                style={{
-                  boxShadow: validationErrors.orderFilter && isDarkMode ? '0 0 0 3px rgba(248, 113, 113, 0.1)' : undefined,
-                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='${isDarkMode ? 'rgb(156 163 175)' : 'rgb(107 114 128)'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                  backgroundPosition: 'right 0.5rem center',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundSize: '1.5em 1.5em',
-                  paddingRight: '2.5rem'
-                }}
+                    ? 'bg-gray-700 border-gray-600 text-white hover:bg-gray-600'
+                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
               >
-                <option value="oldest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Oldest First</option>
-                <option value="latest_first" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Latest First</option>
+                <option value="all">All</option>
+                <option value="pending">Pending</option>
+                <option value="delivered">Delivered</option>
               </select>
             </div>
 
-            {/* Order Type Filter Dropdown */}
-            <div className="sm:w-48">
+            {/* Sort Filter - Segmented Button Style */}
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Sort:
+              </span>
+              <div className={`flex rounded-lg border ${
+                isDarkMode ? 'border-gray-600' : 'border-gray-300'
+              } overflow-hidden`}>
+                <button
+                  onClick={() => setFilters({ ...filters, orderFilter: 'latest_first' })}
+                  className={`px-3 py-2 text-sm font-medium transition-all duration-200 ${
+                    filters.orderFilter === 'latest_first'
+                      ? isDarkMode
+                        ? 'bg-green-600 text-white border-green-500'
+                        : 'bg-green-500 text-white border-green-500'
+                      : isDarkMode
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Latest
+                </button>
+                <button
+                  onClick={() => setFilters({ ...filters, orderFilter: 'oldest_first' })}
+                  className={`px-3 py-2 text-sm font-medium transition-all duration-200 ${
+                    filters.orderFilter === 'oldest_first'
+                      ? isDarkMode
+                        ? 'bg-green-600 text-white border-green-500'
+                        : 'bg-green-500 text-white border-green-500'
+                      : isDarkMode
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Oldest
+              </button>
+            </div>
+          </div>
+
+            {/* Type Filter - Dropdown */}
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Type:
+              </span>
               <select
                 value={filters.typeFilter}
                 onChange={(e) => setFilters({ ...filters, typeFilter: e.target.value })}
-                className={`w-full px-3 py-2 rounded-lg border transition-all duration-300 appearance-none cursor-pointer ${
+                className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
                   isDarkMode
-                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 hover:border-white/30'
-                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                } ${validationErrors.typeFilter ? 
-                  isDarkMode 
-                    ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20 shadow-red-500/20' 
-                    : 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
-                  : ''}`}
-                style={{
-                  boxShadow: validationErrors.typeFilter && isDarkMode ? '0 0 0 3px rgba(248, 113, 113, 0.1)' : undefined,
-                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='${isDarkMode ? 'rgb(156 163 175)' : 'rgb(107 114 128)'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                  backgroundPosition: 'right 0.5rem center',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundSize: '1.5em 1.5em',
-                  paddingRight: '2.5rem'
-                }}
+                    ? 'bg-gray-700 border-gray-600 text-white hover:bg-gray-600'
+                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
               >
                 <option value="all" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>All Types</option>
+               
                 <option value="Dying" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Dying</option>
                 <option value="Printing" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Printing</option>
               </select>
             </div>
+
+            </div>
+
+            {/* Right Side - View Toggle */}
+            <div className="flex items-center gap-2 order-1 sm:order-2">
+              <span className={`text-xs font-medium ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>View:</span>
+              <div className={`flex rounded-lg border overflow-hidden ${
+                isDarkMode ? 'border-gray-600' : 'border-gray-300'
+              }`}>
+                <button
+                  onClick={() => handleViewModeChange('table')}
+                  className={`px-3 py-2 text-sm font-medium transition-all duration-200 flex items-center gap-1 ${
+                    viewMode === 'table'
+                      ? isDarkMode
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-blue-500 text-white'
+                      : isDarkMode
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                  title="Table View"
+                >
+                  <ListBulletIcon className="h-4 w-4" />
+                  <span className="hidden sm:inline">Table</span>
+                </button>
+                <button
+                  onClick={() => handleViewModeChange('cards')}
+                  className={`px-3 py-2 text-sm font-medium transition-all duration-200 flex items-center gap-1 ${
+                    viewMode === 'cards'
+                      ? isDarkMode
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-blue-500 text-white'
+                      : isDarkMode
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                  title="Card View"
+                >
+                  <Squares2X2Icon className="h-4 w-4" />
+                  <span className="hidden sm:inline">Cards</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+  
+            {/* Pagination Info Bar */}
+            <div className={`px-3 sm:px-4 py-2 sm:py-3 border-b flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:justify-between ${
+              isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+            }`}>
+              <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:space-x-3 lg:space-x-4">
+                <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <span className="hidden sm:inline">Showing {paginationInfo.totalCount > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage) + 1 : 0} to{' '}
+                  {Math.min(currentPage * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage), paginationInfo.totalCount)} of{' '}
+                  {paginationInfo.totalCount} orders</span>
+                  <span className="sm:hidden">{paginationInfo.totalCount > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage) + 1 : 0}-{Math.min(currentPage * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage), paginationInfo.totalCount)} of {paginationInfo.totalCount}</span>
+                </span>
+                
+                {/* Items per page dropdown */}
+                <div className="flex items-center space-x-2">
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Show:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      const value = e.target.value === 'All' ? 'All' : parseInt(e.target.value);
+                      handleItemsPerPageChange(value);
+                    }}
+                    disabled={isChangingPage || loading}
+                    className={`px-2 sm:px-3 py-1 rounded-lg border text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {itemsPerPageOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-      {/* Orders Table */}
+              {/* Navigation - Show when there are multiple pages */}
+              {(totalPages > 1 || orders.length > 0) && (
+                <div className="flex items-center space-x-1 sm:space-x-2">
+                  <button
+                    onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1 || isChangingPage || loading}
+                    className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                      currentPage === 1 || isChangingPage || loading
+                        ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                    }`}
+                  >
+                    <span className="hidden sm:inline">Previous</span>
+                    <span className="sm:hidden">Prev</span>
+                  </button>
+                  
+                  {/* Page numbers */}
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => handlePageChange(pageNum)}
+                          disabled={isChangingPage || loading}
+                          className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                            currentPage === pageNum
+                              ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+                              : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                          } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  <button
+                    onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages || isChangingPage || loading}
+                    className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                      currentPage === totalPages || isChangingPage || loading
+                        ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+      {/* Orders Display */}
+      {viewMode === 'table' ? (
       <div className={`rounded-xl border overflow-hidden shadow-lg ${
         isDarkMode
           ? 'bg-white/5 border-white/10 shadow-2xl'
           : 'bg-white border-gray-200 shadow-xl'
       }`}>
-        <div className="overflow-x-auto">
-          <table className="w-full">
+          <div className="overflow-x-auto min-w-full">
+            <table className="w-full min-w-max">
                                                    <thead className={`${
-                isDarkMode
-                  ? 'bg-gradient-to-r from-gray-800/50 to-gray-700/50 border-b border-white/10'
-                  : 'bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200'
+                isDarkMode ? 'bg-gradient-to-r from-slate-800/80 to-slate-700/80 border-b border-slate-600' : 'bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-300'
               }`}>
                 <tr>
-                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${
-                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                  <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[300px] ${
+                    isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black/50 bg-blue-50'
                   }`}>
-                    Order Info
+                    Order Information
                   </th>
-                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${
-                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                  }`}>
-                    Party Details
-                  </th>
-                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${
-                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                  }`}>
-                    Dates
-                  </th>
-                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${
-                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                  <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[350px] ${
+                    isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
                   }`}>
                     Items
                   </th>
-                  
-
-                  
-                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${
-                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                  }`}>
-                    Status
-                  </th>
-                  <th className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${
-                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                  <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[200px] ${
+                    isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
                   }`}>
                     Actions
                   </th>
                 </tr>
               </thead>
+            
+              
             <tbody className={`divide-y ${
               isDarkMode ? 'divide-white/10' : 'divide-gray-200'
             }`}>
@@ -1782,315 +2161,476 @@ export default function OrdersPage() {
                   <tr key={order._id} className={`hover:${
                     isDarkMode ? 'bg-white/5' : 'bg-gray-50'
                   } transition-colors duration-200`}>
-                   {/* Order Info Column */}
-                   <td className="px-6 py-4">
-                     <div className="flex items-center">
-                       <div className={`h-12 w-12 rounded-full flex items-center justify-center text-sm font-bold ${
-                         isDarkMode
-                           ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
-                           : 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white'
-                       }`}>
+                   {/* Order Information Column */}
+                   <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
+                      <div className="space-y-3">
+                        {/* Row 1: Order ID and Type */}
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-base font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                              Order ID:
+                            </span>
+                            <span className={`text-base font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                          {order.orderId}
+                            </span>
                        </div>
-                       <div className="ml-4 flex-1">
-                         <div className="space-y-1">
                            <div className="flex items-center gap-2">
-                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            <span className={`text-base font-bold ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                              Order Type:
+                            </span>
+                            <span className={`text-base font-bold ${
                                order.orderType === 'Dying'
                                  ? isDarkMode
-                                   ? 'bg-red-900/20 text-red-400'
-                                   : 'bg-red-100 text-red-800'
+                                  ? 'text-orange-400'
+                                  : 'text-orange-600'
                                  : isDarkMode
-                                   ? 'bg-blue-900/20 text-blue-400'
-                                   : 'bg-blue-100 text-blue-800'
+                                  ? 'text-blue-400'
+                                  : 'text-blue-600'
                              }`}>
                                {order.orderType || 'Not selected'}
                              </span>
                            </div>
-                           {order.poNumber && (
-                             <div className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                               PO: {order.poNumber}
                              </div>
-                           )}
-                           {order.styleNo && (
-                             <div className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                               Style: {order.styleNo}
-                             </div>
-                           )}
 
-                           {/* Created and Updated dates */}
-                           <div className={`text-xs mt-2 space-y-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                             <div className="flex items-center gap-1">
-                               <CalendarIcon className="h-3 w-3" />
-                               <span>Created: {formatDate(order.createdAt)}</span>
+                        {/* Responsive Layout: Single column on small screens, 2 columns on larger screens */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {/* Left: PO and Style */}
+                          <div className={`p-3 rounded-lg border ${
+                            isDarkMode 
+                              ? 'bg-blue-500/10 border-blue-500/20' 
+                              : 'bg-blue-50 border-blue-200'
+                          }`}>
+                            <h4 className={`text-sm font-bold mb-2 ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                              Order Details
+                            </h4>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                                  PO:
+                                </span>
+                                <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {order.poNumber || 'Not selected'}
+                                </span>
                              </div>
-                             <div className="flex items-center gap-1">
-                               <ClockIcon className="h-3 w-3" />
-                               <span>Updated: {formatDate(order.updatedAt)}</span>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                                  Style:
+                                </span>
+                                <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {order.styleNo || 'Not selected'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Party Information */}
+                          <div className={`p-3 rounded-lg border ${
+                            isDarkMode 
+                              ? 'bg-orange-500/10 border-orange-500/20' 
+                              : 'bg-orange-50 border-orange-200'
+                          }`}>
+                            <h4 className={`text-sm font-bold mb-2 ${isDarkMode ? 'text-orange-300' : 'text-orange-700'}`}>
+                              Party Information
+                            </h4>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-bold ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                                  Name:
+                                </span>
+                                <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {(order.party as any)?.name || 'Not selected'}
+                                </span>
                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-bold ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                                  Contact:
+                                </span>
+                                <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {order.contactName || 'Not selected'}
+                                </span>
+                             </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-bold ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                                  Phone:
+                                </span>
+                                <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {order.contactPhone || 'Not selected'}
+                                </span>
                            </div>
                          </div>
                        </div>
                      </div>
-                   </td>
 
-                   {/* Party Details Column */}
-                   <td className="px-6 py-4">
+                        {/* Responsive Layout: Single column on small screens, 2 columns on larger screens */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {/* Left: All Dates */}
+                          <div className={`p-3 rounded-lg border ${
+                            isDarkMode 
+                              ? 'bg-green-500/10 border-green-500/20' 
+                              : 'bg-green-50 border-green-200'
+                          }`}>
+                            <h4 className={`text-sm font-bold mb-2 ${isDarkMode ? 'text-green-300' : 'text-green-700'}`}>
+                              Important Dates
+                            </h4>
                      <div className="space-y-1">
-                       <div className={`font-medium text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                         {(order.party as any)?.name || 'Not selected'}
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-bold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                                  Arrival:
+                                </span>
+                                <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {order.arrivalDate ? formatDate(order.arrivalDate) : 'Not selected'}
+                                </span>
                        </div>
-                       {order.contactName && (
-                         <div className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                           👤 {order.contactName}
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-bold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                                  PO Date:
+                                </span>
+                                <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {order.poDate ? formatDate(order.poDate) : 'Not selected'}
+                                </span>
                          </div>
-                       )}
-                       {order.contactPhone && (
-                         <div className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                           📞 {order.contactPhone}
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-bold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                                  Delivery:
+                                </span>
+                                <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {order.deliveryDate ? formatDate(order.deliveryDate) : 'Not selected'}
+                                </span>
                          </div>
-                       )}
                      </div>
-                   </td>
+                          </div>
 
-                                       {/* Dates Column */}
-                    <td className="px-6 py-4">
+                          {/* Right: Timestamps */}
+                          <div className={`p-3 rounded-lg border ${
+                            isDarkMode 
+                              ? 'bg-purple-500/10 border-purple-500/20' 
+                              : 'bg-purple-50 border-purple-200'
+                          }`}>
+                            <h4 className={`text-sm font-bold mb-2 ${isDarkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                              System Timestamps
+                            </h4>
                       <div className="space-y-1">
-                        <div className="flex items-center gap-1">
-                          <CalendarIcon className="h-3 w-3" />
-                          <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                            Arrival: {order.arrivalDate ? formatDate(order.arrivalDate) : 'Not selected'}
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                  <CalendarIcon className="h-4 w-4 text-gray-500" />
+                                  <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    Created: {formatDate(order.createdAt)}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <CalendarIcon className="h-3 w-3" />
-                          <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                            PO: {order.poDate ? formatDate(order.poDate) : 'Not selected'}
+                                <div className="flex items-center gap-2 ml-6">
+                                  <ClockIcon className="h-3 w-3 text-gray-400" />
+                                  <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {new Date(order.createdAt).toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true
+                                    })}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <CalendarIcon className="h-3 w-3" />
-                          <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                            Delivery: {order.deliveryDate ? formatDate(order.deliveryDate) : 'Not selected'}
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                  <CalendarIcon className="h-4 w-4 text-gray-500" />
+                                  <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    Updated: {formatDate(order.updatedAt)}
                           </span>
+                                </div>
+                                <div className="flex items-center gap-2 ml-6">
+                                  <ClockIcon className="h-3 w-3 text-gray-400" />
+                                  <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {new Date(order.updatedAt).toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true
+                                    })}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </td>
 
                                        {/* Items Column */}
-                    <td className="px-4 py-3">
-                      <div className="space-y-1.5">
-                        <div className={`text-xs font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                   <td className="py-3 sm:py-4 lg:py-5">
+                     <div className="space-y-2">
+                       <div className={`text-xs font-bold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                           {order.items.length} items
                         </div>
-                        {order.items.map((item, index) => (
-                          <div key={index} className={`p-2.5 rounded-lg border transition-all duration-200 hover:shadow-sm ${
+                       
+                       {/* Items Table */}
+                       <div className={`rounded-lg border overflow-hidden ${
+                         isDarkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-white border-gray-200'
+                       }`}>
+                         <div className="overflow-x-auto">
+                           <table className="w-full min-w-max">
+                             <thead className={`${
                             isDarkMode 
-                              ? 'bg-gray-800/50 border-gray-600 hover:bg-gray-800/70' 
-                              : 'bg-white border-gray-200 hover:bg-gray-50'
-                          }`}>
-                            {/* Item Header */}
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className={`text-xs font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                 ? 'bg-gray-700 border-b border-gray-600' 
+                                 : 'bg-gray-50 border-b border-gray-200'
+                             }`}>
+                               <tr>
+                                 <th className={`px-2 py-1 text-left text-xs font-bold uppercase tracking-wider ${
+                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                                 }`}>
+                                   Quality
+                                 </th>
+                                 <th className={`px-2 py-1 text-left text-xs font-bold uppercase tracking-wider ${
+                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                                 }`}>
+                                   Qty
+                                 </th>
+                                 <th className={`px-2 py-1 text-left text-xs font-bold uppercase tracking-wider ${
+                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                                 }`}>
+                                   Description
+                                 </th>
+                                 <th className={`px-2 py-1 text-left text-xs font-bold uppercase tracking-wider ${
+                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                                 }`}>
+                                   Weaver
+                                 </th>
+                                 <th className={`px-2 py-1 text-left text-xs font-bold uppercase tracking-wider ${
+                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                                 }`}>
+                                   Rate
+                                 </th>
+                                 <th className={`px-2 py-1 text-left text-xs font-bold uppercase tracking-wider ${
+                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                                 }`}>
+                                   Images
+                                 </th>
+                                 <th className={`px-2 py-1 text-center text-xs font-bold uppercase tracking-wider ${
+                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                                 }`}>
+                                   Actions
+                                 </th>
+                               </tr>
+                             </thead>
+                             <tbody className={`divide-y ${
+                               isDarkMode ? 'divide-gray-700' : 'divide-gray-200'
+                             }`}>
+                               {order.items.map((item, index) => (
+                                 <tr key={index} className={`hover:${
+                                   isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                                 } transition-colors duration-200`}>
+                                   {/* Quality */}
+                                   <td className="px-2 py-2">
+                                     <div className={`text-xs font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                                 {(item.quality as any)?.name || 'Not selected'}
-                              </span>
+                                     </div>
+                                   </td>
+                                   
+                                   {/* Quantity */}
+                                   <td className="px-2 py-2">
                               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                                 isDarkMode 
                                   ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' 
                                   : 'bg-blue-100 text-blue-700 border border-blue-200'
                               }`}>
-                                Qty: {item.quantity || 0}
+                                       {item.quantity || 0}
                               </span>
-                            </div>
+                                   </td>
                             
                             {/* Description */}
-                            {item.description && (
-                              <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mb-1.5 italic`}>
-                                "{item.description}"
+                                   <td className="px-2 py-2">
+                                     <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} max-w-[120px] truncate`}>
+                                       {item.description || '-'}
                               </div>
-                            )}
-                            
-                            {/* Weaver / Supplier Name */}
-                            {item.weaverSupplierName && (
-                              <div className={`text-xs ${isDarkMode ? 'text-orange-300' : 'text-orange-600'} mb-1`}>
-                                Weaver: {item.weaverSupplierName}
+                                   </td>
+                                   
+                                   {/* Weaver/Supplier */}
+                                   <td className="px-2 py-2">
+                                     <div className={`text-xs ${isDarkMode ? 'text-orange-300' : 'text-orange-600'} max-w-[100px] truncate`}>
+                                       {item.weaverSupplierName || '-'}
                               </div>
-                            )}
+                                   </td>
                             
                             {/* Purchase Rate */}
-                            {item.purchaseRate && (
-                              <div className={`text-xs ${isDarkMode ? 'text-green-300' : 'text-green-600'} mb-1`}>
-                                Rate: ₹{Number(item.purchaseRate).toFixed(2)}
+                                   <td className="px-2 py-2">
+                                     <div className={`text-xs ${isDarkMode ? 'text-green-300' : 'text-green-600'}`}>
+                                       {item.purchaseRate ? `₹${Number(item.purchaseRate).toFixed(2)}` : '-'}
                               </div>
-                            )}
-                            
-
-                            
-                            {/* Item Images Display - Improved */}
-                            {item.imageUrls && item.imageUrls.length > 0 && (
-                              <div className="mt-2">
-                                <div className="flex items-center gap-1 mb-2">
-                                  <PhotoIcon className="h-3 w-3" />
-                                  <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                                    Images ({item.imageUrls.length})
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1">
+                                   </td>
+                                   
+                                   {/* Images */}
+                                   <td className="px-2 py-2">
+                                     {item.imageUrls && item.imageUrls.length > 0 ? (
+                                       <div className="flex items-center gap-2">
                                   {/* Show first image */}
-                                  <div className="relative group">
                                     <img 
                                       src={item.imageUrls[0]} 
-                                      alt={`Item ${index + 1} image 1`}
-                                      className="w-8 h-8 object-cover rounded border cursor-pointer hover:scale-110 transition-transform duration-200"
+                                           alt={`Item ${index + 1}`}
+                                           className="h-8 w-8 object-cover rounded border"
                                       onError={(e) => {
-                                        e.currentTarget.style.display = 'none';
+                                             (e.target as HTMLImageElement).style.display = 'none';
                                       }}
-                                      onClick={() => handleImagePreview(item.imageUrls![0], `Item ${index + 1} - Image 1`, item.imageUrls, 0)}
                                     />
-                                  </div>
-                                  
-                                  {/* Show +N indicator if more images */}
+                                         {/* View button for more images */}
                                   {item.imageUrls.length > 1 && (
-                                    <div className="relative group">
-                                      <div className="w-8 h-8 rounded border flex items-center justify-center cursor-pointer hover:scale-110 transition-transform duration-200 bg-gray-100 dark:bg-gray-700">
-                                        <span className="text-xs font-bold text-gray-600 dark:text-gray-300">
-                                          +{item.imageUrls.length - 1}
-                                        </span>
-                                      </div>
                                       <button
-                                        onClick={() => handleImagePreview(item.imageUrls![1], `Item ${index + 1} - Image 2`, item.imageUrls, 1)}
-                                        className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded flex items-center justify-center"
+                                             onClick={() => handleImagePreview(item.imageUrls![0], `Item ${index + 1}`, item.imageUrls, 0)}
+                                             className="text-blue-500 hover:text-blue-700 text-xs underline"
                                       >
-                                        <PhotoIcon className="h-2.5 w-2.5 text-white" />
+                                             View ({item.imageUrls.length})
                                       </button>
+                                         )}
+                                    </div>
+                                     ) : (
+                                       <div className="flex items-center gap-1">
+                                         <PhotoIcon className="h-3 w-3 text-gray-400" />
+                                         <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>No images</span>
                                     </div>
                                   )}
-                                  
-                                  {/* Show third image if exists */}
-                                  {item.imageUrls.length > 2 && (
-                                    <div className="relative group">
-                                      <img 
-                                        src={item.imageUrls[2]} 
-                                        alt={`Item ${index + 1} image 3`}
-                                        className="w-8 h-8 object-cover rounded border cursor-pointer hover:scale-110 transition-transform duration-200"
-                                        onError={(e) => {
-                                          e.currentTarget.style.display = 'none';
-                                        }}
-                                        onClick={() => handleImagePreview(item.imageUrls![2], `Item ${index + 1} - Image 3`, item.imageUrls, 2)}
-                                      />
+                                   </td>
+                                   
+                                   {/* Actions */}
+                                   <td className="px-2 py-2 text-center">
+                                     <div className="flex flex-col gap-1">
+                                       {/* PDF Download Button */}
+                                       <button
+                                         onClick={() => handleDownloadItemPDF(order, item, index)}
+                                         className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                                           isDarkMode
+                                             ? 'bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 border border-indigo-600/30'
+                                             : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200 border border-indigo-200'
+                                         }`}
+                                         title={`Download PDF for ${(item.quality as any)?.name || 'Item'}`}
+                                       >
+                                         <DocumentArrowDownIcon className="h-3 w-3 inline mr-1" />
+                                         PDF
+                                       </button>
+                                       
+                                       {/* Delete Button */}
+                                       <button
+                                         onClick={() => handleDeleteItem(order._id, index)}
+                                         className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                                           isDarkMode
+                                             ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30 border border-red-600/30'
+                                             : 'bg-red-100 text-red-600 hover:bg-red-200 border border-red-200'
+                                         }`}
+                                         title="Delete item"
+                                       >
+                                         <TrashIcon className="h-3 w-3 inline mr-1" />
+                                         Delete
+                                       </button>
+                                     </div>
+                                   </td>
+                                 </tr>
+                               ))}
+                             </tbody>
+                           </table>
                                     </div>
-                                  )}
-                                  
-                                  {/* Show +N indicator if more than 3 images */}
-                                  {item.imageUrls.length > 3 && (
-                                    <div className="relative group">
-                                      <div className="w-8 h-8 rounded border flex items-center justify-center cursor-pointer hover:scale-110 transition-transform duration-200 bg-gray-100 dark:bg-gray-700">
-                                        <span className="text-xs font-bold text-gray-600 dark:text-gray-300">
-                                          +{item.imageUrls.length - 3}
-                                        </span>
-                                      </div>
-                                      <button
-                                        onClick={() => handleImagePreview(item.imageUrls![3], `Item ${index + 1} - Image 4`, item.imageUrls, 3)}
-                                        className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded flex items-center justify-center"
-                                      >
-                                        <PhotoIcon className="h-2.5 w-2.5 text-white" />
-                                      </button>
-                                    </div>
-                                  )}
                                 </div>
                               </div>
-                            )}
-                          </div>
-                        ))}
-                        
-                        {/* Show +N indicator if more than 2 items */}
-                        {order.items.length > 2 && (
-                          <div className={`p-2 rounded-lg border-2 border-dashed text-center cursor-pointer transition-all duration-200 hover:scale-105 ${
-                            isDarkMode 
-                              ? 'border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300 hover:bg-gray-800/30' 
-                              : 'border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600 hover:bg-gray-50'
-                          }`}>
-                            <div className="flex items-center justify-center gap-1">
-                              <span className="text-xs font-medium">
-                                +{order.items.length - 2} more item{order.items.length - 2 !== 1 ? 's' : ''}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
                     </td>
 
+                   {/* Actions Column */}
+                   <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
+                     <div className="flex flex-col gap-2">
+                        {/* Row 0: Status Label and Buttons */}
+                        <div className={`flex items-center justify-center gap-3 px-3 py-2 rounded-lg border transition-colors ${
+                            isDarkMode 
+                            ? 'bg-gray-700/50 border-gray-600'
+                            : 'bg-gray-100 border-gray-300'
+                        }`}>
+                          <label className={`text-base font-bold whitespace-nowrap ${
+                            isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                          }`}>
+                            Status:
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleStatusChange(order._id, 'pending')}
+                              className={`px-3 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center justify-center ${
+                                (order.status || 'pending') === 'pending'
+                                  ? isDarkMode
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-blue-600 text-white'
+                                  : isDarkMode
+                                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              Pending
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(order._id, 'delivered')}
+                              className={`px-3 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center justify-center ${
+                                order.status === 'delivered'
+                                  ? isDarkMode
+                                    ? 'bg-green-600 text-white'
+                                    : 'bg-green-600 text-white'
+                                  : isDarkMode
+                                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              Delivered
+                            </button>
+                            </div>
+                          </div>
 
+                       {/* Row 1: View Details, Edit Order */}
+                       <div className="grid grid-cols-2 gap-2">
+                         <button
+                           onClick={() => handleView(order)}
+                           className={`group inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:scale-105 ${
+                             isDarkMode
+                               ? 'bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/30 hover:border-blue-500/50'
+                               : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300'
+                           }`}
+                           title="View Order Details"
+                         >
+                           <EyeIcon className="h-4 w-4" />
+                           <span className="hidden sm:inline">View Details</span>
+                           <span className="sm:hidden">View</span>
+                         </button>
 
-                    {/* Status Column */}
-                     <td className="px-6 py-4">
-                       <select
-                         value={order.status || 'pending'}
-                          onChange={(e) => handleStatusChange(order._id, e.target.value as "pending" | "delivered")}
-                         className={`text-xs px-3 py-2 rounded-lg border transition-colors appearance-none cursor-pointer ${
+                         <button
+                           onClick={() => handleEdit(order)}
+                           className={`group inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:scale-105 ${
                            isDarkMode
-                             ? 'bg-white/10 border-white/20 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:border-white/30'
-                             : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-                         }`}
-                         style={{
-                           backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='${isDarkMode ? 'rgb(156 163 175)' : 'rgb(107 114 128)'}' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                           backgroundPosition: 'right 0.5rem center',
-                           backgroundRepeat: 'no-repeat',
-                           backgroundSize: '1.5em 1.5em',
-                           paddingRight: '2.5rem'
-                         }}
-                       >
-                         <option value="pending" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Pending</option>
-                         <option value="delivered" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Delivered</option>
-                       </select>
-                     </td>
+                               ? 'bg-green-600/20 border border-green-500/30 text-green-400 hover:bg-green-600/30 hover:border-green-500/50'
+                               : 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 hover:border-green-300'
+                           }`}
+                           title="Edit Order"
+                         >
+                           <PencilIcon className="h-4 w-4" />
+                           <span className="hidden sm:inline">Edit Order</span>
+                           <span className="sm:hidden">Edit</span>
+                         </button>
+                       </div>
 
-                                       {/* Actions Column */}
-                    <td className="px-6 py-4">
-                      <div className="grid grid-cols-4 gap-2 w-full max-w-sm">
-                        {/* First Row - Secondary Actions */}
-                        {/* Lab Data Button */}
+                       {/* Row 2: Add Lab/Edit Lab, Add Mill Input */}
+                       <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => handleLabData(order)}
-                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
-                            order.items.some(item => item.labData?.sampleNumber)
-                              ? isDarkMode
-                                ? 'bg-emerald-600/25 text-emerald-200 border border-emerald-500/50 hover:bg-emerald-600/35 hover:border-emerald-400/60 hover:shadow-emerald-500/25'
-                                : 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 hover:border-emerald-400 hover:shadow-emerald-200'
-                              : isDarkMode
-                                ? 'bg-amber-600/25 text-amber-200 border border-amber-500/50 hover:bg-amber-600/35 hover:border-amber-400/60 hover:shadow-amber-500/25'
-                                : 'bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 hover:border-amber-400 hover:shadow-amber-200'
+                           className={`group inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:scale-105 ${
+                             isDarkMode
+                               ? 'bg-amber-600/20 border border-amber-500/30 text-amber-400 hover:bg-amber-600/30 hover:border-amber-500/50'
+                               : 'bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-300'
                           }`}
                           title="Manage lab data"
                         >
-                          <BeakerIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                          <span className="hidden sm:inline font-medium">Lab</span>
+                           <BeakerIcon className="h-4 w-4" />
+                           <span className="hidden sm:inline">
+                             {order.items.some(item => item.labData?.sampleNumber) ? 'Edit Lab' : 'Add Lab'}
+                           </span>
+                           <span className="sm:hidden">Lab</span>
                         </button>
 
-                        {/* Mill Input Button */}
                         <button
                           onClick={async () => {
-                            // Check if there are existing mill inputs for this order using the already loaded state
                             const existingInputs = orderMillInputs[order.orderId] || [];
-                            
-                            console.log('=== Mill Input Button Click Debug ===');
-                            console.log('Order ID:', order.orderId);
-                            console.log('orderMillInputs state:', orderMillInputs);
-                            console.log('Mill inputs for this order from state:', existingInputs);
-                            
                             if (existingInputs.length > 0) {
-                              // Edit existing mill inputs
-                              console.log('Setting EDIT mode with existing inputs:', existingInputs);
                               setIsEditingMillInput(true);
                               setExistingMillInputs(existingInputs);
                             } else {
-                              // Add new mill inputs
-                              console.log('Setting ADD mode - no existing inputs');
                               setIsEditingMillInput(false);
                               setExistingMillInputs([]);
                             }
-                            
-                            // Clear cache before opening form
                             if (typeof window !== 'undefined') {
                               window.localStorage.removeItem('millInputFormCache');
                               window.localStorage.removeItem('millInputFormData');
@@ -2101,122 +2641,169 @@ export default function OrdersPage() {
                             setSelectedOrderForMillInputForm(order);
                             setShowMillInputForm(true);
                           }}
-                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
+                           className={`group inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:scale-105 ${
                             orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0
                               ? isDarkMode
-                                ? 'bg-emerald-600/25 text-emerald-200 border border-emerald-500/50 hover:bg-emerald-600/35 hover:border-emerald-400/60 hover:shadow-emerald-500/25'
-                                : 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 hover:border-emerald-400 hover:shadow-emerald-200'
+                                 ? 'bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600/30 hover:border-emerald-500/50'
+                                 : 'bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300'
                               : isDarkMode
-                                ? 'bg-cyan-600/25 text-cyan-200 border border-cyan-500/50 hover:bg-cyan-600/35 hover:border-cyan-400/60 hover:shadow-cyan-500/25'
-                                : 'bg-cyan-100 text-cyan-800 border border-cyan-300 hover:bg-cyan-200 hover:border-cyan-400 hover:shadow-cyan-200'
+                                 ? 'bg-cyan-600/20 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-600/30 hover:border-cyan-500/50'
+                                 : 'bg-cyan-50 border border-cyan-200 text-cyan-700 hover:bg-cyan-100 hover:border-cyan-300'
                           }`}
                           title={orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? "Edit mill input" : "Add mill input"}
                         >
-                          <BuildingOfficeIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                          <span className="hidden sm:inline font-medium">
-                            {orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? 'Edit Mill Input' : 'Add Mill Input'}
-                          </span>
+                           <BuildingOfficeIcon className="h-4 w-4" />
+                           <span className="hidden sm:inline">Add Mill Input</span>
+                           <span className="sm:hidden">Mill Input</span>
                         </button>
+                       </div>
 
-                        {/* Mill Output Button */}
+                       {/* Row 3: Add Mill Output, Add Dispatch */}
+                       <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => {
                             setSelectedOrderForMillOutput(order);
                             setShowMillOutputForm(true);
                           }}
-                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
+                           className={`group inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:scale-105 ${
                             isDarkMode
-                              ? 'bg-teal-600/25 text-teal-200 border border-teal-500/50 hover:bg-teal-600/35 hover:border-teal-400/60 hover:shadow-teal-500/25'
-                              : 'bg-teal-100 text-teal-800 border border-teal-300 hover:bg-teal-200 hover:border-teal-400 hover:shadow-teal-200'
+                               ? 'bg-teal-600/20 border border-teal-500/30 text-teal-400 hover:bg-teal-600/30 hover:border-teal-500/50'
+                               : 'bg-teal-50 border border-teal-200 text-teal-700 hover:bg-teal-100 hover:border-teal-300'
                           }`}
                           title="Add mill output"
                         >
-                          <DocumentTextIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                          <span className="hidden sm:inline font-medium">Mill Out</span>
+                           <DocumentTextIcon className="h-4 w-4" />
+                           <span className="hidden sm:inline">Add Mill Output</span>
+                           <span className="sm:hidden">Mill Out</span>
                         </button>
 
-                        {/* Dispatch Button */}
                         <button
                           onClick={() => {
                             setSelectedOrderForDispatch(order);
                             setShowDispatchForm(true);
                           }}
-                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
+                           className={`group inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:scale-105 ${
                             isDarkMode
-                              ? 'bg-orange-600/25 text-orange-200 border border-orange-500/50 hover:bg-orange-600/35 hover:border-orange-400/60 hover:shadow-orange-500/25'
-                              : 'bg-orange-100 text-orange-800 border border-orange-300 hover:bg-orange-200 hover:border-orange-400 hover:shadow-orange-200'
+                               ? 'bg-orange-600/20 border border-orange-500/30 text-orange-400 hover:bg-orange-600/30 hover:border-orange-500/50'
+                               : 'bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 hover:border-orange-300'
                           }`}
                           title="Add dispatch"
                         >
-                          <TruckIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                          <span className="hidden sm:inline font-medium">Dispatch</span>
+                           <TruckIcon className="h-4 w-4" />
+                           <span className="hidden sm:inline">Add Dispatch</span>
+                           <span className="sm:hidden">Dispatch</span>
+                        </button>
+                       </div>
+
+                       {/* Row 4: View Logs, Delete (OrderID) */}
+                       <div className="grid grid-cols-2 gap-2">
+                        <button
+                           onClick={() => handleViewLogs(order)}
+                           className={`group inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:scale-105 ${
+                            isDarkMode
+                               ? 'bg-violet-600/20 border border-violet-500/30 text-violet-400 hover:bg-violet-600/30 hover:border-violet-500/50'
+                               : 'bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 hover:border-violet-300'
+                          }`}
+                           title="View order logs"
+                        >
+                           <ChartBarIcon className="h-4 w-4" />
+                           <span className="hidden sm:inline">View Logs</span>
+                           <span className="sm:hidden">Logs</span>
                         </button>
 
-                        {/* Second Row - Primary Actions */}
-                        {/* View Button */}
                         <button
-                          onClick={() => handleView(order)}
-                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
+                           onClick={() => handleDeleteClick(order)}
+                           className={`group inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:scale-105 ${
                             isDarkMode
-                              ? 'bg-blue-600/25 text-blue-200 border border-blue-500/50 hover:bg-blue-600/35 hover:border-blue-400/60 hover:shadow-blue-500/25'
-                              : 'bg-blue-100 text-blue-800 border border-blue-300 hover:bg-blue-200 hover:border-blue-400 hover:shadow-blue-200'
+                               ? 'bg-red-600/20 border border-red-500/30 text-red-400 hover:bg-red-600/30 hover:border-red-500/50'
+                               : 'bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 hover:border-red-300'
                           }`}
-                          title="View order details"
+                           title="Delete order"
                         >
-                          <EyeIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                          <span className="hidden sm:inline font-medium">View</span>
+                           <TrashIcon className="h-4 w-4" />
+                           <span className="hidden sm:inline">Delete ({order.orderId})</span>
+                           <span className="sm:hidden">Del ({order.orderId})</span>
                         </button>
+                       </div>
 
-                        {/* Edit Button */}
-                        <button
-                          onClick={() => handleEdit(order)}
-                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
-                            isDarkMode
-                              ? 'bg-emerald-600/25 text-emerald-200 border border-emerald-500/50 hover:bg-emerald-600/35 hover:border-emerald-400/60 hover:shadow-emerald-500/25'
-                              : 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 hover:border-emerald-400 hover:shadow-emerald-200'
-                          }`}
-                          title="Edit order"
-                        >
-                          <PencilIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                          <span className="hidden sm:inline font-medium">Edit</span>
-                        </button>
+                     </div>
+                   </td>
 
-                        {/* Logs Button */}
-                        <button
-                          onClick={() => handleViewLogs(order)}
-                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
-                            isDarkMode
-                              ? 'bg-violet-600/25 text-violet-200 border border-violet-500/50 hover:bg-violet-600/35 hover:border-violet-400/60 hover:shadow-violet-500/25'
-                              : 'bg-violet-100 text-violet-800 border border-violet-300 hover:bg-violet-200 hover:border-violet-400 hover:shadow-violet-200'
-                          }`}
-                          title="View order logs"
-                        >
-                          <ChartBarIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                          <span className="hidden sm:inline font-medium">Logs</span>
-                        </button>
-
-                        {/* Delete Button */}
-                        <button
-                          onClick={() => handleDeleteClick(order)}
-                          className={`group inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-105 shadow-sm ${
-                            isDarkMode
-                              ? 'bg-red-600/25 text-red-200 border border-red-500/50 hover:bg-red-600/35 hover:border-red-400/60 hover:shadow-red-500/25'
-                              : 'bg-red-100 text-red-800 border border-red-300 hover:bg-red-200 hover:border-red-400 hover:shadow-red-200'
-                          }`}
-                          title="Delete order"
-                        >
-                          <TrashIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                          <span className="hidden sm:inline font-medium">Delete</span>
-                        </button>
-                      </div>
-                    </td>
                   </tr>
                 ))}
             </tbody>
           </table>
         </div>
 
-        {filteredOrders.length === 0 && (
+          {/* Bottom Pagination Controls */}
+          {(totalPages > 1 || orders.length > 0) && (
+            <div className={`px-3 sm:px-4 py-2 sm:py-3 border-t flex justify-center items-center ${
+              isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+            }`}>
+            <div className="flex items-center space-x-1 sm:space-x-2">
+              <button
+                onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+                  currentPage === 1
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                }`}
+              >
+                <span className="hidden sm:inline">Previous</span>
+                <span className="sm:hidden">Prev</span>
+              </button>
+              
+                {/* Page numbers */}
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => handlePageChange(pageNum)}
+                      className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-colors ${
+                        currentPage === pageNum
+                            ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                            : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <button
+                onClick={() => {
+                  const nextPage = Math.min(totalPages, currentPage + 1);
+                  console.log('Bottom Next button clicked:', { currentPage, totalPages, nextPage });
+                  handlePageChange(nextPage);
+                }}
+                disabled={currentPage === totalPages}
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+                  currentPage === totalPages
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                }`}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
+        {currentOrders.length === 0 && (
           <div className={`text-center py-12 ${
             isDarkMode ? 'text-gray-400' : 'text-gray-500'
           }`}>
@@ -2278,7 +2865,7 @@ export default function OrdersPage() {
                 <button
                   onClick={() => {
                     setSearchTerm('');
-                    setFilters({ orderFilter: 'oldest_first', typeFilter: 'all' });
+                    setFilters({ orderFilter: 'oldest_first', typeFilter: 'all', statusFilter: 'all' });
                   }}
                   className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-colors ${
                     isDarkMode
@@ -2293,94 +2880,484 @@ export default function OrdersPage() {
           </div>
         )}
       </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className={`flex items-center justify-between px-4 py-3 border-t ${
-          isDarkMode 
-            ? 'bg-white/5 border-white/10' 
-            : 'bg-white border-gray-200'
-        } sm:px-6`}>
-          <div className="flex-1 flex justify-between sm:hidden">
-            <button
-              onClick={goToPreviousPage}
-              disabled={currentPage === 1}
-              className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium rounded-md transition-all duration-300 ${
-                isDarkMode
-                  ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed'
-                  : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
-              }`}
-            >
-              Previous
-            </button>
-            <button
-              onClick={goToNextPage}
-              disabled={currentPage === totalPages}
-              className={`ml-3 relative inline-flex items-center px-4 py-2 border text-sm font-medium rounded-md transition-all duration-300 ${
-                isDarkMode
-                  ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed'
-                  : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
-              }`}
-            >
-              Next
-            </button>
-          </div>
-          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-            <div className={`flex-1 text-sm text-center ${
-              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+      ) : (
+        /* Enhanced Card Layout - Complete Order Information */
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          {currentOrders.map((order) => (
+            <div key={order._id} className={`rounded-xl border shadow-lg ${
+              isDarkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-white border-gray-200'
             }`}>
-              Page <span className="font-semibold">{currentPage}</span> of <span className="font-semibold">{totalPages}</span>
-            </div>
-            <div className="flex items-center">
-              <button
-                onClick={goToPreviousPage}
-                disabled={currentPage === 1}
-                className={`relative inline-flex items-center px-2 py-2 rounded-l-md border text-sm font-medium transition-all duration-300 ${
-                  isDarkMode
-                    ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed'
-                    : 'border-gray-300 text-gray-500 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
-                }`}
-              >
-                <span className="sr-only">Previous</span>
-                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              
+              {/* Header - Order ID and Type */}
+              <div className={`p-3 border-b ${
+                isDarkMode ? 'border-gray-600 bg-gray-700/30' : 'border-gray-200 bg-gray-50'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className={`text-base font-bold ${
+                      isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                    }`}>
+                      Order #{order.orderId || 'N/A'}
+                    </h3>
+                    <div className={`text-sm ${
+                      order.orderType === 'Dying'
+                        ? isDarkMode ? 'text-orange-400' : 'text-orange-600'
+                        : isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                    }`}>
+                      {order.orderType || 'Not selected'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {/* Status Dropdown */}
+                    <select
+                      value={order.status || 'pending'}
+                      onChange={(e) => {
+                        // Update order status
+                        const newStatus = e.target.value;
+                        // You can add API call here to update status
+                        console.log('Updating status for order', order._id, 'to', newStatus);
+                      }}
+                      className={`text-xs px-2 py-1 rounded font-medium border transition-colors ${
+                        (order.status || 'pending') === 'delivered' 
+                          ? (isDarkMode ? 'bg-green-600 text-white border-green-500' : 'bg-green-100 text-green-800 border-green-300')
+                          : (order.status || 'pending') === 'pending'
+                          ? (isDarkMode ? 'bg-yellow-600 text-white border-yellow-500' : 'bg-yellow-100 text-yellow-800 border-yellow-300')
+                          : (isDarkMode ? 'bg-gray-600 text-white border-gray-500' : 'bg-gray-100 text-gray-800 border-gray-300')
+                      }`}
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="delivered">Delivered</option>
+                    </select>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                      isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {order.items?.length || 0} items
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Details Section */}
+              <div className="p-3 space-y-3">
+                {/* Complete Order Information - Like Table View */}
+                <div className={`p-3 rounded-lg border ${
+                  isDarkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <h4 className={`text-sm font-semibold mb-3 ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Order Details
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    {/* Row 1 */}
+                    <div className={`p-2 rounded ${
+                      isDarkMode ? 'bg-gray-800/50' : 'bg-white'
+                    }`}>
+                      <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>PO Number:</span>
+                      <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {order.poNumber || 'Not selected'}
+                      </div>
+                    </div>
+                    <div className={`p-2 rounded ${
+                      isDarkMode ? 'bg-gray-800/50' : 'bg-white'
+                    }`}>
+                      <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Style No:</span>
+                      <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {order.styleNo || 'Not selected'}
+                      </div>
+                    </div>
+                    
+                    {/* Row 2 */}
+                    <div className={`p-2 rounded ${
+                      isDarkMode ? 'bg-gray-800/50' : 'bg-white'
+                    }`}>
+                      <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Party:</span>
+                      <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {typeof order.party === 'object' ? order.party.name : order.party || 'Not selected'}
+                      </div>
+                    </div>
+                    <div className={`p-2 rounded ${
+                      isDarkMode ? 'bg-gray-800/50' : 'bg-white'
+                    }`}>
+                      <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Contact:</span>
+                      <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {order.contactName || 'Not selected'}
+                      </div>
+                    </div>
+                    
+                    {/* Row 3 */}
+                    <div className={`p-2 rounded ${
+                      isDarkMode ? 'bg-gray-800/50' : 'bg-white'
+                    }`}>
+                      <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Arrival Date:</span>
+                      <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {order.arrivalDate ? formatDate(order.arrivalDate) : 'Not selected'}
+                      </div>
+                    </div>
+                    <div className={`p-2 rounded ${
+                      isDarkMode ? 'bg-gray-800/50' : 'bg-white'
+                    }`}>
+                      <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>PO Date:</span>
+                      <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {order.poDate ? formatDate(order.poDate) : 'Not selected'}
+                      </div>
+                    </div>
+                    
+                    {/* Row 4 */}
+                    <div className={`p-2 rounded ${
+                      isDarkMode ? 'bg-gray-800/50' : 'bg-white'
+                    }`}>
+                      <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Delivery Date:</span>
+                      <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {order.deliveryDate ? formatDate(order.deliveryDate) : 'Not selected'}
+                      </div>
+                    </div>
+                    <div className={`p-2 rounded ${
+                      isDarkMode ? 'bg-gray-800/50' : 'bg-white'
+                    }`}>
+                      <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Created:</span>
+                      <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {formatDate(order.createdAt)}
+                      </div>
+                    </div>
+                    
+                  </div>
+                </div>
+
+                {/* Items Section - Horizontal Slider with All Items */}
+                {order.items && order.items.length > 0 && (
+                  <div className={`p-3 rounded-lg border ${
+                    isDarkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className={`text-sm font-semibold ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        Items ({order.items.length})
+                      </h4>
+                      {order.items.length > 1 && (
+                        <button
+                          onClick={() => {
+                            // Show all items in a modal or expand view
+                            const allImages = order.items.flatMap(item => item.imageUrls || []);
+                            if (allImages.length > 0) {
+                              setPreviewImages(allImages);
+                              setCurrentImageIndex(0);
+                              setShowImagePreview(true);
+                            }
+                          }}
+                          className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                            isDarkMode 
+                              ? 'bg-blue-600 text-white hover:bg-blue-700 border border-blue-500' 
+                              : 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300'
+                          }`}
+                        >
+                          View All Items
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Horizontal Items Slider */}
+                    <div className="relative">
+                      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                        {order.items.map((item, itemIndex) => (
+                          <div key={itemIndex} className={`flex-shrink-0 w-48 p-3 rounded-lg border ${
+                            isDarkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-white border-gray-200'
+                          }`}>
+                            <div className="space-y-2">
+                              {/* Item Image with Navigation */}
+                              <div className="relative group">
+                                {item.imageUrls && item.imageUrls.length > 0 ? (
+                                  <>
+                                    <img
+                                      src={item.imageUrls[0]}
+                                      alt={`Item ${itemIndex + 1}`}
+                                      className="w-full h-24 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                                      onClick={() => {
+                                        setPreviewImages(item.imageUrls || []);
+                                        setCurrentImageIndex(0);
+                                        setShowImagePreview(true);
+                                      }}
+                                    />
+                                    {item.imageUrls.length > 1 && (
+                                      <>
+                                        <div className="absolute top-1 right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                                          {item.imageUrls.length}
+                                        </div>
+                                        {/* Navigation Arrows */}
+                                        <button
+                                          className="absolute left-1 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            // Previous image logic
+                                          }}
+                                        >
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                          </svg>
+                                        </button>
+                                        <button
+                                          className="absolute right-1 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            // Next image logic
+                                          }}
+                                        >
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                          </svg>
+                                        </button>
+                                      </>
+                                    )}
+                                  </>
+                                ) : (
+                                  <div className={`w-full h-24 rounded border flex items-center justify-center ${
+                                    isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'
+                                  }`}>
+                                    <PhotoIcon className={`h-8 w-8 ${
+                                      isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                                    }`} />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Item Details */}
+                              <div className="space-y-1 text-xs">
+                                <div className="flex justify-between">
+                                  <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Quality:</span>
+                                  <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {(item.quality as any)?.name || 'Not selected'}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Quantity:</span>
+                                  <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {item.quantity || 0}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Weaver:</span>
+                                  <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {item.weaverSupplierName || '-'}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Rate:</span>
+                                  <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {item.purchaseRate ? `₹${Number(item.purchaseRate).toFixed(2)}` : '-'}
+                                  </span>
+                                </div>
+                                {item.description && (
+                                  <div className="pt-1 border-t border-gray-300 dark:border-gray-600">
+                                    <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                      {item.description}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons - 2 Rows with Table-like Styling */}
+              <div className={`p-3 border-t ${
+                isDarkMode ? 'border-gray-600 bg-gray-700/30' : 'border-gray-200 bg-gray-50'
+              }`}>
+                {/* Row 1: Lab Add/Edit, Mill Input, Mill Output, Dispatch */}
+                <div className="grid grid-cols-4 gap-2 mb-2">
                   <button
-                    key={page}
-                    onClick={() => goToPage(page)}
-                    className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium transition-all duration-300 ${
-                      currentPage === page
-                        ? isDarkMode
-                          ? 'z-10 bg-blue-600 border-blue-500 text-white'
-                          : 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                        : isDarkMode
-                          ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20'
-                          : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                    onClick={() => {
+                      setSelectedOrderForLabData(order);
+                      setShowLabDataModal(true);
+                    }}
+                    className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex flex-col items-center space-y-1 ${
+                      isDarkMode
+                        ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
                     }`}
+                    title={order.labData && order.labData.length > 0 ? "Edit Lab Data" : "Add Lab Data"}
                   >
-                    {page}
+                    <BeakerIcon className="h-4 w-4" />
+                    <span>{order.labData && order.labData.length > 0 ? "Lab Edit" : "Lab Add"}</span>
                   </button>
-                ))}
-              </nav>
+
+                  <button
+                    onClick={() => {
+                      setSelectedOrderForMillInputForm(order);
+                      setShowMillInputForm(true);
+                    }}
+                    className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex flex-col items-center space-y-1 ${
+                      isDarkMode
+                        ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30'
+                        : 'bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100'
+                    }`}
+                    title="Mill Input"
+                  >
+                    <CubeIcon className="h-4 w-4" />
+                    <span>Mill Input</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setSelectedOrderForMillOutput(order);
+                      setShowMillOutputForm(true);
+                    }}
+                    className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex flex-col items-center space-y-1 ${
+                      isDarkMode
+                        ? 'bg-teal-600/20 text-teal-400 border border-teal-500/30 hover:bg-teal-600/30'
+                        : 'bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100'
+                    }`}
+                    title="Mill Output"
+                  >
+                    <DocumentTextIcon className="h-4 w-4" />
+                    <span>Mill Output</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setSelectedOrderForDispatch(order);
+                      setShowDispatchForm(true);
+                    }}
+                    className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex flex-col items-center space-y-1 ${
+                      isDarkMode
+                        ? 'bg-orange-600/20 text-orange-400 border border-orange-500/30 hover:bg-orange-600/30'
+                        : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
+                    }`}
+                    title="Dispatch"
+                  >
+                    <TruckIcon className="h-4 w-4" />
+                    <span>Dispatch</span>
+                  </button>
+                </div>
+
+                {/* Row 2: View, Edit Order, Logs, Delete */}
+                <div className="grid grid-cols-4 gap-2">
+                  <button
+                    onClick={() => handleView(order)}
+                    className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex flex-col items-center space-y-1 ${
+                      isDarkMode
+                        ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30'
+                        : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                    }`}
+                    title="View Details"
+                  >
+                    <EyeIcon className="h-4 w-4" />
+                    <span>View</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleEdit(order)}
+                    className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex flex-col items-center space-y-1 ${
+                      isDarkMode
+                        ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30'
+                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                    }`}
+                    title="Edit Order"
+                  >
+                    <PencilIcon className="h-4 w-4" />
+                    <span>Edit Order</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleViewLogs(order)}
+                    className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex flex-col items-center space-y-1 ${
+                      isDarkMode
+                        ? 'bg-violet-600/20 text-violet-400 border border-violet-500/30 hover:bg-violet-600/30'
+                        : 'bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100'
+                    }`}
+                    title="View Logs"
+                  >
+                    <ChartBarIcon className="h-4 w-4" />
+                    <span>Logs</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleDeleteClick(order)}
+                    className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex flex-col items-center space-y-1 ${
+                      isDarkMode
+                        ? 'bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30'
+                        : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
+                    }`}
+                    title="Delete Order"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                    <span>Delete</span>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          ))}
+          
+          {/* Card Layout Pagination */}
+          {(totalPages > 1 || orders.length > 0) && (
+          <div className={`mt-8 px-3 sm:px-4 py-2 sm:py-3 border-t flex justify-center items-center ${
+            isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+          }`}>
+            <div className="flex items-center space-x-1 sm:space-x-2">
               <button
-                onClick={goToNextPage}
-                disabled={currentPage === totalPages}
-                className={`relative inline-flex items-center px-2 py-2 rounded-r-md border text-sm font-medium transition-all duration-300 ${
-                  isDarkMode
-                    ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed'
-                    : 'border-gray-300 text-gray-500 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
+                onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1 || isChangingPage || loading}
+                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                  currentPage === 1 || isChangingPage || loading
+                    ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
                 }`}
               >
-                <span className="sr-only">Next</span>
-                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                </svg>
+                <span className="hidden sm:inline">Previous</span>
+                <span className="sm:hidden">Prev</span>
+              </button>
+              
+              {/* Page numbers */}
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => handlePageChange(pageNum)}
+                      disabled={isChangingPage || loading}
+                      className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                        currentPage === pageNum
+                          ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+                          : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                      } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <button
+                onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages || isChangingPage || loading}
+                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                  currentPage === totalPages || isChangingPage || loading
+                    ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                }`}
+              >
+                Next
               </button>
             </div>
           </div>
+          )}
         </div>
       )}
 
@@ -2807,13 +3784,6 @@ export default function OrdersPage() {
             fetchMills();
           }}
           onRefreshMills={fetchMills}
-          onAddQuality={(newQualityData?: any) => {
-            if (newQualityData) {
-              setQualities(prev => [...prev, newQualityData]);
-            } else {
-              fetchQualities();
-            }
-          }}
           isEditing={isEditingMillInput}
           existingMillInputs={existingMillInputs}
         />
@@ -2853,6 +3823,5 @@ export default function OrdersPage() {
         />
       )}
     </div>
-    </>
   );
 }

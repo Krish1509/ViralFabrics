@@ -161,8 +161,7 @@ const MillInputSchema = new Schema<IMillInput>({
     maxlength: [500, "Notes cannot exceed 500 characters"]
   }
 }, {
-  timestamps: true,
-  strictPopulate: false
+  timestamps: true
 });
 
 // Indexes for better performance

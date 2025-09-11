@@ -696,6 +696,7 @@ function ImageUploadSection({
   const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
   const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraLoading, setCameraLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -733,6 +734,7 @@ function ImageUploadSection({
   const startCamera = async () => {
     try {
       setCameraError(null);
+      setCameraLoading(true);
       
       // Check if getUserMedia is supported
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -746,27 +748,70 @@ function ImageUploadSection({
       // Get current camera device
       const currentCamera = cameras[currentCameraIndex];
       
-      // Mobile-friendly camera constraints
-      const constraints = {
-        video: {
-          deviceId: currentCamera ? { exact: currentCamera.deviceId } : undefined,
-          facingMode: currentCameraIndex === 0 ? 'environment' : 'user',
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 },
-          // Mobile-specific constraints
-          frameRate: { ideal: 30, max: 60 }
+      // Try multiple constraint configurations to avoid OverconstrainedError
+      const constraintConfigs = [
+        // Most flexible - just basic video
+        {
+          video: {
+            deviceId: currentCamera ? { exact: currentCamera.deviceId } : undefined,
+            facingMode: currentCameraIndex === 0 ? 'environment' : 'user'
+          }
+        },
+        // With basic resolution
+        {
+          video: {
+            deviceId: currentCamera ? { exact: currentCamera.deviceId } : undefined,
+            facingMode: currentCameraIndex === 0 ? 'environment' : 'user',
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          }
+        },
+        // With higher resolution
+        {
+          video: {
+            deviceId: currentCamera ? { exact: currentCamera.deviceId } : undefined,
+            facingMode: currentCameraIndex === 0 ? 'environment' : 'user',
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+            frameRate: { ideal: 30 }
+          }
+        },
+        // Fallback - no device ID
+        {
+          video: {
+            facingMode: currentCameraIndex === 0 ? 'environment' : 'user'
+          }
+        },
+        // Most basic fallback
+        {
+          video: true
         }
-      };
+      ];
       
-      // If no specific camera, try with basic constraints for mobile
-      if (!currentCamera) {
-        delete constraints.video.deviceId;
+      let stream: MediaStream | null = null;
+      let lastError: any = null;
+      
+      // Try each constraint configuration until one works
+      for (const constraints of constraintConfigs) {
+        try {
+          console.log('Trying camera constraints:', constraints);
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          console.log('Camera stream obtained successfully');
+          break;
+        } catch (error: any) {
+          console.log('Camera constraint failed:', error.name, error.message);
+          lastError = error;
+          continue;
+        }
       }
       
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (!stream) {
+        throw lastError || new Error('Failed to access camera with any configuration');
+      }
       
       setCameraStream(stream);
       setShowCamera(true);
+      setCameraLoading(false);
       
       // Wait for the modal to render before setting up video
       setTimeout(() => {
@@ -784,9 +829,10 @@ function ImageUploadSection({
         }
       }, 200);
     } catch (error: any) {
-      console.error('Camera access denied:', error);
+      console.error('Camera access error:', error);
+      setCameraLoading(false);
       
-      // More specific error messages for mobile
+      // More specific error messages
       if (error.name === 'NotAllowedError') {
         setCameraError('Camera access denied. Please allow camera access in your browser settings.');
       } else if (error.name === 'NotFoundError') {
@@ -795,9 +841,40 @@ function ImageUploadSection({
         setCameraError('Camera not supported in this browser. Please use a modern browser.');
       } else if (error.name === 'NotReadableError') {
         setCameraError('Camera is already in use by another application.');
+      } else if (error.name === 'OverconstrainedError') {
+        setCameraError('Camera constraints not supported. Trying alternative settings...');
+        // Try one more time with minimal constraints
+        setTimeout(() => {
+          tryMinimalCamera();
+        }, 1000);
       } else {
         setCameraError(`Camera error: ${error.message || 'Unknown error'}`);
       }
+    }
+  };
+
+  // Fallback function for minimal camera access
+  const tryMinimalCamera = async () => {
+    try {
+      console.log('Trying minimal camera constraints...');
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setCameraStream(stream);
+      setShowCamera(true);
+      setCameraError(null);
+      setCameraLoading(false);
+      
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(e => console.log('Video play error:', e));
+          };
+        }
+      }, 200);
+    } catch (error: any) {
+      console.error('Minimal camera access also failed:', error);
+      setCameraError('Unable to access camera. Please check your device permissions.');
+      setCameraLoading(false);
     }
   };
 
@@ -822,17 +899,58 @@ function ImageUploadSection({
     const nextIndex = (currentCameraIndex + 1) % availableCameras.length;
     setCurrentCameraIndex(nextIndex);
     
-    // Start new stream
+    // Start new stream with flexible constraints
     try {
       const nextCamera = availableCameras[nextIndex];
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          deviceId: { exact: nextCamera.deviceId },
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 },
-          frameRate: { ideal: 30, max: 60 }
-        } 
-      });
+      
+      // Try multiple constraint configurations for camera switching
+      const constraintConfigs = [
+        {
+          video: { 
+            deviceId: { exact: nextCamera.deviceId },
+            facingMode: nextIndex === 0 ? 'environment' : 'user'
+          }
+        },
+        {
+          video: { 
+            deviceId: { exact: nextCamera.deviceId },
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          }
+        },
+        {
+          video: { 
+            deviceId: { exact: nextCamera.deviceId },
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+            frameRate: { ideal: 30 }
+          }
+        },
+        {
+          video: { 
+            deviceId: { exact: nextCamera.deviceId }
+          }
+        }
+      ];
+      
+      let stream: MediaStream | null = null;
+      
+      // Try each constraint configuration until one works
+      for (const constraints of constraintConfigs) {
+        try {
+          console.log('Trying camera switch constraints:', constraints);
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          console.log('Camera switch successful');
+          break;
+        } catch (error: any) {
+          console.log('Camera switch constraint failed:', error.name);
+          continue;
+        }
+      }
+      
+      if (!stream) {
+        throw new Error('Failed to switch camera with any configuration');
+      }
       
       setCameraStream(stream);
       if (videoRef.current) {
@@ -901,18 +1019,35 @@ function ImageUploadSection({
         <button
           type="button"
           onClick={startCamera}
+          disabled={cameraLoading}
           onTouchStart={(e) => {
             // Prevent double-tap zoom on mobile
             e.preventDefault();
           }}
           className={`px-6 py-3 rounded-lg border-2 border-dashed transition-all duration-200 hover:scale-105 active:scale-95 ${
+            cameraLoading 
+              ? 'opacity-50 cursor-not-allowed'
+              : ''
+          } ${
             isDarkMode 
               ? 'border-gray-600 hover:border-green-500 text-gray-300 hover:text-green-400' 
               : 'border-gray-300 hover:border-green-400 text-gray-600 hover:text-green-600'
           }`}
         >
-          <PhotoIcon className="h-5 w-5 inline mr-2" />
-          Camera
+          {cameraLoading ? (
+            <>
+              <svg className="h-5 w-5 inline mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Opening...
+            </>
+          ) : (
+            <>
+              <PhotoIcon className="h-5 w-5 inline mr-2" />
+              Camera
+            </>
+          )}
         </button>
         
         {imageUploading[itemIndex] && (
@@ -1029,7 +1164,23 @@ function ImageUploadSection({
                      <svg className="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                      </svg>
-                     <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>{cameraError}</p>
+                     <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>{cameraError}</p>
+                     <button
+                       onClick={startCamera}
+                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                     >
+                       Try Again
+                     </button>
+                   </div>
+                 </div>
+               ) : cameraLoading ? (
+                 <div className="flex items-center justify-center h-64 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                   <div className="text-center">
+                     <svg className="w-12 h-12 mx-auto mb-4 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                     </svg>
+                     <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Initializing camera...</p>
                    </div>
                  </div>
                ) : (
@@ -1406,7 +1557,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     setImageUploading(prev => ({ ...prev, [itemIndex]: true }));
     try {
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append('file', file);
 
       const token = localStorage.getItem('token');
       const response = await fetch('/api/upload', {

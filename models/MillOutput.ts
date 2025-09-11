@@ -60,8 +60,7 @@ const MillOutputSchema = new Schema<IMillOutput>({
     index: true
   }
 }, {
-  timestamps: true,
-  strictPopulate: false
+  timestamps: true
 });
 
 // Indexes for better performance (removed duplicates that are already defined in schema)

@@ -279,8 +279,8 @@ export default function DispatchForm({
         const key = `${dispatch.dispatchDate}_${dispatch.billNo}`;
         if (!groups[key]) {
           groups[key] = {
-            dispatchDate: dispatch.dispatchDate,
-            billNo: dispatch.billNo,
+          dispatchDate: dispatch.dispatchDate,
+          billNo: dispatch.billNo,
             subItems: []
           };
         }
@@ -563,27 +563,27 @@ export default function DispatchForm({
       // Create dispatches for sub-items only
       (item.subItems || []).forEach((subItem) => {
         const subDispatchData = {
-          orderId: formData.orderId,
-          dispatchDate: item.dispatchDate,
-          billNo: item.billNo.trim(),
+        orderId: formData.orderId,
+        dispatchDate: item.dispatchDate,
+        billNo: item.billNo.trim(),
           finishMtr: parseFloat(subItem.finishMtr),
           saleRate: parseFloat(subItem.saleRate),
           quality: subItem.quality
-        };
+      };
 
         console.log('DispatchForm: Sending dispatch data:', subDispatchData);
         console.log('DispatchForm: Quality value:', subItem.quality);
         console.log('DispatchForm: Quality type:', typeof subItem.quality);
 
-        allDispatchPromises.push(
-          fetch('/api/dispatch', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+      allDispatchPromises.push(
+        fetch('/api/dispatch', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
             body: JSON.stringify(subDispatchData)
-          }).then(response => response.json())
-        );
+        }).then(response => response.json())
+      );
       });
     });
 
@@ -868,7 +868,7 @@ export default function DispatchForm({
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               {/* Sub-item Quality */}
-                              <div>
+                            <div>
                                 <label className={`block text-sm font-medium mb-2 ${
                                   isDarkMode ? 'text-gray-300' : 'text-gray-700'
                                 }`}>
@@ -902,58 +902,58 @@ export default function DispatchForm({
                               {/* Sub-item Finish Meters */}
                               <div>
                                 <label className={`block text-sm font-medium mb-2 ${
-                                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                                }`}>
-                                  Finish Meters <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                  type="number"
+                                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                              }`}>
+                            Finish Meters <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="number"
                                   value={subItem.finishMtr}
                                   onChange={(e) => updateSubItem(item.id, subItem.id, 'finishMtr', e.target.value)}
-                                  placeholder="Enter finish meters"
-                                  step="0.01"
-                                  min="0"
-                                  className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                placeholder="Enter finish meters"
+                                step="0.01"
+                                min="0"
+                            className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                     errors[`finishMtr_${subItem.id}`]
-                                      ? isDarkMode
-                                        ? 'border-red-500 bg-gray-800 text-white'
-                                        : 'border-red-500 bg-white text-gray-900'
-                                      : isDarkMode
-                                        ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                                        : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                                  }`}
-                                />
+                                    ? isDarkMode
+                                      ? 'border-red-500 bg-gray-800 text-white'
+                                      : 'border-red-500 bg-white text-gray-900'
+                                    : isDarkMode
+                                      ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
+                                      : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                                }`}
+                              />
                                 {errors[`finishMtr_${subItem.id}`] && (
-                                  <p className={`text-sm mt-1 ${
-                                    isDarkMode ? 'text-red-400' : 'text-red-600'
-                                  }`}>
+                                <p className={`text-sm mt-1 ${
+                                  isDarkMode ? 'text-red-400' : 'text-red-600'
+                                }`}>
                                     {errors[`finishMtr_${subItem.id}`]}
-                                  </p>
-                                )}
-                              </div>
+                                </p>
+                              )}
+                          </div>
 
                               {/* Sub-item Sale Rate */}
                               <div>
                                 <label className={`block text-sm font-medium mb-2 ${
                                   isDarkMode ? 'text-gray-300' : 'text-gray-700'
                                 }`}>
-                                  Sale Rate <span className="text-red-500">*</span>
+                            Sale Rate <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                   type="number"
                                   value={subItem.saleRate}
                                   onChange={(e) => updateSubItem(item.id, subItem.id, 'saleRate', e.target.value)}
-                                  placeholder="Enter sale rate"
+                            placeholder="Enter sale rate"
                                   step="0.01"
                                   min="0"
-                                  className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                            className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                     errors[`saleRate_${subItem.id}`]
-                                      ? isDarkMode
-                                        ? 'border-red-500 bg-gray-800 text-white'
-                                        : 'border-red-500 bg-white text-gray-900'
-                                      : isDarkMode
-                                        ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
-                                        : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                                ? isDarkMode
+                                  ? 'border-red-500 bg-gray-800 text-white'
+                                  : 'border-red-500 bg-white text-gray-900'
+                                : isDarkMode
+                                      ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
+                                      : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
                                   }`}
                                 />
                                 {errors[`saleRate_${subItem.id}`] && (
@@ -963,7 +963,7 @@ export default function DispatchForm({
                                     {errors[`saleRate_${subItem.id}`]}
                                   </p>
                                 )}
-                              </div>
+                        </div>
 
                               </div>
                             </div>

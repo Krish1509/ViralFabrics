@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
         queryBuilder.populate('quality', 'name');
         queryBuilder.populate('additionalMeters.quality', 'name');
       } catch (qualityError) {
-        console.log('Quality population skipped:', qualityError.message);
+        console.log('Quality population skipped:', qualityError instanceof Error ? qualityError.message : String(qualityError));
       }
       
       millInputs = await queryBuilder

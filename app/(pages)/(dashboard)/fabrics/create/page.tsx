@@ -513,7 +513,7 @@ export default function CreateFabricPage() {
     }
   };
 
-  const handleFiles = async (files: FileList | File[]) => {
+  const handleFiles = async (files: FileList | File[], retryCount = 0) => {
     console.log('handleFiles called with:', files.length, 'files');
     setUploadingImages(true);
     try {
@@ -524,10 +524,20 @@ export default function CreateFabricPage() {
         console.log('Processing file:', file.name, 'Type:', file.type, 'Size:', file.size);
         
         if (file.type.startsWith('image/')) {
-          // Convert to base64 for demo (in production, upload to cloud storage)
-          const base64 = await fileToBase64(file);
-          console.log('Base64 generated, length:', base64.length);
-          uploadedUrls.push(base64);
+          try {
+            // Upload to server instead of base64 conversion
+            const uploadedUrl = await uploadFileWithRetry(file, retryCount);
+            uploadedUrls.push(uploadedUrl);
+          } catch (uploadError: any) {
+            console.error('Failed to upload file:', file.name, uploadError);
+            if (uploadError.message.includes('timeout') && retryCount < 2) {
+              console.log(`Retrying upload for ${file.name}...`);
+              const retryUrl = await uploadFileWithRetry(file, retryCount + 1);
+              uploadedUrls.push(retryUrl);
+            } else {
+              throw uploadError;
+            }
+          }
         } else {
           console.warn('Skipping non-image file:', file.name, file.type);
         }
@@ -554,12 +564,87 @@ export default function CreateFabricPage() {
       if (uploadedUrls.length > 0) {
         showValidationMessage('success', `${uploadedUrls.length} image(s) uploaded successfully!`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading images:', error);
-      showValidationMessage('error', 'Failed to upload images');
+      const errorMessage = error.message?.includes('timeout') 
+        ? 'Upload timeout - please try again with smaller files or check your connection.'
+        : 'Failed to upload images. Please try again.';
+      showValidationMessage('error', errorMessage);
     } finally {
       setUploadingImages(false);
     }
+  };
+
+  // Upload file with retry mechanism
+  const uploadFileWithRetry = async (file: File, retryCount = 0): Promise<string> => {
+    const maxRetries = 2;
+    const timeoutDuration = 30000 + (retryCount * 10000); // 30s, 40s, 50s
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('folder', 'fabrics');
+
+        const token = localStorage.getItem('token');
+        console.log('Uploading file:', {
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          hasToken: !!token
+        });
+        
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            // Don't set Content-Type for FormData - let browser set it with boundary
+          },
+          body: formData,
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        console.log('Upload response status:', response.status);
+        
+        if (!response.ok) {
+          let errorMessage = `HTTP error! status: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            console.error('Upload error response:', errorData);
+            errorMessage = errorData.message || errorMessage;
+          } catch (parseError) {
+            console.error('Failed to parse error response:', parseError);
+          }
+          throw new Error(errorMessage);
+        }
+
+        const data = await response.json();
+        console.log('Upload success response:', data);
+        
+        if (data.success && (data.url || data.imageUrl)) {
+          return data.url || data.imageUrl;
+        } else {
+          throw new Error(data.message || 'Upload failed');
+        }
+      } catch (error: any) {
+        console.log(`Upload attempt ${attempt + 1} failed:`, error.message);
+        
+        if (attempt === maxRetries) {
+          throw error;
+        }
+        
+        // Wait before retry (exponential backoff)
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    throw new Error('Upload failed after all retry attempts');
   };
 
   const fileToBase64 = (file: File): Promise<string> => {

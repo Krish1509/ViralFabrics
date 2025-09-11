@@ -828,7 +828,51 @@ export async function PATCH(
     await dbConnect();
     
     const { id } = await params;
-    const { status } = await req.json();
+    const requestData = await req.json();
+    const { status, action, itemIndex } = requestData;
+
+    // Handle item deletion
+    if (action === 'deleteItem' && itemIndex !== undefined) {
+      const order = await Order.findById(id);
+      if (!order) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: "Order not found" 
+          }), 
+          { status: 404 }
+        );
+      }
+
+      // Validate item index
+      const index = parseInt(itemIndex);
+      if (isNaN(index) || index < 0 || index >= order.items.length) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: "Invalid item index" 
+          }), 
+          { status: 400 }
+        );
+      }
+
+      // Remove the item using $pull operator with the item's _id
+      const itemToRemove = order.items[index];
+      const updatedOrder = await Order.findByIdAndUpdate(
+        id,
+        { $pull: { items: { _id: (itemToRemove as any)._id } } },
+        { new: true }
+      );
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Item deleted successfully",
+          data: updatedOrder 
+        }), 
+        { status: 200 }
+      );
+    }
 
     // Validate status
     const validStatuses = ['Not selected', 'pending', 'delivered'];

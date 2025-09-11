@@ -1105,18 +1105,18 @@ export default function MillInputForm({
                     <div className="flex flex-col items-center space-y-2">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
                       <p className="text-sm">Loading mills...</p>
-                      <button
-                        type="button"
-                        onClick={() => setShowAddMillModal(true)}
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMillModal(true)}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          isDarkMode 
+                        isDarkMode
                             ? 'bg-blue-600 hover:bg-blue-700 text-white' 
                             : 'bg-blue-500 hover:bg-blue-600 text-white'
-                        }`}
-                      >
+                      }`}
+                    >
                         Add New Mill
-                      </button>
-                    </div>
+                    </button>
+                </div>
                   </div>
                 ) : (
                   <EnhancedDropdown
@@ -1626,8 +1626,8 @@ export default function MillInputForm({
                       addingMill
                         ? 'bg-gray-400 cursor-not-allowed'
                         : isDarkMode
-                          ? 'bg-green-600 hover:bg-green-700 text-white'
-                          : 'bg-green-600 hover:bg-green-700 text-white'
+                        ? 'bg-green-600 hover:bg-green-700 text-white'
+                        : 'bg-green-600 hover:bg-green-700 text-white'
                     }`}
                   >
                     {addingMill ? 'Adding...' : 'Add Mill'}

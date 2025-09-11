@@ -609,35 +609,28 @@ export default function DashboardPage() {
 
 
         {/* Quick Actions */}
-        <div className={`mt-6 sm:mt-8 rounded-xl border shadow-lg p-4 sm:p-6 transition-all duration-500 ${
+        <div className={`mt-6 sm:mt-8 rounded-lg border p-3 transition-all duration-500 ${
           isDarkMode 
-            ? 'bg-slate-800/80 border-slate-700 shadow-slate-900/30 backdrop-blur-sm' 
-            : 'bg-white/80 border-gray-200 shadow-gray-200/50 backdrop-blur-sm'
+            ? 'bg-slate-800/50 border-slate-700' 
+            : 'bg-white border-gray-200'
         }`}>
-          <h3 className={`text-lg font-semibold mb-4 transition-colors duration-300 ${
+          <h3 className={`text-sm font-semibold mb-3 transition-colors duration-300 ${
             isDarkMode ? 'text-white' : 'text-gray-900'
           }`}>Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex gap-2">
             <button
               onClick={() => router.push('/dashboard/orders')}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
             >
-              <ShoppingBagIcon className="w-5 h-5" />
-              View All Orders
-            </button>
-            <button
-              onClick={() => router.push('/dashboard/orders?create=true')}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <ShoppingBagIcon className="w-5 h-5" />
-              Create New Order
+              <ShoppingBagIcon className="w-4 h-4" />
+              View Orders
             </button>
             <button
               onClick={() => router.push('/dashboard/fabrics')}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-sm"
             >
-              <ShoppingBagIcon className="w-5 h-5" />
-              Manage Fabrics
+              <ShoppingBagIcon className="w-4 h-4" />
+              Fabrics
             </button>
           </div>
         </div>

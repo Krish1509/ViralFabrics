@@ -196,7 +196,9 @@ export default function FabricsPage() {
     
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000); // Balanced timeout for reliability
+      // Increased timeout for file uploads and slow server responses
+      const timeoutDuration = retryCount > 0 ? 30000 : 20000; // 20s first try, 30s for retries
+      const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
       
       const params = new URLSearchParams();
       if (filters.search) params.append('search', filters.search);
@@ -276,7 +278,7 @@ export default function FabricsPage() {
         console.error('Request timeout - server is slow, trying again...');
         // Retry with exponential backoff (max 3 retries)
         if (retryCount < 3) {
-          const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+          const delay = Math.pow(2, retryCount) * 2000; // 2s, 4s, 8s - longer delays for better success
           setRetryCount(retryCount + 1);
           setError(`Server is slow, retrying in ${delay/1000}s... (${retryCount + 1}/3)`);
           setTimeout(() => {
@@ -286,11 +288,14 @@ export default function FabricsPage() {
           return;
         } else {
           setRetryCount(0);
-          setError('Server is too slow. Please try again later.');
+          setError('Server is too slow after multiple attempts. Please check your connection and try again.');
         }
+      } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        console.error('Network error:', error);
+        setError('Network error. Please check your internet connection and try again.');
       } else {
         console.error('Error fetching fabrics:', error);
-        setError('Failed to load fabrics. Please try again.');
+        setError(`Failed to load fabrics: ${error.message || 'Unknown error'}. Please try again.`);
       }
     } finally {
       setLoading(false);

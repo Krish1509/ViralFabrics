@@ -625,8 +625,8 @@ export default function OrderDetailsPage() {
                                <button
                   onClick={() => {
                     if (!loadingLabs) {
-                      showSuccessMessage(labs.length > 0 ? 'Opening lab data editor...' : 'Opening lab data form...');
-                      setShowLabModal(true);
+                    showSuccessMessage(labs.length > 0 ? 'Opening lab data editor...' : 'Opening lab data form...');
+                    setShowLabModal(true);
                     }
                   }}
                   disabled={loadingLabs}
@@ -634,12 +634,12 @@ export default function OrderDetailsPage() {
                      loadingLabs
                        ? 'bg-gray-400 cursor-not-allowed text-white'
                        : labs.length > 0
-                         ? isDarkMode
-                           ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
-                           : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600'
-                         : isDarkMode
-                           ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white hover:from-orange-700 hover:to-red-700'
-                           : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
+                       ? isDarkMode
+                         ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
+                         : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600'
+                       : isDarkMode
+                         ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white hover:from-orange-700 hover:to-red-700'
+                         : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
                    }`}
                  >
                   <BeakerIcon className="h-3 w-3 xs:h-3.5 xs:w-3.5 sm:h-4 sm:w-4 mr-0.5 xs:mr-1 sm:mr-1.5 lg:mr-2" />
@@ -701,174 +701,44 @@ export default function OrderDetailsPage() {
                background: ${isDarkMode ? '#6B7280' : '#9CA3AF'};
              }
            `}</style>
-          <div className="p-8">
-                                      {/* Quick Stats Row */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                {/* Order Type */}
-                <div className={`p-6 rounded-2xl border ${
-                  isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
-                } shadow-lg`}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className={`text-sm font-medium ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        Order Type
-                      </p>
-                      <p className={`text-xl font-bold ${
-                        order?.orderType === 'Dying'
-                          ? isDarkMode ? 'text-red-400' : 'text-red-600'
-                          : isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                      }`}>
-                        {order?.orderType}
-                      </p>
-                    </div>
-                    <div className={`p-3 rounded-xl ${
-                      order?.orderType === 'Dying'
-                        ? isDarkMode ? 'bg-red-500/20' : 'bg-red-100'
-                        : isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
-                    }`}>
-                      <svg className={`h-6 w-6 ${
-                        order?.orderType === 'Dying'
-                          ? isDarkMode ? 'text-red-400' : 'text-red-600'
-                          : isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                      }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Order Status */}
-                <div className={`p-6 rounded-2xl border ${
-                  isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
-                } shadow-lg`}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className={`text-sm font-medium ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        Order Status
-                      </p>
-                      <p className={`text-xl font-bold ${
-                        order?.status === 'delivered'
-                          ? isDarkMode ? 'text-green-400' : 'text-green-600'
-                          : order?.status === 'pending'
-                          ? isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
-                          : isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                      }`}>
-                        {order?.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Pending'}
-                      </p>
-                    </div>
-                    <div className={`p-3 rounded-xl ${
-                      order?.status === 'delivered'
-                        ? isDarkMode ? 'bg-green-500/20' : 'bg-green-100'
-                        : order?.status === 'pending'
-                        ? isDarkMode ? 'bg-yellow-500/20' : 'bg-yellow-100'
-                        : isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
-                    }`}>
-                      {order?.status === 'delivered' ? <CheckCircleIcon className="h-6 w-6" /> :
-                       <ClockIcon className="h-6 w-6" />}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Total Items */}
-                <div className={`p-6 rounded-2xl border ${
-                  isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
-                } shadow-lg`}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className={`text-sm font-medium ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        Total Items
-                      </p>
-                      <p className={`text-3xl font-bold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {order?.items?.length || 0}
-                      </p>
-                    </div>
-                    <div className={`p-3 rounded-xl ${
-                      isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
-                    }`}>
-                      <CubeIcon className={`h-6 w-6 ${
-                        isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                      }`} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Lab Records */}
-                <div className={`p-6 rounded-2xl border ${
-                  isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
-                } shadow-lg`}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className={`text-sm font-medium ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        Lab Records
-                      </p>
-                      <p className={`text-3xl font-bold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {labStats.withLabs}
-                      </p>
-                    </div>
-                    <div className={`p-3 rounded-xl ${
-                      isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
-                    }`}>
-                      <BeakerIcon className={`h-6 w-6 ${
-                        isDarkMode ? 'text-purple-400' : 'text-purple-600'
-                      }`} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                              {/* Left Column - Order & Party Info */}
-                <div className="space-y-6">
+          <div className="p-6 space-y-6">
+            {/* Section 1: Order Details + Items */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Order Details Card */}
+              <div className="space-y-4">
                  {/* Order Information Card */}
-                 <div className={`p-6 rounded-2xl border ${
+                 <div className={`p-4 rounded-xl border ${
                    isDarkMode 
                      ? 'bg-gray-800/50 border-gray-700' 
                      : 'bg-white border-gray-200'
                  } shadow-lg`}>
-                   <div className="flex items-center mb-6">
-                     <div className={`p-3 rounded-xl ${
+                   <div className="flex items-center mb-4">
+                     <div className={`p-2 rounded-lg ${
                        isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
                      }`}>
-                       <CubeIcon className={`h-6 w-6 ${
+                       <CubeIcon className={`h-5 w-5 ${
                          isDarkMode ? 'text-blue-400' : 'text-blue-600'
                        }`} />
                      </div>
-                     <div className="ml-4">
-                       <h3 className={`text-xl font-bold ${
+                     <div className="ml-3">
+                       <h3 className={`text-lg font-semibold ${
                          isDarkMode ? 'text-white' : 'text-gray-900'
                        }`}>
-                         Order Information
+                         Order Details
                        </h3>
-                       <p className={`text-sm ${
-                         isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                       }`}>
-                         Basic order details and specifications
-                       </p>
                      </div>
                    </div>
-                   <div className="space-y-4">
+                   <div className="space-y-2">
                                            {order?.orderNo && (
-                        <div className={`flex justify-between items-center p-3 rounded-lg ${
+                        <div className={`flex justify-between items-center p-2 rounded-lg ${
                           isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
                         }`}>
-                          <span className={`text-sm font-medium ${
+                          <span className={`text-xs font-medium ${
                             isDarkMode ? 'text-gray-300' : 'text-gray-600'
                           }`}>
                             Order No
                           </span>
-                          <span className={`text-sm font-semibold ${
+                          <span className={`text-xs font-semibold ${
                             isDarkMode ? 'text-white' : 'text-gray-900'
                           }`}>
                             {order?.orderNo}
@@ -876,17 +746,17 @@ export default function OrderDetailsPage() {
                         </div>
                       )}
                       {(order?.poNumber || order?.styleNo) && ( // Removed weaverSupplierName and purchaseRate checks
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                           {order?.poNumber && (
-                            <div className={`flex justify-between items-center p-3 rounded-lg ${
+                            <div className={`flex justify-between items-center p-2 rounded-lg ${
                               isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
                             }`}>
-                              <span className={`text-sm font-medium ${
+                              <span className={`text-xs font-medium ${
                                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
                               }`}>
                                 PO Number
                               </span>
-                              <span className={`text-sm font-mono font-semibold ${
+                              <span className={`text-xs font-mono font-semibold ${
                                 isDarkMode ? 'text-blue-400' : 'text-blue-600'
                               }`}>
                                 {order?.poNumber}
@@ -894,15 +764,15 @@ export default function OrderDetailsPage() {
                             </div>
                           )}
                           {order?.styleNo && (
-                            <div className={`flex justify-between items-center p-3 rounded-lg ${
+                            <div className={`flex justify-between items-center p-2 rounded-lg ${
                               isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
                             }`}>
-                             <span className={`text-sm font-medium ${
+                             <span className={`text-xs font-medium ${
                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
                              }`}>
                                Style Number
                              </span>
-                             <span className={`text-sm font-mono font-semibold ${
+                             <span className={`text-xs font-mono font-semibold ${
                                isDarkMode ? 'text-purple-400' : 'text-purple-600'
                              }`}>
                                {order?.styleNo}
@@ -1473,12 +1343,12 @@ export default function OrderDetailsPage() {
                            loadingLabs
                              ? 'bg-gray-400 cursor-not-allowed text-white'
                              : labs.length > 0
-                               ? isDarkMode
-                                 ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25'
-                                 : 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25'
-                               : isDarkMode
-                                 ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg hover:shadow-orange-500/25'
-                                 : 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg hover:shadow-orange-500/25'
+                             ? isDarkMode
+                               ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25'
+                               : 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25'
+                             : isDarkMode
+                               ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg hover:shadow-orange-500/25'
+                               : 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg hover:shadow-orange-500/25'
                          }`}
                        >
                          <BeakerIcon className="h-4 w-4 mr-2" />
@@ -2530,6 +2400,443 @@ export default function OrderDetailsPage() {
                   <span className="font-medium">Last Updated:</span> {order?.updatedAt ? formatDateTime(order.updatedAt) : 'Not available'}
                 </div>
               </div>
+
+              {/* Items Card */}
+              <div className="space-y-4">
+                {/* Items Information Card */}
+                <div className={`p-4 rounded-xl border ${
+                  isDarkMode 
+                    ? 'bg-gray-800/50 border-gray-700' 
+                    : 'bg-white border-gray-200'
+                } shadow-lg`}>
+                  <div className="flex items-center mb-4">
+                    <div className={`p-2 rounded-lg ${
+                      isDarkMode ? 'bg-green-500/20' : 'bg-green-100'
+                    }`}>
+                      <CubeIcon className={`h-5 w-5 ${
+                        isDarkMode ? 'text-green-400' : 'text-green-600'
+                      }`} />
+            </div>
+                    <div className="ml-3">
+                      <h3 className={`text-lg font-semibold ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        Order Items
+                      </h3>
+                    </div>
+                  </div>
+                  
+                  {/* Items List */}
+                  <div className="space-y-2">
+                    {order?.items && order.items.length > 0 ? (
+                      order.items.map((item, index) => (
+                        <div key={index} className={`p-3 rounded-lg ${
+                          isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className={`text-sm font-medium ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                {typeof item.quality === 'string' ? item.quality : item.quality?.name || 'Quality #' + (index + 1)}
+                              </p>
+                              <p className={`text-xs ${
+                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                              }`}>
+                                {item.quantity} units
+                              </p>
+                            </div>
+                            <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              isDarkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'
+                            }`}>
+                              Item #{index + 1}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className={`text-center py-4 ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        <CubeIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No items added yet</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Lab Data */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Lab Data Card */}
+              <div className="space-y-4">
+                <div className={`p-4 rounded-xl border ${
+                  isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+                } shadow-lg`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center">
+                      <div className={`p-2 rounded-lg ${
+                        isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                      }`}>
+                        <BeakerIcon className={`h-5 w-5 ${
+                          isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                        }`} />
+                      </div>
+                      <h3 className={`ml-3 text-lg font-semibold ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        Lab Data
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => setShowLabModal(true)}
+                      disabled={loadingLabs}
+                      className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                        isDarkMode
+                          ? 'bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50'
+                          : 'bg-purple-500 hover:bg-purple-600 text-white disabled:opacity-50'
+                      }`}
+                    >
+                      {loadingLabs ? 'Loading...' : 'Add Lab'}
+                    </button>
+                  </div>
+                  
+                  {/* Lab Records Summary */}
+                  <div className="space-y-3">
+                    {labs.length > 0 ? (
+                      <div className="space-y-2">
+                        {labs.slice(0, 3).map((lab, index) => (
+                          <div key={lab._id} className={`p-3 rounded-lg ${
+                            isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className={`text-sm font-medium ${
+                                  isDarkMode ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                  {lab.labSendData?.sampleNumber || 'Sample #' + (index + 1)}
+                                </p>
+                                <p className={`text-xs ${
+                                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                  {lab.labSendDate ? new Date(lab.labSendDate).toLocaleDateString() : 'No date'}
+                                </p>
+                              </div>
+                              <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                lab.status === 'received' 
+                                  ? isDarkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'
+                                  : isDarkMode ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
+                              }`}>
+                                {lab.status}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {labs.length > 3 && (
+                          <p className={`text-xs text-center ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            +{labs.length - 3} more lab records
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className={`text-center py-4 ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        <BeakerIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No lab data yet</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Lab Data Summary Card */}
+              <div className="space-y-4">
+                <div className={`p-4 rounded-xl border ${
+                  isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+                } shadow-lg`}>
+                  <div className="flex items-center mb-4">
+                    <div className={`p-2 rounded-lg ${
+                      isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                    }`}>
+                      <BeakerIcon className={`h-5 w-5 ${
+                        isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                      }`} />
+                    </div>
+                    <div className="ml-3">
+                      <h3 className={`text-lg font-semibold ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        Lab Summary
+                      </h3>
+                    </div>
+                  </div>
+                  
+                  {/* Lab Summary Stats */}
+                  <div className="space-y-2">
+                    <div className={`p-3 rounded-lg ${
+                      isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className={`text-sm font-medium ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}>
+                            Total Lab Records
+                          </p>
+                          <p className={`text-xs ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            {labs.length} records
+                          </p>
+                        </div>
+                        <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          isDarkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-700'
+                        }`}>
+                          {labs.length}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className={`p-3 rounded-lg ${
+                      isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className={`text-sm font-medium ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}>
+                            Approved Records
+                          </p>
+                          <p className={`text-xs ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            {labs.filter(lab => lab.status === 'received').length} approved
+                          </p>
+                        </div>
+                        <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          isDarkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {labs.filter(lab => lab.status === 'received').length}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Mill Input Data */}
+            <div className={`p-4 rounded-xl border ${
+              isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+            } shadow-lg`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <div className={`p-2 rounded-lg ${
+                    isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
+                  }`}>
+                    <CubeIcon className={`h-5 w-5 ${
+                      isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                    }`} />
+                  </div>
+                  <h3 className={`ml-3 text-lg font-semibold ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Mill Input Data
+                  </h3>
+                </div>
+                <button
+                  onClick={() => router.push(`/orders?editMillInput=${orderMongoId}`)}
+                  className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                    isDarkMode
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  }`}
+                >
+                  Add Mill Input
+                </button>
+              </div>
+              
+              {/* Mill Input Summary */}
+              <div className="space-y-2">
+                {millInputs.length > 0 ? (
+                  millInputs.slice(0, 3).map((input, index) => (
+                    <div key={input._id} className={`p-3 rounded-lg ${
+                      isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className={`text-sm font-medium ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}>
+                            {input.mill?.name || 'Unknown Mill'}
+                          </p>
+                          <p className={`text-xs ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            {input.greighMtrM1} mtr • {input.numberOfPiecesP1} pieces
+                          </p>
+                        </div>
+                        <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          isDarkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          Input
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className={`text-center py-4 ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    <CubeIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No mill input data yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Section 4: Mill Output Data */}
+            <div className={`p-4 rounded-xl border ${
+              isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+            } shadow-lg`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <div className={`p-2 rounded-lg ${
+                    isDarkMode ? 'bg-green-500/20' : 'bg-green-100'
+                  }`}>
+                    <TruckIcon className={`h-5 w-5 ${
+                      isDarkMode ? 'text-green-400' : 'text-green-600'
+                    }`} />
+                  </div>
+                  <h3 className={`ml-3 text-lg font-semibold ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Mill Output Data
+                  </h3>
+                </div>
+                <button
+                  onClick={() => router.push(`/orders?editMillOutput=${orderMongoId}`)}
+                  className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                    isDarkMode
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-green-500 hover:bg-green-600 text-white'
+                  }`}
+                >
+                  Add Mill Output
+                </button>
+              </div>
+              
+              {/* Mill Output Summary */}
+              <div className="space-y-2">
+                {millOutputs.length > 0 ? (
+                  millOutputs.slice(0, 3).map((output, index) => (
+                    <div key={output._id} className={`p-3 rounded-lg ${
+                      isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className={`text-sm font-medium ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}>
+                            {output.millBillNo || 'Bill #' + (index + 1)}
+                          </p>
+                          <p className={`text-xs ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            {output.finishedMtrM1} mtr • ₹{output.millRateR1}
+                          </p>
+                        </div>
+                        <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          isDarkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'
+                        }`}>
+                          Output
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className={`text-center py-4 ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    <TruckIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No mill output data yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Section 5: Dispatch Data */}
+            <div className={`p-4 rounded-xl border ${
+              isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+            } shadow-lg`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <div className={`p-2 rounded-lg ${
+                    isDarkMode ? 'bg-orange-500/20' : 'bg-orange-100'
+                  }`}>
+                    <DocumentTextIcon className={`h-5 w-5 ${
+                      isDarkMode ? 'text-orange-400' : 'text-orange-600'
+                    }`} />
+                  </div>
+                  <h3 className={`ml-3 text-lg font-semibold ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Dispatch Data
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowDispatchModal(true)}
+                  className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                    isDarkMode
+                      ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                      : 'bg-orange-500 hover:bg-orange-600 text-white'
+                  }`}
+                >
+                  Add Dispatch
+                </button>
+              </div>
+              
+              {/* Dispatch Summary */}
+              <div className="space-y-2">
+                {dispatches.length > 0 ? (
+                  dispatches.slice(0, 3).map((dispatch, index) => (
+                    <div key={dispatch._id} className={`p-3 rounded-lg ${
+                      isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className={`text-sm font-medium ${
+                            isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}>
+                            {dispatch.billNo || 'Bill #' + (index + 1)}
+                          </p>
+                          <p className={`text-xs ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            {dispatch.dispatchDate ? new Date(dispatch.dispatchDate).toLocaleDateString() : 'No date'}
+                          </p>
+                        </div>
+                        <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          isDarkMode ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-700'
+                        }`}>
+                          Dispatch
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className={`text-center py-4 ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    <DocumentTextIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No dispatch data yet</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -2642,7 +2949,7 @@ export default function OrderDetailsPage() {
       {showLabModal && order && (
         <LabAddModal
           isOpen={showLabModal}
-          order={order}
+          order={order as any}
           onClose={() => setShowLabModal(false)}
           onLabDataUpdate={() => {
             // Refresh labs data after successful lab operation
@@ -2691,7 +2998,7 @@ export default function OrderDetailsPage() {
               try {
                 // Force refresh by adding timestamp to avoid cache
                 const token = localStorage.getItem('token');
-                const response = await fetch(`/api/dispatch?orderId=${order.orderId}&t=${Date.now()}`, {
+                const response = await fetch(`/api/dispatch?orderId=${order?.orderId}&t=${Date.now()}`, {
                   headers: {
                     'Cache-Control': 'no-cache',
                     'Pragma': 'no-cache',

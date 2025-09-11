@@ -65,7 +65,6 @@ const DispatchSchema = new Schema<IDispatch>({
   }
 }, {
   timestamps: true,
-  strictPopulate: false,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
