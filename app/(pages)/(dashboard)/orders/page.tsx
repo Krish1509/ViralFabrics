@@ -120,13 +120,12 @@ export default function OrdersPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
   const [isValidating, setIsValidating] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline' | 'slow'>('online');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>(() => {
     if (typeof window !== 'undefined') {
       const savedViewMode = localStorage.getItem('ordersViewMode');
-      return savedViewMode === 'table' ? 'table' : 'cards';
+      return savedViewMode === 'cards' ? 'cards' : 'table';
     }
-    return 'cards';
+    return 'table';
   });
 
 
@@ -148,38 +147,6 @@ export default function OrdersPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Monitor connection status
-  useEffect(() => {
-    const updateConnectionStatus = () => {
-      if (navigator.onLine) {
-        setConnectionStatus('online');
-      } else {
-        setConnectionStatus('offline');
-        // Show offline message
-        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const newMessage: ValidationMessage = {
-          id: messageId,
-          type: 'error',
-          text: 'You are offline. Some features may not work.',
-          timestamp: Date.now(),
-          autoDismiss: false
-        };
-        setMessages(prev => [...prev, newMessage]);
-      }
-    };
-
-    // Check initial status
-    updateConnectionStatus();
-
-    // Listen for online/offline events
-    window.addEventListener('online', updateConnectionStatus);
-    window.addEventListener('offline', updateConnectionStatus);
-
-    return () => {
-      window.removeEventListener('online', updateConnectionStatus);
-      window.removeEventListener('offline', updateConnectionStatus);
-    };
-  }, []);
 
     const isLargeScreen = screenSize > 1200;
   const isMediumScreen = screenSize > 768;
@@ -217,14 +184,6 @@ export default function OrdersPage() {
     setMessages([]);
   }, []);
 
-  // Validation helper functions - Removed restrictive search validation
-  const validateSearchTerm = useCallback((term: string) => {
-    // Only validate for extremely long search terms
-    if (term.length > 100) {
-      return 'Search term is too long (max 100 characters)';
-    }
-    return null;
-  }, []);
 
   const validateFilters = useCallback((currentFilters: any) => {
     const errors: {[key: string]: string} = {};
@@ -240,54 +199,20 @@ export default function OrdersPage() {
     return errors;
   }, []);
 
-  // Enhanced search with helpful notifications
+  // Simple search without validation messages
   const handleSearchChange = useCallback((value: string) => {
-    setSearchTerm(value);
-    
-    // Show helpful search tips for single character searches
-    if (value.length === 1) {
-      showMessage('info', '💡 Tip: Search by order ID, PO number, style, or party name', { 
-        autoDismiss: true, 
-        dismissTime: 3000 
-      });
-    }
-    
-    // Show search result count when user stops typing
-    if (value.length > 0) {
-      const timeoutId = setTimeout(() => {
-        const filtered = orders.filter(order => {
-          const matchesSearch = 
-            order.orderId?.toLowerCase().includes(value.toLowerCase()) ||
-            order.poNumber?.toLowerCase().includes(value.toLowerCase()) ||
-            order.styleNo?.toLowerCase().includes(value.toLowerCase()) ||
-            (order.party as any)?.name?.toLowerCase().includes(value.toLowerCase());
-          return matchesSearch;
-        });
-        
-        if (filtered.length === 0 && value.length > 0) {
-          showMessage('info', `No orders found for "${value}". Try a different search term.`, { 
-            autoDismiss: true, 
-            dismissTime: 4000 
-          });
-        } else if (filtered.length > 0) {
-          showMessage('success', `Found ${filtered.length} order${filtered.length !== 1 ? 's' : ''} matching "${value}"`, { 
-            autoDismiss: true, 
-            dismissTime: 2000 
-          });
-        }
-      }, 1000); // Wait 1 second after user stops typing
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [orders, showMessage]);
+    const trimmedValue = value.trim();
+    console.log('Search term changed to:', trimmedValue);
+    setSearchTerm(trimmedValue);
+  }, []);
 
   // Optimized fetch functions with retry logic and better timeout handling
   const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage) => {
     console.log('🔄 fetchOrders called with:', { retryCount, page, limit });
     
-    const maxRetries = 2; // Reduced retries for faster failure
-    const baseTimeout = 10000; // 10 seconds base timeout
-    const timeoutIncrement = 2000; // Add 2 seconds per retry
+    const maxRetries = 1; // Single retry for faster failure
+    const baseTimeout = 5000; // 5 seconds base timeout
+    const timeoutIncrement = 1000; // Add 1 second per retry
     
     try {
       const controller = new AbortController();
@@ -303,14 +228,11 @@ export default function OrdersPage() {
       
       // Build URL with pagination and filter parameters
       const url = new URL('/api/orders', window.location.origin);
-      const limitValue = limit === 'All' ? 1000 : limit;
+      const limitValue = limit === 'All' ? 1000 : Math.max(limit, 100); // Ensure minimum 100 orders for search
       url.searchParams.append('limit', limitValue.toString());
       url.searchParams.append('page', page.toString());
       
-      // Add search and filter parameters
-      if (searchTerm) {
-        url.searchParams.append('search', searchTerm);
-      }
+      // Search is handled client-side for better performance
       if (filters.typeFilter && filters.typeFilter !== 'all') {
         url.searchParams.append('type', filters.typeFilter);
       }
@@ -403,26 +325,17 @@ export default function OrdersPage() {
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
           return fetchOrders(retryCount + 1, page, limit);
         } else {
-          showMessage('error', 'Connection timeout. Please check your internet and try again.', { 
-            autoDismiss: false 
-          });
           setLoading(false);
         }
       } else if (error.message?.includes('Failed to fetch')) {
-        showMessage('error', 'Network error. Please check your connection.', { 
-          autoDismiss: false 
-        });
         setLoading(false);
       } else {
         console.error('Error fetching orders:', error);
-        showMessage('error', 'Failed to load orders. Please try again.', { 
-          autoDismiss: false 
-        });
         setLoading(false);
       }
       throw error;
     }
-  }, [showMessage, currentPage, itemsPerPage, searchTerm, filters]);
+  }, [showMessage, currentPage, itemsPerPage, filters]);
 
   // Pagination handlers
   const handlePageChange = async (newPage: number) => {
@@ -438,34 +351,84 @@ export default function OrdersPage() {
     
     setIsChangingPage(true);
     setCurrentPage(newPage);
-    await fetchOrders(0, newPage, itemsPerPage);
+    // No need to fetch from server - client-side pagination handles this
     setIsChangingPage(false);
   };
 
   const handleItemsPerPageChange = async (newItemsPerPage: number | 'All') => {
     if (newItemsPerPage === itemsPerPage) return;
     
-    console.log('Items per page change:', { from: itemsPerPage, to: newItemsPerPage });
-    
     setIsChangingPage(true);
     setItemsPerPage(newItemsPerPage);
     setCurrentPage(1); // Reset to first page
-    await fetchOrders(0, 1, newItemsPerPage);
+    
+    // For better UX, fetch all orders and use client-side pagination
+    await fetchOrders(0, 1, 'All');
     setIsChangingPage(false);
   };
 
-  // Calculate total pages
+  // Calculate total pages based on filtered orders (client-side pagination)
   const totalPages = useMemo(() => {
+    // Get total filtered orders count
+    const filteredCount = orders.filter(order => {
+      const matchesSearch = searchTerm === '' || (
+        (order.orderId && order.orderId.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (order.poNumber && order.poNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (order.styleNo && order.styleNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (order.party && typeof order.party === 'object' && order.party.name && order.party.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+
+      const matchesType = filters.typeFilter === 'all' || order.orderType === filters.typeFilter;
+      const orderStatus = order.status || 'pending';
+      const matchesStatus = filters.statusFilter === 'all' || orderStatus === filters.statusFilter;
+
+      return matchesSearch && matchesType && matchesStatus;
+    }).length;
+    
+    // If "All" selected, show all on one page
     if (itemsPerPage === 'All') return 1;
     
-    const totalCount = paginationInfo.totalCount || 0;
     const itemsPerPageValue = itemsPerPage as number;
-    const calculatedPages = Math.ceil(totalCount / itemsPerPageValue);
-    const result = Math.max(1, calculatedPages);
-    
-    
-    return result;
-  }, [paginationInfo.totalCount, itemsPerPage]);
+    const calculatedPages = Math.ceil(filteredCount / itemsPerPageValue);
+    return Math.max(1, calculatedPages);
+  }, [orders, searchTerm, filters, itemsPerPage]);
+
+  // Calculate pagination display info for client-side pagination
+  const paginationDisplayInfo = useMemo(() => {
+    const filteredCount = orders.filter(order => {
+      const matchesSearch = searchTerm === '' || (
+        (order.orderId && order.orderId.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (order.poNumber && order.poNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (order.styleNo && order.styleNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (order.party && typeof order.party === 'object' && order.party.name && order.party.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+
+      const matchesType = filters.typeFilter === 'all' || order.orderType === filters.typeFilter;
+      const orderStatus = order.status || 'pending';
+      const matchesStatus = filters.statusFilter === 'all' || orderStatus === filters.statusFilter;
+
+      return matchesSearch && matchesType && matchesStatus;
+    }).length;
+
+    // If "All" selected, show all on one page
+    if (itemsPerPage === 'All') {
+      return {
+        showing: filteredCount,
+        total: filteredCount,
+        start: filteredCount > 0 ? 1 : 0,
+        end: filteredCount
+      };
+    } else {
+      const start = filteredCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+      const end = Math.min(currentPage * itemsPerPage, filteredCount);
+      return {
+        showing: end - start + 1,
+        total: filteredCount,
+        start: start,
+        end: end
+      };
+    }
+  }, [orders, searchTerm, filters, itemsPerPage, currentPage]);
 
   // Function to fetch existing mill inputs for an order
   const fetchExistingMillInputs = useCallback(async (orderId: string) => {
@@ -547,7 +510,7 @@ export default function OrdersPage() {
   const fetchParties = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second timeout
       
       const token = localStorage.getItem('token');
       const response = await fetch('/api/parties?limit=50', { // Increased limit for better UX
@@ -583,7 +546,7 @@ export default function OrdersPage() {
   const fetchQualities = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second timeout
       
       const token = localStorage.getItem('token');
       const response = await fetch('/api/qualities?limit=100', { // Increased limit for better UX
@@ -620,7 +583,7 @@ export default function OrdersPage() {
   const fetchMills = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
       
       const token = localStorage.getItem('token');
       
@@ -705,9 +668,7 @@ export default function OrdersPage() {
       } catch (error) {
         console.error('Error initializing data:', error);
         if (!ordersLoaded) {
-          showMessage('error', 'Failed to load orders. Please check your connection and try again.', { 
-            autoDismiss: false 
-          });
+          // Silent error handling for better UX
         }
       } finally {
         setLoading(false);
@@ -723,10 +684,7 @@ export default function OrdersPage() {
       if (!isInitialized) {
         setLoading(false);
         setIsInitialized(true);
-        showMessage('error', 'Loading is taking longer than expected. Some data may not be available.', { 
-          autoDismiss: true,
-          dismissTime: 5000
-        });
+        // Silent handling for better UX
       }
     }, 12000); // 12 second timeout
     
@@ -766,7 +724,7 @@ export default function OrdersPage() {
           }
         }).catch(error => {
           console.error('Error refreshing orders after', event.detail.action, ':', error);
-          showMessage('error', 'Failed to refresh orders automatically', { autoDismiss: true, dismissTime: 3000 });
+          // Silent error handling for better UX
         });
       }
     };
@@ -813,10 +771,7 @@ export default function OrdersPage() {
       
     } catch (error: any) {
       console.error('Refresh error:', error);
-      showMessage('error', 'Failed to refresh data. Please try again.', { 
-        autoDismiss: true,
-        dismissTime: 4000
-      });
+      // Silent error handling for better UX
     } finally {
       setRefreshing(false);
     }
@@ -983,14 +938,25 @@ export default function OrdersPage() {
 
   // Memoized filtered and sorted orders
   const filteredOrders = useMemo(() => {
+    console.log('Filtering orders with searchTerm:', searchTerm, 'Total orders:', orders.length);
+    if (orders.length > 0) {
+      console.log('Sample order data:', {
+        orderId: orders[0].orderId,
+        poNumber: orders[0].poNumber,
+        styleNo: orders[0].styleNo,
+        party: orders[0].party
+      });
+    }
+    
     // Filtering orders
     let filtered = orders
       .filter(order => {
-        const matchesSearch = 
-          order.orderId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.poNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.styleNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (order.party as any)?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = searchTerm === '' || (
+          (order.orderId && order.orderId.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (order.poNumber && order.poNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (order.styleNo && order.styleNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (order.party && typeof order.party === 'object' && order.party.name && order.party.name.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
 
         const matchesType = filters.typeFilter === 'all' || order.orderType === filters.typeFilter;
         
@@ -1018,10 +984,21 @@ export default function OrdersPage() {
       });
     }
 
-    // Debug logging removed for production
+    console.log('Filtered results:', filtered.length, 'orders');
+    if (searchTerm && filtered.length === 0) {
+      console.log('No matches found for search term:', searchTerm);
+      console.log('Sample order IDs:', orders.slice(0, 3).map(o => o.orderId));
+    }
 
-    return filtered;
-  }, [orders, searchTerm, filters]);
+    // Apply client-side pagination
+    if (itemsPerPage === 'All') {
+      return filtered; // Show all orders only when "All" is selected
+    } else {
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      return filtered.slice(startIndex, endIndex);
+    }
+  }, [orders, searchTerm, filters, itemsPerPage, currentPage]);
 
   const handleDeleteClick = useCallback((order: Order) => {
     setOrderToDelete(order);
@@ -1212,8 +1189,8 @@ export default function OrdersPage() {
     }
   };
 
-  // Use server-side paginated data directly (no client-side pagination)
-  const currentOrders = orders;
+  // Use filtered and paginated data for both table and card views
+  const currentOrders = filteredOrders;
   
   // Pagination debug info removed for production
 
@@ -1269,165 +1246,92 @@ export default function OrdersPage() {
     return order.items.reduce((total: number, item: any) => total + (item.quantity || 0), 0);
   };
 
-  // Loading skeleton component - Table Layout
+  // Optimized loading skeleton - Fast and minimal
   const LoadingSkeleton = () => (
-    <div className="space-y-6">
-      {/* Header Skeleton */}
+    <div className="space-y-4">
+      {/* Compact Header Skeleton */}
       <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <div className={`h-8 w-48 rounded ${
-            isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+        <div className={`h-6 w-32 rounded ${
+          isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
           }`}></div>
-          <div className={`h-4 w-32 rounded ${
-            isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-          }`}></div>
-        </div>
-        <div className={`h-10 w-32 rounded-lg ${
-          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+        <div className={`h-8 w-24 rounded ${
+          isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
         }`}></div>
       </div>
 
-      {/* Search and Filters Skeleton */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className={`flex-1 h-12 rounded-lg ${
-          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+      {/* Compact Search Skeleton */}
+      <div className={`h-10 rounded-lg ${
+        isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
         }`}></div>
-        <div className={`w-32 h-12 rounded-lg ${
-          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-        }`}></div>
-      </div>
 
-      {/* Orders Table Skeleton */}
+      {/* Optimized Table Skeleton */}
       <div className={`rounded-lg border overflow-hidden ${
-        isDarkMode
-          ? 'bg-white/5 border-white/10'
-          : 'bg-white border-gray-200'
+        isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-gray-200'
       }`}>
-        <div className="overflow-x-auto min-w-full">
-          <table className="w-full min-w-max">
-            {/* Table Header Skeleton */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
             <thead className={`${
-              isDarkMode ? 'bg-gradient-to-r from-slate-800/80 to-slate-700/80 border-b border-slate-600' : 'bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-300'
+              isDarkMode ? 'bg-slate-700/50' : 'bg-gray-50'
             }`}>
               <tr>
-                <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[300px] ${
-                  isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black/50 bg-blue-50'
-                }`}>
-                  Order Information
-                </th>
-                <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[350px] ${
-                  isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
-                }`}>
-                  Items
-                </th>
-                <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[200px] ${
-                  isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
-                }`}>
-                  Actions
-                </th>
+                <th className={`px-4 py-3 text-left text-sm font-medium ${
+                  isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                }`}>Order Information</th>
+                <th className={`px-4 py-3 text-left text-sm font-medium ${
+                  isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                }`}>Items</th>
+                <th className={`px-4 py-3 text-left text-sm font-medium ${
+                  isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                }`}>Actions</th>
               </tr>
             </thead>
-            
-            {/* Table Body Skeleton */}
             <tbody className={`divide-y ${
-              isDarkMode ? 'divide-white/10' : 'divide-gray-200'
+              isDarkMode ? 'divide-slate-700' : 'divide-gray-200'
             }`}>
-              {[...Array(8)].map((_, i) => (
-                <tr key={i} className={`animate-pulse ${
-                  isDarkMode ? 'bg-white/5' : 'bg-white'
+              {[...Array(4)].map((_, i) => (
+                <tr key={i} className={`${
+                  isDarkMode ? 'bg-slate-800/30' : 'bg-white'
                 }`}>
-                  {/* Order Info Column Skeleton */}
-                  <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
-                    <div className="flex items-center">
-                      <div className={`h-12 w-12 rounded-full ${
-                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                  <td className="px-4 py-4">
+                    <div className="flex items-center space-x-3">
+                      <div className={`h-8 w-8 rounded-full ${
+                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
                       }`}></div>
-                      <div className="ml-4 flex-1 space-y-2">
-                        <div className={`h-4 w-16 rounded-full ${
-                          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                        }`}></div>
+                      <div className="space-y-1">
                         <div className={`h-3 w-20 rounded ${
-                          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
                         }`}></div>
-                        <div className={`h-3 w-24 rounded ${
-                          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                        <div className={`h-2 w-16 rounded ${
+                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
                         }`}></div>
                       </div>
                     </div>
                   </td>
-
-                  {/* Party Details Column Skeleton */}
-                  <td className="px-3 py-3">
-                    <div className="space-y-2">
-                      <div className={`h-4 w-24 rounded ${
-                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                  <td className="px-4 py-4">
+                    <div className="space-y-1">
+                      <div className={`h-3 w-12 rounded ${
+                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
                       }`}></div>
-                      <div className={`h-3 w-20 rounded ${
-                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                      <div className="flex space-x-1">
+                        <div className={`h-4 w-12 rounded ${
+                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
                       }`}></div>
-                      <div className={`h-3 w-16 rounded ${
-                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                      }`}></div>
-                    </div>
-                  </td>
-
-                  {/* Dates Column Skeleton */}
-                  <td className="px-3 py-3">
-                    <div className="space-y-2">
-                      <div className={`h-4 w-20 rounded ${
-                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                      }`}></div>
-                      <div className={`h-3 w-16 rounded ${
-                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                      }`}></div>
-                      <div className={`h-3 w-18 rounded ${
-                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                      }`}></div>
-                    </div>
-                  </td>
-
-                  {/* Items Column Skeleton */}
-                  <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
-                    <div className="space-y-2">
                       <div className={`h-4 w-12 rounded ${
-                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
                       }`}></div>
-                      <div className="flex flex-wrap gap-1">
-                        {[...Array(2)].map((_, itemIndex) => (
-                          <div key={itemIndex} className={`h-6 w-16 rounded-full ${
-                            isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                          }`}></div>
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className={`h-4 w-4 rounded ${
-                          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                        }`}></div>
-                        <div className={`h-3 w-8 rounded ${
-                          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                        }`}></div>
                       </div>
                     </div>
                   </td>
-
-                  {/* Status Column Skeleton */}
-                  <td className="px-3 py-3">
-                    <div className={`h-6 w-16 rounded-full ${
-                      isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                  <td className="px-4 py-4">
+                    <div className="flex space-x-2">
+                      <div className={`h-6 w-6 rounded ${
+                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
                     }`}></div>
-                  </td>
-
-                  {/* Actions Column Skeleton */}
-                  <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
-                    <div className="flex items-center gap-2">
-                      <div className={`h-8 w-8 rounded ${
-                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                      <div className={`h-6 w-6 rounded ${
+                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
                       }`}></div>
-                      <div className={`h-8 w-8 rounded ${
-                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                      }`}></div>
-                      <div className={`h-8 w-8 rounded ${
-                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                      <div className={`h-6 w-6 rounded ${
+                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
                       }`}></div>
                     </div>
                   </td>
@@ -1445,29 +1349,7 @@ export default function OrdersPage() {
   if (!mounted) return null;
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <LoadingSkeleton />
-        {/* Enhanced loading message with progress */}
-        <div className={`text-center py-8 ${
-          isDarkMode ? 'text-gray-300' : 'text-gray-600'
-        }`}>
-          <div className="flex items-center justify-center space-x-3 mb-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            <span className="text-xl font-semibold">Loading Orders...</span>
-          </div>
-          <div className="max-w-md mx-auto">
-            <div className={`w-full bg-gray-200 rounded-full h-2 mb-3 ${
-              isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-            }`}>
-              <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{width: '60%'}}></div>
-            </div>
-            <p className="text-sm text-gray-500 mb-2">Loading your orders and data...</p>
-            <p className="text-xs text-gray-400">Optimized for faster loading • Auto-retry enabled</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingSkeleton />;
   }
 
   return (
@@ -1575,26 +1457,6 @@ export default function OrdersPage() {
       `}</style>
       
       <div className="space-y-4">
-        {/* Connection Status Indicator */}
-        {connectionStatus !== 'online' && (
-          <div className={`p-3 rounded-lg border ${
-            connectionStatus === 'offline' 
-              ? 'bg-red-50 border-red-200 text-red-800' 
-              : 'bg-yellow-50 border-yellow-200 text-yellow-800'
-          } ${isDarkMode ? 'bg-red-900/30 border-red-500/40 text-red-300' : ''}`}>
-            <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${
-                connectionStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
-              }`}></div>
-              <span className="text-sm font-medium">
-                {connectionStatus === 'offline' ? 'You are offline' : 'Slow connection detected'}
-              </span>
-              {connectionStatus === 'offline' && (
-                <span className="text-xs opacity-75">• Some features may not work</span>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Enhanced Header with Stats */}
         <div className="space-y-6">
@@ -1814,11 +1676,10 @@ export default function OrdersPage() {
           : 'bg-white border-gray-200'
       }`}>
         <div className="flex flex-col gap-3">
-          {/* Top Row - Left: Create Order + Refresh, Center: Search, Right: Quick Actions */}
-          <div className="flex flex-col lg:flex-row gap-3 items-center">
-            {/* Left Side - Create Order + Refresh */}
-            <div className="flex items-center gap-2 order-1 lg:order-1">
-              {/* Create Order Button */}
+          {/* Top Row - Create Order, Search, Quick Actions */}
+          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+            {/* Left Side - Create Order Button */}
+            <div className="flex items-center order-1 md:order-1">
               <button
                 onClick={() => setShowForm(true)}
                 className={`inline-flex items-center px-3 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
@@ -1830,28 +1691,10 @@ export default function OrdersPage() {
                 <PlusIcon className="h-4 w-4 mr-1" />
                 <span className="text-sm font-medium">Create Order</span>
               </button>
-
-              {/* Refresh Button */}
-              <button
-                onClick={() => handleRefresh()}
-                disabled={refreshing}
-                className={`inline-flex items-center px-3 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
-                  refreshing
-                    ? 'opacity-50 cursor-not-allowed'
-                    : ''
-                } ${
-                  isDarkMode
-                    ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-white/30'
-                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'
-                }`}
-              >
-                <ArrowPathIcon className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-                <span className="text-sm font-medium">Refresh</span>
-              </button>
             </div>
 
             {/* Center - Search */}
-            <div className="flex-1 order-2 lg:order-2">
+            <div className="flex-1 order-2 md:order-2 min-w-0">
               <div className="relative">
                 <MagnifyingGlassIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
                   isDarkMode ? 'text-gray-400' : 'text-gray-500'
@@ -1870,8 +1713,8 @@ export default function OrdersPage() {
               </div>
             </div>
 
-            {/* Right Side - Quick Actions */}
-            <div className="flex items-center order-3 lg:order-3">
+            {/* Right Side - Quick Actions Button */}
+            <div className="flex items-center order-3 md:order-3">
               <button
                 onClick={() => setShowQuickActions(!showQuickActions)}
                 className={`inline-flex items-center px-3 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
@@ -1885,37 +1728,16 @@ export default function OrdersPage() {
                 }`}
               >
                 <BoltIcon className="h-4 w-4 mr-1" />
-                <span className="text-sm font-medium">Quick Actions</span>
+                <span className="text-sm font-medium hidden sm:inline">Quick Actions</span>
+                <span className="text-sm font-medium sm:hidden">Actions</span>
               </button>
             </div>
           </div>
 
-          {/* Second Row - Left: Filters (Types, Status), Right: View Toggle */}
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+          {/* Second Row - Filters and Controls */}
+          <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
             {/* Left Side - Filters */}
-            <div className="flex flex-col sm:flex-row gap-3 order-2 sm:order-1">
-
-            {/* Status Filter - Dropdown Select */}
-            <div className="flex items-center gap-2">
-              <span className={`text-xs font-medium ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-700'
-              }`}>
-                Status:
-              </span>
-              <select
-                value={filters.statusFilter}
-                onChange={(e) => setFilters({ ...filters, statusFilter: e.target.value })}
-                className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                  isDarkMode
-                    ? 'bg-gray-700 border-gray-600 text-white hover:bg-gray-600'
-                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <option value="all">All</option>
-                <option value="pending">Pending</option>
-                <option value="delivered">Delivered</option>
-              </select>
-            </div>
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 order-2 lg:order-1 w-full lg:w-auto">
 
             {/* Sort Filter - Segmented Button Style */}
             <div className="flex items-center gap-2">
@@ -1927,7 +1749,7 @@ export default function OrdersPage() {
               } overflow-hidden`}>
                 <button
                   onClick={() => setFilters({ ...filters, orderFilter: 'latest_first' })}
-                  className={`px-3 py-2 text-sm font-medium transition-all duration-200 ${
+                  className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all duration-200 ${
                     filters.orderFilter === 'latest_first'
                       ? isDarkMode
                         ? 'bg-green-600 text-white border-green-500'
@@ -1941,7 +1763,7 @@ export default function OrdersPage() {
                 </button>
                 <button
                   onClick={() => setFilters({ ...filters, orderFilter: 'oldest_first' })}
-                  className={`px-3 py-2 text-sm font-medium transition-all duration-200 ${
+                  className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all duration-200 ${
                     filters.orderFilter === 'oldest_first'
                       ? isDarkMode
                         ? 'bg-green-600 text-white border-green-500'
@@ -1956,6 +1778,28 @@ export default function OrdersPage() {
             </div>
           </div>
 
+            {/* Status Filter - Dropdown Select */}
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-medium ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                Status:
+              </span>
+              <select
+                value={filters.statusFilter}
+                onChange={(e) => setFilters({ ...filters, statusFilter: e.target.value })}
+                className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg border transition-colors ${
+                  isDarkMode
+                    ? 'bg-gray-700 border-gray-600 text-white hover:bg-gray-600'
+                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <option value="all">All</option>
+                <option value="pending">Pending</option>
+                <option value="delivered">Delivered</option>
+              </select>
+            </div>
+
             {/* Type Filter - Dropdown */}
             <div className="flex items-center gap-2">
               <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -1964,7 +1808,7 @@ export default function OrdersPage() {
               <select
                 value={filters.typeFilter}
                 onChange={(e) => setFilters({ ...filters, typeFilter: e.target.value })}
-                className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg border transition-colors ${
                   isDarkMode
                     ? 'bg-gray-700 border-gray-600 text-white hover:bg-gray-600'
                     : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
@@ -1979,8 +1823,8 @@ export default function OrdersPage() {
 
             </div>
 
-            {/* Right Side - View Toggle */}
-            <div className="flex items-center gap-2 order-1 sm:order-2">
+            {/* Right Side - View Toggle and Refresh */}
+            <div className="flex items-center gap-2 order-1 lg:order-2">
               <span className={`text-xs font-medium ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-700'
               }`}>View:</span>
@@ -1989,7 +1833,7 @@ export default function OrdersPage() {
               }`}>
                 <button
                   onClick={() => handleViewModeChange('table')}
-                  className={`px-3 py-2 text-sm font-medium transition-all duration-200 flex items-center gap-1 ${
+                  className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all duration-200 flex items-center gap-1 ${
                     viewMode === 'table'
                       ? isDarkMode
                         ? 'bg-blue-600 text-white'
@@ -2000,12 +1844,12 @@ export default function OrdersPage() {
                   }`}
                   title="Table View"
                 >
-                  <ListBulletIcon className="h-4 w-4" />
+                  <ListBulletIcon className="h-3 w-3 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Table</span>
                 </button>
                 <button
                   onClick={() => handleViewModeChange('cards')}
-                  className={`px-3 py-2 text-sm font-medium transition-all duration-200 flex items-center gap-1 ${
+                  className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all duration-200 flex items-center gap-1 ${
                     viewMode === 'cards'
                       ? isDarkMode
                         ? 'bg-blue-600 text-white'
@@ -2016,10 +1860,29 @@ export default function OrdersPage() {
                   }`}
                   title="Card View"
                 >
-                  <Squares2X2Icon className="h-4 w-4" />
+                  <Squares2X2Icon className="h-3 w-3 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Cards</span>
                 </button>
               </div>
+
+              {/* Refresh Button - Icon only on small screens */}
+              <button
+                onClick={() => handleRefresh()}
+                disabled={refreshing}
+                className={`inline-flex items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
+                  refreshing
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
+                } ${
+                  isDarkMode
+                    ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-white/30'
+                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                }`}
+                title="Refresh"
+              >
+                <ArrowPathIcon className={`h-3 w-3 sm:h-4 sm:w-4 ${refreshing ? 'animate-spin' : ''} sm:mr-1`} />
+                <span className="text-xs sm:text-sm font-medium hidden sm:inline">Refresh</span>
+              </button>
             </div>
           </div>
         </div>
@@ -2031,10 +1894,8 @@ export default function OrdersPage() {
             }`}>
               <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:space-x-3 lg:space-x-4">
                 <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <span className="hidden sm:inline">Showing {paginationInfo.totalCount > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage) + 1 : 0} to{' '}
-                  {Math.min(currentPage * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage), paginationInfo.totalCount)} of{' '}
-                  {paginationInfo.totalCount} orders</span>
-                  <span className="sm:hidden">{paginationInfo.totalCount > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage) + 1 : 0}-{Math.min(currentPage * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage), paginationInfo.totalCount)} of {paginationInfo.totalCount}</span>
+                  <span className="hidden sm:inline">Showing {paginationDisplayInfo.start} to {paginationDisplayInfo.end} of {paginationDisplayInfo.total} orders</span>
+                  <span className="sm:hidden">{paginationDisplayInfo.start}-{paginationDisplayInfo.end} of {paginationDisplayInfo.total}</span>
                 </span>
                 
                 {/* Items per page dropdown */}

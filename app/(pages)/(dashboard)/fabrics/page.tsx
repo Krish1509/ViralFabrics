@@ -179,11 +179,10 @@ export default function FabricsPage() {
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const [retryCount, setRetryCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [isChangingPage, setIsChangingPage] = useState(false);
 
   // Optimized fetch fabrics with better caching and faster loading
-  const fetchFabrics = async (forceRefresh = false, page = currentPage, limit = itemsPerPage, retryCount = 0) => {
-    console.log('fetchFabrics called with:', { forceRefresh, page, limit, retryCount });
+  const fetchFabrics = async (forceRefresh = false, page = currentPage, limit = itemsPerPage, retryCount = 0, showLoading = true) => {
+    console.log('fetchFabrics called with:', { forceRefresh, page, limit, retryCount, showLoading });
     console.log('Current state:', { currentPage, itemsPerPage });
     
     // Disable caching for now to ensure pagination works correctly
@@ -192,7 +191,10 @@ export default function FabricsPage() {
     //   return; // Use cached data
     // }
     
+    // Only show loading for initial load or manual refresh, not for pagination
+    if (showLoading) {
     setLoading(true);
+    }
     
     try {
       const controller = new AbortController();
@@ -298,11 +300,14 @@ export default function FabricsPage() {
         setError(`Failed to load fabrics: ${error.message || 'Unknown error'}. Please try again.`);
       }
     } finally {
+      // Only hide loading if we showed it
+      if (showLoading) {
       setLoading(false);
+      }
     }
   };
 
-  // Pagination handlers
+  // Pagination handlers - Instant page change without loading
   const handlePageChange = async (newPage: number) => {
     if (newPage === currentPage) return;
     
@@ -312,13 +317,13 @@ export default function FabricsPage() {
       return;
     }
     
-    console.log('Page change:', { from: currentPage, to: newPage, itemsPerPage, totalPages });
-    console.log('Calling fetchFabrics with:', { forceRefresh: false, page: newPage, limit: itemsPerPage });
+    console.log('Instant page change:', { from: currentPage, to: newPage, itemsPerPage, totalPages });
     
-    setIsChangingPage(true);
+    // Instant page change - no loading states
     setCurrentPage(newPage);
-    await fetchFabrics(false, newPage, itemsPerPage);
-    setIsChangingPage(false);
+    
+    // Fetch data in background without showing loading
+    fetchFabrics(false, newPage, itemsPerPage, 0, false);
   };
 
   const handleItemsPerPageChange = async (newItemsPerPage: number | 'All') => {
@@ -327,14 +332,12 @@ export default function FabricsPage() {
     console.log('Items per page change:', { from: itemsPerPage, to: newItemsPerPage });
     console.log('Calling fetchFabrics with:', { forceRefresh: false, page: 1, limit: newItemsPerPage });
     
-    setIsChangingPage(true);
     // Update state first
     setItemsPerPage(newItemsPerPage);
     setCurrentPage(1); // Always reset to first page when changing items per page
     
-    // Then fetch new data
-    await fetchFabrics(false, 1, newItemsPerPage);
-    setIsChangingPage(false);
+    // Then fetch new data without loading
+    await fetchFabrics(false, 1, newItemsPerPage, 0, false);
   };
 
   // Fetch quality names for filter
@@ -457,7 +460,7 @@ export default function FabricsPage() {
       // F5 or Ctrl+R to refresh
       if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
         e.preventDefault();
-        fetchFabrics(true, currentPage, itemsPerPage);
+        fetchFabrics(true, currentPage, itemsPerPage, 0, true);
       }
     };
 
@@ -918,7 +921,7 @@ export default function FabricsPage() {
         `   Weaver Quality: ${f.weaverQualityName}`,
         `   GSM: ${f.gsm || 'N/A'}`,
         `   Weight: ${f.weight || 'N/A'} KG`,
-        `   Width: ${f.finishWidth || 'N/A'}"`,
+        `   Width: ${f.finishWidth || 'N/A'}`,
         `   Rate: ₹${f.greighRate || 'N/A'}`,
         `   Danier: ${f.danier || 'N/A'}`,
         `   Reed: ${f.reed || 'N/A'}`,
@@ -1009,7 +1012,7 @@ export default function FabricsPage() {
   // Reset to page 1 and fetch new data when filters change
   useEffect(() => {
     setCurrentPage(1);
-    fetchFabrics(false, 1, itemsPerPage);
+    fetchFabrics(false, 1, itemsPerPage, 0, false);
   }, [filters, itemsPerPage]);
 
   // Auto-correct current page if it exceeds total pages
@@ -1017,7 +1020,7 @@ export default function FabricsPage() {
     if (currentPage > totalPages && totalPages > 0) {
       console.log('Auto-correcting page:', { currentPage, totalPages });
       setCurrentPage(totalPages);
-      fetchFabrics(false, totalPages, itemsPerPage);
+      fetchFabrics(false, totalPages, itemsPerPage, 0, false);
     }
   }, [totalPages, currentPage, itemsPerPage]);
 
@@ -1165,17 +1168,17 @@ export default function FabricsPage() {
                 <span className={`text-sm font-medium ${
                   isDarkMode ? 'text-gray-300' : 'text-gray-700'
                 }`}>Sort:</span>
-                <div className="flex rounded-lg border overflow-hidden">
+                <div className="flex rounded-lg border overflow-hidden shadow-sm">
                   <button
                     onClick={() => setFilters(prev => ({ ...prev, sortBy: 'createdAt', sortOrder: 'desc' }))}
-                    className={`px-3 py-2 text-sm transition-colors ${
+                    className={`px-3 py-2 text-sm font-medium transition-all duration-200 ${
                       filters.sortBy === 'createdAt' && filters.sortOrder === 'desc'
                         ? isDarkMode
-                          ? 'bg-green-600 text-white'
-                          : 'bg-green-500 text-white'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-blue-500 text-white shadow-md'
                         : isDarkMode
-                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? 'bg-slate-700 text-slate-300 hover:bg-slate-600 border-r border-slate-600'
+                          : 'bg-white text-slate-700 hover:bg-blue-50 border-r border-slate-200'
                     }`}
                     title="Latest First"
                   >
@@ -1183,14 +1186,14 @@ export default function FabricsPage() {
                   </button>
                   <button
                     onClick={() => setFilters(prev => ({ ...prev, sortBy: 'createdAt', sortOrder: 'asc' }))}
-                    className={`px-3 py-2 text-sm transition-colors ${
+                    className={`px-3 py-2 text-sm font-medium transition-all duration-200 ${
                       filters.sortBy === 'createdAt' && filters.sortOrder === 'asc'
                         ? isDarkMode
-                          ? 'bg-green-600 text-white'
-                          : 'bg-green-500 text-white'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-blue-500 text-white shadow-md'
                         : isDarkMode
-                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                          : 'bg-white text-slate-700 hover:bg-blue-50'
                     }`}
                     title="Oldest First"
                   >
@@ -1204,17 +1207,17 @@ export default function FabricsPage() {
                 <span className={`text-sm font-medium ${
                   isDarkMode ? 'text-gray-300' : 'text-gray-700'
                 }`}>View:</span>
-                <div className="flex rounded-lg border overflow-hidden">
+                <div className="flex rounded-lg border overflow-hidden shadow-sm">
                   <button
                     onClick={() => handleViewModeChange('table')}
-                    className={`px-3 py-2 text-sm transition-colors ${
+                    className={`px-3 py-2 text-sm font-medium transition-all duration-200 ${
                       viewMode === 'table'
                         ? isDarkMode
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-blue-500 text-white'
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-emerald-500 text-white shadow-md'
                         : isDarkMode
-                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? 'bg-slate-700 text-slate-300 hover:bg-slate-600 border-r border-slate-600'
+                          : 'bg-white text-slate-700 hover:bg-emerald-50 border-r border-slate-200'
                     }`}
                     title="Table View"
                   >
@@ -1222,14 +1225,14 @@ export default function FabricsPage() {
                   </button>
                   <button
                     onClick={() => handleViewModeChange('cards')}
-                    className={`px-3 py-2 text-sm transition-colors ${
+                    className={`px-3 py-2 text-sm font-medium transition-all duration-200 ${
                       viewMode === 'cards'
                         ? isDarkMode
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-blue-500 text-white'
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-emerald-500 text-white shadow-md'
                         : isDarkMode
-                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                          : 'bg-white text-slate-700 hover:bg-emerald-50'
                     }`}
                     title="Card View"
                   >
@@ -1242,13 +1245,45 @@ export default function FabricsPage() {
 
           {/* Right Side - Action Buttons */}
           <div className="flex items-center space-x-2">
+            {/* Create Order Button */}
+            <button
+              onClick={() => router.push('/orders/create')}
+              className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 text-sm shadow-md hover:shadow-lg ${
+                isDarkMode 
+                  ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white border border-green-500' 
+                  : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white border border-green-400'
+              }`}
+            >
+              <PlusIcon className="h-4 w-4 inline mr-2" />
+              Create Order
+            </button>
+
+            {/* Search Button */}
+            <button
+              onClick={() => {
+                const searchInput = document.querySelector('input[placeholder="Search fabrics..."]') as HTMLInputElement;
+                if (searchInput) {
+                  searchInput.focus();
+                  searchInput.select();
+                }
+              }}
+              className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 text-sm shadow-md hover:shadow-lg ${
+                isDarkMode 
+                  ? 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white border border-purple-500' 
+                  : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white border border-purple-400'
+              }`}
+            >
+              <MagnifyingGlassIcon className="h-4 w-4 inline mr-2" />
+              Search
+            </button>
+
             {/* Add Fabric Button */}
             <button
               onClick={handleCreate}
-              className={`px-4 py-2.5 rounded-lg font-medium transition-colors text-sm ${
+              className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 text-sm shadow-md hover:shadow-lg ${
                 isDarkMode 
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white border border-blue-500' 
+                  : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400'
               }`}
             >
               <PlusIcon className="h-4 w-4 inline mr-2" />
@@ -1257,14 +1292,14 @@ export default function FabricsPage() {
 
             {/* Refresh Button */}
             <button
-              onClick={() => fetchFabrics(true, currentPage, itemsPerPage)}
+              onClick={() => fetchFabrics(true, currentPage, itemsPerPage, 0, true)}
               disabled={loading}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md ${
                 loading ? 'opacity-50 cursor-not-allowed' : ''
               } ${
                 isDarkMode 
-                  ? 'bg-gray-600 hover:bg-gray-700 text-white' 
-                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  ? 'bg-slate-600 hover:bg-slate-700 text-white border border-slate-500' 
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
               }`}
               title="Refresh Data"
             >
@@ -1337,55 +1372,72 @@ export default function FabricsPage() {
         {loading ? (
           <div>
             {viewMode === 'cards' ? (
-              // Card View Skeleton
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+              // Card View Skeleton - Improved
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div key={i} className={`p-3 sm:p-4 lg:p-6 rounded-lg sm:rounded-xl border ${
-                    isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'
-                  } animate-pulse`}>
-                    <div className={`w-full h-32 sm:h-40 lg:h-48 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg mb-3 sm:mb-4`}></div>
-                    <div className={`w-3/4 h-5 sm:h-6 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded mb-1.5 sm:mb-2`}></div>
-                    <div className={`w-1/2 h-3 sm:h-4 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded mb-3 sm:mb-4`}></div>
-                    <div className="space-y-1.5 sm:space-y-2">
-                      <div className={`w-full h-3 sm:h-4 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded`}></div>
-                      <div className={`w-2/3 h-3 sm:h-4 ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded`}></div>
+                  <div key={i} className={`p-4 sm:p-5 rounded-xl border ${
+                    isDarkMode ? 'bg-slate-800/50 border-slate-600' : 'bg-white border-gray-200'
+                  } animate-pulse shadow-sm`}>
+                    {/* Image skeleton */}
+                    <div className={`w-full h-36 sm:h-40 lg:h-44 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-100'} rounded-lg mb-4`}></div>
+                    
+                    {/* Quality info skeleton */}
+                    <div className="mb-3">
+                      <div className={`w-2/3 h-4 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'} rounded mb-2`}></div>
+                      <div className={`w-1/2 h-3 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'} rounded`}></div>
+                    </div>
+                    
+                    {/* Weavers section skeleton */}
+                    <div className={`p-3 rounded-lg border ${
+                      isDarkMode ? 'bg-slate-700/30 border-slate-600' : 'bg-gray-50 border-gray-200'
+                    }`}>
+                      <div className={`w-1/3 h-3 ${isDarkMode ? 'bg-slate-600' : 'bg-gray-200'} rounded mb-2`}></div>
+                      <div className="space-y-2">
+                        <div className={`w-full h-8 ${isDarkMode ? 'bg-slate-600' : 'bg-gray-200'} rounded`}></div>
+                        <div className={`w-3/4 h-8 ${isDarkMode ? 'bg-slate-600' : 'bg-gray-200'} rounded`}></div>
+                      </div>
+                    </div>
+                    
+                    {/* Actions skeleton */}
+                    <div className="mt-4 flex space-x-2">
+                      <div className={`flex-1 h-8 ${isDarkMode ? 'bg-slate-600' : 'bg-gray-200'} rounded`}></div>
+                      <div className={`flex-1 h-8 ${isDarkMode ? 'bg-slate-600' : 'bg-gray-200'} rounded`}></div>
+                      <div className={`flex-1 h-8 ${isDarkMode ? 'bg-slate-600' : 'bg-gray-200'} rounded`}></div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              // Table View Skeleton
-              <div>
-            <div className="mb-6">
-              <div className={`w-48 h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse mb-2`}></div>
-              <div className={`w-64 h-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
-            </div>
-            
+              // Table View Skeleton - Improved
+              <div className="p-4">
             <div className="overflow-x-auto">
-              <table className="w-full">
+                  <table className="w-full min-w-[800px]">
                 <thead className={`${
-                  isDarkMode ? 'bg-gray-900 border-b border-gray-600' : 'bg-gray-50 border-b border-gray-300'
+                      isDarkMode ? 'bg-slate-800/50 border-b border-slate-600' : 'bg-gray-50 border-b border-gray-200'
                 }`}>
                   <tr>
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
-                      <th key={i} className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                          <th key={i} className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                            isDarkMode ? 'text-slate-300' : 'text-gray-500'
                       }`}>
-                        <div className={`w-20 h-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+                            <div className={`w-16 h-3 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${
-                  isDarkMode ? 'divide-gray-700' : 'divide-gray-200'
+                      isDarkMode ? 'divide-slate-700' : 'divide-gray-200'
                 }`}>
                   {[1, 2, 3, 4, 5].map((row) => (
-                    <tr key={row} className={`hover:${
-                      isDarkMode ? 'bg-gray-700/30' : 'bg-gray-100/80'
+                        <tr key={row} className={`${
+                          isDarkMode ? 'bg-slate-800/30 hover:bg-slate-700/40' : 'bg-white hover:bg-gray-50'
                     } transition-all duration-300 ease-in-out`}>
                           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((cell) => (
-                        <td key={cell} className="px-6 py-4">
-                          <div className={`w-24 h-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+                            <td key={cell} className="px-4 py-4">
+                              <div className="space-y-2">
+                                <div className={`w-20 h-3 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+                                <div className={`w-16 h-3 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+                              </div>
                         </td>
                       ))}
                     </tr>
@@ -1464,12 +1516,12 @@ export default function FabricsPage() {
                       const value = e.target.value === 'All' ? 'All' : parseInt(e.target.value);
                       handleItemsPerPageChange(value);
                     }}
-                    disabled={isChangingPage || loading}
+                    disabled={loading}
                     className={`px-2 sm:px-3 py-1 rounded-lg border text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       isDarkMode 
                         ? 'bg-gray-700 border-gray-600 text-white' 
                         : 'bg-white border-gray-300 text-gray-900'
-                    } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     {itemsPerPageOptions.map(option => (
                       <option key={option} value={option}>{option}</option>
@@ -1483,11 +1535,11 @@ export default function FabricsPage() {
                 <div className="flex items-center space-x-1 sm:space-x-2">
                   <button
                     onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1 || isChangingPage || loading}
-                    className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
-                      currentPage === 1 || isChangingPage || loading
-                        ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                    disabled={currentPage === 1}
+                    className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow-md ${
+                      currentPage === 1
+                        ? isDarkMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
                     }`}
                   >
                     <span className="hidden sm:inline">Previous</span>
@@ -1513,12 +1565,11 @@ export default function FabricsPage() {
                         <button
                           key={pageNum}
                           onClick={() => handlePageChange(pageNum)}
-                          disabled={isChangingPage || loading}
-                          className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                          className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow-md ${
                             currentPage === pageNum
-                              ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
-                              : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-                          } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                              : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
+                          }`}
                         >
                           {pageNum}
                         </button>
@@ -1528,11 +1579,11 @@ export default function FabricsPage() {
                   
                   <button
                     onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages || isChangingPage || loading}
-                    className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
-                      currentPage === totalPages || isChangingPage || loading
-                        ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                    disabled={currentPage === totalPages}
+                    className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow-md ${
+                      currentPage === totalPages
+                        ? isDarkMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
                     }`}
                   >
                     Next
@@ -1854,7 +1905,7 @@ export default function FabricsPage() {
                                           Finish:
                                         </div>
                                         <div className={`font-bold ${isDarkMode ? 'text-teal-300' : 'text-teal-600'}`}>
-                                          {fabric.finishWidth > 0 ? `${fabric.finishWidth}"` : '-'}
+                                          {fabric.finishWidth > 0 ? fabric.finishWidth : '-'}
                                         </div>
                                       </div>
                                       
@@ -2269,12 +2320,12 @@ export default function FabricsPage() {
                                    <div className={`mb-1.5 sm:mb-2 font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                                      <span className="hidden sm:inline">Greigh:</span>
                                      <span className="sm:hidden">G:</span>
-                                     <span className={`font-bold ${isDarkMode ? 'text-green-300' : 'text-green-600'}`}>{fabric.greighWidth > 0 ? `${fabric.greighWidth}"` : '-'}</span>
+                                     <span className={`font-bold ${isDarkMode ? 'text-green-300' : 'text-green-600'}`}>{fabric.greighWidth > 0 ? fabric.greighWidth : '-'}</span>
                                     </div>
                                    <div className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                                      <span className="hidden sm:inline">Finish:</span>
                                      <span className="sm:hidden">F:</span>
-                                     <span className={`font-bold ${isDarkMode ? 'text-teal-300' : 'text-teal-600'}`}>{fabric.finishWidth > 0 ? `${fabric.finishWidth}"` : '-'}</span>
+                                     <span className={`font-bold ${isDarkMode ? 'text-teal-300' : 'text-teal-600'}`}>{fabric.finishWidth > 0 ? fabric.finishWidth : '-'}</span>
                                   </div>
                                 </div>
                               ))}
@@ -2436,10 +2487,10 @@ export default function FabricsPage() {
               <button
                 onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md ${
                   currentPage === 1
-                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                      ? isDarkMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
                 }`}
               >
                 <span className="hidden sm:inline">Previous</span>
@@ -2464,10 +2515,10 @@ export default function FabricsPage() {
                     <button
                       key={pageNum}
                       onClick={() => handlePageChange(pageNum)}
-                        className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-colors ${
+                        className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow-md ${
                         currentPage === pageNum
                             ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
-                            : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                            : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
                       }`}
                     >
                       {pageNum}
@@ -2479,10 +2530,10 @@ export default function FabricsPage() {
               <button
                 onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md ${
                   currentPage === totalPages
-                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                      ? isDarkMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
                 }`}
               >
                 Next
@@ -2636,7 +2687,7 @@ export default function FabricsPage() {
             {showImageModal.fabric.images && showImageModal.fabric.images.length > 1 && (
               <div className={`border-t ${
                 isDarkMode ? 'border-gray-700' : 'border-gray-200'
-              }`}>
+              }`}>                  
                 <div className="flex justify-center space-x-2">
                   {showImageModal.fabric.images.map((_, index) => (
                     <button

@@ -79,25 +79,29 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
   const hasActiveFilters = startDate || endDate || orderType !== 'all' || financialYear !== 'all';
 
   return (
-    <div className={`rounded-xl border shadow-lg p-4 sm:p-6 mb-6 sm:mb-8 transition-all duration-500 ${
+    <div className={`rounded-xl border shadow-lg p-2 sm:p-3 mb-2 sm:mb-3 transition-all duration-500 ${
       isDarkMode 
-        ? 'bg-slate-800/80 border-slate-700 shadow-slate-900/30 backdrop-blur-sm' 
-        : 'bg-white/80 border-gray-200 shadow-gray-200/50 backdrop-blur-sm'
+        ? 'bg-slate-800/90 border-slate-600 shadow-slate-900/50 backdrop-blur-sm' 
+        : 'bg-white/90 border-gray-200 shadow-gray-200/50 backdrop-blur-sm'
     }`}>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <FunnelIcon className={`w-5 h-5 transition-colors duration-300 ${
             isDarkMode ? 'text-gray-400' : 'text-gray-600'
           }`} />
           <h3 className={`text-base sm:text-lg font-semibold transition-colors duration-300 ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
+            isDarkMode ? 'text-gray-100' : 'text-gray-900'
           }`}>Filters</h3>
         </div>
         <div className="flex items-center gap-2">
           {hasActiveFilters && (
             <button
               onClick={handleClearFilters}
-              className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50"
+              className={`flex items-center gap-1 px-3 py-1 text-sm border rounded-md transition-colors duration-300 ${
+                isDarkMode 
+                  ? 'text-gray-300 hover:text-gray-100 border-slate-600 hover:bg-slate-700' 
+                  : 'text-gray-600 hover:text-gray-800 border-gray-300 hover:bg-gray-50'
+              }`}
             >
               <XMarkIcon className="w-4 h-4" />
               Clear
@@ -105,15 +109,20 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
           )}
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 border border-blue-300 rounded-md hover:bg-blue-50"
+            className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-300 ${
+              isDarkMode 
+                ? 'bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600 text-gray-300 hover:text-white' 
+                : 'bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-600 hover:text-gray-800'
+            }`}
           >
-            {showFilters ? 'Hide' : 'Show'} Filters
+            <FunnelIcon className="w-4 h-4" />
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
           </button>
         </div>
       </div>
 
       {showFilters && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
           {/* Date Range */}
           <div className="space-y-2">
             <label className={`block text-sm font-medium transition-colors duration-300 ${
@@ -131,8 +140,8 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
                 onChange={(e) => setStartDate(e.target.value)}
                 className={`w-full pl-10 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-300 ${
                   isDarkMode 
-                    ? 'bg-slate-700 border-slate-600 text-white' 
-                    : 'bg-white border-gray-300 text-gray-900'
+                    ? 'bg-slate-700 border-slate-500 text-gray-100 placeholder-gray-400' 
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
                 }`}
               />
             </div>
@@ -154,8 +163,8 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
                 onChange={(e) => setEndDate(e.target.value)}
                 className={`w-full pl-10 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-300 ${
                   isDarkMode 
-                    ? 'bg-slate-700 border-slate-600 text-white' 
-                    : 'bg-white border-gray-300 text-gray-900'
+                    ? 'bg-slate-700 border-slate-500 text-gray-100 placeholder-gray-400' 
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
                 }`}
               />
             </div>
@@ -173,7 +182,7 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
               onChange={(e) => setOrderType(e.target.value)}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-300 ${
                 isDarkMode 
-                  ? 'bg-slate-700 border-slate-600 text-white' 
+                  ? 'bg-slate-700 border-slate-500 text-gray-100' 
                   : 'bg-white border-gray-300 text-gray-900'
               }`}
             >
@@ -195,7 +204,7 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
               onChange={(e) => setFinancialYear(e.target.value)}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-300 ${
                 isDarkMode 
-                  ? 'bg-slate-700 border-slate-600 text-white' 
+                  ? 'bg-slate-700 border-slate-500 text-gray-100' 
                   : 'bg-white border-gray-300 text-gray-900'
               }`}
             >
@@ -211,7 +220,7 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
       )}
 
       {showFilters && (
-        <div className="mt-4 flex justify-end">
+        <div className="mt-2 flex justify-end">
           <button
             onClick={handleApplyFilters}
             disabled={loading}
@@ -224,7 +233,7 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
 
       {/* Active Filters Display */}
       {hasActiveFilters && (
-        <div className="mt-4 pt-4 border-t">
+        <div className="mt-2 pt-2 border-t">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium text-gray-700">Active filters:</span>
             {startDate && (

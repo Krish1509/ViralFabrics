@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   ShoppingBagIcon, 
@@ -100,7 +100,7 @@ export default function DashboardPage() {
 
       // Fetch all orders first to calculate statistics
       const allOrdersParams = new URLSearchParams();
-      allOrdersParams.append('limit', '1000'); // Get more orders for better statistics
+      allOrdersParams.append('limit', '500'); // Reduced limit for faster loading
       if (filters.orderType !== 'all') allOrdersParams.append('orderType', filters.orderType);
 
       const allOrdersResponse = await fetch(`/api/orders?${allOrdersParams}`, {
@@ -186,7 +186,7 @@ export default function DashboardPage() {
           pendingTypeStats,
           deliveredTypeStats,
           monthlyTrends,
-          recentOrders: allOrders.slice(0, 10)
+          recentOrders: allOrders.slice(0, 5)
         });
 
         // Filter orders for tables with better logic
@@ -217,7 +217,7 @@ export default function DashboardPage() {
         })).sort((a: Order, b: Order) => {
           // Sort by creation date (newest first)
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        }).slice(0, 10);
+        }).slice(0, 5);
         
         // Remove unassigned orders - they're now included in pending
 
@@ -238,7 +238,7 @@ export default function DashboardPage() {
             return new Date(b.deliveryDate).getTime() - new Date(a.deliveryDate).getTime();
           }
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        }).slice(0, 10);
+        }).slice(0, 5);
 
         // Filter orders for upcoming deliveries (all future deliveries)
 
@@ -352,17 +352,17 @@ export default function DashboardPage() {
     };
   }, [mounted, fetchDashboardData]); // Include fetchDashboardData in dependencies
 
-  const handleFiltersChange = (newFilters: DashboardFilters) => {
+  const handleFiltersChange = useCallback((newFilters: DashboardFilters) => {
     setFilters(newFilters);
-  };
+  }, []);
 
-  const handleViewOrder = (order: Order) => {
+  const handleViewOrder = useCallback((order: Order) => {
     router.push(`/dashboard/orders/orderdetails?id=${order._id}`);
-  };
+  }, [router]);
 
-  const handleEditOrder = (order: Order) => {
+  const handleEditOrder = useCallback((order: Order) => {
     router.push(`/dashboard/orders?edit=${order._id}`);
-  };
+  }, [router]);
 
   const handleManualRefresh = async () => {
     console.log('Dashboard: Manual refresh triggered');
@@ -380,25 +380,24 @@ export default function DashboardPage() {
   // Show loading skeleton for initial load
   if (loading && !stats) {
     return (
-      <div className={`min-h-screen transition-all duration-500 ${isDarkMode ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'}`}>
-        <div className="max-w-7xl mx-auto px-1 sm:px-2 lg:px-3 xl:px-4 py-4 sm:py-6 lg:py-8">
+      <div className="min-h-screen">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
           {/* Header Skeleton */}
           <div className="mb-6 sm:mb-8">
-            <div className="h-8 bg-gray-200 animate-pulse rounded-lg w-48 mb-2"></div>
-            <div className="h-4 bg-gray-200 animate-pulse rounded-lg w-64"></div>
+            <div className={`h-8 animate-pulse rounded-lg w-32 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>
           </div>
           
           {/* Metrics Cards Skeleton */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-24 bg-gray-200 animate-pulse rounded-lg"></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className={`h-24 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>
             ))}
           </div>
           
           {/* Tables Skeleton */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8">
             {[1, 2].map((i) => (
-              <div key={i} className="h-64 bg-gray-200 animate-pulse rounded-lg"></div>
+              <div key={i} className={`h-64 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>
             ))}
           </div>
         </div>
@@ -407,58 +406,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className={`min-h-screen transition-all duration-500 ${isDarkMode ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'}`}>
-      <div className="max-w-7xl mx-auto px-1 sm:px-2 lg:px-3 xl:px-4 py-4 sm:py-6 lg:py-8">
-        {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className={`text-2xl sm:text-3xl lg:text-4xl font-bold transition-all duration-500 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                Dashboard
-              </h1>
-              <p className={`mt-1 sm:mt-2 text-sm sm:text-base transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                Overview of your orders and business metrics
-              </p>
-            </div>
-            <div className="mt-4 sm:mt-0 flex items-center gap-3">
-              <button
-                onClick={handleManualRefresh}
-                disabled={loading}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-300 ${
-                  loading 
-                    ? 'opacity-50 cursor-not-allowed' 
-                    : 'hover:scale-105 active:scale-95'
-                } ${
-                  isDarkMode 
-                    ? 'bg-slate-700 hover:bg-slate-600 border border-slate-600' 
-                    : 'bg-white hover:bg-gray-50 border border-gray-300'
-                }`}
-                title="Refresh Dashboard Data"
-              >
-                <ArrowPathIcon className={`w-4 h-4 transition-colors duration-300 ${
-                  loading ? 'animate-spin' : ''
-                } ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`} />
-                <span className={`text-xs sm:text-sm font-medium transition-colors duration-300 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                }`}>
-                  {loading ? 'Refreshing...' : 'Refresh'}
-                </span>
-              </button>
-              <div className={`px-4 py-2 rounded-lg transition-all duration-300 ${isDarkMode ? 'bg-slate-800/50 border border-slate-700' : 'bg-white/50 border border-gray-200'}`}>
-                <div className="flex items-center gap-2">
-                  {autoRefreshing && (
-                    <ArrowPathIcon className={`w-3 h-3 animate-spin transition-colors duration-300 ${
-                      isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                    }`} />
-                  )}
-                  <p className={`text-xs sm:text-sm font-medium transition-colors duration-300 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {autoRefreshing ? 'Auto-refreshing...' : `Last updated: ${new Date().toLocaleTimeString()}`}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+    <div className="min-h-screen">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
 
         {/* Success Message */}
         {successMessage && (
@@ -505,7 +454,7 @@ export default function DashboardPage() {
 
         {/* Metrics Cards - Updated */}
         {stats && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
             <MetricsCard
               title="Total Orders"
               value={stats.totalOrders}
@@ -527,18 +476,11 @@ export default function DashboardPage() {
               color="green"
               subtitle="Successfully completed"
             />
-            <MetricsCard
-              title="In Progress"
-              value={stats.statusStats.in_progress}
-              icon={ExclamationTriangleIcon}
-              color="indigo"
-              subtitle="Currently processing"
-            />
           </div>
         )}
 
         {/* Professional Pie Charts Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8" data-section="charts">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8" data-section="charts">
           {/* Pending Orders Pie Chart */}
           {stats && (
             <EnhancedProfessionalPieChart 
@@ -582,16 +524,14 @@ export default function DashboardPage() {
             orders={upcomingDeliveryOrders}
             title="Upcoming Deliveries"
             loading={loading}
-            onViewOrder={handleViewOrder}
-            onEditOrder={handleEditOrder}
           />
         </div>
 
         {/* Status Overview and Recent Activity */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8" data-section="activity">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8" data-section="activity">
           {/* Status Chart */}
           {stats && loadedSections.activity && (
-            <Suspense fallback={<div className="h-64 bg-gray-200 animate-pulse rounded-lg"></div>}>
+            <Suspense fallback={<div className={`h-64 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>}>
               <StatusChart 
                 data={stats.statusStats}
                 title="Order Status Overview"
@@ -601,39 +541,13 @@ export default function DashboardPage() {
 
           {/* Recent Activity */}
           {loadedSections.activity && (
-            <Suspense fallback={<div className="h-64 bg-gray-200 animate-pulse rounded-lg"></div>}>
+            <Suspense fallback={<div className={`h-64 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>}>
               <RecentActivity userRole="superadmin" />
             </Suspense>
           )}
         </div>
 
 
-        {/* Quick Actions */}
-        <div className={`mt-6 sm:mt-8 rounded-lg border p-3 transition-all duration-500 ${
-          isDarkMode 
-            ? 'bg-slate-800/50 border-slate-700' 
-            : 'bg-white border-gray-200'
-        }`}>
-          <h3 className={`text-sm font-semibold mb-3 transition-colors duration-300 ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
-          }`}>Quick Actions</h3>
-          <div className="flex gap-2">
-            <button
-              onClick={() => router.push('/dashboard/orders')}
-              className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
-            >
-              <ShoppingBagIcon className="w-4 h-4" />
-              View Orders
-            </button>
-            <button
-              onClick={() => router.push('/dashboard/fabrics')}
-              className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-sm"
-            >
-              <ShoppingBagIcon className="w-4 h-4" />
-              Fabrics
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

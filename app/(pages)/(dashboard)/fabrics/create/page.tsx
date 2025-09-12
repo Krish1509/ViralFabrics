@@ -1445,7 +1445,7 @@ export default function CreateFabricPage() {
                  )}
                  {!isEditMode && (
                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                     Quality code will be checked for uniqueness. Multiple items can share the same quality code.
+                     Quality code will be checked for uniqueness.
                    </p>
                  )}
                  {isQualityCodeValid && !isEditMode && (
@@ -1454,7 +1454,7 @@ export default function CreateFabricPage() {
                        <svg className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                        </svg>
-                       <span className="flex-1">Quality code is available and unique!</span>
+                       <span className="flex-1">Available!</span>
                      </p>
                    </div>
                  )}

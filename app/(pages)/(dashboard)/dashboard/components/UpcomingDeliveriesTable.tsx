@@ -3,14 +3,10 @@
 import React, { useState, useMemo } from 'react';
 import { Order } from '@/types';
 import { 
-  EyeIcon, 
-  PencilIcon, 
-  TrashIcon,
   CalendarIcon,
   BuildingOfficeIcon,
   DocumentTextIcon,
   TruckIcon,
-  ClockIcon,
   FunnelIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../../hooks/useDarkMode';
@@ -19,9 +15,6 @@ interface UpcomingDeliveriesTableProps {
   orders: Order[];
   title: string;
   loading?: boolean;
-  onViewOrder?: (order: Order) => void;
-  onEditOrder?: (order: Order) => void;
-  onDeleteOrder?: (order: Order) => void;
 }
 
 type DeliveryFilter = 'all' | 'tomorrow' | 'next7days' | 'next30days' | 'custom';
@@ -29,10 +22,7 @@ type DeliveryFilter = 'all' | 'tomorrow' | 'next7days' | 'next30days' | 'custom'
 export default function UpcomingDeliveriesTable({ 
   orders, 
   title, 
-  loading = false,
-  onViewOrder,
-  onEditOrder,
-  onDeleteOrder
+  loading = false
 }: UpcomingDeliveriesTableProps) {
   const { isDarkMode } = useDarkMode();
   const [deliveryFilter, setDeliveryFilter] = useState<DeliveryFilter>('next7days');
@@ -331,11 +321,6 @@ export default function UpcomingDeliveriesTable({
                 }`}>
                   Status
                 </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider transition-colors duration-300 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                }`}>
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody className={`divide-y transition-colors duration-300 ${
@@ -412,49 +397,6 @@ export default function UpcomingDeliveriesTable({
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status || 'Not set')}`}>
                       {order.status || 'Not set'}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center space-x-2">
-                      {onViewOrder && (
-                        <button
-                          onClick={() => onViewOrder(order)}
-                          className={`p-1 rounded transition-colors duration-300 ${
-                            isDarkMode 
-                              ? 'text-blue-400 hover:text-blue-300 hover:bg-blue-900/20' 
-                              : 'text-blue-600 hover:text-blue-800 hover:bg-blue-50'
-                          }`}
-                          title="View Order"
-                        >
-                          <EyeIcon className="w-4 h-4" />
-                        </button>
-                      )}
-                      {onEditOrder && (
-                        <button
-                          onClick={() => onEditOrder(order)}
-                          className={`p-1 rounded transition-colors duration-300 ${
-                            isDarkMode 
-                              ? 'text-green-400 hover:text-green-300 hover:bg-green-900/20' 
-                              : 'text-green-600 hover:text-green-800 hover:bg-green-50'
-                          }`}
-                          title="Edit Order"
-                        >
-                          <PencilIcon className="w-4 h-4" />
-                        </button>
-                      )}
-                      {onDeleteOrder && (
-                        <button
-                          onClick={() => onDeleteOrder(order)}
-                          className={`p-1 rounded transition-colors duration-300 ${
-                            isDarkMode 
-                              ? 'text-red-400 hover:text-red-300 hover:bg-red-900/20' 
-                              : 'text-red-600 hover:text-red-800 hover:bg-red-50'
-                          }`}
-                          title="Delete Order"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
                   </td>
                 </tr>
               ))}
