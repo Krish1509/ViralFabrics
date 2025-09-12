@@ -37,36 +37,30 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Optimized dark mode script - prevents flash and improves performance */}
+        {/* Hydration-safe dark mode script */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
-                  // Use a more efficient approach to prevent flash
-                  var darkMode = localStorage.getItem('darkMode');
-                  var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                  var shouldBeDark = darkMode !== null ? darkMode === 'true' : prefersDark;
+                  // Check localStorage for saved preference
+                  var savedTheme = localStorage.getItem('darkMode');
+                  var systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                   
-                  // Apply theme immediately
-                  if (shouldBeDark) {
+                  // Determine initial theme
+                  var isDark = savedTheme !== null ? savedTheme === 'true' : systemPrefersDark;
+                  
+                  // Apply theme immediately to prevent flash
+                  if (isDark) {
                     document.documentElement.classList.add('dark');
-                    document.body.style.backgroundColor = '#111827';
                   } else {
                     document.documentElement.classList.remove('dark');
-                    document.body.style.backgroundColor = '#f9fafb';
                   }
                   
-                  // Store the initial state for components
-                  window.__INITIAL_THEME__ = shouldBeDark;
+                  // Store initial theme state
+                  window.__INITIAL_THEME__ = isDark;
                 } catch (e) {
-                  // Fallback to system preference
-                  var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                  if (prefersDark) {
-                    document.documentElement.classList.add('dark');
-                    document.body.style.backgroundColor = '#111827';
-                  }
-                  window.__INITIAL_THEME__ = prefersDark;
+                  // Silent fallback - let CSS handle default
                 }
               })();
             `,
@@ -76,20 +70,15 @@ export default function RootLayout({
         {/* PWA Manifest */}
         <link rel="manifest" href="/manifest.json" />
         
-        {/* Optimized styles for better performance */}
+        {/* Hydration-safe styles */}
         <style
-          type="text/css"
           dangerouslySetInnerHTML={{
             __html: `
               /* Prevent layout shift during theme transition */
               body {
-                background-color: #111827;
                 transition: background-color 0.2s ease;
                 margin: 0;
                 padding: 0;
-              }
-              body:not(.dark) {
-                background-color: #f9fafb;
               }
               
               /* Optimize font rendering */
@@ -101,6 +90,16 @@ export default function RootLayout({
               /* Reduce layout shift */
               html {
                 scroll-behavior: smooth;
+              }
+              
+              /* Default light theme - will be overridden by dark class */
+              body {
+                background-color: #f9fafb;
+              }
+              
+              /* Dark theme */
+              .dark body {
+                background-color: #111827;
               }
             `,
           }}

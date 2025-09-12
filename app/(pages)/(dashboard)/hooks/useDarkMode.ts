@@ -15,13 +15,7 @@ interface DarkModeReturn {
 
 export function useDarkMode(): DarkModeReturn {
   // Initialize with the theme from the optimized script in layout.tsx
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      // Use the initial theme set by the layout script
-      return (window as any).__INITIAL_THEME__ ?? false;
-    }
-    return false;
-  });
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   
   const [mounted, setMounted] = useState<boolean>(false);
 
@@ -49,13 +43,15 @@ export function useDarkMode(): DarkModeReturn {
   useEffect(() => {
     setMounted(true);
     
-    // Only update if needed (prevents unnecessary re-renders)
-    const savedMode = localStorage.getItem('darkMode');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    const expectedMode = savedMode !== null ? savedMode === 'true' : prefersDark;
-    
-    if (expectedMode !== isDarkMode) {
+    // Initialize theme from the layout script or localStorage
+    const initialTheme = (window as any).__INITIAL_THEME__;
+    if (initialTheme !== undefined) {
+      setIsDarkMode(initialTheme);
+    } else {
+      // Fallback to localStorage and system preference
+      const savedMode = localStorage.getItem('darkMode');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const expectedMode = savedMode !== null ? savedMode === 'true' : prefersDark;
       setIsDarkMode(expectedMode);
     }
 

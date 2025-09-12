@@ -111,7 +111,7 @@ export const generateOrderPDF = (order: OrderData): void => {
   doc.text('PO NO:', leftCol + cellWidth1 + 2, headerRowY + 5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 43, 89); // #002b59 color
-  doc.text(order.poNumber || '', leftCol + cellWidth1 + 15, headerRowY + 5);
+  doc.text(order.poNumber || '', leftCol + cellWidth1 + 18, headerRowY + 5);
   doc.setTextColor(0, 0, 0); // Reset to black
   
   // PO DATE cell
@@ -322,8 +322,8 @@ export const generateOrderPDF = (order: OrderData): void => {
     doc.setFontSize(8);
     doc.text('TOTAL:', rightCol + 2, tableY + 5);
     doc.setTextColor(0, 43, 89); // #002b59 color
-    doc.text('52', rightCol + (colWidth * 2) + 2, tableY + 5); // Show "52" like in image
-    doc.text('5713.25', rightCol + (colWidth * 3) + 2, tableY + 5); // Show "5713.25" like in image
+    doc.text('', rightCol + (colWidth * 2) + 2, tableY + 5); // Empty field
+    doc.text('', rightCol + (colWidth * 3) + 2, tableY + 5); // Empty field
     doc.setTextColor(0, 0, 0); // Reset to black
     
     // No vertical lines - single field without internal dividers
@@ -347,7 +347,7 @@ export const generateOrderPDF = (order: OrderData): void => {
     const section1Width = fullTableWidth * 0.30; // ISSUE TO MILL - 30%
     const section2Width = fullTableWidth * 0.40; // REC FROM MILL - 40%
     const section3Width = fullTableWidth * 0.30; // SALES - 30%
-    const tableHeight = 80; // Compact table height
+    const tableHeight = 68; // Adjusted table height for 6 data rows + 1 TOTAL row
     const rowHeight = 10; // Compact row height
     
     // First row - Main headers with borders
@@ -443,12 +443,12 @@ export const generateOrderPDF = (order: OrderData): void => {
     // Add horizontal line after all column headers
     doc.line(5, headerY + 8, 5 + fullTableWidth, headerY + 8);
     
-    // Add 7 empty data rows + 1 TOTAL row
+    // Add 6 empty data rows + 1 TOTAL row
     const dataRowHeight = 8; // Height of each row
     let currentDataRowY = headerY + 8; // Start after the horizontal line
     
-    // Draw 7 data rows
-    for (let i = 0; i < 7; i++) {
+    // Draw 6 data rows
+    for (let i = 0; i < 6; i++) {
       currentDataRowY += dataRowHeight;
       
       // Draw horizontal line for this row

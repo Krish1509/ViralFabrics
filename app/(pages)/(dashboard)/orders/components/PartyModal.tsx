@@ -4,9 +4,6 @@ import { useState } from 'react';
 import { 
   XMarkIcon,
   BuildingOfficeIcon,
-  UserIcon,
-  PhoneIcon,
-  MapPinIcon,
   ExclamationTriangleIcon,
   CheckIcon
 } from '@heroicons/react/24/outline';
@@ -19,9 +16,6 @@ interface PartyModalProps {
 
 interface PartyFormData {
   name: string;
-  contactName: string;
-  contactPhone: string;
-  address: string;
 }
 
 interface ValidationErrors {
@@ -31,10 +25,7 @@ interface ValidationErrors {
 export default function PartyModal({ onClose, onSuccess }: PartyModalProps) {
   const { isDarkMode, mounted } = useDarkMode();
   const [formData, setFormData] = useState<PartyFormData>({
-    name: '',
-    contactName: '',
-    contactPhone: '',
-    address: ''
+    name: ''
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -45,10 +36,6 @@ export default function PartyModal({ onClose, onSuccess }: PartyModalProps) {
 
     if (!formData.name.trim()) {
       newErrors.name = 'Party name is required';
-    }
-
-    if (formData.contactPhone && !/^[\+]?[1-9][\d]{0,15}$/.test(formData.contactPhone.replace(/\s/g, ''))) {
-      newErrors.contactPhone = 'Please enter a valid phone number';
     }
 
     return newErrors;
@@ -210,7 +197,7 @@ export default function PartyModal({ onClose, onSuccess }: PartyModalProps) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Party Name */}
+          {/* Party Name - Only Field */}
           <div>
             <label className={`block text-sm font-medium mb-2 ${
               isDarkMode ? 'text-gray-300' : 'text-gray-700'
@@ -233,86 +220,6 @@ export default function PartyModal({ onClose, onSuccess }: PartyModalProps) {
             {getFieldError('name') && (
               <p className="mt-1 text-sm text-red-500">{getFieldError('name')}</p>
             )}
-          </div>
-
-          {/* Contact Name */}
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${
-              isDarkMode ? 'text-gray-300' : 'text-gray-700'
-            }`}>
-              Contact Name
-            </label>
-            <div className="relative">
-              <UserIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-              }`} />
-              <input
-                type="text"
-                value={formData.contactName}
-                onChange={(e) => handleFieldChange('contactName', e.target.value)}
-                className={`w-full pl-10 pr-3 py-2 rounded-lg border transition-colors duration-300 ${
-                  isDarkMode
-                    ? 'bg-white/10 border-white/20 text-white focus:border-green-500'
-                    : 'bg-white border-gray-300 text-gray-900 focus:border-green-500'
-                }`}
-                placeholder="Enter contact name"
-              />
-            </div>
-          </div>
-
-          {/* Contact Phone */}
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${
-              isDarkMode ? 'text-gray-300' : 'text-gray-700'
-            }`}>
-              Contact Phone
-            </label>
-            <div className="relative">
-              <PhoneIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-              }`} />
-              <input
-                type="tel"
-                value={formData.contactPhone}
-                onChange={(e) => handleFieldChange('contactPhone', e.target.value)}
-                className={`w-full pl-10 pr-3 py-2 rounded-lg border transition-colors duration-300 ${
-                  getFieldError('contactPhone')
-                    ? 'border-red-500'
-                    : isDarkMode
-                      ? 'bg-white/10 border-white/20 text-white focus:border-green-500'
-                      : 'bg-white border-gray-300 text-gray-900 focus:border-green-500'
-                }`}
-                placeholder="Enter phone number"
-              />
-            </div>
-            {getFieldError('contactPhone') && (
-              <p className="mt-1 text-sm text-red-500">{getFieldError('contactPhone')}</p>
-            )}
-          </div>
-
-          {/* Address */}
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${
-              isDarkMode ? 'text-gray-300' : 'text-gray-700'
-            }`}>
-              Address
-            </label>
-            <div className="relative">
-              <MapPinIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-              }`} />
-              <textarea
-                value={formData.address}
-                onChange={(e) => handleFieldChange('address', e.target.value)}
-                rows={3}
-                className={`w-full pl-10 pr-3 py-2 rounded-lg border transition-colors duration-300 resize-none ${
-                  isDarkMode
-                    ? 'bg-white/10 border-white/20 text-white focus:border-green-500'
-                    : 'bg-white border-gray-300 text-gray-900 focus:border-green-500'
-                }`}
-                placeholder="Enter address"
-              />
-            </div>
           </div>
 
           {/* Footer */}

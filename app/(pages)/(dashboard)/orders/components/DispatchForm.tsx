@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   XMarkIcon, 
   PlusIcon,
@@ -8,10 +8,12 @@ import {
   DocumentTextIcon,
   ExclamationTriangleIcon,
   CheckIcon,
-  TrashIcon
+  TrashIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
 import { Order } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
+import { createPortal } from 'react-dom';
 
 // Enhanced Dropdown Component (copied from MillOutputForm)
 interface EnhancedDropdownProps {
@@ -196,6 +198,384 @@ interface ValidationErrors {
   [key: string]: string;
 }
 
+// Custom Date Picker Component (from LabDataModal)
+function CustomDatePicker({ 
+  value, 
+  onChange, 
+  placeholder, 
+  isDarkMode 
+}: { 
+  value: string; 
+  onChange: (value: string) => void; 
+  placeholder: string; 
+  isDarkMode: boolean; 
+}) {
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [inputValue, setInputValue] = useState('');
+  const [showYearPicker, setShowYearPicker] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  // Format date for display (dd/mm/yyyy)
+  const formatDateForDisplay = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return date.toLocaleDateString('en-GB'); // dd/mm/yyyy format
+  };
+
+  // Use the shared date parsing function
+  const parseDateFromDisplay = (inputValue: string) => {
+    if (!inputValue) return '';
+    
+    // Handle dd/mm/yyyy format
+    const parts = inputValue.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1;
+      const year = parseInt(parts[2]);
+      
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      }
+    }
+    
+    return '';
+  };
+
+  const handleDateSelect = (date: Date) => {
+    const formattedDate = date.toISOString().split('T')[0];
+    onChange(formattedDate);
+    setInputValue(formatDateForDisplay(formattedDate));
+    setShowCalendar(false);
+    setShowMonthPicker(false);
+    setShowYearPicker(false);
+  };
+
+  const clearDate = () => {
+    onChange('');
+    setInputValue('');
+    setShowCalendar(false);
+  };
+
+  // Update input value when value prop changes
+  useEffect(() => {
+    setInputValue(formatDateForDisplay(value));
+  }, [value]);
+
+  // Close calendar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (calendarRef.current && !calendarRef.current.contains(event.target as Node) &&
+          dateInputRef.current && !dateInputRef.current.contains(event.target as Node)) {
+        setShowCalendar(false);
+      }
+    };
+
+    if (showCalendar) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showCalendar]);
+
+  // Handle keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && showCalendar) {
+      setShowCalendar(false);
+    } else if (e.key === 'Escape') {
+      setShowCalendar(false);
+    } else if (e.key === 'Tab') {
+      setShowCalendar(false);
+    }
+  };
+
+  // Prevent form validation when interacting with calendar
+  const handleCalendarClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay();
+    
+    const days = [];
+    for (let i = 0; i < startingDay; i++) {
+      days.push(null);
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(new Date(year, month, i));
+    }
+    return days;
+  };
+
+  const days = getDaysInMonth(currentDate);
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <input
+          ref={dateInputRef}
+          type="text"
+          value={inputValue}
+          onChange={(e) => {
+            const value = e.target.value;
+            setInputValue(value);
+            // Only try to parse if it looks like a complete date
+            if (value.length >= 8) {
+              const parsedDate = parseDateFromDisplay(value);
+              if (parsedDate) {
+                onChange(parsedDate);
+              }
+            } else {
+              onChange('');
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder="dd/mm/yyyy"
+          onFocus={() => setShowCalendar(true)}
+          required
+          className={`w-full p-3 pr-12 rounded-lg border ${
+            isDarkMode 
+              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+          } focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+        />
+        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+          {value && (
+            <button
+              type="button"
+              onClick={clearDate}
+              className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                isDarkMode ? 'text-gray-400 hover:text-red-400' : 'text-gray-500 hover:text-red-500'
+              }`}
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowCalendar(!showCalendar)}
+            className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+              isDarkMode ? 'text-gray-400 hover:text-blue-400' : 'text-gray-500 hover:text-blue-500'
+            }`}
+          >
+            <CalendarIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {showCalendar && createPortal(
+        <div 
+          ref={calendarRef}
+          onClick={handleCalendarClick}
+          className={`fixed z-[9999999] p-2 rounded-lg border shadow-2xl calendar-container date-picker max-w-xs ${
+            isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+          }`}
+          style={{
+            top: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().bottom - 0 : '50%',
+            left: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().left : '50%',
+            transform: dateInputRef.current ? 'translateY(0)' : 'translate(-50%, -50%)'
+          }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+              }}
+              className={`p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}
+            >
+              <ChevronDownIcon className="h-4 w-4 transform rotate-90" />
+            </button>
+            
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowMonthPicker(!showMonthPicker);
+                }}
+                className={`px-3 py-1 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 font-semibold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                {monthNames[currentDate.getMonth()]}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowYearPicker(!showYearPicker);
+                }}
+                className={`px-3 py-1 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 font-semibold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                {currentDate.getFullYear()}
+              </button>
+            </div>
+            
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+              }}
+              className={`p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}
+            >
+              <ChevronDownIcon className="h-4 w-4 transform -rotate-90" />
+            </button>
+          </div>
+
+          {/* Quick Navigation Buttons */}
+          <div className="flex items-center justify-center gap-1 mb-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date());
+              }}
+              className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+                isDarkMode 
+                  ? 'bg-blue-500 hover:bg-blue-600 text-white' 
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+            >
+              Today
+            </button>
+          </div>
+
+          {/* Month Picker */}
+          {showMonthPicker && (
+            <div className={`mb-4 p-2 rounded-lg ${
+              isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
+            }`}>
+              <div className="grid grid-cols-3 gap-1">
+                {monthNames.map((month, index) => (
+                  <button
+                    key={month}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentDate(new Date(currentDate.getFullYear(), index));
+                      setShowMonthPicker(false);
+                      setShowYearPicker(false);
+                    }}
+                    className={`p-2 text-sm rounded-lg transition-colors ${
+                      index === currentDate.getMonth()
+                        ? 'bg-blue-500 text-white'
+                        : isDarkMode 
+                          ? 'hover:bg-gray-600 text-white' 
+                          : 'hover:bg-gray-200 text-gray-900'
+                    }`}
+                  >
+                    {month.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Year Picker */}
+          {showYearPicker && (
+            <div className={`mb-4 p-2 rounded-lg ${
+              isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
+            }`}>
+              <div className="grid grid-cols-3 gap-1">
+                {Array.from({ length: 12 }, (_, i) => currentDate.getFullYear() - 5 + i).map((year) => (
+                  <button
+                    key={year}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentDate(new Date(year, currentDate.getMonth()));
+                      setShowYearPicker(false);
+                      setShowMonthPicker(false);
+                    }}
+                    className={`p-2 text-sm rounded-lg transition-colors ${
+                      year === currentDate.getFullYear()
+                        ? 'bg-blue-500 text-white'
+                        : isDarkMode 
+                          ? 'hover:bg-gray-600 text-white' 
+                          : 'hover:bg-gray-200 text-gray-900'
+                    }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+              <div key={day} className={`text-center text-xs font-medium p-1 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {days.map((day, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  day && handleDateSelect(day);
+                }}
+                disabled={!day}
+                className={`p-1 text-xs rounded-lg transition-colors ${
+                  !day ? 'invisible' :
+                  day.toDateString() === new Date().toDateString() 
+                    ? 'bg-blue-500 text-white' :
+                  value === day.toISOString().split('T')[0]
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                  `hover:bg-gray-200 dark:hover:bg-white/10 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`
+                }`}
+              >
+                {day?.getDate()}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 export default function DispatchForm({ 
   order, 
   onClose, 
@@ -279,8 +659,8 @@ export default function DispatchForm({
         const key = `${dispatch.dispatchDate}_${dispatch.billNo}`;
         if (!groups[key]) {
           groups[key] = {
-          dispatchDate: dispatch.dispatchDate,
-          billNo: dispatch.billNo,
+            dispatchDate: dispatch.dispatchDate,
+            billNo: dispatch.billNo,
             subItems: []
           };
         }
@@ -310,7 +690,7 @@ export default function DispatchForm({
       console.log('New form data to be set:', newFormData);
       setFormData(newFormData);
       console.log('Form data set successfully');
-      } catch (error) {
+    } catch (error) {
       console.error('Error loading existing dispatches:', error);
     } finally {
       setLoadingExistingData(false);
@@ -498,25 +878,25 @@ export default function DispatchForm({
 
     formData.dispatchItems.forEach((item, itemIndex) => {
       // Validate dispatch item fields
-      if (!item.dispatchDate) {
+      if (!item.dispatchDate || item.dispatchDate.trim() === '') {
         newErrors[`dispatchDate_${item.id}`] = 'Dispatch date is required';
       }
 
-      if (!item.billNo?.trim()) {
+      if (!item.billNo || item.billNo.trim() === '') {
         newErrors[`billNo_${item.id}`] = 'Bill number is required';
       }
 
       // Validate sub-items (main quality & finish items)
       (item.subItems || []).forEach((subItem, subIndex) => {
-        if (!subItem.finishMtr || parseFloat(subItem.finishMtr) <= 0) {
+        if (!subItem.finishMtr || subItem.finishMtr.trim() === '' || parseFloat(subItem.finishMtr) <= 0) {
           newErrors[`finishMtr_${subItem.id}`] = 'Valid finish meters is required';
         }
 
-        if (!subItem.saleRate || parseFloat(subItem.saleRate) <= 0) {
+        if (!subItem.saleRate || subItem.saleRate.trim() === '' || parseFloat(subItem.saleRate) <= 0) {
           newErrors[`saleRate_${subItem.id}`] = 'Valid sale rate is required';
         }
 
-        if (!subItem.quality?.trim()) {
+        if (!subItem.quality || subItem.quality.trim() === '') {
           newErrors[`quality_${subItem.id}`] = 'Quality is required';
         }
       });
@@ -557,33 +937,35 @@ export default function DispatchForm({
 
   // Function to create new dispatches
   const createNewDispatches = async () => {
+    const token = localStorage.getItem('token');
     const allDispatchPromises: Promise<any>[] = [];
 
     formData.dispatchItems.forEach((item) => {
       // Create dispatches for sub-items only
       (item.subItems || []).forEach((subItem) => {
         const subDispatchData = {
-        orderId: formData.orderId,
-        dispatchDate: item.dispatchDate,
-        billNo: item.billNo.trim(),
+          orderId: formData.orderId,
+          dispatchDate: item.dispatchDate,
+          billNo: item.billNo.trim(),
           finishMtr: parseFloat(subItem.finishMtr),
           saleRate: parseFloat(subItem.saleRate),
           quality: subItem.quality
-      };
+        };
 
         console.log('DispatchForm: Sending dispatch data:', subDispatchData);
         console.log('DispatchForm: Quality value:', subItem.quality);
         console.log('DispatchForm: Quality type:', typeof subItem.quality);
 
-      allDispatchPromises.push(
-        fetch('/api/dispatch', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+        allDispatchPromises.push(
+          fetch('/api/dispatch', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
             body: JSON.stringify(subDispatchData)
-        }).then(response => response.json())
-      );
+          }).then(response => response.json())
+        );
       });
     });
 
@@ -604,17 +986,21 @@ export default function DispatchForm({
 
   // Function to update existing dispatches
   const updateExistingDispatches = async () => {
+    const token = localStorage.getItem('token');
+    
     // First delete existing dispatches for this order
     const deletePromises = existingDispatches.map((dispatch: any) =>
       fetch(`/api/dispatch/${dispatch._id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         }
       })
     );
 
-    await Promise.all(deletePromises);
+    const deleteResults = await Promise.all(deletePromises);
+    console.log('Delete results:', deleteResults);
 
     // Then create new ones with updated data
     await createNewDispatches();
@@ -763,25 +1149,12 @@ export default function DispatchForm({
               }`}>
                             Dispatch Date <span className="text-red-500">*</span>
               </label>
-                          <div className="relative">
-              <input
-                type="date"
-                              value={item.dispatchDate}
-                              onChange={(e) => updateDispatchItem(item.id, 'dispatchDate', e.target.value)}
-                              className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                errors[`dispatchDate_${item.id}`]
-                                  ? isDarkMode
-                                    ? 'border-red-500 bg-gray-800 text-white'
-                                    : 'border-red-500 bg-white text-gray-900'
-                    : isDarkMode
-                                    ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                                    : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                              }`}
-                            />
-                            <CalendarIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
-                              isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                            }`} />
-                          </div>
+                          <CustomDatePicker
+                            value={item.dispatchDate}
+                            onChange={(value) => updateDispatchItem(item.id, 'dispatchDate', value)}
+                            placeholder="Select dispatch date"
+                            isDarkMode={isDarkMode}
+                          />
                           {errors[`dispatchDate_${item.id}`] && (
                             <p className={`text-sm mt-1 ${
                               isDarkMode ? 'text-red-400' : 'text-red-600'
@@ -804,6 +1177,7 @@ export default function DispatchForm({
                               value={item.billNo}
                               onChange={(e) => updateDispatchItem(item.id, 'billNo', e.target.value)}
                 placeholder="Enter bill number"
+                required
                               className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                 errors[`billNo_${item.id}`]
                                   ? isDarkMode
@@ -913,6 +1287,7 @@ export default function DispatchForm({
                                 placeholder="Enter finish meters"
                                 step="0.01"
                                 min="0"
+                                required
                             className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                     errors[`finishMtr_${subItem.id}`]
                                     ? isDarkMode
@@ -946,15 +1321,16 @@ export default function DispatchForm({
                             placeholder="Enter sale rate"
                                   step="0.01"
                                   min="0"
+                                  required
                             className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                     errors[`saleRate_${subItem.id}`]
                                 ? isDarkMode
                                   ? 'border-red-500 bg-gray-800 text-white'
                                   : 'border-red-500 bg-white text-gray-900'
                                 : isDarkMode
-                                      ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
-                                      : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                                  }`}
+                                  ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
+                                  : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
+                            }`}
                                 />
                                 {errors[`saleRate_${subItem.id}`] && (
                                   <p className={`text-sm mt-1 ${

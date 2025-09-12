@@ -158,21 +158,10 @@ export async function POST(request: NextRequest) {
     console.log('Mill Output API: MillOutput created successfully:', millOutput._id);
     console.log('Mill Output API: Created mill output object:', millOutput.toObject());
 
-    // Safely populate the order and quality references
-    let populatedMillOutput;
-    try {
-      populatedMillOutput = await millOutput.populate('order quality');
-      console.log('Mill Output API: Successfully populated order and quality');
-    } catch (populateError) {
-      console.log('Mill Output API: Populate failed, using unpopulated document:', populateError);
-      populatedMillOutput = millOutput;
-    }
-
-    // Return raw mill output to debug quality field
+    // Return the created mill output
     return NextResponse.json({
       success: true,
       data: millOutput.toObject(),
-      populatedData: populatedMillOutput,
       message: 'Mill output created successfully'
     });
 

@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
         pcs: parseInt(additional.pcs),
         quality: additional.quality || undefined,
         notes: additional.notes?.trim()
-      })) : undefined,
+      })) : [],
       notes: notes?.trim()
     });
 
@@ -217,11 +217,13 @@ export async function POST(request: NextRequest) {
       chalanNo,
       greighMtr,
       pcs,
-      additionalMeters: millInput.additionalMeters
+      additionalMeters: millInput.additionalMeters,
+      additionalMetersLength: millInput.additionalMeters?.length || 0
     });
 
     await millInput.save();
     console.log('Mill input saved successfully with ID:', millInput._id);
+    console.log('Saved mill input additionalMeters:', millInput.additionalMeters);
 
     // Get the final record (newly created) - populate quality safely
     let finalMillInput;
@@ -240,6 +242,8 @@ export async function POST(request: NextRequest) {
         .populate('order', 'orderId orderType party')
         .lean();
     }
+    
+    console.log('Final retrieved mill input additionalMeters:', (finalMillInput as any)?.additionalMeters || 'No additionalMeters found');
 
     try {
       await logCreate('mill_input', (finalMillInput as any)?._id?.toString() || 'unknown', { 

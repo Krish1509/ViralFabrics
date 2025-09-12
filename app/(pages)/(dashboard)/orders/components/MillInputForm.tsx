@@ -17,6 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Order, Mill, Quality } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
+import { createPortal } from 'react-dom';
 
 interface MillItem {
   id: string;
@@ -48,6 +49,384 @@ interface MillInputFormProps {
 
 interface ValidationErrors {
   [key: string]: string;
+}
+
+// Custom Date Picker Component (from LabDataModal)
+function CustomDatePicker({ 
+  value, 
+  onChange, 
+  placeholder, 
+  isDarkMode 
+}: { 
+  value: string; 
+  onChange: (value: string) => void; 
+  placeholder: string; 
+  isDarkMode: boolean; 
+}) {
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [inputValue, setInputValue] = useState('');
+  const [showYearPicker, setShowYearPicker] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  // Format date for display (dd/mm/yyyy)
+  const formatDateForDisplay = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return date.toLocaleDateString('en-GB'); // dd/mm/yyyy format
+  };
+
+  // Use the shared date parsing function
+  const parseDateFromDisplay = (inputValue: string) => {
+    if (!inputValue) return '';
+    
+    // Handle dd/mm/yyyy format
+    const parts = inputValue.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1;
+      const year = parseInt(parts[2]);
+      
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      }
+    }
+    
+    return '';
+  };
+
+  const handleDateSelect = (date: Date) => {
+    const formattedDate = date.toISOString().split('T')[0];
+    onChange(formattedDate);
+    setInputValue(formatDateForDisplay(formattedDate));
+    setShowCalendar(false);
+    setShowMonthPicker(false);
+    setShowYearPicker(false);
+  };
+
+  const clearDate = () => {
+    onChange('');
+    setInputValue('');
+    setShowCalendar(false);
+  };
+
+  // Update input value when value prop changes
+  useEffect(() => {
+    setInputValue(formatDateForDisplay(value));
+  }, [value]);
+
+  // Close calendar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (calendarRef.current && !calendarRef.current.contains(event.target as Node) &&
+          dateInputRef.current && !dateInputRef.current.contains(event.target as Node)) {
+        setShowCalendar(false);
+      }
+    };
+
+    if (showCalendar) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showCalendar]);
+
+  // Handle keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && showCalendar) {
+      setShowCalendar(false);
+    } else if (e.key === 'Escape') {
+      setShowCalendar(false);
+    } else if (e.key === 'Tab') {
+      setShowCalendar(false);
+    }
+  };
+
+  // Prevent form validation when interacting with calendar
+  const handleCalendarClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay();
+    
+    const days = [];
+    for (let i = 0; i < startingDay; i++) {
+      days.push(null);
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(new Date(year, month, i));
+    }
+    return days;
+  };
+
+  const days = getDaysInMonth(currentDate);
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <input
+          ref={dateInputRef}
+          type="text"
+          value={inputValue}
+          onChange={(e) => {
+            const value = e.target.value;
+            setInputValue(value);
+            // Only try to parse if it looks like a complete date
+            if (value.length >= 8) {
+              const parsedDate = parseDateFromDisplay(value);
+              if (parsedDate) {
+                onChange(parsedDate);
+              }
+            } else {
+              onChange('');
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder="dd/mm/yyyy"
+          onFocus={() => setShowCalendar(true)}
+          required
+          className={`w-full p-3 pr-12 rounded-lg border ${
+            isDarkMode 
+              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+          } focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+        />
+        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+          {value && (
+            <button
+              type="button"
+              onClick={clearDate}
+              className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                isDarkMode ? 'text-gray-400 hover:text-red-400' : 'text-gray-500 hover:text-red-500'
+              }`}
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowCalendar(!showCalendar)}
+            className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+              isDarkMode ? 'text-gray-400 hover:text-blue-400' : 'text-gray-500 hover:text-blue-500'
+            }`}
+          >
+            <CalendarIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {showCalendar && createPortal(
+        <div 
+          ref={calendarRef}
+          onClick={handleCalendarClick}
+          className={`fixed z-[9999999] p-2 rounded-lg border shadow-2xl calendar-container date-picker max-w-xs ${
+            isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+          }`}
+          style={{
+            top: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().top - 10 : '50%',
+            left: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().left : '50%',
+            transform: dateInputRef.current ? 'translateY(-100%)' : 'translate(-50%, -50%)'
+          }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+              }}
+              className={`p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}
+            >
+              <ChevronDownIcon className="h-4 w-4 transform rotate-90" />
+            </button>
+            
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowMonthPicker(!showMonthPicker);
+                }}
+                className={`px-3 py-1 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 font-semibold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                {monthNames[currentDate.getMonth()]}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowYearPicker(!showYearPicker);
+                }}
+                className={`px-3 py-1 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 font-semibold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                {currentDate.getFullYear()}
+              </button>
+            </div>
+            
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+              }}
+              className={`p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}
+            >
+              <ChevronDownIcon className="h-4 w-4 transform -rotate-90" />
+            </button>
+          </div>
+
+          {/* Quick Navigation Buttons */}
+          <div className="flex items-center justify-center gap-1 mb-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date());
+              }}
+              className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+                isDarkMode 
+                  ? 'bg-blue-500 hover:bg-blue-600 text-white' 
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+            >
+              Today
+            </button>
+          </div>
+
+          {/* Month Picker */}
+          {showMonthPicker && (
+            <div className={`mb-4 p-2 rounded-lg ${
+              isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
+            }`}>
+              <div className="grid grid-cols-3 gap-1">
+                {monthNames.map((month, index) => (
+                  <button
+                    key={month}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentDate(new Date(currentDate.getFullYear(), index));
+                      setShowMonthPicker(false);
+                      setShowYearPicker(false);
+                    }}
+                    className={`p-2 text-sm rounded-lg transition-colors ${
+                      index === currentDate.getMonth()
+                        ? 'bg-blue-500 text-white'
+                        : isDarkMode 
+                          ? 'hover:bg-gray-600 text-white' 
+                          : 'hover:bg-gray-200 text-gray-900'
+                    }`}
+                  >
+                    {month.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Year Picker */}
+          {showYearPicker && (
+            <div className={`mb-4 p-2 rounded-lg ${
+              isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
+            }`}>
+              <div className="grid grid-cols-3 gap-1">
+                {Array.from({ length: 12 }, (_, i) => currentDate.getFullYear() - 5 + i).map((year) => (
+                  <button
+                    key={year}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentDate(new Date(year, currentDate.getMonth()));
+                      setShowYearPicker(false);
+                      setShowMonthPicker(false);
+                    }}
+                    className={`p-2 text-sm rounded-lg transition-colors ${
+                      year === currentDate.getFullYear()
+                        ? 'bg-blue-500 text-white'
+                        : isDarkMode 
+                          ? 'hover:bg-gray-600 text-white' 
+                          : 'hover:bg-gray-200 text-gray-900'
+                    }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+              <div key={day} className={`text-center text-xs font-medium p-1 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {days.map((day, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  day && handleDateSelect(day);
+                }}
+                disabled={!day}
+                className={`p-1 text-xs rounded-lg transition-colors ${
+                  !day ? 'invisible' :
+                  day.toDateString() === new Date().toDateString() 
+                    ? 'bg-blue-500 text-white' :
+                  value === day.toISOString().split('T')[0]
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                  `hover:bg-gray-200 dark:hover:bg-white/10 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`
+                }`}
+              >
+                {day?.getDate()}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
 }
 
 // Enhanced Dropdown Component
@@ -108,6 +487,19 @@ function EnhancedDropdown({
 
   // Get selected item name for display
   const selectedItem = options.find(option => (option._id || (option as any).id) === value);
+  
+  // Debug: Log quality selection details
+  if (placeholder?.includes('quality')) {
+    console.log('EnhancedDropdown quality debug:', {
+      value,
+      valueType: typeof value,
+      optionsCount: options.length,
+      selectedItem,
+      selectedItemName: selectedItem?.name,
+      firstOption: options[0],
+      firstOptionId: options[0]?._id
+    });
+  }
   const displayValue = selectedItem ? selectedItem.name : searchValue;
 
   return (
@@ -365,7 +757,7 @@ export default function MillInputForm({
         mill: '',
         millItems: [{
           id: '1',
-          millDate: '1',
+          millDate: '',
           chalanNo: '',
           greighMtr: '',
           pcs: '',
@@ -393,6 +785,37 @@ export default function MillInputForm({
     console.log('existingMillInputs:', existingMillInputs);
     console.log('existingMillInputs.length:', existingMillInputs.length);
     
+    // Debug: Log each existing mill input in detail
+    existingMillInputs.forEach((input: any, index: number) => {
+      console.log(`Existing Mill Input ${index}:`, {
+        _id: input._id,
+        orderId: input.orderId,
+        mill: input.mill,
+        millDate: input.millDate,
+        chalanNo: input.chalanNo,
+        greighMtr: input.greighMtr,
+        pcs: input.pcs,
+        quality: input.quality,
+        additionalMeters: input.additionalMeters,
+        notes: input.notes
+      });
+      
+      // Debug: Log additionalMeters array in detail
+      if (input.additionalMeters && Array.isArray(input.additionalMeters)) {
+        console.log(`Additional Meters for input ${index}:`, input.additionalMeters);
+        input.additionalMeters.forEach((additional: any, addIndex: number) => {
+          console.log(`  Additional Meter ${addIndex}:`, {
+            greighMtr: additional.greighMtr,
+            pcs: additional.pcs,
+            quality: additional.quality,
+            _id: additional._id
+          });
+        });
+      } else {
+        console.log(`No additionalMeters array found for input ${index}`);
+      }
+    });
+    
     if (!order || existingMillInputs.length === 0) {
       console.log('Early return - no order or existing inputs');
       return;
@@ -411,22 +834,46 @@ export default function MillInputForm({
         const newFormData = {
           orderId: order.orderId,
           mill: firstGroup.millId,
-          millItems: groupedInputs.map((group, index) => ({
-            id: (index + 1).toString(),
-            millDate: group.millDate,
-            chalanNo: group.chalanNo,
-            greighMtr: group.mainInput.greighMtr.toString(),
-            pcs: group.mainInput.pcs.toString(),
-            quality: group.mainInput.quality || '', // Add quality field
-            additionalMeters: group.additionalInputs.map((input: any) => ({
-              meters: input.greighMtr.toString(),
-              pieces: input.pcs.toString(),
-              quality: input.quality || '' // Add quality field
-            }))
-          }))
+          millItems: groupedInputs.map((group, index) => {
+            console.log(`Mapping group ${index}:`, group);
+            console.log(`Group additionalInputs:`, group.additionalInputs);
+            console.log(`Group mainInput quality:`, group.mainInput.quality);
+            console.log(`Group mainInput quality type:`, typeof group.mainInput.quality);
+            
+            const mappedItem = {
+              id: (index + 1).toString(),
+              millDate: group.millDate,
+              chalanNo: group.chalanNo,
+              greighMtr: group.mainInput.greighMtr.toString(),
+              pcs: group.mainInput.pcs.toString(),
+              quality: group.mainInput.quality?._id || group.mainInput.quality || '', // Extract quality ID
+              additionalMeters: group.additionalInputs.map((input: any) => {
+                console.log(`Mapping additional input:`, input);
+                return {
+                  meters: input.greighMtr.toString(),
+                  pieces: input.pcs.toString(),
+                  quality: input.quality?._id || input.quality || '' // Extract quality ID
+                };
+              })
+            };
+            
+            console.log(`Final mapped item ${index} additionalMeters:`, mappedItem.additionalMeters);
+            console.log(`Final mapped item ${index} quality:`, mappedItem.quality);
+            
+            console.log(`Mapped item ${index}:`, mappedItem);
+            return mappedItem;
+          })
         };
         
         console.log('New form data to be set:', newFormData);
+        console.log('Form data millItems:', newFormData.millItems);
+        newFormData.millItems.forEach((item: any, index: number) => {
+          console.log(`Form item ${index} additionalMeters:`, item.additionalMeters);
+          console.log(`Form item ${index} quality:`, item.quality);
+        });
+        
+        console.log('Available qualities:', qualities);
+        console.log('Available qualities count:', qualities?.length || 0);
         setFormData(newFormData);
         console.log('Form data set successfully');
       } else {
@@ -451,6 +898,7 @@ export default function MillInputForm({
       console.log('input.mill:', input.mill);
       console.log('input.mill._id:', input.mill?._id);
       console.log('input.chalanNo:', input.chalanNo);
+      console.log('input.additionalMeters:', input.additionalMeters);
       
       const existingGroup = groups.find(group => 
         group.millId === input.mill._id && group.chalanNo === input.chalanNo
@@ -466,7 +914,29 @@ export default function MillInputForm({
         });
       } else {
         console.log('Creating new group');
-        // Create new group
+        // Create new group with main input and any additional meters from the database
+        const additionalInputs: any[] = [];
+        
+        // Add the main input as the first additional input if it has additional meters
+        if (input.additionalMeters && Array.isArray(input.additionalMeters) && input.additionalMeters.length > 0) {
+          console.log(`Processing ${input.additionalMeters.length} additional meters for input ${index}`);
+          input.additionalMeters.forEach((additional: any, addIndex: number) => {
+            console.log(`  Processing additional meter ${addIndex}:`, additional);
+            additionalInputs.push({
+              greighMtr: additional.greighMtr,
+              pcs: additional.pcs,
+              quality: additional.quality || ''
+            });
+          });
+        } else {
+          console.log(`No additional meters found for input ${index} or additionalMeters is not an array`);
+        }
+        
+        // IMPORTANT: If we have additional meters, we need to create a form structure that includes
+        // both the main input (M1) and the additional inputs (M2, M3, etc.)
+        // The main input should be the first item in the form, and additional meters should be
+        // the additional items that get rendered as M2, M3, etc.
+        
         groups.push({
           millId: input.mill._id,
           millDate: input.millDate,
@@ -476,7 +946,7 @@ export default function MillInputForm({
             pcs: input.pcs,
             quality: input.quality || ''
           },
-          additionalInputs: []
+          additionalInputs: additionalInputs
         });
       }
     });
@@ -726,36 +1196,36 @@ export default function MillInputForm({
   const validateForm = () => {
     const newErrors: ValidationErrors = {};
 
-    if (!formData.mill) {
+    if (!formData.mill || formData.mill.trim() === '') {
       newErrors.mill = 'Please select a mill';
     }
 
     formData.millItems.forEach((item, itemIndex) => {
-      if (!item.quality) {
+      if (!item.quality || item.quality.trim() === '') {
         newErrors[`quality_${item.id}`] = 'Quality is required';
       }
-      if (!item.millDate) {
+      if (!item.millDate || item.millDate.trim() === '') {
         newErrors[`millDate_${item.id}`] = 'Mill date is required';
       }
-      if (!item.chalanNo) {
+      if (!item.chalanNo || item.chalanNo.trim() === '') {
         newErrors[`chalanNo_${item.id}`] = 'Chalan number is required';
       }
-      if (!item.greighMtr) {
-        newErrors[`greighMtr_${item.id}`] = 'Greigh meters is required';
+      if (!item.greighMtr || item.greighMtr.trim() === '' || parseFloat(item.greighMtr) <= 0) {
+        newErrors[`greighMtr_${item.id}`] = 'Valid greigh meters is required';
       }
-      if (!item.pcs) {
-        newErrors[`pcs_${item.id}`] = 'Number of pieces is required';
+      if (!item.pcs || item.pcs.trim() === '' || parseInt(item.pcs) <= 0) {
+        newErrors[`pcs_${item.id}`] = 'Valid number of pieces is required';
       }
 
       item.additionalMeters.forEach((additional, additionalIndex) => {
-        if (!additional.quality) {
+        if (!additional.quality || additional.quality.trim() === '') {
           newErrors[`additionalQuality_${item.id}_${additionalIndex}`] = 'Quality is required';
         }
-        if (!additional.meters) {
-          newErrors[`additionalMeters_${item.id}_${additionalIndex}_meters`] = 'Additional meters is required';
+        if (!additional.meters || additional.meters.trim() === '' || parseFloat(additional.meters) <= 0) {
+          newErrors[`additionalMeters_${item.id}_${additionalIndex}_meters`] = 'Valid additional meters is required';
         }
-        if (!additional.pieces) {
-          newErrors[`additionalMeters_${item.id}_${additionalIndex}_pieces`] = 'Additional pieces is required';
+        if (!additional.pieces || additional.pieces.trim() === '' || parseInt(additional.pieces) <= 0) {
+          newErrors[`additionalMeters_${item.id}_${additionalIndex}_pieces`] = 'Valid additional pieces is required';
         }
       });
     });
@@ -824,7 +1294,7 @@ export default function MillInputForm({
         greighMtr: parseFloat(item.greighMtr),
         pcs: parseInt(item.pcs),
         quality: item.quality, // Add quality field
-        additionalMeters: additionalMeters.length > 0 ? additionalMeters : undefined,
+        additionalMeters: additionalMeters.length > 0 ? additionalMeters : [],
         notes: ''
       };
 
@@ -1091,12 +1561,6 @@ export default function MillInputForm({
                     Mill Name <span className="text-red-500">*</span>
                 </label>
                 
-                {/* Debug info */}
-                <div className={`text-xs mb-2 p-2 rounded ${
-                  isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
-                }`}>
-                  Debug: Mills count: {mills.length} | Type: {typeof mills} | Is Array: {Array.isArray(mills).toString()}
-                </div>
                 
                 {mills.length === 0 ? (
                   <div className={`p-4 text-center rounded-lg border ${
@@ -1176,25 +1640,12 @@ export default function MillInputForm({
                         }`}>
                             Mill Date <span className="text-red-500">*</span>
                         </label>
-                        <div className="relative">
-                          <input
-                            type="date"
-                            value={item.millDate}
-                            onChange={(e) => updateMillItem(item.id, 'millDate', e.target.value)}
-                              className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                              errors[`millDate_${item.id}`]
-                                ? isDarkMode
-                                    ? 'border-red-500 bg-gray-800 text-white'
-                                    : 'border-red-500 bg-white text-gray-900'
-                                : isDarkMode
-                                    ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                                    : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                            }`}
-                          />
-                          <CalendarIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
-                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                          }`} />
-                        </div>
+                        <CustomDatePicker
+                          value={item.millDate}
+                          onChange={(value) => updateMillItem(item.id, 'millDate', value)}
+                          placeholder="Select mill date"
+                          isDarkMode={isDarkMode}
+                        />
                         {errors[`millDate_${item.id}`] && (
                           <p className={`text-sm mt-1 ${
                             isDarkMode ? 'text-red-400' : 'text-red-600'
@@ -1216,6 +1667,7 @@ export default function MillInputForm({
                           value={item.chalanNo}
                           onChange={(e) => updateMillItem(item.id, 'chalanNo', e.target.value)}
                           placeholder="Enter chalan number"
+                          required
                             className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                             errors[`chalanNo_${item.id}`]
                               ? isDarkMode
@@ -1305,6 +1757,7 @@ export default function MillInputForm({
                                 placeholder="Enter meters"
                                 min="0"
                                 step="0.01"
+                                required
                                 className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                   isDarkMode 
                                     ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
@@ -1329,6 +1782,7 @@ export default function MillInputForm({
                                 onChange={(e) => updateMillItem(item.id, 'pcs', e.target.value)}
                                 placeholder="Enter pieces"
                                 min="0"
+                                required
                                 className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                   isDarkMode
                                     ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
@@ -1397,6 +1851,7 @@ export default function MillInputForm({
                                   placeholder="Enter meters"
                                   min="0"
                                   step="0.01"
+                                  required
                                   className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                     isDarkMode 
                                       ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
@@ -1421,6 +1876,7 @@ export default function MillInputForm({
                                   onChange={(e) => updateAdditionalMeters(item.id, index, 'pieces', e.target.value)}
                                   placeholder="Enter pieces"
                                   min="0"
+                                  required
                                   className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                     isDarkMode
                                       ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 

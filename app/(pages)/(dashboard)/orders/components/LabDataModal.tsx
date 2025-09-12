@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Calendar, Hash, CheckCircle, Trash2, Plus, Edit3, BeakerIcon, Clock, FileText } from 'lucide-react';
+import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { OrderItem } from '@/types';
 import { ChevronDownIcon, CalendarIcon, XMarkIcon } from '@heroicons/react/24/outline';
@@ -32,7 +33,7 @@ interface LabDataModalProps {
   onLabDataUpdate: () => void;
 }
 
-// Custom Date Picker Component
+// Custom Date Picker Component (from OrderForm)
 function CustomDatePicker({ 
   value, 
   onChange, 
@@ -49,14 +50,8 @@ function CustomDatePicker({
   const [inputValue, setInputValue] = useState('');
   const [showYearPicker, setShowYearPicker] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
 
   // Format date for display (dd/mm/yyyy)
   const formatDateForDisplay = (dateString: string) => {
@@ -64,6 +59,28 @@ function CustomDatePicker({
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return dateString;
     return date.toLocaleDateString('en-GB'); // dd/mm/yyyy format
+  };
+
+  // Use the shared date parsing function
+  const parseDateFromDisplay = (inputValue: string) => {
+    if (!inputValue) return '';
+    
+    // Handle dd/mm/yyyy format
+    const parts = inputValue.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1;
+      const year = parseInt(parts[2]);
+      
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      }
+    }
+    
+    return '';
   };
 
   const handleDateSelect = (date: Date) => {
@@ -154,16 +171,9 @@ function CustomDatePicker({
             setInputValue(value);
             // Only try to parse if it looks like a complete date
             if (value.length >= 8) {
-              // Simple date parsing for dd/mm/yyyy format
-              const parts = value.split('/');
-              if (parts.length === 3) {
-                const day = parseInt(parts[0]);
-                const month = parseInt(parts[1]) - 1;
-                const year = parseInt(parts[2]);
-                const date = new Date(year, month, day);
-                if (!isNaN(date.getTime())) {
-                  onChange(date.toISOString().split('T')[0]);
-                }
+              const parsedDate = parseDateFromDisplay(value);
+              if (parsedDate) {
+                onChange(parsedDate);
               }
             } else {
               onChange('');
@@ -174,7 +184,7 @@ function CustomDatePicker({
           onFocus={() => setShowCalendar(true)}
           className={`w-full p-3 pr-12 rounded-lg border ${
             isDarkMode 
-              ? 'bg-white/10 border-white/20 text-white placeholder-gray-400' 
+              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
               : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
           } focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
         />
@@ -202,20 +212,20 @@ function CustomDatePicker({
         </div>
       </div>
 
-      {showCalendar && mounted && createPortal(
+      {showCalendar && createPortal(
         <div 
           ref={calendarRef}
           onClick={handleCalendarClick}
-          className={`fixed z-[9999999] p-4 rounded-lg border shadow-2xl calendar-container date-picker max-w-sm ${
-            isDarkMode ? 'bg-[#1D293D] border-white/20' : 'bg-white border-gray-200'
+          className={`fixed z-[9999999] p-2 rounded-lg border shadow-2xl calendar-container date-picker max-w-xs ${
+            isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
           }`}
           style={{
-            top: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().bottom + 10 : '50%',
+            top: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().top - 10 : '50%',
             left: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().left : '50%',
-            transform: 'translateX(-50%)'
+            transform: dateInputRef.current ? 'translateY(-100%)' : 'translate(-50%, -50%)'
           }}
         >
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-2">
             <button
               type="button"
               onClick={(e) => {
@@ -275,7 +285,7 @@ function CustomDatePicker({
           </div>
 
           {/* Quick Navigation Buttons */}
-          <div className="flex items-center justify-center gap-2 mb-4">
+          <div className="flex items-center justify-center gap-1 mb-2">
             <button
               type="button"
               onClick={(e) => {
@@ -283,7 +293,7 @@ function CustomDatePicker({
                 e.stopPropagation();
                 setCurrentDate(new Date());
               }}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
                 isDarkMode 
                   ? 'bg-blue-500 hover:bg-blue-600 text-white' 
                   : 'bg-blue-500 hover:bg-blue-600 text-white'
@@ -291,27 +301,12 @@ function CustomDatePicker({
             >
               Today
             </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setCurrentDate(new Date(currentDate.getFullYear() + 10, currentDate.getMonth()));
-              }}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                isDarkMode 
-                  ? 'bg-green-500 hover:bg-green-600 text-white' 
-                  : 'bg-green-500 hover:bg-green-600 text-white'
-              }`}
-            >
-              +10 Years
-            </button>
           </div>
 
           {/* Month Picker */}
           {showMonthPicker && (
             <div className={`mb-4 p-2 rounded-lg ${
-              isDarkMode ? 'bg-white/10' : 'bg-gray-100'
+              isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
             }`}>
               <div className="grid grid-cols-3 gap-1">
                 {monthNames.map((month, index) => (
@@ -329,7 +324,7 @@ function CustomDatePicker({
                       index === currentDate.getMonth()
                         ? 'bg-blue-500 text-white'
                         : isDarkMode 
-                          ? 'hover:bg-white/10 text-white' 
+                          ? 'hover:bg-gray-600 text-white' 
                           : 'hover:bg-gray-200 text-gray-900'
                     }`}
                   >
@@ -343,7 +338,7 @@ function CustomDatePicker({
           {/* Year Picker */}
           {showYearPicker && (
             <div className={`mb-4 p-2 rounded-lg ${
-              isDarkMode ? 'bg-white/10' : 'bg-gray-100'
+              isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
             }`}>
               <div className="grid grid-cols-3 gap-1">
                 {Array.from({ length: 12 }, (_, i) => currentDate.getFullYear() - 5 + i).map((year) => (
@@ -361,7 +356,7 @@ function CustomDatePicker({
                       year === currentDate.getFullYear()
                         ? 'bg-blue-500 text-white'
                         : isDarkMode 
-                          ? 'hover:bg-white/10 text-white' 
+                          ? 'hover:bg-gray-600 text-white' 
                           : 'hover:bg-gray-200 text-gray-900'
                     }`}
                   >
@@ -372,9 +367,9 @@ function CustomDatePicker({
             </div>
           )}
 
-          <div className="grid grid-cols-7 gap-1 mb-2">
+          <div className="grid grid-cols-7 gap-1 mb-1">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className={`text-center text-sm font-medium p-2 ${
+              <div key={day} className={`text-center text-xs font-medium p-1 ${
                 isDarkMode ? 'text-gray-400' : 'text-gray-500'
               }`}>
                 {day}
@@ -393,7 +388,7 @@ function CustomDatePicker({
                   day && handleDateSelect(day);
                 }}
                 disabled={!day}
-                className={`p-2 text-sm rounded-lg transition-colors ${
+                className={`p-1 text-xs rounded-lg transition-colors ${
                   !day ? 'invisible' :
                   day.toDateString() === new Date().toDateString() 
                     ? 'bg-blue-500 text-white' :
@@ -444,55 +439,29 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
   // Load lab data when item is selected for editing
   const handleEditLabData = async (item: OrderItem) => {
     setEditingItemId(item._id || '');
-    setIsLoading(true);
     setError('');
 
-    try {
-      const response = await fetch(`/api/labs/${order._id}/${item._id || 'item_0'}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const result = await response.json();
-
-      if (result.success && result.data.labData?.sampleNumber) {
-        // Existing lab data found
-        setLabData({
-          labSendDate: result.data.labData?.labSendDate || new Date().toISOString().split('T')[0],
-          approvalDate: result.data.labData?.approvalDate || '',
-          sampleNumber: result.data.labData?.sampleNumber || ''
-        });
-      } else {
-        // New lab data - initialize with empty date
-        setLabData({
-          labSendDate: '',
-          approvalDate: '',
-          sampleNumber: ''
-        });
-      }
-    } catch (err) {
-      console.error('Error loading lab data:', err);
-      setError('Failed to load lab data. Please try again.');
-      // Initialize with empty date even on error
+    // Check if item already has lab data
+    if (item.labData?.sampleNumber) {
+      // Existing lab data found - load it
+      setLabData({
+        labSendDate: item.labData.labSendDate || '',
+        approvalDate: item.labData.approvalDate || '',
+        sampleNumber: item.labData.sampleNumber || ''
+      });
+    } else {
+      // New lab data - initialize with empty values
       setLabData({
         labSendDate: '',
         approvalDate: '',
         sampleNumber: ''
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
   // Save lab data with immediate UI update
   const handleSave = async () => {
     if (!editingItemId) return;
-
-    if (!labData.labSendDate || !labData.sampleNumber) {
-      setError('Lab Send Date and Sample Number are required');
-      return;
-    }
 
     setIsLoading(true);
     setError('');
@@ -635,49 +604,74 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
   if (!isOpen || !mounted) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
-      <div className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${
-        isDarkMode 
-          ? 'bg-[#1D293D] text-white border border-white/20' 
-          : 'bg-white text-gray-900 border border-gray-200'
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className={`relative w-full max-w-6xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
+        isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
       }`}>
         {/* Header */}
-        <div className={`sticky top-0 z-10 ${
-          isDarkMode 
-            ? 'bg-gradient-to-r from-blue-600 to-blue-700 border-b border-white/20' 
-            : 'bg-gradient-to-r from-blue-600 to-blue-700 border-b border-gray-200'
-        } text-white rounded-t-2xl p-6`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <BeakerIcon size={24} />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">Lab Data Management</h2>
-                <p className="text-blue-100 text-sm">
-                  Order: {order.orderId} • Type: {order.orderType || 'Not specified'}
-                </p>
-              </div>
+        <div className={`flex items-center justify-between p-6 border-b ${
+          isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+        }`}>
+          <div className="flex items-center space-x-4">
+            {/* Order ID Display */}
+            <div className={`px-3 py-2 rounded-lg ${
+              isDarkMode 
+                ? 'bg-blue-900/30 text-blue-300 border border-blue-700' 
+                : 'bg-blue-100 text-blue-700 border border-blue-200'
+            }`}>
+              <span className="text-sm font-medium">Order ID:</span>
+              <span className="ml-2 text-lg font-bold">{order.orderId}</span>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-white/20 transition-colors"
-            >
-              <X size={20} />
-            </button>
+            
+            <div className="flex items-center space-x-3">
+              <div className={`p-3 rounded-lg border ${
+                isDarkMode
+                  ? 'bg-amber-600/20 border-amber-500/30'
+                  : 'bg-amber-50 border-amber-200'
+              }`}>
+                <BeakerIcon className={`h-8 w-8 ${
+                  isDarkMode ? 'text-amber-400' : 'text-amber-700'
+                }`} />
+              </div>
+              <h2 className="text-2xl font-bold">
+                Lab Data Management
+              </h2>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className={`text-sm px-2 py-1 rounded-full ${
+                isDarkMode 
+                  ? 'bg-blue-900/30 text-blue-300 border border-blue-700' 
+                  : 'bg-blue-100 text-blue-700 border border-blue-200'
+              }`}>
+                {localItems.length} Item{localItems.length !== 1 ? 's' : ''}
+              </span>
+            </div>
           </div>
+          <button
+            onClick={onClose}
+            className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+              isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+            }`}
+          >
+            <X size={24} />
+          </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
-          {/* Items List */}
-          <div className="space-y-4">
-            <h3 className={`text-lg font-semibold flex items-center gap-2 ${
-              isDarkMode ? 'text-white' : 'text-gray-800'
-            }`}>
-              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-              Order Items ({localItems.length})
-            </h3>
+        <div className={`overflow-y-auto max-h-[calc(95vh-140px)] ${
+          isDarkMode 
+            ? 'scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-800' 
+            : 'scrollbar-thin scrollbar-thumb-blue-400 scrollbar-track-gray-100'
+        }`}>
+          {/* <div className="p-6 space-y-6 pb-24"> */}
+            {/* Items List */}
+            <div className="space-y-4 p-4 pb-24">
+              <h3 className={`text-lg font-semibold flex items-center gap-2 ${
+                isDarkMode ? 'text-white' : 'text-gray-800'
+              }`}>
+                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                Order Items ({localItems.length})
+              </h3>
             
             <div className="grid gap-4">
               {localItems.map((item, index) => (
@@ -723,18 +717,26 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                           <button
                             onClick={() => handleEditLabData(item)}
                             disabled={isLoading}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                              isDarkMode
+                                ? 'bg-amber-600/20 border border-amber-500/30 text-amber-400 hover:bg-amber-600/30 hover:border-amber-500/50'
+                                : 'bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-300'
+                            }`}
                           >
-                            <Edit3 size={14} />
+                            <BeakerIcon className="h-4 w-4" />
                             Edit Lab
                           </button>
                         ) : (
                           <button
                             onClick={() => handleEditLabData(item)}
                             disabled={isLoading}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                              isDarkMode
+                                ? 'bg-amber-600/20 border border-amber-500/30 text-amber-400 hover:bg-amber-600/30 hover:border-amber-500/50'
+                                : 'bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-300'
+                            }`}
                           >
-                            <Plus size={14} />
+                            <BeakerIcon className="h-4 w-4" />
                             Add Lab
                           </button>
                         )}
@@ -786,49 +788,50 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
 
                   {/* Lab Data Form (Inline) */}
                   {editingItemId === item._id && (
-                    <div className={`p-4 border-t ${
+                    <div className={`p-6 border-t ${
                       isDarkMode 
                         ? 'bg-yellow-900/10 border-yellow-700/30' 
                         : 'bg-yellow-50 border-yellow-200'
                     }`}>
-                      <div className="space-y-4">
+                      <div className="space-y-6">
                         <div className="flex items-center justify-between">
-                          <h5 className={`font-medium ${
+                          <h5 className={`text-lg font-semibold ${
                             isDarkMode ? 'text-white' : 'text-gray-800'
                           }`}>
                             {item.labData?.sampleNumber ? 'Edit Lab Data' : 'Add Lab Data'}
                           </h5>
                           <button
                             onClick={handleCancelEdit}
-                            className={`${
+                            className={`p-2 rounded-lg transition-colors ${
                               isDarkMode 
-                                ? 'text-gray-400 hover:text-gray-200' 
-                                : 'text-gray-500 hover:text-gray-700'
+                                ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' 
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'
                             }`}
                           >
-                            <X size={16} />
+                            <X size={20} />
                           </button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                     {/* Lab Send Date */}
-                           <div>
-                             <label className={`block text-sm font-medium mb-2 ${
-                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                             }`}>
-                               Lab Send Date *
-                             </label>
-                             <CustomDatePicker
-                               value={labData.labSendDate || ''}
-                               onChange={(value) => setLabData(prev => ({ ...prev, labSendDate: value }))}
-                               placeholder="Select lab send date"
-                               isDarkMode={isDarkMode}
-                             />
-                           </div>
+                        {/* Form Fields Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          {/* Lab Send Date */}
+                          <div>
+                            <label className={`block text-sm font-medium mb-3 ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                            }`}>
+                              Lab Send Date <span className="text-red-500">*</span>
+                            </label>
+                            <CustomDatePicker
+                              value={labData.labSendDate || ''}
+                              onChange={(value) => setLabData(prev => ({ ...prev, labSendDate: value }))}
+                              placeholder="Select lab send date"
+                              isDarkMode={isDarkMode}
+                            />
+                          </div>
 
                           {/* Approval Date */}
                           <div>
-                            <label className={`block text-sm font-medium mb-2 ${
+                            <label className={`block text-sm font-medium mb-3 ${
                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
                             }`}>
                               Approval Date
@@ -843,10 +846,10 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
 
                           {/* Sample Number */}
                           <div>
-                            <label className={`block text-sm font-medium mb-2 ${
+                            <label className={`block text-sm font-medium mb-3 ${
                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
                             }`}>
-                              Sample Number *
+                              Sample Number <span className="text-red-500">*</span>
                             </label>
                             <div className="relative">
                               <input
@@ -854,14 +857,14 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                                 value={labData.sampleNumber}
                                 onChange={(e) => setLabData(prev => ({ ...prev, sampleNumber: e.target.value }))}
                                 placeholder="Enter sample number"
-                                className={`w-full px-3 py-2 pl-10 rounded-lg border transition-colors ${
+                                className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                   isDarkMode
-                                    ? 'bg-white/10 border-white/20 text-white focus:border-blue-500'
-                                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                                    ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
+                                    : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
                                 }`}
                                 required
                               />
-                              <Hash size={16} className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${
+                              <Hash size={20} className={`absolute left-4 top-1/2 transform -translate-y-1/2 ${
                                 isDarkMode ? 'text-gray-400' : 'text-gray-500'
                               }`} />
                             </div>
@@ -870,21 +873,30 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
 
                         {/* Error Message */}
                         {error && (
-                          <div className={`p-3 rounded-lg text-sm ${
+                          <div className={`p-4 rounded-lg border ${
                             isDarkMode 
-                              ? 'bg-red-900/20 border border-red-800 text-red-400' 
-                              : 'bg-red-50 border border-red-200 text-red-600'
+                              ? 'bg-red-900/20 border-red-500/30 text-red-400' 
+                              : 'bg-red-50 border-red-200 text-red-800'
                           }`}>
-                            {error}
+                            <div className="flex items-center">
+                              <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+                              {error}
+                            </div>
                           </div>
                         )}
 
                         {/* Action Buttons */}
-                        <div className="flex gap-3">
+                        <div className="flex gap-4 pt-4">
                           <button
                             onClick={handleSave}
-                            disabled={isLoading || !labData.labSendDate || !labData.sampleNumber}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={isLoading}
+                            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
+                              isLoading
+                                ? 'bg-gray-400 cursor-not-allowed' 
+                                : isDarkMode
+                                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg' 
+                                  : 'bg-blue-500 hover:bg-blue-600 text-white shadow-lg'
+                            }`}
                           >
                             {isLoading ? (
                               <>
@@ -900,9 +912,9 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                           </button>
                           <button
                             onClick={handleCancelEdit}
-                            className={`px-4 py-2 border rounded-lg font-medium transition-colors ${
+                            className={`px-6 py-3 border rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
                               isDarkMode
-                                ? 'border-white/20 text-white hover:bg-white/10'
+                                ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
                                 : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                             }`}
                           >

@@ -72,6 +72,11 @@ export default function OrdersPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [deleting, setDeleting] = useState(false);
+  
+  // Item deletion confirmation state
+  const [showItemDeleteModal, setShowItemDeleteModal] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{orderId: string, itemId: string | number, itemName: string} | null>(null);
+  const [deletingItem, setDeletingItem] = useState(false);
   const [screenSize, setScreenSize] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(10);
@@ -114,8 +119,14 @@ export default function OrdersPage() {
   const [isEditingMillInput, setIsEditingMillInput] = useState(false);
   const [showMillOutputForm, setShowMillOutputForm] = useState(false);
   const [selectedOrderForMillOutput, setSelectedOrderForMillOutput] = useState<Order | null>(null);
+  const [existingMillOutputs, setExistingMillOutputs] = useState<any[]>([]);
+  const [isEditingMillOutput, setIsEditingMillOutput] = useState(false);
+  const [orderMillOutputs, setOrderMillOutputs] = useState<{[key: string]: any[]}>({});
   const [showDispatchForm, setShowDispatchForm] = useState(false);
   const [selectedOrderForDispatch, setSelectedOrderForDispatch] = useState<Order | null>(null);
+  const [existingDispatches, setExistingDispatches] = useState<any[]>([]);
+  const [isEditingDispatch, setIsEditingDispatch] = useState(false);
+  const [orderDispatches, setOrderDispatches] = useState<{[key: string]: any[]}>({});
   const [mills, setMills] = useState<Mill[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
@@ -316,12 +327,7 @@ export default function OrdersPage() {
     } catch (error: any) {
       if (error.name === 'AbortError') {
         if (retryCount < maxRetries) {
-          // Show retry message with progress
-          showMessage('warning', `Connection slow, retrying... (${retryCount + 1}/${maxRetries})`, { 
-            autoDismiss: true, 
-            dismissTime: 2000 
-          });
-          // Exponential backoff
+          // Silent retry without showing message
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
           return fetchOrders(retryCount + 1, page, limit);
         } else {
@@ -379,8 +385,19 @@ export default function OrdersPage() {
       );
 
       const matchesType = filters.typeFilter === 'all' || order.orderType === filters.typeFilter;
-      const orderStatus = order.status || 'pending';
-      const matchesStatus = filters.statusFilter === 'all' || orderStatus === filters.statusFilter;
+      
+      // Enhanced status logic - if no status set or status is not 'delivered', default to pending
+      const orderStatus = order.status;
+      let normalizedStatus = 'pending'; // Default to pending
+      
+      if (orderStatus === 'delivered') {
+        normalizedStatus = 'delivered';
+      } else {
+        // Any other status (including null, undefined, 'pending', etc.) is treated as pending
+        normalizedStatus = 'pending';
+      }
+      
+      const matchesStatus = filters.statusFilter === 'all' || normalizedStatus === filters.statusFilter;
 
       return matchesSearch && matchesType && matchesStatus;
     }).length;
@@ -404,8 +421,19 @@ export default function OrdersPage() {
       );
 
       const matchesType = filters.typeFilter === 'all' || order.orderType === filters.typeFilter;
-      const orderStatus = order.status || 'pending';
-      const matchesStatus = filters.statusFilter === 'all' || orderStatus === filters.statusFilter;
+      
+      // Enhanced status logic - if no status set or status is not 'delivered', default to pending
+      const orderStatus = order.status;
+      let normalizedStatus = 'pending'; // Default to pending
+      
+      if (orderStatus === 'delivered') {
+        normalizedStatus = 'delivered';
+      } else {
+        // Any other status (including null, undefined, 'pending', etc.) is treated as pending
+        normalizedStatus = 'pending';
+      }
+      
+      const matchesStatus = filters.statusFilter === 'all' || normalizedStatus === filters.statusFilter;
 
       return matchesSearch && matchesType && matchesStatus;
     }).length;
@@ -491,19 +519,141 @@ export default function OrdersPage() {
         }
       });
       const data = await response.json();
-      if (data.success && data.millInputs) {
+      console.log('Raw API response:', data);
+      
+      if (data.success && data.data && data.data.millInputs) {
         // Group mill inputs by order ID
         const groupedInputs: {[key: string]: any[]} = {};
-        data.millInputs.forEach((input: any) => {
+        data.data.millInputs.forEach((input: any) => {
+          // Debug: Log each mill input's additionalMeters
+          console.log(`Mill Input ${input._id} additionalMeters:`, input.additionalMeters);
+          if (input.additionalMeters && Array.isArray(input.additionalMeters)) {
+            input.additionalMeters.forEach((additional: any, index: number) => {
+              console.log(`  Additional Meter ${index}:`, additional);
+            });
+          }
+          
           if (!groupedInputs[input.orderId]) {
             groupedInputs[input.orderId] = [];
           }
           groupedInputs[input.orderId].push(input);
         });
+        
+        console.log('Fetched mill inputs:', data.data.millInputs);
+        console.log('Grouped mill inputs:', groupedInputs);
+        
         setOrderMillInputs(groupedInputs);
+      } else {
+        console.log('No mill inputs found or API error:', data);
+        setOrderMillInputs({});
       }
     } catch (error) {
       console.error('Error fetching all mill inputs:', error);
+      setOrderMillInputs({});
+    }
+  }, []);
+
+  // Function to fetch mill outputs for all orders
+  const fetchAllOrderMillOutputs = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/mill-outputs', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      console.log('Raw Mill Outputs API response:', data);
+      
+      if (data.success && data.data && Array.isArray(data.data)) {
+        // Group mill outputs by order ID
+        const groupedOutputs: {[key: string]: any[]} = {};
+        data.data.forEach((output: any) => {
+          if (!groupedOutputs[output.orderId]) {
+            groupedOutputs[output.orderId] = [];
+          }
+          groupedOutputs[output.orderId].push(output);
+        });
+        
+        console.log('Fetched mill outputs:', data.data);
+        console.log('Grouped mill outputs:', groupedOutputs);
+        
+        setOrderMillOutputs(groupedOutputs);
+      } else {
+        console.log('No mill outputs found or API error:', data);
+        setOrderMillOutputs({});
+      }
+    } catch (error) {
+      console.error('Error fetching all mill outputs:', error);
+      setOrderMillOutputs({});
+    }
+  }, []);
+
+  // Function to fetch dispatches for all orders
+  const fetchAllOrderDispatches = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/dispatch', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      console.log('Raw Dispatches API response:', data);
+      
+      if (data.success && data.data && Array.isArray(data.data)) {
+        // Group dispatches by order ID
+        const groupedDispatches: {[key: string]: any[]} = {};
+        data.data.forEach((dispatch: any) => {
+          if (!groupedDispatches[dispatch.orderId]) {
+            groupedDispatches[dispatch.orderId] = [];
+          }
+          groupedDispatches[dispatch.orderId].push(dispatch);
+        });
+        
+        console.log('Fetched dispatches:', data.data);
+        console.log('Grouped dispatches:', groupedDispatches);
+        
+        setOrderDispatches(groupedDispatches);
+      } else {
+        console.log('No dispatches found or API error:', data);
+        setOrderDispatches({});
+      }
+    } catch (error) {
+      console.error('Error fetching all dispatches:', error);
+      setOrderDispatches({});
+    }
+  }, []);
+
+  // Function to fetch mill inputs for a specific order
+  const fetchMillInputsForOrder = useCallback(async (orderId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/mill-inputs?orderId=${orderId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      console.log(`Raw API response for order ${orderId}:`, data);
+      
+      if (data.success && data.data && data.data.millInputs) {
+        // Update the specific order's mill inputs
+        setOrderMillInputs(prev => ({
+          ...prev,
+          [orderId]: data.data.millInputs || []
+        }));
+        console.log(`Updated mill inputs for order ${orderId}:`, data.data.millInputs);
+      } else if (data.success && data.data && Array.isArray(data.data)) {
+        // Handle case where data.data is directly the array
+        setOrderMillInputs(prev => ({
+          ...prev,
+          [orderId]: data.data || []
+        }));
+        console.log(`Updated mill inputs for order ${orderId} (direct array):`, data.data);
+      }
+    } catch (error) {
+      console.error(`Error fetching mill inputs for order ${orderId}:`, error);
     }
   }, []);
 
@@ -605,12 +755,15 @@ export default function OrdersPage() {
       }
       
       const data = await response.json();
+      console.log('Raw mills API response:', data);
       
-      if (data.success) {
-        const millsData = data.data?.mills || data.data || [];
+      if (data.success && data.data && data.data.mills) {
+        const millsData = data.data.mills;
+        console.log('Fetched mills:', millsData);
         setMills(millsData);
       } else {
-        console.error('Mills API returned error:', data.message);
+        console.error('Mills API returned error or no data:', data);
+        setMills([]);
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -651,16 +804,18 @@ export default function OrdersPage() {
           fetchParties(),
           fetchQualities(),
           fetchMills(),
-          fetchAllOrderMillInputs()
+          fetchAllOrderMillInputs(),
+          fetchAllOrderMillOutputs(),
+          fetchAllOrderDispatches()
         ];
         
         // Process background data as it loads
         backgroundPromises.forEach((promise, index) => {
           promise.then(() => {
-            const dataTypes = ['parties', 'qualities', 'mills', 'mill inputs'];
+            const dataTypes = ['parties', 'qualities', 'mills', 'mill inputs', 'mill outputs', 'dispatches'];
             console.log(`${dataTypes[index]} loaded successfully`);
           }).catch((error) => {
-            const dataTypes = ['parties', 'qualities', 'mills', 'mill inputs'];
+            const dataTypes = ['parties', 'qualities', 'mills', 'mill inputs', 'mill outputs', 'dispatches'];
             console.warn(`Failed to load ${dataTypes[index]}:`, error);
           });
         });
@@ -689,7 +844,36 @@ export default function OrdersPage() {
     }, 12000); // 12 second timeout
     
     return () => clearTimeout(timeoutId);
-  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderMillInputs, showMessage, isInitialized]);
+  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderMillInputs, fetchAllOrderMillOutputs, fetchAllOrderDispatches, showMessage, isInitialized]);
+
+  // Refresh mill inputs, outputs, and dispatches when orders change
+  useEffect(() => {
+    if (orders.length > 0) {
+      fetchAllOrderMillInputs();
+      fetchAllOrderMillOutputs();
+      fetchAllOrderDispatches();
+    }
+  }, [orders, fetchAllOrderMillInputs, fetchAllOrderMillOutputs, fetchAllOrderDispatches]);
+
+  // Debug: Log orderMillInputs changes
+  useEffect(() => {
+    console.log('orderMillInputs state changed:', orderMillInputs);
+  }, [orderMillInputs]);
+
+  // Debug: Log orderMillOutputs changes
+  useEffect(() => {
+    console.log('orderMillOutputs state changed:', orderMillOutputs);
+  }, [orderMillOutputs]);
+
+  // Debug: Log orderDispatches changes
+  useEffect(() => {
+    console.log('orderDispatches state changed:', orderDispatches);
+  }, [orderDispatches]);
+
+  // Debug: Log mills changes
+  useEffect(() => {
+    console.log('mills state changed:', mills);
+  }, [mills]);
 
   // Keyboard navigation for image preview
   useEffect(() => {
@@ -714,7 +898,7 @@ export default function OrdersPage() {
         // OrdersPage: Refreshing orders due to action
         
         // Immediate refresh without loading state for better UX
-        Promise.all([fetchOrders(), fetchAllOrderMillInputs()]).then(() => {
+        Promise.all([fetchOrders(), fetchAllOrderMillInputs(), fetchAllOrderMillOutputs(), fetchAllOrderDispatches()]).then(() => {
           // OrdersPage: Successfully refreshed orders and mill inputs
           // Show success message for automatic refresh
           if (event.detail?.action === 'order_create') {
@@ -751,7 +935,9 @@ export default function OrdersPage() {
         fetchParties(),
         fetchQualities(),
         fetchMills(),
-        fetchAllOrderMillInputs()
+        fetchAllOrderMillInputs(),
+        fetchAllOrderMillOutputs(),
+        fetchAllOrderDispatches()
       ]).then((results) => {
         const successCount = results.filter(result => result.status === 'fulfilled').length;
         const totalCount = results.length;
@@ -775,7 +961,7 @@ export default function OrdersPage() {
     } finally {
       setRefreshing(false);
     }
-  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderMillInputs, showMessage]);
+  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderMillInputs, fetchAllOrderMillOutputs, fetchAllOrderDispatches, showMessage]);
 
   // PDF Download function for individual items
   const handleDownloadItemPDF = useCallback((order: any, item: any, itemIndex: number) => {
@@ -786,11 +972,11 @@ export default function OrdersPage() {
         items: [item], // Only include the specific item
         // Add item-specific information to the order
         itemIndex: itemIndex + 1,
-        qualityName: (item.quality as any)?.name || 'Not selected'
+        qualityName: item.quality && typeof item.quality === 'object' ? item.quality.name || 'Not selected' : 'Not selected'
       };
       
       generateOrderPDF(itemOrder);
-      showMessage('success', `PDF downloaded for ${(item.quality as any)?.name || 'Item'}`, { 
+      showMessage('success', `PDF downloaded for ${item.quality && typeof item.quality === 'object' ? item.quality.name || 'Item' : 'Item'}`, { 
         autoDismiss: true, 
         dismissTime: 3000 
       });
@@ -960,9 +1146,29 @@ export default function OrdersPage() {
 
         const matchesType = filters.typeFilter === 'all' || order.orderType === filters.typeFilter;
         
-        // Fix status logic - if no status set, default to pending
-        const orderStatus = order.status || 'pending';
-        const matchesStatus = filters.statusFilter === 'all' || orderStatus === filters.statusFilter;
+        // Enhanced status logic - if no status set or status is not 'delivered', default to pending
+        const orderStatus = order.status;
+        let normalizedStatus = 'pending'; // Default to pending
+        
+        if (orderStatus === 'delivered') {
+          normalizedStatus = 'delivered';
+        } else {
+          // Any other status (including null, undefined, 'pending', etc.) is treated as pending
+          normalizedStatus = 'pending';
+        }
+        
+        // Debug logging for status filter
+        if (filters.statusFilter === 'pending' && normalizedStatus !== 'pending') {
+          console.log('Order status debug:', {
+            orderId: order.orderId,
+            originalStatus: orderStatus,
+            normalizedStatus: normalizedStatus,
+            filterStatus: filters.statusFilter,
+            matches: normalizedStatus === filters.statusFilter
+          });
+        }
+        
+        const matchesStatus = filters.statusFilter === 'all' || normalizedStatus === filters.statusFilter;
 
         return matchesSearch && matchesType && matchesStatus;
       });
@@ -1005,38 +1211,69 @@ export default function OrdersPage() {
     setShowDeleteModal(true);
   }, []);
 
-  const handleDeleteItem = async (orderId: string, itemId: string | number) => {
+  // Item deletion confirmation handlers
+  const handleDeleteItemClick = useCallback((orderId: string, itemId: string | number, itemName: string) => {
+    setItemToDelete({ orderId, itemId, itemName });
+    setShowItemDeleteModal(true);
+  }, []);
+
+  const handleItemDeleteConfirm = useCallback(async () => {
+    if (!itemToDelete) return;
+    
+    setDeletingItem(true);
     try {
-      console.log('Deleting item - OrderId:', orderId, 'ItemId:', itemId);
-      const response = await fetch(`/api/orders/${orderId}`, {
+      console.log('Deleting item - OrderId:', itemToDelete.orderId, 'ItemId:', itemToDelete.itemId);
+      const response = await fetch(`/api/orders/${itemToDelete.orderId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           action: 'deleteItem',
-          itemIndex: itemId
+          itemIndex: itemToDelete.itemId
         }),
       });
 
       if (response.ok) {
-        // Refresh the orders list
-        fetchOrders();
-        showMessage('success', 'Item deleted successfully');
+        const data = await response.json();
+        if (data.success) {
+          // Update the order in the local state
+          setOrders(prev => prev.map(order => 
+            order._id === itemToDelete.orderId 
+              ? { ...order, items: order.items.filter((_, index) => index !== itemToDelete.itemId) }
+              : order
+          ));
+          
+          showMessage('success', 'Item deleted successfully', { autoDismiss: true, dismissTime: 3000 });
+          
+          // Trigger real-time update for Order Activity Log
+          const event = new CustomEvent('orderUpdated', {
+            detail: { orderId: itemToDelete.orderId, action: 'itemDeleted' }
+          });
+          window.dispatchEvent(event);
       } else {
-        try {
+          showMessage('error', data.message || 'Failed to delete item');
+        }
+      } else {
           const errorData = await response.json();
           showMessage('error', errorData.message || 'Failed to delete item');
-        } catch (parseError) {
-          console.error('Error parsing response:', parseError);
-          showMessage('error', 'Failed to delete item - server error');
-        }
       }
     } catch (error) {
       console.error('Error deleting item:', error);
-      showMessage('error', 'Failed to delete item');
+      showMessage('error', 'An error occurred while deleting the item');
+    } finally {
+      setDeletingItem(false);
+      setShowItemDeleteModal(false);
+      setItemToDelete(null);
     }
-  };
+  }, [itemToDelete, showMessage]);
+
+  const handleItemDeleteCancel = useCallback(() => {
+    setShowItemDeleteModal(false);
+    setItemToDelete(null);
+    setDeletingItem(false);
+  }, []);
+
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!orderToDelete) return;
@@ -1116,7 +1353,7 @@ export default function OrdersPage() {
     setShowLabDataModal(true);
   };
 
-  const handleMillInput = (order: Order) => {
+  const handleMillInput = async (order: Order) => {
     // Clear cache before opening form
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('millInputFormCache');
@@ -1125,8 +1362,48 @@ export default function OrdersPage() {
       window.localStorage.setItem('millInputFormVersion', '2.0');
       window.localStorage.setItem('millInputFormForceNew', 'true');
     }
+    // Check if there's existing mill input data for this order
+    const existingData = orderMillInputs[order.orderId] || [];
+    const hasExistingData = existingData.length > 0;
+    
+    // Set editing state and existing data
+    setIsEditingMillInput(hasExistingData);
+    setExistingMillInputs(existingData);
     setSelectedOrderForMillInputForm(order);
+    
+    // Ensure mills are loaded before opening the form
+    if (mills.length === 0) {
+      console.log('No mills loaded, fetching mills before opening form...');
+      await fetchMills();
+    }
+    
     setShowMillInputForm(true);
+  };
+
+  const handleMillOutput = async (order: Order) => {
+    // Check if there's existing mill output data for this order
+    const existingData = orderMillOutputs[order.orderId] || [];
+    const hasExistingData = existingData.length > 0;
+    
+    // Set editing state and existing data
+    setIsEditingMillOutput(hasExistingData);
+    setExistingMillOutputs(existingData);
+    setSelectedOrderForMillOutput(order);
+    
+    setShowMillOutputForm(true);
+  };
+
+  const handleDispatch = async (order: Order) => {
+    // Check if there's existing dispatch data for this order
+    const existingData = orderDispatches[order.orderId] || [];
+    const hasExistingData = existingData.length > 0;
+    
+    // Set editing state and existing data
+    setIsEditingDispatch(hasExistingData);
+    setExistingDispatches(existingData);
+    setSelectedOrderForDispatch(order);
+    
+    setShowDispatchForm(true);
   };
 
   const handleImagePreview = (url: string, alt: string, allImages?: string[], startIndex?: number) => {
@@ -1798,7 +2075,7 @@ export default function OrdersPage() {
                 <option value="pending">Pending</option>
                 <option value="delivered">Delivered</option>
               </select>
-            </div>
+          </div>
 
             {/* Type Filter - Dropdown */}
             <div className="flex items-center gap-2">
@@ -2099,7 +2376,7 @@ export default function OrdersPage() {
                                   Name:
                                 </span>
                                 <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                  {(order.party as any)?.name || 'Not selected'}
+                                  {order.party && typeof order.party === 'object' ? order.party.name || 'Not selected' : 'Not selected'}
                                 </span>
                              </div>
                               <div className="flex items-center gap-2">
@@ -2279,7 +2556,7 @@ export default function OrdersPage() {
                                    {/* Quality */}
                                    <td className="px-2 py-2">
                                      <div className={`text-xs font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                {(item.quality as any)?.name || 'Not selected'}
+                                {item.quality && typeof item.quality === 'object' ? item.quality.name || 'Not selected' : 'Not selected'}
                                      </div>
                                    </td>
                                    
@@ -2357,7 +2634,7 @@ export default function OrdersPage() {
                                              ? 'bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 border border-indigo-600/30'
                                              : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200 border border-indigo-200'
                                          }`}
-                                         title={`Download PDF for ${(item.quality as any)?.name || 'Item'}`}
+                                         title={`Download PDF for ${item.quality && typeof item.quality === 'object' ? item.quality.name || 'Item' : 'Item'}`}
                                        >
                                          <DocumentArrowDownIcon className="h-3 w-3 inline mr-1" />
                                          PDF
@@ -2365,7 +2642,7 @@ export default function OrdersPage() {
                                        
                                        {/* Delete Button */}
                                        <button
-                                         onClick={() => handleDeleteItem(order._id, index)}
+                                         onClick={() => handleDeleteItemClick(order._id, index, item.quality && typeof item.quality === 'object' ? item.quality.name || 'Item' : 'Item')}
                                          className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
                                            isDarkMode
                                              ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30 border border-red-600/30'
@@ -2514,7 +2791,13 @@ export default function OrdersPage() {
                           title={orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? "Edit mill input" : "Add mill input"}
                         >
                            <BuildingOfficeIcon className="h-4 w-4" />
-                           <span className="hidden sm:inline">Add Mill Input</span>
+                           <span className="hidden sm:inline">
+                             {(() => {
+                               const hasData = orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0;
+                               console.log(`Order ${order.orderId} mill inputs:`, orderMillInputs[order.orderId], 'Has data:', hasData);
+                               return hasData ? "Edit Mill Input" : "Add Mill Input";
+                             })()}
+                           </span>
                            <span className="sm:hidden">Mill Input</span>
                         </button>
                        </div>
@@ -2522,10 +2805,7 @@ export default function OrdersPage() {
                        {/* Row 3: Add Mill Output, Add Dispatch */}
                        <div className="grid grid-cols-2 gap-2">
                         <button
-                          onClick={() => {
-                            setSelectedOrderForMillOutput(order);
-                            setShowMillOutputForm(true);
-                          }}
+                          onClick={() => handleMillOutput(order)}
                            className={`group inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:scale-105 ${
                             isDarkMode
                                ? 'bg-teal-600/20 border border-teal-500/30 text-teal-400 hover:bg-teal-600/30 hover:border-teal-500/50'
@@ -2534,15 +2814,16 @@ export default function OrdersPage() {
                           title="Add mill output"
                         >
                            <DocumentTextIcon className="h-4 w-4" />
-                           <span className="hidden sm:inline">Add Mill Output</span>
-                           <span className="sm:hidden">Mill Out</span>
+                           <span className="hidden sm:inline">
+                             {orderMillOutputs[order.orderId]?.length > 0 ? 'Edit Mill Output' : 'Add Mill Output'}
+                           </span>
+                           <span className="sm:hidden">
+                             {orderMillOutputs[order.orderId]?.length > 0 ? 'Mill Edit' : 'Mill Add'}
+                           </span>
                         </button>
 
                         <button
-                          onClick={() => {
-                            setSelectedOrderForDispatch(order);
-                            setShowDispatchForm(true);
-                          }}
+                          onClick={() => handleDispatch(order)}
                            className={`group inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:scale-105 ${
                             isDarkMode
                                ? 'bg-orange-600/20 border border-orange-500/30 text-orange-400 hover:bg-orange-600/30 hover:border-orange-500/50'
@@ -2551,8 +2832,12 @@ export default function OrdersPage() {
                           title="Add dispatch"
                         >
                            <TruckIcon className="h-4 w-4" />
-                           <span className="hidden sm:inline">Add Dispatch</span>
-                           <span className="sm:hidden">Dispatch</span>
+                           <span className="hidden sm:inline">
+                             {orderDispatches[order.orderId]?.length > 0 ? 'Edit Dispatch' : 'Add Dispatch'}
+                           </span>
+                           <span className="sm:hidden">
+                             {orderDispatches[order.orderId]?.length > 0 ? 'Dispatch Edit' : 'Dispatch Add'}
+                           </span>
                         </button>
                        </div>
 
@@ -2834,7 +3119,7 @@ export default function OrdersPage() {
                     }`}>
                       <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Party:</span>
                       <div className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                        {typeof order.party === 'object' ? order.party.name : order.party || 'Not selected'}
+                        {order.party && typeof order.party === 'object' ? order.party.name || 'Not selected' : order.party || 'Not selected'}
                       </div>
                     </div>
                     <div className={`p-2 rounded ${
@@ -2987,7 +3272,7 @@ export default function OrdersPage() {
                                 <div className="flex justify-between">
                                   <span className={`font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Quality:</span>
                                   <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                    {(item.quality as any)?.name || 'Not selected'}
+                                    {item.quality && typeof item.quality === 'object' ? item.quality.name || 'Not selected' : 'Not selected'}
                                   </span>
                                 </div>
                                 <div className="flex justify-between">
@@ -3015,6 +3300,38 @@ export default function OrdersPage() {
                                     </span>
                                   </div>
                                 )}
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex gap-2 pt-2">
+                                <button
+                                  onClick={() => {
+                                    // Generate PDF for this specific item
+                                    console.log('Generate PDF for item:', item);
+                                  }}
+                                  className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
+                                    isDarkMode
+                                      ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-600/30'
+                                      : 'bg-blue-100 text-blue-600 hover:bg-blue-200 border border-blue-200'
+                                  }`}
+                                  title="Generate PDF"
+                                >
+                                  <DocumentArrowDownIcon className="h-3 w-3 inline mr-1" />
+                                  PDF
+                                </button>
+                                
+                                <button
+                                  onClick={() => handleDeleteItemClick(order._id, itemIndex, item.quality && typeof item.quality === 'object' ? item.quality.name || 'Item' : 'Item')}
+                                  className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
+                                    isDarkMode
+                                      ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30 border border-red-600/30'
+                                      : 'bg-red-100 text-red-600 hover:bg-red-200 border border-red-200'
+                                  }`}
+                                  title="Delete item"
+                                >
+                                  <TrashIcon className="h-3 w-3 inline mr-1" />
+                                  Delete
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -3057,17 +3374,18 @@ export default function OrdersPage() {
                         ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30'
                         : 'bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100'
                     }`}
-                    title="Mill Input"
+                    title={orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? "Edit Mill Input" : "Add Mill Input"}
                   >
                     <CubeIcon className="h-4 w-4" />
-                    <span>Mill Input</span>
+                    <span>{(() => {
+                      const hasData = orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0;
+                      console.log(`Table - Order ${order.orderId} mill inputs:`, orderMillInputs[order.orderId], 'Has data:', hasData);
+                      return hasData ? "Mill Edit" : "Mill Add";
+                    })()}</span>
                   </button>
 
                   <button
-                    onClick={() => {
-                      setSelectedOrderForMillOutput(order);
-                      setShowMillOutputForm(true);
-                    }}
+                    onClick={() => handleMillOutput(order)}
                     className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex flex-col items-center space-y-1 ${
                       isDarkMode
                         ? 'bg-teal-600/20 text-teal-400 border border-teal-500/30 hover:bg-teal-600/30'
@@ -3076,14 +3394,15 @@ export default function OrdersPage() {
                     title="Mill Output"
                   >
                     <DocumentTextIcon className="h-4 w-4" />
-                    <span>Mill Output</span>
+                    <span>{(() => {
+                      const hasData = orderMillOutputs[order.orderId]?.length > 0;
+                      console.log(`Table - Order ${order.orderId} mill outputs:`, orderMillOutputs[order.orderId], 'Has data:', hasData);
+                      return hasData ? "Mill Edit" : "Mill Add";
+                    })()}</span>
                   </button>
 
                   <button
-                    onClick={() => {
-                      setSelectedOrderForDispatch(order);
-                      setShowDispatchForm(true);
-                    }}
+                    onClick={() => handleDispatch(order)}
                     className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex flex-col items-center space-y-1 ${
                       isDarkMode
                         ? 'bg-orange-600/20 text-orange-400 border border-orange-500/30 hover:bg-orange-600/30'
@@ -3092,7 +3411,11 @@ export default function OrdersPage() {
                     title="Dispatch"
                   >
                     <TruckIcon className="h-4 w-4" />
-                    <span>Dispatch</span>
+                    <span>{(() => {
+                      const hasData = orderDispatches[order.orderId]?.length > 0;
+                      console.log(`Table - Order ${order.orderId} dispatches:`, orderDispatches[order.orderId], 'Has data:', hasData);
+                      return hasData ? "Dispatch Edit" : "Dispatch Add";
+                    })()}</span>
                   </button>
                 </div>
 
@@ -3396,6 +3719,94 @@ export default function OrdersPage() {
         </div>
       )}
 
+      {/* Item Delete Confirmation Modal */}
+      {showItemDeleteModal && itemToDelete && (
+        <div className="fixed inset-0 backdrop-blur-md bg-black/60 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`relative w-full max-w-md mx-auto ${isDarkMode ? 'bg-[#1D293D]' : 'bg-white'} rounded-lg shadow-xl`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between p-6 border-b ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
+              <div className="flex items-center space-x-3">
+                <div className={`p-2 rounded-full ${isDarkMode ? 'bg-red-500/20' : 'bg-red-100'}`}>
+                  <ExclamationTriangleIcon className={`h-6 w-6 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`} />
+                </div>
+                <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Delete Item
+                </h3>
+              </div>
+              <button
+                onClick={handleItemDeleteCancel}
+                disabled={deletingItem}
+                className={`p-1 rounded-full transition-colors ${
+                  isDarkMode 
+                    ? 'text-gray-400 hover:text-white hover:bg-white/10' 
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="space-y-4">
+                <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  Are you sure you want to delete this item? This action cannot be undone.
+                </p>
+                
+                <div className={`p-4 rounded-lg border ${
+                  isDarkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Item:
+                    </span>
+                    <span className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {itemToDelete.itemName}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className={`flex items-center justify-end space-x-3 p-6 border-t ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
+              <button
+                onClick={handleItemDeleteCancel}
+                disabled={deletingItem}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 ${
+                  isDarkMode
+                    ? 'text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50'
+                    : 'text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleItemDeleteConfirm}
+                disabled={deletingItem}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 flex items-center space-x-2 ${
+                  isDarkMode
+                    ? 'text-white bg-red-600 hover:bg-red-700 disabled:opacity-50'
+                    : 'text-white bg-red-600 hover:bg-red-700 disabled:opacity-50'
+                }`}
+              >
+                {deletingItem ? (
+                  <>
+                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <TrashIcon className="h-4 w-4" />
+                    <span>Delete Item</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete All Orders Confirmation Modal */}
       {showDeleteAllModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -3607,8 +4018,10 @@ export default function OrdersPage() {
 
 
       {/* Mill Input Form */}
-      {showMillInputForm && selectedOrderForMillInputForm && (
-        <MillInputForm
+      {showMillInputForm && selectedOrderForMillInputForm && (() => {
+        console.log('Rendering MillInputForm with mills:', mills, 'qualities:', qualities);
+        return (
+          <MillInputForm
           key={`mill-input-form-${selectedOrderForMillInputForm.orderId}`}
           order={selectedOrderForMillInputForm}
           mills={mills}
@@ -3624,17 +4037,46 @@ export default function OrdersPage() {
               window.localStorage.removeItem('millInputFormData');
             }
           }}
-                      onSuccess={() => {
-              // Refresh orders and mill inputs to show any updates
-              fetchOrders();
-              fetchAllOrderMillInputs();
+                      onSuccess={async () => {
+              const orderId = selectedOrderForMillInputForm?.orderId;
+              console.log('Mill input success - Order ID:', orderId);
               
-              // Debug: Check if data is updated
+              // Immediately mark that this order now has mill input data
+              if (orderId) {
+                setOrderMillInputs(prev => {
+                  const updated = { ...prev };
+                  // If no data exists, create an empty array to indicate data exists
+                  if (!updated[orderId]) {
+                    updated[orderId] = [];
+                  }
+                  console.log('Immediately updated orderMillInputs for', orderId, ':', updated);
+                  return updated;
+                });
+              }
+              
+              // Refresh orders and mill inputs to show any updates
+              await fetchOrders();
+              await fetchAllOrderMillInputs();
+              
+              // Also refresh mill inputs for the specific order
+              if (orderId) {
+                await fetchMillInputsForOrder(orderId);
+                
+                // Debug: Log the updated state after refresh
+                setTimeout(() => {
+                  console.log('After refresh - orderMillInputs for', orderId, ':', orderMillInputs[orderId]);
+                }, 100);
+              }
+              
+              // Force a small delay to ensure state is updated
               setTimeout(() => {
                 console.log('After onSuccess - orderMillInputs state:', orderMillInputs);
-                console.log('Current order ID:', selectedOrderForMillInputForm?.orderId);
-                console.log('Mill inputs for current order:', orderMillInputs[selectedOrderForMillInputForm?.orderId || ''] || []);
-              }, 100);
+                console.log('Current order ID:', orderId);
+                console.log('Mill inputs for current order:', orderMillInputs[orderId || ''] || []);
+                
+                // Force re-render by updating a dummy state if needed
+                setOrderMillInputs(prev => ({ ...prev }));
+              }, 200);
               
               const message = isEditingMillInput ? 'Mill input updated successfully!' : 'Mill input added successfully!';
               showMessage('success', message);
@@ -3648,21 +4090,30 @@ export default function OrdersPage() {
           isEditing={isEditingMillInput}
           existingMillInputs={existingMillInputs}
         />
-      )}
+        );
+      })()}
 
       {/* Mill Output Form */}
       {showMillOutputForm && selectedOrderForMillOutput && (
         <MillOutputForm
           order={selectedOrderForMillOutput}
           qualities={qualities}
+          isEditing={isEditingMillOutput}
+          existingMillOutputs={existingMillOutputs}
           onClose={() => {
             setShowMillOutputForm(false);
             setSelectedOrderForMillOutput(null);
+            setIsEditingMillOutput(false);
+            setExistingMillOutputs([]);
           }}
-          onSuccess={() => {
-            // Refresh orders to show any updates
-            fetchOrders();
-            showMessage('success', 'Mill output added successfully!');
+          onSuccess={async () => {
+            // Refresh orders and mill outputs to show any updates
+            await fetchOrders();
+            // Add a small delay to ensure database is updated
+            setTimeout(async () => {
+              await fetchAllOrderMillOutputs();
+            }, 500);
+            showMessage('success', isEditingMillOutput ? 'Mill output updated successfully!' : 'Mill output added successfully!');
           }}
         />
       )}
@@ -3672,14 +4123,22 @@ export default function OrdersPage() {
         <DispatchForm
           order={selectedOrderForDispatch}
           qualities={qualities}
+          isEditing={isEditingDispatch}
+          existingDispatches={existingDispatches}
           onClose={() => {
             setShowDispatchForm(false);
             setSelectedOrderForDispatch(null);
+            setIsEditingDispatch(false);
+            setExistingDispatches([]);
           }}
-          onSuccess={() => {
-            // Refresh orders to show any updates
-            fetchOrders();
-            showMessage('success', 'Dispatch record added successfully!');
+          onSuccess={async () => {
+            // Refresh orders and dispatches to show any updates
+            await fetchOrders();
+            // Add a small delay to ensure database is updated
+            setTimeout(async () => {
+              await fetchAllOrderDispatches();
+            }, 500);
+            showMessage('success', isEditingDispatch ? 'Dispatch updated successfully!' : 'Dispatch added successfully!');
           }}
         />
       )}

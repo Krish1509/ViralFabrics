@@ -15,6 +15,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Order } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
+import { createPortal } from 'react-dom';
 
 interface MillOutputItem {
   id: string;
@@ -42,6 +43,384 @@ interface MillOutputFormProps {
 
 interface ValidationErrors {
   [key: string]: string;
+}
+
+// Custom Date Picker Component (from LabDataModal)
+function CustomDatePicker({ 
+  value, 
+  onChange, 
+  placeholder, 
+  isDarkMode 
+}: { 
+  value: string; 
+  onChange: (value: string) => void; 
+  placeholder: string; 
+  isDarkMode: boolean; 
+}) {
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [inputValue, setInputValue] = useState('');
+  const [showYearPicker, setShowYearPicker] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  // Format date for display (dd/mm/yyyy)
+  const formatDateForDisplay = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return date.toLocaleDateString('en-GB'); // dd/mm/yyyy format
+  };
+
+  // Use the shared date parsing function
+  const parseDateFromDisplay = (inputValue: string) => {
+    if (!inputValue) return '';
+    
+    // Handle dd/mm/yyyy format
+    const parts = inputValue.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1;
+      const year = parseInt(parts[2]);
+      
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      }
+    }
+    
+    return '';
+  };
+
+  const handleDateSelect = (date: Date) => {
+    const formattedDate = date.toISOString().split('T')[0];
+    onChange(formattedDate);
+    setInputValue(formatDateForDisplay(formattedDate));
+    setShowCalendar(false);
+    setShowMonthPicker(false);
+    setShowYearPicker(false);
+  };
+
+  const clearDate = () => {
+    onChange('');
+    setInputValue('');
+    setShowCalendar(false);
+  };
+
+  // Update input value when value prop changes
+  useEffect(() => {
+    setInputValue(formatDateForDisplay(value));
+  }, [value]);
+
+  // Close calendar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (calendarRef.current && !calendarRef.current.contains(event.target as Node) &&
+          dateInputRef.current && !dateInputRef.current.contains(event.target as Node)) {
+        setShowCalendar(false);
+      }
+    };
+
+    if (showCalendar) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showCalendar]);
+
+  // Handle keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && showCalendar) {
+      setShowCalendar(false);
+    } else if (e.key === 'Escape') {
+      setShowCalendar(false);
+    } else if (e.key === 'Tab') {
+      setShowCalendar(false);
+    }
+  };
+
+  // Prevent form validation when interacting with calendar
+  const handleCalendarClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay();
+    
+    const days = [];
+    for (let i = 0; i < startingDay; i++) {
+      days.push(null);
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(new Date(year, month, i));
+    }
+    return days;
+  };
+
+  const days = getDaysInMonth(currentDate);
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <input
+          ref={dateInputRef}
+          type="text"
+          value={inputValue}
+          onChange={(e) => {
+            const value = e.target.value;
+            setInputValue(value);
+            // Only try to parse if it looks like a complete date
+            if (value.length >= 8) {
+              const parsedDate = parseDateFromDisplay(value);
+              if (parsedDate) {
+                onChange(parsedDate);
+              }
+            } else {
+              onChange('');
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder="dd/mm/yyyy"
+          onFocus={() => setShowCalendar(true)}
+          required
+          className={`w-full p-3 pr-12 rounded-lg border ${
+            isDarkMode 
+              ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
+              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+          } focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+        />
+        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+          {value && (
+            <button
+              type="button"
+              onClick={clearDate}
+              className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                isDarkMode ? 'text-gray-400 hover:text-red-400' : 'text-gray-500 hover:text-red-500'
+              }`}
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowCalendar(!showCalendar)}
+            className={`p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+              isDarkMode ? 'text-gray-400 hover:text-blue-400' : 'text-gray-500 hover:text-blue-500'
+            }`}
+          >
+            <CalendarIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {showCalendar && createPortal(
+        <div 
+          ref={calendarRef}
+          onClick={handleCalendarClick}
+          className={`fixed z-[9999999] p-2 rounded-lg border shadow-2xl calendar-container date-picker max-w-xs ${
+            isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+          }`}
+          style={{
+            top: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().bottom - 0 : '50%',
+            left: dateInputRef.current ? dateInputRef.current.getBoundingClientRect().left : '50%',
+            transform: dateInputRef.current ? 'translateY(0)' : 'translate(-50%, -50%)'
+          }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+              }}
+              className={`p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}
+            >
+              <ChevronDownIcon className="h-4 w-4 transform rotate-90" />
+            </button>
+            
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowMonthPicker(!showMonthPicker);
+                }}
+                className={`px-3 py-1 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 font-semibold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                {monthNames[currentDate.getMonth()]}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowYearPicker(!showYearPicker);
+                }}
+                className={`px-3 py-1 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 font-semibold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}
+              >
+                {currentDate.getFullYear()}
+              </button>
+            </div>
+            
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+              }}
+              className={`p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}
+            >
+              <ChevronDownIcon className="h-4 w-4 transform -rotate-90" />
+            </button>
+          </div>
+
+          {/* Quick Navigation Buttons */}
+          <div className="flex items-center justify-center gap-1 mb-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentDate(new Date());
+              }}
+              className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+                isDarkMode 
+                  ? 'bg-blue-500 hover:bg-blue-600 text-white' 
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+            >
+              Today
+            </button>
+          </div>
+
+          {/* Month Picker */}
+          {showMonthPicker && (
+            <div className={`mb-4 p-2 rounded-lg ${
+              isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
+            }`}>
+              <div className="grid grid-cols-3 gap-1">
+                {monthNames.map((month, index) => (
+                  <button
+                    key={month}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentDate(new Date(currentDate.getFullYear(), index));
+                      setShowMonthPicker(false);
+                      setShowYearPicker(false);
+                    }}
+                    className={`p-2 text-sm rounded-lg transition-colors ${
+                      index === currentDate.getMonth()
+                        ? 'bg-blue-500 text-white'
+                        : isDarkMode 
+                          ? 'hover:bg-gray-600 text-white' 
+                          : 'hover:bg-gray-200 text-gray-900'
+                    }`}
+                  >
+                    {month.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Year Picker */}
+          {showYearPicker && (
+            <div className={`mb-4 p-2 rounded-lg ${
+              isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
+            }`}>
+              <div className="grid grid-cols-3 gap-1">
+                {Array.from({ length: 12 }, (_, i) => currentDate.getFullYear() - 5 + i).map((year) => (
+                  <button
+                    key={year}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentDate(new Date(year, currentDate.getMonth()));
+                      setShowYearPicker(false);
+                      setShowMonthPicker(false);
+                    }}
+                    className={`p-2 text-sm rounded-lg transition-colors ${
+                      year === currentDate.getFullYear()
+                        ? 'bg-blue-500 text-white'
+                        : isDarkMode 
+                          ? 'hover:bg-gray-600 text-white' 
+                          : 'hover:bg-gray-200 text-gray-900'
+                    }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+              <div key={day} className={`text-center text-xs font-medium p-1 ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {days.map((day, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  day && handleDateSelect(day);
+                }}
+                disabled={!day}
+                className={`p-1 text-xs rounded-lg transition-colors ${
+                  !day ? 'invisible' :
+                  day.toDateString() === new Date().toDateString() 
+                    ? 'bg-blue-500 text-white' :
+                  value === day.toISOString().split('T')[0]
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                  `hover:bg-gray-200 dark:hover:bg-white/10 ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`
+                }`}
+              >
+                {day?.getDate()}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
 }
 
 // Enhanced Dropdown Component
@@ -273,6 +652,7 @@ export default function MillOutputForm({
   // Function to load existing mill outputs
   const loadExistingMillOutputs = async () => {
     console.log('loadExistingMillOutputs called with:', { order, existingMillOutputs });
+    console.log('Raw existingMillOutputs:', existingMillOutputs);
     
     if (!order || existingMillOutputs.length === 0) {
       console.log('Early return - no order or existing outputs');
@@ -294,18 +674,22 @@ export default function MillOutputForm({
             millBillNo: group.millBillNo,
             finishedMtr: group.mainOutput.finishedMtr.toString(),
             millRate: group.mainOutput.millRate.toString(),
-            quality: group.mainOutput.quality || '', // Add quality field
+            quality: group.mainOutput.quality?._id || group.mainOutput.quality || '', // Extract quality ID
             additionalFinishedMtr: group.additionalOutputs.map((output: any) => ({
               meters: output.finishedMtr.toString(),
               rate: output.millRate.toString(),
-              quality: output.quality || '' // Add quality field
+              quality: output.quality?._id || output.quality || '' // Extract quality ID
             }))
           }))
         };
         
         console.log('New form data to be set:', newFormData);
+        console.log('Number of form items:', newFormData.millOutputItems.length);
+        console.log('Quality data for main output:', groupedOutputs[0]?.mainOutput?.quality);
+        console.log('Quality data for additional outputs:', groupedOutputs[0]?.additionalOutputs?.map((output: any) => output.quality));
         setFormData(newFormData);
         console.log('Form data set successfully');
+        console.log('Final form data after setting:', newFormData);
       }
     } catch (error) {
       console.error('Error loading existing mill outputs:', error);
@@ -316,15 +700,29 @@ export default function MillOutputForm({
 
   // Helper function to group mill outputs by bill and date
   const groupMillOutputsByBillAndDate = (millOutputs: any[]) => {
+    console.log('groupMillOutputsByBillAndDate called with:', millOutputs);
     const groups: any[] = [];
     
-    millOutputs.forEach((output: any) => {
+    // Sort outputs by creation date to ensure consistent ordering
+    const sortedOutputs = [...millOutputs].sort((a, b) => {
+      const dateA = new Date(a.createdAt || 0);
+      const dateB = new Date(b.createdAt || 0);
+      return dateA.getTime() - dateB.getTime();
+    });
+    
+    sortedOutputs.forEach((output: any, index: number) => {
+      console.log(`Processing output ${index + 1}:`, output);
+      console.log('Output quality:', output.quality);
+      console.log('Output bill no:', output.millBillNo);
+      console.log('Output recd date:', output.recdDate);
+      
       const existingGroup = groups.find(group => 
         group.millBillNo === output.millBillNo && group.recdDate === output.recdDate
       );
       
       if (existingGroup) {
         // Add as additional output
+        console.log('Adding to existing group:', existingGroup);
         existingGroup.additionalOutputs.push({
           finishedMtr: output.finishedMtr,
           millRate: output.millRate,
@@ -332,6 +730,7 @@ export default function MillOutputForm({
         });
       } else {
         // Create new group
+        console.log('Creating new group for:', output.millBillNo, output.recdDate);
         groups.push({
           recdDate: output.recdDate,
           millBillNo: output.millBillNo,
@@ -345,6 +744,7 @@ export default function MillOutputForm({
       }
     });
     
+    console.log('Final groups:', groups);
     return groups;
   };
 
@@ -501,35 +901,35 @@ export default function MillOutputForm({
     const newErrors: ValidationErrors = {};
 
     formData.millOutputItems.forEach((item, itemIndex) => {
-      if (!item.recdDate) {
+      if (!item.recdDate || item.recdDate.trim() === '') {
         newErrors[`recdDate_${item.id}`] = 'Received date is required';
       }
 
-      if (!item.millBillNo?.trim()) {
+      if (!item.millBillNo || item.millBillNo.trim() === '') {
         newErrors[`millBillNo_${item.id}`] = 'Mill bill number is required';
       }
 
-      if (!item.finishedMtr || parseFloat(item.finishedMtr) <= 0) {
+      if (!item.finishedMtr || item.finishedMtr.trim() === '' || parseFloat(item.finishedMtr) <= 0) {
         newErrors[`finishedMtr_${item.id}`] = 'Valid finished meters is required';
       }
 
-      if (!item.millRate || parseFloat(item.millRate) <= 0) {
+      if (!item.millRate || item.millRate.trim() === '' || parseFloat(item.millRate) <= 0) {
         newErrors[`millRate_${item.id}`] = 'Valid mill rate is required';
       }
 
-      if (!item.quality) {
+      if (!item.quality || item.quality.trim() === '') {
         newErrors[`quality_${item.id}`] = 'Quality is required';
       }
 
       // Validate additional finished meters and rates
       item.additionalFinishedMtr.forEach((additional, additionalIndex) => {
-        if (!additional.meters || parseFloat(additional.meters) <= 0) {
+        if (!additional.meters || additional.meters.trim() === '' || parseFloat(additional.meters) <= 0) {
           newErrors[`additionalFinishedMtr_${item.id}_${additionalIndex}_meters`] = 'Valid additional finished meters is required';
         }
-        if (!additional.rate || parseFloat(additional.rate) <= 0) {
+        if (!additional.rate || additional.rate.trim() === '' || parseFloat(additional.rate) <= 0) {
           newErrors[`additionalFinishedMtr_${item.id}_${additionalIndex}_rate`] = 'Valid additional mill rate is required';
         }
-        if (!additional.quality) {
+        if (!additional.quality || additional.quality.trim() === '') {
           newErrors[`additionalQuality_${item.id}_${additionalIndex}`] = 'Quality is required';
         }
       });
@@ -570,6 +970,14 @@ export default function MillOutputForm({
 
   // Function to create new mill outputs
   const createNewMillOutputs = async () => {
+    console.log('createNewMillOutputs called with formData:', formData);
+    
+    // Get auth token
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
     const allMillOutputPromises: Promise<any>[] = [];
 
     formData.millOutputItems.forEach((item) => {
@@ -592,6 +1000,7 @@ export default function MillOutputForm({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify(millOutputData)
         }).then(response => response.json())
@@ -615,6 +1024,7 @@ export default function MillOutputForm({
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify(additionalMillOutputData)
           }).then(response => response.json())
@@ -639,17 +1049,39 @@ export default function MillOutputForm({
 
   // Function to update existing mill outputs
   const updateExistingMillOutputs = async () => {
+    console.log('updateExistingMillOutputs called with existingMillOutputs:', existingMillOutputs);
+    
+    // Get auth token
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
     // First delete existing mill outputs for this order
-    const deletePromises = existingMillOutputs.map((output: any) =>
-      fetch(`/api/mill-outputs/${output._id}`, {
+    const deletePromises = existingMillOutputs.map((output: any) => {
+      console.log('Deleting mill output:', output._id);
+      return fetch(`/api/mill-outputs/${output._id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         }
-      })
-    );
+      });
+    });
 
-    await Promise.all(deletePromises);
+    try {
+      const deleteResults = await Promise.all(deletePromises);
+      console.log('Delete results:', deleteResults);
+      
+      // Check if all deletions were successful
+      const allDeleted = deleteResults.every(result => result.ok);
+      if (!allDeleted) {
+        console.warn('Some mill outputs could not be deleted, but continuing with update...');
+      }
+    } catch (error) {
+      console.error('Error deleting existing mill outputs:', error);
+      // Continue with creating new ones even if deletion fails
+    }
 
     // Then create new ones with updated data
     await createNewMillOutputs();
@@ -791,25 +1223,12 @@ export default function MillOutputForm({
                           }`}>
                             RECD DATE <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <input
-                  type="date"
-                              value={item.recdDate}
-                              onChange={(e) => updateMillOutputItem(item.id, 'recdDate', e.target.value)}
-                              className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                errors[`recdDate_${item.id}`]
-                                  ? isDarkMode
-                                    ? 'border-red-500 bg-gray-800 text-white'
-                                    : 'border-red-500 bg-white text-gray-900'
-                                  : isDarkMode
-                                    ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                                    : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                              }`}
-                            />
-                            <CalendarIcon className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${
-                              isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                            }`} />
-              </div>
+              <CustomDatePicker
+                value={item.recdDate}
+                onChange={(value) => updateMillOutputItem(item.id, 'recdDate', value)}
+                placeholder="Select received date"
+                isDarkMode={isDarkMode}
+              />
                           {errors[`recdDate_${item.id}`] && (
                             <p className={`text-sm mt-1 ${
                               isDarkMode ? 'text-red-400' : 'text-red-600'
@@ -832,6 +1251,7 @@ export default function MillOutputForm({
                               value={item.millBillNo}
                               onChange={(e) => updateMillOutputItem(item.id, 'millBillNo', e.target.value)}
                   placeholder="Enter mill bill number"
+                  required
                               className={`w-full px-4 py-3 pl-12 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                 errors[`millBillNo_${item.id}`]
                                   ? isDarkMode
@@ -920,6 +1340,7 @@ export default function MillOutputForm({
                     placeholder="Enter finished meters"
                     step="0.01"
                     min="0"
+                    required
                     className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       errors[`finishedMtr_${item.id}`]
                         ? isDarkMode
@@ -951,6 +1372,7 @@ export default function MillOutputForm({
                     placeholder="Enter mill rate"
                     step="0.01"
                     min="0"
+                    required
                     className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       errors[`millRate_${item.id}`]
                         ? isDarkMode
@@ -1025,6 +1447,7 @@ export default function MillOutputForm({
                       placeholder="Enter finished meters"
                       step="0.01"
                       min="0"
+                      required
                       className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                         isDarkMode 
                           ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
@@ -1045,6 +1468,7 @@ export default function MillOutputForm({
                       placeholder="Enter mill rate"
                       step="0.01"
                       min="0"
+                      required
                       className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                         isDarkMode
                           ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
