@@ -1061,7 +1061,7 @@ export default function CreateFabricPage() {
       <div className={`min-h-screen rounded-2xl transition-colors duration-300 ${
         isDarkMode 
           ? 'text-white bg-gray-900' 
-          : 'text-gray-900 bg-gray-50'
+          : 'text-gray-900 bg-white'
       }`}>
         <div className={`border-b shadow-lg transition-colors duration-300 ${
           isDarkMode 
@@ -1140,7 +1140,7 @@ export default function CreateFabricPage() {
     <div className={`min-h-screen rounded-2xl transition-all duration-500 ease-out animate-in fade-in-0 slide-in-from-bottom-2 ${
             isDarkMode 
         ? 'text-white bg-gray-900' 
-        : 'text-gray-900 bg-gray-50'
+        : 'text-gray-900 bg-white'
     }`}>
 
 
@@ -2183,7 +2183,11 @@ export default function CreateFabricPage() {
           </div>
 
           {/* Submit Buttons - Sticky */}
-          <div className="mt-4 sm:mt-6 flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 z-50 min-[1200px]:sticky min-[1200px]:bottom-4">
+          <div className={`mt-4 sm:mt-6 flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 p-3 rounded-lg shadow-lg border z-50 min-[1200px]:sticky min-[1200px]:bottom-4 ${
+            isDarkMode 
+              ? 'bg-gray-800 border-gray-600' 
+              : 'bg-white border-gray-200'
+          }`}>
             {/* Reset Button - Only show on create page */}
             {!isEditMode && (
               <button

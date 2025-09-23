@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useModeAnimation, ThemeAnimationType } from 'react-theme-switch-animation';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface DarkModeReturn {
   isDarkMode: boolean;
@@ -10,7 +9,7 @@ interface DarkModeReturn {
   getThemeMode: () => 'system' | 'dark' | 'light';
   mounted: boolean;
   getDarkModeState: (defaultValue?: boolean) => boolean;
-  themeSwitchRef: React.RefObject<HTMLButtonElement>;
+  themeSwitchRef: React.RefObject<HTMLButtonElement | null>;
 }
 
 export function useDarkMode(): DarkModeReturn {
@@ -18,27 +17,28 @@ export function useDarkMode(): DarkModeReturn {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   
   const [mounted, setMounted] = useState<boolean>(false);
+  const themeSwitchRef = useRef<HTMLButtonElement | null>(null);
 
-  // Use the react-theme-switch-animation hook
-  const { ref: themeSwitchRef, toggleSwitchTheme } = useModeAnimation({
-    animationType: ThemeAnimationType.CIRCLE,
-    duration: 400,
-    easing: "ease-in-out",
-    globalClassName: "dark",
-    isDarkMode: isDarkMode,
-    onDarkModeChange: (isDark: boolean) => {
-      setIsDarkMode(isDark);
-      localStorage.setItem('darkMode', isDark.toString());
-      
-      // Dispatch custom event for consistency
-      const customEvent = new CustomEvent('darkModeChange', { 
-        detail: isDark,
-        bubbles: true,
-        cancelable: true
-      });
-      window.dispatchEvent(customEvent);
+  // Simple theme toggle function
+  const toggleTheme = useCallback((isDark: boolean) => {
+    setIsDarkMode(isDark);
+    localStorage.setItem('darkMode', isDark.toString());
+    
+    // Apply theme to document
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
-  });
+    
+    // Dispatch custom event for consistency
+    const customEvent = new CustomEvent('darkModeChange', { 
+      detail: isDark,
+      bubbles: true,
+      cancelable: true
+    });
+    window.dispatchEvent(customEvent);
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -84,23 +84,21 @@ export function useDarkMode(): DarkModeReturn {
       window.removeEventListener('storage', handleStorageChange);
       mediaQuery.removeEventListener('change', handleSystemChange);
     };
-  }, [isDarkMode]);
+  }, []);
 
-  // Memoized toggle function for better performance - now uses react-theme-switch-animation
+  // Memoized toggle function for better performance
   const toggleDarkMode = useCallback(() => {
-    // Use the hook's toggle function for smooth animation
-    toggleSwitchTheme();
-  }, [toggleSwitchTheme]);
+    // Toggle the theme
+    toggleTheme(!isDarkMode);
+  }, [isDarkMode, toggleTheme]);
 
   const setSystemTheme = useCallback(() => {
     localStorage.removeItem('darkMode');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    // Use the hook's toggle function for smooth animation
-    if (prefersDark !== isDarkMode) {
-      toggleSwitchTheme();
-    }
-  }, [isDarkMode, toggleSwitchTheme]);
+    // Apply system theme
+    toggleTheme(prefersDark);
+  }, [toggleTheme]);
 
   const getThemeMode = useCallback(() => {
     const savedMode = localStorage.getItem('darkMode');
