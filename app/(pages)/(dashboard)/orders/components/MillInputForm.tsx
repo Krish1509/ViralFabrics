@@ -1566,9 +1566,8 @@ export default function MillInputForm({
                   <div className={`p-4 text-center rounded-lg border ${
                     isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-300 text-gray-600'
                   }`}>
-                    <div className="flex flex-col items-center space-y-2">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-                      <p className="text-sm">Loading mills...</p>
+                    <div className="flex flex-col items-center space-y-3">
+                      <p className="text-sm">No mills available</p>
                     <button
                       type="button"
                       onClick={() => setShowAddMillModal(true)}
