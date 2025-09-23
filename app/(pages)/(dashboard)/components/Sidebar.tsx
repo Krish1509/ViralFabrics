@@ -33,6 +33,7 @@ interface SidebarProps {
     name: string;
   } | null;
   onLogout?: () => void;
+  isLoggingOut?: boolean;
   onFullscreenToggle?: () => void;
   isFullscreen?: boolean;
   isInstalled?: boolean;
@@ -55,6 +56,7 @@ export default function Sidebar({
   onToggleCollapse, 
   user,
   onLogout,
+  isLoggingOut = false,
   onFullscreenToggle,
   isFullscreen = false,
   isInstalled = false,
@@ -559,15 +561,24 @@ export default function Sidebar({
                           closeProfileDropdown();
                           onLogout?.();
                         }}
+                        disabled={isLoggingOut}
                         className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
-                          isDarkMode 
-                            ? 'text-red-400 hover:bg-red-500/10' 
-                            : 'text-red-600 hover:bg-red-50'
+                          isLoggingOut
+                            ? isDarkMode 
+                              ? 'text-gray-500 cursor-not-allowed' 
+                              : 'text-gray-400 cursor-not-allowed'
+                            : isDarkMode 
+                              ? 'text-red-400 hover:bg-red-500/10' 
+                              : 'text-red-600 hover:bg-red-50'
                         }`}
                       >
                         <div className="flex items-center space-x-2">
-                          <ArrowRightOnRectangleIcon className="h-4 w-4" />
-                          <span>Logout</span>
+                          {isLoggingOut ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                          ) : (
+                            <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                          )}
+                          <span>{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
                         </div>
                       </button>
                     </div>

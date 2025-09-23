@@ -50,6 +50,7 @@ interface User {
 interface NavbarProps {
   user: User | null;
   onLogout: () => void;
+  isLoggingOut?: boolean;
   onToggleSidebar: () => void;
   onToggleCollapse: () => void;
   isCollapsed: boolean;
@@ -62,7 +63,7 @@ interface NavbarProps {
   onOpenInApp?: () => void;
 }
 
-export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollapse, isCollapsed, updateUser, sessionStatus = 'active', isLoading = false, isInstalled = false, isInstalling = false, onInstallClick, onOpenInApp }: NavbarProps) {
+export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleSidebar, onToggleCollapse, isCollapsed, updateUser, sessionStatus = 'active', isLoading = false, isInstalled = false, isInstalling = false, onInstallClick, onOpenInApp }: NavbarProps) {
   const { isDarkMode, toggleDarkMode, setSystemTheme, mounted, themeSwitchRef } = useDarkMode();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
@@ -600,15 +601,24 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                             closeProfileDropdown();
                             onLogout();
                           }}
+                          disabled={isLoggingOut}
                           className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
-                            isDarkMode 
-                              ? 'text-red-400 hover:bg-red-500/10' 
-                              : 'text-red-600 hover:bg-red-50'
+                            isLoggingOut
+                              ? isDarkMode 
+                                ? 'text-gray-500 cursor-not-allowed' 
+                                : 'text-gray-400 cursor-not-allowed'
+                              : isDarkMode 
+                                ? 'text-red-400 hover:bg-red-500/10' 
+                                : 'text-red-600 hover:bg-red-50'
                           }`}
                         >
                           <div className="flex items-center space-x-2">
-                            <ArrowRightOnRectangleIcon className="h-4 w-4" />
-                            <span>Logout</span>
+                            {isLoggingOut ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                            ) : (
+                              <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                            )}
+                            <span>{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
                           </div>
                         </button>
                       </div>
@@ -879,15 +889,24 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                             closeProfileDropdown();
                             onLogout();
                           }}
+                          disabled={isLoggingOut}
                           className={`w-full text-left px-3 py-2 text-sm transition-colors duration-200 ${
-                            isDarkMode 
-                              ? 'text-red-400 hover:bg-red-500/10' 
-                              : 'text-red-600 hover:bg-red-50'
+                            isLoggingOut
+                              ? isDarkMode 
+                                ? 'text-gray-500 cursor-not-allowed' 
+                                : 'text-gray-400 cursor-not-allowed'
+                              : isDarkMode 
+                                ? 'text-red-400 hover:bg-red-500/10' 
+                                : 'text-red-600 hover:bg-red-50'
                           }`}
                         >
                           <div className="flex items-center space-x-2">
-                            <ArrowRightOnRectangleIcon className="h-4 w-4" />
-                            <span>Logout</span>
+                            {isLoggingOut ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                            ) : (
+                              <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                            )}
+                            <span>{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
                           </div>
                         </button>
                       </div>
@@ -1322,14 +1341,23 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                   setShowProfileModal(false);
                   onLogout();
                 }}
+                disabled={isLoggingOut}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
-                  isDarkMode
-                    ? 'text-red-400 hover:bg-red-500/10'
-                    : 'text-red-600 hover:bg-red-50'
+                  isLoggingOut
+                    ? isDarkMode
+                      ? 'text-gray-500 cursor-not-allowed'
+                      : 'text-gray-400 cursor-not-allowed'
+                    : isDarkMode
+                      ? 'text-red-400 hover:bg-red-500/10'
+                      : 'text-red-600 hover:bg-red-50'
                 }`}
               >
-                <ArrowRightOnRectangleIcon className="h-4 w-4" />
-                <span>Logout</span>
+                {isLoggingOut ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                ) : (
+                  <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                )}
+                <span>{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
               </button>
 
               {/* Right: Close Button */}

@@ -78,15 +78,15 @@ export default function OrderDetailsPage() {
           
           if (orderData.success) {
             setOrder(orderData.data);
-            // Small delay to ensure state updates properly
-            setTimeout(() => setLoading(false), 100);
+            // Set loading to false after order is set
+            setLoading(false);
           } else {
-            // If order not found, keep loading false but don't set order
-            setTimeout(() => setLoading(false), 100);
+            // If order not found, keep loading true (show loading indefinitely)
+            // Don't set loading to false - just keep showing loading
           }
         } catch (error) {
           console.error('Error fetching order:', error);
-          setTimeout(() => setLoading(false), 100);
+          // Keep loading true on error - just show loading indefinitely
         }
 
         // Fetch all other data in parallel in background with progress tracking
@@ -153,15 +153,6 @@ export default function OrderDetailsPage() {
       };
       
       fetchAllOrderData();
-      
-      // Fallback timeout to prevent infinite loading
-      const timeoutId = setTimeout(() => {
-        if (loading) {
-          setLoading(false);
-        }
-      }, 1500); // 1.5 second timeout for super fast loading
-      
-      return () => clearTimeout(timeoutId);
     }
   }, [orderMongoId, order?.orderId, loading]);
 
@@ -349,25 +340,13 @@ export default function OrderDetailsPage() {
     );
   }
 
-  // Only show "Order not found" if we're not loading and have confirmed no order exists
+  // If no order and not loading, just show loading (no error message)
   if (!loading && !order) {
     return (
-      <div className="min-h-screen bg-white dark:bg-gray-900 py-8 flex items-center justify-center">
+      <div className="min-h-screen bg-white dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-red-900/20' : 'bg-red-100'}`}>
-            <ExclamationTriangleIcon className={`h-16 w-16 mx-auto mb-4 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`} />
-            <p className={`text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-              Order not found
-            </p>
-            <button
-              onClick={() => router.push('/orders')}
-              className={`mt-4 px-6 py-2 rounded-lg ${
-                isDarkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'
-              } text-white`}
-            >
-              Back to Orders
-            </button>
-          </div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
     );

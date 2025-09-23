@@ -753,19 +753,17 @@ export default function OrdersPage() {
         const successCount = results.filter(result => result.status === 'fulfilled').length;
         const totalCount = results.length;
 
-        // Silent loading - no success message to avoid duplicates
-        if (successCount === totalCount) {
-          // Data loaded successfully - no notification needed
-          setLoading(false); // Only set loading false when orders are loaded
-        } else if (successCount > 0) {
-          // Silent partial success - no notification to avoid spam
-          setLoading(false); // Set loading false even for partial success
+        // Only set loading false when orders are actually loaded
+        if (ordersResult.status === 'fulfilled') {
+          // Orders loaded successfully - small delay to ensure state updates
+          setTimeout(() => setLoading(false), 100);
         } else {
-          showMessage('error', 'Failed to load data. Please refresh the page.', { 
+          // Orders failed to load - show error and set loading false
+          showMessage('error', 'Failed to load orders. Please refresh the page.', { 
             autoDismiss: true, 
             dismissTime: 5000 
           });
-          setLoading(false); // Set loading false on error
+          setLoading(false);
         }
         
       } catch (error) {
