@@ -59,6 +59,7 @@ export default function OrdersPage() {
   const [parties, setParties] = useState<Party[]>([]);
   const [qualities, setQualities] = useState<Quality[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ordersLoaded, setOrdersLoaded] = useState(false);
   const [orderMillInputs, setOrderMillInputs] = useState<{[key: string]: any[]}>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -218,9 +219,9 @@ export default function OrdersPage() {
 
   // Optimized fetch functions with retry logic and better timeout handling
   const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage) => {
-    const maxRetries = 2; // Allow 2 retries for better reliability
-    const baseTimeout = 15000; // 15 seconds base timeout (more reasonable)
-    const timeoutIncrement = 5000; // Add 5 seconds per retry
+    const maxRetries = 1; // Reduced retries for faster loading
+    const baseTimeout = 5000; // 5 seconds base timeout (much faster)
+    const timeoutIncrement = 2000; // Add 2 seconds per retry
     
     try {
       const controller = new AbortController();
@@ -254,7 +255,9 @@ export default function OrdersPage() {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
         },
         signal: controller.signal
       });
@@ -498,7 +501,7 @@ export default function OrdersPage() {
 
       // Create abort controller for timeout handling
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout (much faster)
 
       // Fetch all three endpoints in parallel for better performance
       const [millInputsResponse, millOutputsResponse, dispatchesResponse] = await Promise.all([
@@ -610,13 +613,13 @@ export default function OrdersPage() {
   const fetchParties = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout (much faster)
       
       const token = localStorage.getItem('token');
       const response = await fetch('/api/parties?limit=50', { // Increased limit for better UX
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=300, must-revalidate', // 5 minute cache
+          'Cache-Control': 'no-cache, no-store, must-revalidate', // No cache for fresh data
           'Pragma': 'no-cache',
           'Accept': 'application/json'
         },
@@ -646,13 +649,13 @@ export default function OrdersPage() {
   const fetchQualities = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout (much faster)
       
       const token = localStorage.getItem('token');
       const response = await fetch('/api/qualities?limit=100', { // Increased limit for better UX
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=300, must-revalidate', // 5 minute cache
+          'Cache-Control': 'no-cache, no-store, must-revalidate', // No cache for fresh data
           'Pragma': 'no-cache',
           'Accept': 'application/json'
         },
@@ -683,14 +686,14 @@ export default function OrdersPage() {
   const fetchMills = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout (much faster)
       
       const token = localStorage.getItem('token');
       
       const response = await fetch('/api/mills?limit=100', {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=300, must-revalidate', // 5 minute cache
+          'Cache-Control': 'no-cache, no-store, must-revalidate', // No cache for fresh data
           'Pragma': 'no-cache',
           'Accept': 'application/json'
         },
@@ -755,14 +758,16 @@ export default function OrdersPage() {
 
         // Only set loading false when orders are actually loaded
         if (ordersResult.status === 'fulfilled') {
-          // Orders loaded successfully - small delay to ensure state updates
-          setTimeout(() => setLoading(false), 100);
+          // Orders loaded successfully - set both states
+          setOrdersLoaded(true);
+          setLoading(false);
         } else {
           // Orders failed to load - show error and set loading false
           showMessage('error', 'Failed to load orders. Please refresh the page.', { 
             autoDismiss: true, 
             dismissTime: 5000 
           });
+          setOrdersLoaded(true); // Mark as loaded even if failed
           setLoading(false);
         }
         
@@ -772,6 +777,7 @@ export default function OrdersPage() {
           autoDismiss: true, 
           dismissTime: 5000 
         });
+        setOrdersLoaded(true); // Mark as loaded even on error
         setLoading(false); // Set loading false on error
       } finally {
         setIsInitialized(true); // Only set initialized, not loading
@@ -1745,7 +1751,7 @@ export default function OrdersPage() {
               )}
               
               {/* Reset Counter - Only show when no orders exist and not loading */}
-              {!loading && orders.length === 0 && (
+              {ordersLoaded && orders.length === 0 && (
                 <button
                   onClick={handleResetCounter}
                   disabled={resettingCounter}
@@ -2849,7 +2855,7 @@ export default function OrdersPage() {
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
                 <p>Loading orders...</p>
               </div>
-            ) : !loading && orders.length === 0 ? (
+            ) : ordersLoaded && orders.length === 0 ? (
               <div className="space-y-4">
                 <div className={`mx-auto h-16 w-16 rounded-full flex items-center justify-center ${
                   isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
@@ -2920,7 +2926,31 @@ export default function OrdersPage() {
       ) : (
         /* Enhanced Card Layout - Complete Order Information */
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {currentOrders.map((order) => (
+          {!ordersLoaded ? (
+            // Loading skeleton cards
+            Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className={`rounded-xl border shadow-lg animate-pulse ${
+                isDarkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-white border-gray-200'
+              }`}>
+                <div className="p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="w-24 h-6 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                    <div className="w-16 h-5 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="w-full h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                    <div className="w-3/4 h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                    <div className="w-1/2 h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                  </div>
+                  <div className="mt-4 flex justify-between">
+                    <div className="w-20 h-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                    <div className="w-16 h-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            currentOrders.map((order) => (
             <div key={order._id} className={`rounded-xl border shadow-lg ${
               isDarkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-white border-gray-200'
             }`}>
@@ -3346,7 +3376,8 @@ export default function OrdersPage() {
 
               </div>
             </div>
-          ))}
+          ))
+          )}
           
           {/* Card Layout Pagination */}
           {(totalPages > 1 || orders.length > 0) && (
