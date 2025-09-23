@@ -218,9 +218,9 @@ export default function OrdersPage() {
 
   // Optimized fetch functions with retry logic and better timeout handling
   const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage) => {
-    const maxRetries = 1; // Single retry for faster failure
-    const baseTimeout = 5000; // 5 seconds base timeout
-    const timeoutIncrement = 1000; // Add 1 second per retry
+    const maxRetries = 2; // Allow 2 retries for better reliability
+    const baseTimeout = 15000; // 15 seconds base timeout (more reasonable)
+    const timeoutIncrement = 5000; // Add 5 seconds per retry
     
     try {
       const controller = new AbortController();
@@ -309,18 +309,24 @@ export default function OrdersPage() {
     } catch (error: any) {
       if (error.name === 'AbortError') {
         if (retryCount < maxRetries) {
-          // Silent retry without showing message
+          // Show retry message for better UX
+          showMessage('warning', `Request timeout. Retrying... (${retryCount + 1}/${maxRetries})`, { autoDismiss: true, dismissTime: 2000 });
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
           return fetchOrders(retryCount + 1, page, limit);
         } else {
           setLoading(false);
+          showMessage('error', 'Request timed out. Please check your connection and try again.', { autoDismiss: true, dismissTime: 5000 });
+          return; // Don't throw error, just return gracefully
         }
       } else if (error.message?.includes('Failed to fetch')) {
         setLoading(false);
+        showMessage('error', 'Network error. Please check your connection.', { autoDismiss: true, dismissTime: 4000 });
+        return;
       } else {
         setLoading(false);
+        showMessage('error', error.message || 'Failed to fetch orders', { autoDismiss: true, dismissTime: 4000 });
+        return;
       }
-      throw error;
     }
   }, [showMessage, currentPage, itemsPerPage, filters]);
 
@@ -491,18 +497,27 @@ export default function OrdersPage() {
       const token = localStorage.getItem('token');
       if (!token) return;
 
+      // Create abort controller for timeout handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       // Fetch all three endpoints in parallel for better performance
       const [millInputsResponse, millOutputsResponse, dispatchesResponse] = await Promise.all([
         fetch('/api/mill-inputs', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          signal: controller.signal
         }),
         fetch('/api/mill-outputs', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          signal: controller.signal
         }),
         fetch('/api/dispatch', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          signal: controller.signal
         })
       ]);
+
+      clearTimeout(timeoutId);
 
       // Process mill inputs
       const millInputsData = await millInputsResponse.json();
@@ -548,11 +563,16 @@ export default function OrdersPage() {
       } else {
         setOrderDispatches({});
       }
-    } catch (error) {
+    } catch (error: any) {
       // Set empty objects on error
       setOrderMillInputs({});
       setOrderMillOutputs({});
       setOrderDispatches({});
+      
+      // Handle timeout gracefully - don't show error for non-critical data
+      if (error.name === 'AbortError') {
+        // Silent timeout for order data - not critical for main functionality
+      }
     }
   }, []);
 
@@ -591,7 +611,7 @@ export default function OrdersPage() {
   const fetchParties = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
       
       const token = localStorage.getItem('token');
       const response = await fetch('/api/parties?limit=50', { // Increased limit for better UX
@@ -617,15 +637,17 @@ export default function OrdersPage() {
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        } else if (!error.message?.includes('401')) {
-        }
+        // Silent timeout for parties - not critical for main functionality
+      } else if (!error.message?.includes('401')) {
+        // Silent error for parties - not critical for main functionality
+      }
     }
   }, []);
 
   const fetchQualities = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
       
       const token = localStorage.getItem('token');
       const response = await fetch('/api/qualities?limit=100', { // Increased limit for better UX
@@ -651,8 +673,10 @@ export default function OrdersPage() {
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        } else if (!error.message?.includes('401')) {
-        }
+        // Silent timeout for qualities - not critical for main functionality
+      } else if (!error.message?.includes('401')) {
+        // Silent error for qualities - not critical for main functionality
+      }
     }
   }, []);
 
@@ -660,7 +684,7 @@ export default function OrdersPage() {
   const fetchMills = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
       
       const token = localStorage.getItem('token');
       
@@ -690,8 +714,10 @@ export default function OrdersPage() {
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        } else if (!error.message?.includes('401')) {
-        }
+        // Silent timeout for mills - not critical for main functionality
+      } else if (!error.message?.includes('401')) {
+        // Silent error for mills - not critical for main functionality
+      }
     }
   }, []);
 
@@ -759,12 +785,13 @@ export default function OrdersPage() {
     return () => clearTimeout(timeoutId);
   }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderData, showMessage, isInitialized]);
 
-  // Refresh mill inputs, outputs, and dispatches when orders change
+  // Refresh mill inputs, outputs, and dispatches when orders are initially loaded
+  // This only runs when orders are loaded from server, not on optimistic updates
   useEffect(() => {
-    if (orders.length > 0) {
+    if (orders.length > 0 && isInitialized) {
       fetchAllOrderData(); // Use optimized single function instead of three separate calls
     }
-  }, [orders, fetchAllOrderData]);
+  }, [isInitialized, fetchAllOrderData]); // Removed 'orders' dependency to prevent unnecessary calls
 
 
   // Keyboard navigation for image preview
@@ -785,7 +812,6 @@ export default function OrdersPage() {
           event.detail?.action === 'order_update' || 
           event.detail?.action === 'order_delete' ||
           event.detail?.action === 'order_delete_all' ||
-          event.detail?.action === 'order_status_change' ||
           event.detail?.action === 'lab_add') {
         // OrdersPage: Refreshing orders due to action
         
@@ -798,6 +824,13 @@ export default function OrdersPage() {
           } else if (event.detail?.action === 'lab_add') {
             showMessage('success', 'Lab data updated in table automatically!', { autoDismiss: true, dismissTime: 3000 });
           }
+        }).catch(error => {
+          // Silent error handling for better UX
+        });
+      } else if (event.detail?.action === 'order_status_change') {
+        // For status changes, only refresh orders (not mill data) since we already have optimistic updates
+        fetchOrders().then(() => {
+          // OrdersPage: Successfully refreshed orders after status change
         }).catch(error => {
           // Silent error handling for better UX
         });
@@ -987,15 +1020,8 @@ export default function OrdersPage() {
       if (data.success) {
         showMessage('success', `Order ${statusChangeData.orderIdDisplay} status updated to ${statusChangeData.newStatus}`, { autoDismiss: true, dismissTime: 2000 });
         
-        // Trigger real-time update for Order Activity Log
-        const event = new CustomEvent('orderUpdated', { 
-          detail: { 
-            orderId: statusChangeData.orderId,
-            action: 'order_status_change',
-            timestamp: new Date().toISOString()
-          } 
-        });
-        window.dispatchEvent(event);
+        // No need to trigger real-time update since we already have optimistic updates
+        // The UI is already updated, so no additional API calls needed
       } else {
         // Revert optimistic update on error
         setOrders(prev => prev.map(order => 

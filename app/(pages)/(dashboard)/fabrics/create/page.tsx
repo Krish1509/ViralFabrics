@@ -257,11 +257,10 @@ export default function CreateFabricPage() {
     if (qualityCodeCache.hasOwnProperty(normalizedCode)) {
       const exists = qualityCodeCache[normalizedCode];
       if (exists) {
-        setErrors(prev => ({ 
-          ...prev, 
-          qualityCode: `Quality code "${qualityCode}" already exists. You can add items to existing quality codes.` 
-        }));
-        setIsQualityCodeValid(false);
+        // Quality code exists - this is OK, just show info message
+        setErrors(prev => ({ ...prev, qualityCode: '' })); // Clear error
+        setIsQualityCodeValid(true); // Mark as valid
+        showValidationMessage('info', `Quality code "${qualityCode}" exists. You can add new items to this quality code.`);
       } else {
         setErrors(prev => ({ ...prev, qualityCode: '' }));
         setIsQualityCodeValid(true);
@@ -293,13 +292,11 @@ export default function CreateFabricPage() {
         );
         
         if (exactMatch) {
-          // Quality code already exists
+          // Quality code already exists - this is OK, just show info message
           setQualityCodeCache(prev => ({ ...prev, [normalizedCode]: true }));
-          setErrors(prev => ({ 
-            ...prev, 
-            qualityCode: `Quality code "${qualityCode}" already exists. You can add items to existing quality codes.` 
-          }));
-          setIsQualityCodeValid(false);
+          setErrors(prev => ({ ...prev, qualityCode: '' })); // Clear error
+          setIsQualityCodeValid(true); // Mark as valid
+          showValidationMessage('info', `Quality code "${qualityCode}" exists. You can add new items to this quality code.`);
         } else {
           // Quality code is unique, clear any existing error
           setQualityCodeCache(prev => ({ ...prev, [normalizedCode]: false }));
@@ -319,12 +316,10 @@ export default function CreateFabricPage() {
         setErrors(prev => ({ ...prev, qualityCode: '' }));
         setIsQualityCodeValid(true);
       } else {
-        // Other error, show a user-friendly message
-        setErrors(prev => ({ 
-          ...prev, 
-          qualityCode: 'Unable to verify quality code. Please try again.' 
-        }));
-        setIsQualityCodeValid(false);
+        // Other error, assume it's valid to avoid blocking the user
+        setQualityCodeCache(prev => ({ ...prev, [normalizedCode]: false }));
+        setErrors(prev => ({ ...prev, qualityCode: '' }));
+        setIsQualityCodeValid(true);
       }
     } finally {
       setCheckingQualityCode(false);
@@ -786,7 +781,6 @@ export default function CreateFabricPage() {
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
-      setIsQualityCodeValid(false); // Reset validation state when form validation fails
       showValidationMessage('error', 'Please fill all required fields');
       return;
     }
@@ -1375,7 +1369,7 @@ export default function CreateFabricPage() {
                  )}
                  {!isEditMode && (
                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                     Quality code will be checked for uniqueness.
+                     You can use existing quality codes to add new items.
                    </p>
                  )}
                  {isQualityCodeValid && !isEditMode && (
@@ -1384,7 +1378,7 @@ export default function CreateFabricPage() {
                        <svg className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                        </svg>
-                       <span className="flex-1">Available!</span>
+                       <span className="flex-1">Ready to create!</span>
                      </p>
                    </div>
                  )}
