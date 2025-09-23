@@ -380,21 +380,6 @@ function LoginForm() {
               </span>
             </h2>
             
-            <p className="text-blue-50 text-lg leading-relaxed mb-10 font-medium">
-              Streamline your fabric business operations with our powerful management system. 
-              Boost productivity and enhance customer satisfaction.
-            </p>
-            
-            <div className="flex flex-wrap gap-8 justify-center">
-              <div className="flex items-center space-x-3 animate-fade-in-subtle delay-500">
-                <div className="w-3 h-3 bg-green-300 rounded-full shadow-lg"></div>
-                <span className="text-blue-50 text-lg font-semibold">Enterprise Security</span>
-              </div>
-              <div className="flex items-center space-x-3 animate-fade-in-subtle delay-700">
-                <div className="w-3 h-3 bg-blue-300 rounded-full shadow-lg"></div>
-                <span className="text-blue-50 text-lg font-semibold">24/7 Support</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
