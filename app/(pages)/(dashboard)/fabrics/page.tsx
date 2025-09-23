@@ -1245,38 +1245,6 @@ export default function FabricsPage() {
 
           {/* Right Side - Action Buttons */}
           <div className="flex items-center space-x-2">
-            {/* Create Order Button */}
-            <button
-              onClick={() => router.push('/orders/create')}
-              className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 text-sm shadow-md hover:shadow-lg ${
-                isDarkMode 
-                  ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white border border-green-500' 
-                  : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white border border-green-400'
-              }`}
-            >
-              <PlusIcon className="h-4 w-4 inline mr-2" />
-              Create Order
-            </button>
-
-            {/* Search Button */}
-            <button
-              onClick={() => {
-                const searchInput = document.querySelector('input[placeholder="Search fabrics..."]') as HTMLInputElement;
-                if (searchInput) {
-                  searchInput.focus();
-                  searchInput.select();
-                }
-              }}
-              className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 text-sm shadow-md hover:shadow-lg ${
-                isDarkMode 
-                  ? 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white border border-purple-500' 
-                  : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white border border-purple-400'
-              }`}
-            >
-              <MagnifyingGlassIcon className="h-4 w-4 inline mr-2" />
-              Search
-            </button>
-
             {/* Add Fabric Button */}
             <button
               onClick={handleCreate}

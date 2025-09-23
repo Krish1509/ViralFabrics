@@ -39,6 +39,45 @@ interface OrderData {
   finalAmount: number;
   createdAt: Date;
   notes?: string;
+  // Mill data
+  millInputs?: Array<{
+    mill: {
+      name: string;
+    };
+    millDate: Date;
+    chalanNo: string;
+    greighMtr: number;
+    pcs: number;
+    quality?: {
+      name: string;
+    };
+    additionalMeters?: Array<{
+      greighMtr: number;
+      pcs: number;
+      quality?: {
+        name: string;
+      };
+    }>;
+  }>;
+  millOutputs?: Array<{
+    recdDate: Date;
+    millBillNo: string;
+    finishedMtr: number;
+    millRate: number;
+    quality?: {
+      name: string;
+    };
+  }>;
+  dispatches?: Array<{
+    dispatchDate: Date;
+    billNo: string;
+    finishMtr: number;
+    saleRate: number;
+    quality?: {
+      name: string;
+    };
+    totalValue: number;
+  }>;
 }
 
 export const generateOrderPDF = (order: OrderData): void => {
@@ -60,6 +99,46 @@ export const generateOrderPDF = (order: OrderData): void => {
   const formatCurrency = (amount: number): string => {
     return amount.toFixed(2);
   };
+
+  // Calculate totals from real data
+  const calculateTotals = () => {
+    // Calculate total greigh meters from mill inputs
+    const totalGreighMtr = order.millInputs?.reduce((total, input) => {
+      const mainMtr = input.greighMtr || 0;
+      const additionalMtr = input.additionalMeters?.reduce((sum, add) => sum + (add.greighMtr || 0), 0) || 0;
+      return total + mainMtr + additionalMtr;
+    }, 0) || 0;
+
+    // Calculate total finished meters from mill outputs
+    const totalFinishedMtr = order.millOutputs?.reduce((total, output) => total + (output.finishedMtr || 0), 0) || 0;
+
+    // Calculate total dispatch meters
+    const totalDispatchMtr = order.dispatches?.reduce((total, dispatch) => total + (dispatch.finishMtr || 0), 0) || 0;
+
+    // Calculate total mill cost
+    const totalMillCost = order.millOutputs?.reduce((total, output) => total + ((output.finishedMtr || 0) * (output.millRate || 0)), 0) || 0;
+
+    // Calculate total sales value
+    const totalSalesValue = order.dispatches?.reduce((total, dispatch) => total + (dispatch.totalValue || 0), 0) || 0;
+
+    // Calculate total pieces from mill inputs
+    const totalPieces = order.millInputs?.reduce((total, input) => {
+      const mainPcs = input.pcs || 0;
+      const additionalPcs = input.additionalMeters?.reduce((sum, add) => sum + (add.pcs || 0), 0) || 0;
+      return total + mainPcs + additionalPcs;
+    }, 0) || 0;
+
+    return {
+      totalGreighMtr,
+      totalFinishedMtr,
+      totalDispatchMtr,
+      totalMillCost,
+      totalSalesValue,
+      totalPieces
+    };
+  };
+
+  const totals = calculateTotals();
   
   let yPosition = 2; // Minimal top margin
   
@@ -174,7 +253,9 @@ export const generateOrderPDF = (order: OrderData): void => {
     doc.setFontSize(8);
     doc.text('GREY QTY:', leftCol + 2, yPosition + 5);
     doc.setFont('helvetica', 'normal');
-    doc.text('', leftCol + 25, yPosition + 5);
+    doc.setTextColor(0, 43, 89); // #002b59 color
+    doc.text(totals.totalGreighMtr.toString(), leftCol + 25, yPosition + 5);
+    doc.setTextColor(0, 0, 0); // Reset to black
     yPosition += fieldHeight + 3; // Minimal gap space between groups
     
     // Second group: CUTTING, STYLE, DESIGN/CD Number in one big box
@@ -222,9 +303,11 @@ export const generateOrderPDF = (order: OrderData): void => {
     doc.rect(rightCol, rightBoxY, rightFieldWidth, fieldHeight);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
-    doc.text('PURCHASE:', rightCol + rightFieldWidth/2, rightBoxY + 5, { align: 'center' });
+    doc.text('PURCHASE:', rightCol + 2, rightBoxY + 5);
     doc.setFont('helvetica', 'normal');
-    doc.text('', rightCol + rightFieldWidth/2, rightBoxY + 5, { align: 'center' });
+    doc.setTextColor(0, 43, 89); // #002b59 color
+    doc.text(`₹${formatCurrency(totals.totalMillCost)}`, rightCol + 25, rightBoxY + 5);
+    doc.setTextColor(0, 0, 0); // Reset to black
     let rightY = rightBoxY + fieldHeight; // No gap - fields touch each other
     
     // WEAVER field with border
@@ -235,7 +318,9 @@ export const generateOrderPDF = (order: OrderData): void => {
     doc.setFontSize(8);
     doc.text('WEAVER:', rightCol + 2, rightY + 5);
   doc.setFont('helvetica', 'normal');
-    doc.text('', rightCol + 20, rightY + 5); // Empty instead of data
+    doc.setTextColor(0, 43, 89); // #002b59 color
+    doc.text(firstItem.weaverSupplierName || '', rightCol + 20, rightY + 5);
+    doc.setTextColor(0, 0, 0); // Reset to black
     rightY += fieldHeight; // No gap - fields touch each other
     
     // ORDER QTY and RATE in one row - single field without vertical line
@@ -247,8 +332,10 @@ export const generateOrderPDF = (order: OrderData): void => {
     doc.text('ORDER QTY:', rightCol + 2, rightY + 5);
     doc.text('RATE:', rightCol + 50, rightY + 5);
     doc.setFont('helvetica', 'normal');
-    doc.text('', rightCol + 25, rightY + 5); // Empty for ORDER QTY
-    doc.text('', rightCol + 60, rightY + 5); // Empty for RATE
+    doc.setTextColor(0, 43, 89); // #002b59 color
+    doc.text(firstItem.quantity?.toString() || '', rightCol + 25, rightY + 5); // Real order quantity
+    doc.text(`₹${firstItem.purchaseRate?.toFixed(0) || ''}`, rightCol + 60, rightY + 5); // Real purchase rate
+    doc.setTextColor(0, 0, 0); // Reset to black
     
     rightY += fieldHeight; // No gap - fields touch each other
     
@@ -276,33 +363,44 @@ export const generateOrderPDF = (order: OrderData): void => {
     doc.line(rightCol + (colWidth * 2), tableStartY, rightCol + (colWidth * 2), tableStartY + tableRowHeight);
     doc.line(rightCol + (colWidth * 3), tableStartY, rightCol + (colWidth * 3), tableStartY + tableRowHeight);
     
-    // Data rows
+    // Data rows with real mill input data
     let tableY = tableStartY + tableRowHeight;
     
-    // First data row                   
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.3);
-    doc.rect(rightCol, tableY, tableWidth, tableRowHeight);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.text('', rightCol + 2, tableY + 5); // Empty instead of date
-    doc.text('', rightCol + colWidth + 2, tableY + 5); // Empty instead of order ID
-    doc.text('', rightCol + (colWidth * 2) + 2, tableY + 5); // Empty instead of data
-    doc.text('', rightCol + (colWidth * 3) + 2, tableY + 5); // Empty instead of data                             
-                    
-    // Add vertical lines for columns
-    doc.line(rightCol + colWidth, tableY, rightCol + colWidth, tableY + tableRowHeight);
-    doc.line(rightCol + (colWidth * 2), tableY, rightCol + (colWidth * 2), tableY + tableRowHeight);
-    doc.line(rightCol + (colWidth * 3), tableY, rightCol + (colWidth * 3), tableY + tableRowHeight);
+    // Fill table with real mill input data
+    const millInputsToShow = order.millInputs?.slice(0, 4) || []; // Show up to 4 entries
     
-    tableY += tableRowHeight;
-    
-    // Empty rows
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.3);
       doc.rect(rightCol, tableY, tableWidth, tableRowHeight);
       
+      if (i < millInputsToShow.length) {
+        const millInput = millInputsToShow[i];
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(0, 43, 89); // #002b59 color
+        
+        // DATE
+        doc.text(formatDate(millInput.millDate), rightCol + 2, tableY + 5);
+        // CH NO (Chalan Number)
+        doc.text(millInput.chalanNo || '', rightCol + colWidth + 2, tableY + 5);
+        // TAKA (Total cost - calculated from greigh meters * rate)
+        const totalCost = (millInput.greighMtr || 0) * (firstItem.purchaseRate || 0);
+        doc.text(`₹${formatCurrency(totalCost)}`, rightCol + (colWidth * 2) + 2, tableY + 5);
+        // MTR (Greigh Meters)
+        doc.text(millInput.greighMtr?.toString() || '', rightCol + (colWidth * 3) + 2, tableY + 5);
+        
+        doc.setTextColor(0, 0, 0); // Reset to black
+      } else {
+        // Empty row
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text('', rightCol + 2, tableY + 5);
+        doc.text('', rightCol + colWidth + 2, tableY + 5);
+        doc.text('', rightCol + (colWidth * 2) + 2, tableY + 5);
+        doc.text('', rightCol + (colWidth * 3) + 2, tableY + 5);
+      }
+                    
       // Add vertical lines for columns
       doc.line(rightCol + colWidth, tableY, rightCol + colWidth, tableY + tableRowHeight);
       doc.line(rightCol + (colWidth * 2), tableY, rightCol + (colWidth * 2), tableY + tableRowHeight);
@@ -322,8 +420,14 @@ export const generateOrderPDF = (order: OrderData): void => {
     doc.setFontSize(8);
     doc.text('TOTAL:', rightCol + 2, tableY + 5);
     doc.setTextColor(0, 43, 89); // #002b59 color
-    doc.text('', rightCol + (colWidth * 2) + 2, tableY + 5); // Empty field
-    doc.text('', rightCol + (colWidth * 3) + 2, tableY + 5); // Empty field
+    // Calculate total cost from all mill inputs
+    const totalMillInputCost = order.millInputs?.reduce((total, input) => {
+      const mainCost = (input.greighMtr || 0) * (firstItem.purchaseRate || 0);
+      const additionalCost = input.additionalMeters?.reduce((sum, add) => sum + ((add.greighMtr || 0) * (firstItem.purchaseRate || 0)), 0) || 0;
+      return total + mainCost + additionalCost;
+    }, 0) || 0;
+    doc.text(`₹${formatCurrency(totalMillInputCost)}`, rightCol + (colWidth * 2) + 2, tableY + 5); // Total cost
+    doc.text(totals.totalGreighMtr.toString(), rightCol + (colWidth * 3) + 2, tableY + 5); // Total meters
     doc.setTextColor(0, 0, 0); // Reset to black
     
     // No vertical lines - single field without internal dividers
@@ -338,6 +442,14 @@ export const generateOrderPDF = (order: OrderData): void => {
     doc.setFontSize(8);
     doc.text('L:', rightCol + tableWidth -74, tableY + 5); // L: on right side
     doc.text('GREY REPORT:', rightCol + 2, tableY + 9); // GREY REPORT on left side, closer to L:
+    
+    // Add real data in GREY REPORT section
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(0, 43, 89); // #002b59 color
+    doc.text(`Total Greigh: ${totals.totalGreighMtr}m`, rightCol + 2, tableY + 15);
+    doc.text(`Total Pieces: ${totals.totalPieces}`, rightCol + 2, tableY + 19);
+    doc.setTextColor(0, 0, 0); // Reset to black
     
     tableY += tableRowHeight * 3 + 4; // Space after GREY REPORT
     
@@ -393,7 +505,11 @@ export const generateOrderPDF = (order: OrderData): void => {
     // ISSUE TO MILL - MILL field
     doc.text('MILL:', 8, headerY);
     doc.setFont('helvetica', 'normal');
-    doc.text('', 20, headerY); // Empty field
+    doc.setTextColor(0, 43, 89); // #002b59 color
+    // Show first mill name if available
+    const firstMill = order.millInputs?.[0]?.mill?.name || '';
+    doc.text(firstMill, 20, headerY);
+    doc.setTextColor(0, 0, 0); // Reset to black
     
     // ISSUE TO MILL table structure - DATE, C.NO, TAKA, MTR as column headers
     const issueDateWidth = section1Width * 0.30; // 30%
@@ -447,24 +563,49 @@ export const generateOrderPDF = (order: OrderData): void => {
     const dataRowHeight = 8; // Height of each row
     let currentDataRowY = headerY + 8; // Start after the horizontal line
     
-    // Draw 6 data rows
+    // Draw 6 data rows with real data
     for (let i = 0; i < 6; i++) {
       currentDataRowY += dataRowHeight;
       
       // Draw horizontal line for this row
       doc.line(5, currentDataRowY, 5 + fullTableWidth, currentDataRowY);
       
-      // Add text to first row in ISSUE TO MILL section
-      if (i === 0) {
-        // doc.setFont('helvetica', 'normal');
-        // doc.setFontSize(8);
-          doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-        doc.text('DATE', 8, currentDataRowY - 3);
-        doc.text('C.NO', 8 + issueDateWidth, currentDataRowY - 3);
-        doc.text('TAKA', 8 + issueDateWidth + issueCnoWidth, currentDataRowY - 3);
-        doc.text('MTR', 8 + issueDateWidth + issueCnoWidth + issueTakaWidth, currentDataRowY - 3);
+      // Add real data to each row
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(0, 43, 89); // #002b59 color
+      
+      // ISSUE TO MILL section data
+      if (i < (order.millInputs?.length || 0)) {
+        const millInput = order.millInputs![i];
+        doc.text(formatDate(millInput.millDate), 8, currentDataRowY - 3);
+        doc.text(millInput.chalanNo || '', 8 + issueDateWidth, currentDataRowY - 3);
+        const cost = (millInput.greighMtr || 0) * (firstItem.purchaseRate || 0);
+        doc.text(`₹${formatCurrency(cost)}`, 8 + issueDateWidth + issueCnoWidth, currentDataRowY - 3);
+        doc.text(millInput.greighMtr?.toString() || '', 8 + issueDateWidth + issueCnoWidth + issueTakaWidth, currentDataRowY - 3);
       }
+      
+      // REC FROM MILL section data
+      if (i < (order.millOutputs?.length || 0)) {
+        const millOutput = order.millOutputs![i];
+        doc.text(formatDate(millOutput.recdDate), 8 + section1Width, currentDataRowY - 3);
+        doc.text(millOutput.millBillNo || '', 8 + section1Width + dateWidth, currentDataRowY - 3);
+        doc.text('', 8 + section1Width + dateWidth + chNoWidth, currentDataRowY - 3); // L.T NO
+        doc.text(millOutput.finishedMtr?.toString() || '', 8 + section1Width + dateWidth + chNoWidth + ltNoWidth, currentDataRowY - 3);
+        doc.text(millOutput.finishedMtr?.toString() || '', 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth, currentDataRowY - 3);
+        doc.text('', 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth + fmtWidth, currentDataRowY - 3); // SHT
+      }
+      
+      // SALES section data
+      if (i < (order.dispatches?.length || 0)) {
+        const dispatch = order.dispatches![i];
+        doc.text(formatDate(dispatch.dispatchDate), 8 + section1Width + section2Width, currentDataRowY - 3);
+        doc.text(dispatch.billNo || '', 8 + section1Width + section2Width + salesDateWidth, currentDataRowY - 3);
+        doc.text('', 8 + section1Width + section2Width + salesDateWidth + salesBillWidth, currentDataRowY - 3); // PARCEL
+        doc.text(dispatch.finishMtr?.toString() || '', 8 + section1Width + section2Width + salesDateWidth + salesBillWidth + salesParcelWidth, currentDataRowY - 3);
+      }
+      
+      doc.setTextColor(0, 0, 0); // Reset to black
       
       // Add vertical borders for each section in this row
       // ISSUE TO MILL section vertical borders
@@ -484,12 +625,15 @@ export const generateOrderPDF = (order: OrderData): void => {
     currentDataRowY += dataRowHeight;
     doc.line(5, currentDataRowY, 5 + fullTableWidth, currentDataRowY);
     
-    // Add TOTAL text in all three sections
+    // Add TOTAL text in all three sections with real calculated totals
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
+    doc.setTextColor(0, 43, 89); // #002b59 color
     
     // TOTAL in ISSUE TO MILL section
     doc.text('TOTAL:', 8, currentDataRowY - 3);
+    doc.text(`₹${formatCurrency(totalMillInputCost)}`, 8 + issueDateWidth + issueCnoWidth, currentDataRowY - 3);
+    doc.text(totals.totalGreighMtr.toString(), 8 + issueDateWidth + issueCnoWidth + issueTakaWidth, currentDataRowY - 3);
     
     // Add vertical lines for TAKA and MTR columns in ISSUE TO MILL section
     doc.line(5 + issueDateWidth + issueCnoWidth, currentDataRowY - dataRowHeight, 5 + issueDateWidth + issueCnoWidth, currentDataRowY);
@@ -497,9 +641,15 @@ export const generateOrderPDF = (order: OrderData): void => {
     
     // TOTAL in REC FROM MILL section
     doc.text('TOTAL:', 8 + section1Width, currentDataRowY - 3);
+    doc.text(`₹${formatCurrency(totals.totalMillCost)}`, 8 + section1Width + dateWidth + chNoWidth + ltNoWidth, currentDataRowY - 3);
+    doc.text(totals.totalFinishedMtr.toString(), 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth, currentDataRowY - 3);
     
     // TOTAL in SALES section
     doc.text('TOTAL:', 8 + section1Width + section2Width, currentDataRowY - 3);
+    doc.text(`₹${formatCurrency(totals.totalSalesValue)}`, 8 + section1Width + section2Width + salesDateWidth + salesBillWidth, currentDataRowY - 3);
+    doc.text(totals.totalDispatchMtr.toString(), 8 + section1Width + section2Width + salesDateWidth + salesBillWidth + salesParcelWidth, currentDataRowY - 3);
+    
+    doc.setTextColor(0, 0, 0); // Reset to black
     
     // Add internal vertical borders for each section
     // ISSUE TO MILL section - separate table created above with proper borders

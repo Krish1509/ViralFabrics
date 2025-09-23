@@ -16,7 +16,7 @@ import {
   ClockIcon as ClockIconSolid,
   TruckIcon,
   CogIcon,
-  BuildingOfficeIcon
+  BuildingOfficeIcon,
 } from '@heroicons/react/24/outline';
 import { Order, Mill, Quality } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
@@ -160,6 +160,7 @@ export default function OrderDetailsPage() {
     setShowImagePreview(true);
   };
 
+
   const navigateImage = (direction: 'prev' | 'next') => {
     if (direction === 'prev') {
       setCurrentImageIndex(prev => prev > 0 ? prev - 1 : previewImages.length - 1);
@@ -252,7 +253,7 @@ export default function OrderDetailsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen bg-white dark:bg-gray-900">
         <div className="w-full bg-white dark:bg-gray-900">
           {/* Header Skeleton */}
           <div className={`border-b ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
@@ -471,7 +472,7 @@ export default function OrderDetailsPage() {
 
   if (!order) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 flex items-center justify-center">
+      <div className="min-h-screen bg-white dark:bg-gray-900 py-8 flex items-center justify-center">
         <div className="text-center">
           <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-red-900/20' : 'bg-red-100'}`}>
             <ExclamationTriangleIcon className={`h-16 w-16 mx-auto mb-4 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`} />
@@ -493,7 +494,7 @@ export default function OrderDetailsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-white dark:bg-gray-900">
       <div className="w-full bg-white dark:bg-gray-900">
         {/* Clean Header */}
         <div className={`border-b ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
@@ -535,16 +536,16 @@ export default function OrderDetailsPage() {
               </div>
             </div>
               
-              <div className="flex items-center space-x-2">
-               <button
-                 onClick={() => router.push('/orders')}
-                  className={`p-2 rounded-lg transition-colors ${
-                    isDarkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-100'
-                  }`}
-                >
-                  <XMarkIcon className="h-5 w-5" />
-               </button>
-             </div>
+               <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => router.push('/orders')}
+                   className={`p-2 rounded-lg transition-colors ${
+                     isDarkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-100'
+                   }`}
+                 >
+                   <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
              </div>
           </div>
         </div>
