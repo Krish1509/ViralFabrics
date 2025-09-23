@@ -76,7 +76,6 @@ export default function QualityModal({ onClose, onSuccess }: QualityModalProps) 
         setErrors({ submit: data.message || 'Failed to create quality' });
       }
     } catch (error) {
-      console.error('Error creating quality:', error);
       setErrors({ submit: 'Failed to create quality. Please try again.' });
     } finally {
       setLoading(false);
@@ -140,8 +139,6 @@ export default function QualityModal({ onClose, onSuccess }: QualityModalProps) 
               <p className="mt-1 text-sm text-red-600">{errors.name}</p>
             )}
           </div>
-
-          
 
           {/* Error Message */}
           {errors.submit && (

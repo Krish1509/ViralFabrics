@@ -10,12 +10,9 @@ cloudinary.config({
 
 export async function POST(req: NextRequest) {
   try {
-    console.log('Upload API called');
-    
     // Check for authentication token
     const authHeader = req.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('No valid authorization header');
       return new Response(JSON.stringify({
         success: false,
         message: 'Authentication required'
@@ -24,7 +21,6 @@ export async function POST(req: NextRequest) {
     
     const token = authHeader.replace('Bearer ', '');
     if (!token) {
-      console.error('No token provided');
       return new Response(JSON.stringify({
         success: false,
         message: 'Authentication token required'
@@ -38,10 +34,7 @@ export async function POST(req: NextRequest) {
     try {
       // Check content type
       const contentType = req.headers.get('content-type');
-      console.log('Content-Type:', contentType);
-      
       if (!contentType || !contentType.includes('multipart/form-data')) {
-        console.error('Invalid content type:', contentType);
         clearTimeout(timeoutId);
         return new Response(JSON.stringify({
           success: false,
@@ -50,22 +43,11 @@ export async function POST(req: NextRequest) {
       }
       
       const formData = await req.formData();
-      console.log('FormData received, keys:', Array.from(formData.keys()));
-      
       // Check for both 'file' and 'image' keys for compatibility
       const file = (formData.get('file') || formData.get('image')) as File;
       const folder = formData.get('folder') as string || 'general';
       
-      console.log('File details:', {
-        name: file?.name,
-        type: file?.type,
-        size: file?.size,
-        folder: folder,
-        isFile: file instanceof File
-      });
-
       if (!file) {
-        console.error('No file provided in request');
         clearTimeout(timeoutId);
         return new Response(JSON.stringify({
           success: false,
@@ -74,7 +56,6 @@ export async function POST(req: NextRequest) {
       }
       
       if (file.size === 0) {
-        console.error('Empty file provided');
         clearTimeout(timeoutId);
         return new Response(JSON.stringify({
           success: false,
@@ -84,7 +65,6 @@ export async function POST(req: NextRequest) {
 
       // Validate file type (temporarily more lenient for debugging)
       if (!file.type) {
-        console.error('No file type detected');
         clearTimeout(timeoutId);
         return new Response(JSON.stringify({
           success: false,
@@ -98,7 +78,6 @@ export async function POST(req: NextRequest) {
       const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
       
       if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension || '')) {
-        console.error('Invalid file type:', file.type, 'or extension:', fileExtension);
         clearTimeout(timeoutId);
         return new Response(JSON.stringify({
           success: false,
@@ -108,7 +87,6 @@ export async function POST(req: NextRequest) {
 
       // Validate file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
-        console.error('File too large:', file.size, 'bytes');
         clearTimeout(timeoutId);
         return new Response(JSON.stringify({
           success: false,
@@ -116,11 +94,8 @@ export async function POST(req: NextRequest) {
         }), { status: 400 });
       }
 
-      console.log(`Starting upload for file: ${file.name}, size: ${file.size} bytes`);
-
       // Check Cloudinary configuration
       if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-        console.error('Cloudinary configuration missing');
         clearTimeout(timeoutId);
         return new Response(JSON.stringify({
           success: false,
@@ -132,8 +107,6 @@ export async function POST(req: NextRequest) {
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
       
-      console.log(`File converted to buffer, size: ${buffer.length} bytes`);
-
       // Upload to Cloudinary with timeout handling
       const result = await new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
@@ -147,10 +120,8 @@ export async function POST(req: NextRequest) {
           },
           (error, result) => {
             if (error) {
-              console.error('Cloudinary upload error:', error);
               reject(error);
             } else {
-              console.log('Upload successful:', result?.secure_url);
               resolve(result);
             }
           }
@@ -169,8 +140,6 @@ export async function POST(req: NextRequest) {
       
     } catch (uploadError: any) {
       clearTimeout(timeoutId);
-      console.error('Upload processing error:', uploadError);
-      
       if (uploadError.name === 'AbortError') {
         return new Response(JSON.stringify({
           success: false,
@@ -182,8 +151,6 @@ export async function POST(req: NextRequest) {
     }
 
   } catch (error: any) {
-    console.error('Upload error:', error);
-    
     // Handle specific error types
     if (error.name === 'AbortError') {
       return new Response(JSON.stringify({

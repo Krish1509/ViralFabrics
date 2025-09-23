@@ -216,6 +216,11 @@ const OrderSchema = new Schema<IOrder>({
   },
   status: {
     type: String,
+    enum: {
+      values: ["Not set", "Not selected", "pending", "in_progress", "completed", "delivered", "cancelled"],
+      message: "Status must be one of: Not set, Not selected, pending, in_progress, completed, delivered, cancelled"
+    },
+    default: 'pending',
     index: true
   },
   priority: {
@@ -405,24 +410,16 @@ OrderSchema.statics.createOrder = async function(orderData: any): Promise<IOrder
     
     // Creating order with ID: ${orderId}
     
-    console.log('🔍 Model - Creating order with data:', { ...orderData, orderId });
-    console.log('🔍 Model - Status in orderData:', orderData.status);
-    
     const order = new this({
       ...orderData,
       orderId
     });
     
-    console.log('🔍 Model - Order status before save:', order.status);
-    
     const savedOrder = await order.save();
-    console.log('🔍 Model - Saved order status:', savedOrder.status);
-          // Order created successfully with ID: ${savedOrder.orderId}
+    // Order created successfully with ID: ${savedOrder.orderId}
     return savedOrder;
     
   } catch (error: any) {
-    console.error('Error creating order:', error);
-    
     // If it's a duplicate key error, try again with a new sequence
     if (error.code === 11000 && error.keyPattern?.orderId) {
               // Duplicate orderId detected, retrying with new sequence...
@@ -439,7 +436,6 @@ OrderSchema.statics.createOrder = async function(orderData: any): Promise<IOrder
                   // Order created successfully with ID: ${savedOrder.orderId} (retry)
         return savedOrder;
       } catch (retryError: any) {
-        console.error('Error creating order on retry:', retryError);
         throw retryError;
       }
     }

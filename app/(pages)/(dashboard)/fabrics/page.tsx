@@ -161,9 +161,7 @@ export default function FabricsPage() {
     const currentIndex = cardImageIndices[qualityCode] || 0;
     return fabric.images && fabric.images.length > 0 ? fabric.images[currentIndex] : null;
   };
-  
 
-  
   // Enhanced image and selection states
   const [showImageModal, setShowImageModal] = useState<{ fabric: Fabric; imageIndex: number } | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
@@ -182,9 +180,6 @@ export default function FabricsPage() {
 
   // Optimized fetch fabrics with better caching and faster loading
   const fetchFabrics = async (forceRefresh = false, page = currentPage, limit = itemsPerPage, retryCount = 0, showLoading = true) => {
-    console.log('fetchFabrics called with:', { forceRefresh, page, limit, retryCount, showLoading });
-    console.log('Current state:', { currentPage, itemsPerPage });
-    
     // Disable caching for now to ensure pagination works correctly
     // const now = Date.now();
     // if (!forceRefresh && (now - lastFetchTime) < 300000 && fabrics.length > 0) {
@@ -217,16 +212,6 @@ export default function FabricsPage() {
       params.append('limit', limitValue.toString());
       params.append('page', page.toString());
       
-      console.log('API call parameters:', { 
-        page, 
-        limit, 
-        limitValue,
-        filters,
-        sortBy: filters.sortBy,
-        sortOrder: filters.sortOrder,
-        url: `/api/fabrics?${params.toString()}`
-      });
-
       const response = await fetch(`/api/fabrics?${params}`, {
         headers: {
           'Cache-Control': forceRefresh ? 'no-cache' : 'max-age=120', // Cache for 2 minutes
@@ -245,19 +230,12 @@ export default function FabricsPage() {
       const data = await response.json();
       
       if (data.success) {
-        console.log('Server response:', { 
-          dataCount: data.data.length, 
-          pagination: data.pagination,
-          currentPage,
-          itemsPerPage 
-        });
         setFabrics(data.data);
         setLastFetchTime(Date.now());
         setRetryCount(0); // Reset retry count on success
         
         // Update pagination info if available
         if (data.pagination) {
-          console.log('Setting pagination info:', data.pagination);
           setPaginationInfo({
             totalCount: data.pagination.totalCount,
             totalPages: data.pagination.totalPages,
@@ -277,7 +255,6 @@ export default function FabricsPage() {
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        console.error('Request timeout - server is slow, trying again...');
         // Retry with exponential backoff (max 3 retries)
         if (retryCount < 3) {
           const delay = Math.pow(2, retryCount) * 2000; // 2s, 4s, 8s - longer delays for better success
@@ -293,10 +270,8 @@ export default function FabricsPage() {
           setError('Server is too slow after multiple attempts. Please check your connection and try again.');
         }
       } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        console.error('Network error:', error);
         setError('Network error. Please check your internet connection and try again.');
       } else {
-        console.error('Error fetching fabrics:', error);
         setError(`Failed to load fabrics: ${error.message || 'Unknown error'}. Please try again.`);
       }
     } finally {
@@ -313,11 +288,8 @@ export default function FabricsPage() {
     
     // Validate page number
     if (newPage < 1 || newPage > totalPages) {
-      console.log('Invalid page number:', { newPage, totalPages, currentPage });
       return;
     }
-    
-    console.log('Instant page change:', { from: currentPage, to: newPage, itemsPerPage, totalPages });
     
     // Instant page change - no loading states
     setCurrentPage(newPage);
@@ -328,9 +300,6 @@ export default function FabricsPage() {
 
   const handleItemsPerPageChange = async (newItemsPerPage: number | 'All') => {
     if (newItemsPerPage === itemsPerPage) return;
-    
-    console.log('Items per page change:', { from: itemsPerPage, to: newItemsPerPage });
-    console.log('Calling fetchFabrics with:', { forceRefresh: false, page: 1, limit: newItemsPerPage });
     
     // Update state first
     setItemsPerPage(newItemsPerPage);
@@ -365,10 +334,8 @@ export default function FabricsPage() {
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        console.warn('Quality names fetch timeout - continuing without quality names');
-      } else {
-        console.error('Error fetching quality names:', error);
-      }
+        } else {
+        }
     }
   };
 
@@ -400,10 +367,8 @@ export default function FabricsPage() {
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        console.warn('Weavers fetch timeout - continuing without weavers');
-      } else {
-        console.error('Error fetching weavers:', error);
-      }
+        } else {
+        }
     }
   };
 
@@ -435,10 +400,8 @@ export default function FabricsPage() {
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        console.warn('Weaver quality names fetch timeout - continuing without weaver quality names');
-      } else {
-        console.error('Error fetching weaver quality names:', error);
-      }
+        } else {
+        }
     }
   };
 
@@ -499,8 +462,6 @@ export default function FabricsPage() {
 
   const handleEdit = (fabric: Fabric) => {
     // Navigate to create page with fabric ID for editing
-    console.log('Edit button clicked for fabric:', fabric);
-    console.log('Navigating to:', `/fabrics/create?edit=${fabric._id}`);
     router.push(`/fabrics/create?edit=${fabric._id}`);
   };
 
@@ -538,11 +499,9 @@ export default function FabricsPage() {
       if (dependencyData.success) {
         setDeleteDependencies(dependencyData.data.dependencies);
       } else {
-        console.error('Failed to check dependencies:', dependencyData.message);
         setDeleteDependencies([]);
       }
     } catch (error) {
-      console.error('Error checking dependencies:', error);
       setDeleteDependencies([]);
     } finally {
       setIsLoadingDependencies(false);
@@ -584,11 +543,9 @@ export default function FabricsPage() {
         setDeletingFabric(null);
         setDeleteDependencies([]);
       } else {
-        console.error('Failed to delete fabric:', data.message);
-      }
+        }
     } catch (error) {
-      console.error('Error deleting fabric:', error);
-    } finally {
+      } finally {
       setIsDeleting(false);
     }
   };
@@ -685,12 +642,10 @@ export default function FabricsPage() {
         setRefreshMessage(`✅ Successfully deleted ${deletedCount} fabric(s)!`);
         setTimeout(() => setRefreshMessage(null), 2000);
       } else {
-        console.error('Failed to delete fabrics:', data.message);
         setRefreshMessage(`❌ Error: ${data.message}`);
         setTimeout(() => setRefreshMessage(null), 4000);
       }
     } catch (error) {
-      console.error('Error deleting fabrics:', error);
       setRefreshMessage('❌ Error: Failed to delete fabrics. Please try again.');
       setTimeout(() => setRefreshMessage(null), 4000);
     } finally {
@@ -847,8 +802,7 @@ export default function FabricsPage() {
       
       setShowExportModal(false);
     } catch (error) {
-      console.error('Export error:', error);
-    } finally {
+      } finally {
       setIsExporting(false);
     }
   };
@@ -965,8 +919,6 @@ export default function FabricsPage() {
     // router.push('/fabrics/bulk-edit?ids=' + Array.from(selectedFabrics).join(','));
   };
 
-
-
   // Use server-side filtered data directly (no client-side filtering)
   const filteredAndSortedFabrics = useMemo(() => {
     return [...fabrics]; // Server already sends filtered and sorted data
@@ -989,23 +941,11 @@ export default function FabricsPage() {
   const totalPages = useMemo(() => {
     if (itemsPerPage === 'All') return 1;
     const pages = paginationInfo.totalPages || 1;
-    console.log('Total pages calculation:', { 
-      itemsPerPage, 
-      totalCount: paginationInfo.totalCount, 
-      totalPages: paginationInfo.totalPages,
-      calculatedPages: pages 
-    });
     return pages;
   }, [paginationInfo.totalPages, itemsPerPage, paginationInfo.totalCount]);
 
   // Use server-side paginated data directly (no client-side pagination)
   const paginatedFabrics = useMemo(() => {
-    console.log('Using server paginated data:', { 
-      fabricsCount: filteredAndSortedFabrics.length, 
-      currentPage, 
-      itemsPerPage,
-      fabricIds: filteredAndSortedFabrics.map(f => f._id)
-    });
     return filteredAndSortedFabrics; // Server already sends paginated data
   }, [filteredAndSortedFabrics, currentPage, itemsPerPage]);
 
@@ -1018,7 +958,6 @@ export default function FabricsPage() {
   // Auto-correct current page if it exceeds total pages
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
-      console.log('Auto-correcting page:', { currentPage, totalPages });
       setCurrentPage(totalPages);
       fetchFabrics(false, totalPages, itemsPerPage, 0, false);
     }
@@ -1121,8 +1060,6 @@ export default function FabricsPage() {
            </div>
          </div>
        )}
-
-
 
       {/* Search and Controls Bar */}
       <div className={`mb-4 p-2 sm:p-3 rounded-lg border ${
@@ -1327,12 +1264,6 @@ export default function FabricsPage() {
         )}
       </div>
 
-
-
-
-
-
-
       {/* Enhanced Fabrics Display */}
       <div className={`rounded-xl border overflow-hidden ${
         isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
@@ -1527,8 +1458,6 @@ export default function FabricsPage() {
                       } else {
                         pageNum = currentPage - 2 + i;
                       }
-                      console.log('Page number calculation:', { i, pageNum, currentPage, totalPages });
-                      
                       return (
                         <button
                           key={pageNum}
@@ -1921,7 +1850,6 @@ export default function FabricsPage() {
                                           {fabric.pick > 0 ? fabric.pick : '-'}
                                       </div>
                                       </div>
-                                      
 
                                     </div>
                                   </div>

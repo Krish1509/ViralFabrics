@@ -23,7 +23,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(successResponse(mills, 'Active mills fetched successfully'));
 
   } catch (error: any) {
-    console.error('Error fetching active mills:', error);
     return NextResponse.json(errorResponse('Failed to fetch active mills'), { status: 500 });
   }
 }

@@ -86,7 +86,6 @@ export default function PartyModal({ onClose, onSuccess }: PartyModalProps) {
         // Extracted party data
         
         if (!newParty || !newParty._id || !newParty.name) {
-          console.error('Invalid party data received:', newParty);
           setValidationMessage({ 
             type: 'error', 
             text: 'Invalid party data received from server' 
@@ -106,7 +105,6 @@ export default function PartyModal({ onClose, onSuccess }: PartyModalProps) {
         });
       }
     } catch (error) {
-      console.error('Error creating party:', error);
       setValidationMessage({ 
         type: 'error', 
         text: 'An error occurred while creating the party' 

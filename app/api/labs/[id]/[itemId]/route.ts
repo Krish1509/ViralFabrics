@@ -42,16 +42,12 @@ export async function GET(
       }
     };
     
-    console.log('Lab API: Retrieved lab data:', responseData);
-    console.log('Lab API: Raw labData.labSendData:', labData.labSendData);
-    
     return NextResponse.json({
       success: true,
       data: responseData
     });
     
   } catch (error) {
-    console.error('Error fetching lab data:', error);
     return NextResponse.json(
       { success: false, message: 'Failed to fetch lab data' },
       { status: 500 }
@@ -109,9 +105,6 @@ export async function POST(
       specifications: {}
     };
     
-    console.log('Lab API: Saving lab data with sampleNumber:', sampleNumber);
-    console.log('Lab API: Full labDataToSave:', labDataToSave);
-    
     // Find existing lab data or create new one
     let labData = await Lab.findOne({ 
       order: orderId, 
@@ -159,7 +152,6 @@ export async function POST(
     });
     
   } catch (error) {
-    console.error('Error saving lab data:', error);
     return NextResponse.json(
       { success: false, message: 'Failed to save lab data' },
       { status: 500 }
@@ -200,7 +192,6 @@ export async function DELETE(
     });
     
   } catch (error) {
-    console.error('Error deleting lab data:', error);
     return NextResponse.json(
       { success: false, message: 'Failed to delete lab data' },
       { status: 500 }

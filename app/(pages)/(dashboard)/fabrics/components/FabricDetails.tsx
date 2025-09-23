@@ -161,7 +161,6 @@ export default function FabricDetails({
                         Quality Images ({fabric.images.length})
                       </h3>
 
-              
               {/* Main Image - Perfect Aspect Ratio with Touch Support */}
               <div 
                 className="relative w-full max-w-md mx-auto overflow-hidden rounded-lg group cursor-grab active:cursor-grabbing"

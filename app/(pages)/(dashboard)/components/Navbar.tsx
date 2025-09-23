@@ -203,8 +203,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
         await document.exitFullscreen();
       }
     } catch (error) {
-      console.error('Fullscreen toggle failed:', error);
-    }
+      }
   }, []);
 
   const handleThemeToggle = useCallback(() => {
@@ -255,11 +254,9 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
         setEditingField(null);
         // Show success message or update UI
       } else {
-        console.error('Failed to update profile');
-      }
+        }
     } catch (error) {
-      console.error('Error updating profile:', error);
-    }
+      }
   }, [user, updateUser]);
 
   const startEditing = useCallback((field: string) => {
@@ -291,8 +288,7 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
         }
       }
     } catch (error) {
-      console.error('Error fetching profile:', error);
-    }
+      }
     
     setShowProfileModal(true);
     closeProfileDropdown();
@@ -322,7 +318,6 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
       return (
         <button
           onClick={(e) => {
-            console.log('Navbar: Toggle collapse button clicked, current state:', isCollapsed);
             handleToggleCollapse(e);
           }}
           className={`p-2 rounded-lg transition-all duration-300 cursor-pointer ${
@@ -426,8 +421,6 @@ export default function Navbar({ user, onLogout, onToggleSidebar, onToggleCollap
                     : 'bg-gray-400/10 scale-0 group-hover:scale-100'
                 }`}></div>
               </button>
-
-
 
               {/* Profile Dropdown */}
               <div className="relative" data-profile-dropdown>

@@ -46,7 +46,6 @@ export async function getUserInfo(request?: NextRequest): Promise<UserInfo | nul
     
     return null;
   } catch (error) {
-    console.error('❌ Error getting user info:', error);
     return null;
   }
 }
@@ -93,9 +92,7 @@ export async function logOrderChange(
     
     await logAction(logData, request);
   } catch (error) {
-    console.error('Error logging order change:', error);
-    console.error('Error details:', error);
-  }
+    }
 }
 
 // Helper function to get only changed fields
@@ -183,21 +180,13 @@ function getChangedFields(oldValues: any, newValues: any) {
   if (oldValues.itemChanges || newValues.itemChanges) {
     const itemChanges = oldValues.itemChanges || newValues.itemChanges || [];
     
-    console.log('🔍 Processing pre-computed itemChanges in logger:', JSON.stringify(itemChanges, null, 2));
-    console.log('🔍 Number of item changes:', itemChanges.length);
-    
     itemChanges.forEach((change: any) => {
-      console.log('🔍 Processing change:', change.type, 'for item', change.index + 1);
-      
       if (change.type === 'item_updated') {
         const fieldChanges: string[] = [];
         
         // Process each field change
-        console.log('🔍 Item', change.index + 1, 'changes:', Object.keys(change.changes));
         Object.keys(change.changes).forEach(field => {
           const fieldChange = change.changes[field];
-          console.log('🔍 Processing field:', field, 'with data:', fieldChange);
-          
           if (field === 'quality') {
             fieldChanges.push(`Quality: "${fieldChange.old}" → "${fieldChange.new}"`);
           } else if (field === 'quantity') {
@@ -257,7 +246,6 @@ function getChangedFields(oldValues: any, newValues: any) {
     });
   }
 
-  
   // Track party changes if present - but only if not already handled by main field comparison
   // The party field is already being logged in the main field comparison, so we skip it here
   // to avoid duplicate logging
@@ -277,14 +265,9 @@ function getChangedFields(oldValues: any, newValues: any) {
       }
     }
   });
-  
 
-  
-  console.log('🔍 Final summary from logger:', summary);
   return { changed, old, new: new_, summary };
 }
-
-
 
 // Helper function to format values for display
 function formatValue(value: any): string {
@@ -399,7 +382,6 @@ export async function logAction(logData: LogData, request?: NextRequest): Promis
       ...logData
     });
   } catch (error) {
-    console.error('Error logging action:', error);
     // Don't throw error to avoid breaking the main functionality
   }
 }
@@ -429,12 +411,9 @@ export async function logLogin(username: string, success: boolean, request?: Nex
       userAgent: clientInfo.userAgent
     });
   } catch (error) {
-    console.error('Error logging login action:', error);
     // Don't throw error to avoid breaking the main functionality
   }
 }
-
-
 
 export async function logLogout(request?: NextRequest) {
   await logAction({

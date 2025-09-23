@@ -31,7 +31,6 @@ export async function GET(
     return NextResponse.json(successResponse(dispatch, 'Dispatch fetched successfully'));
 
   } catch (error: any) {
-    console.error('Error fetching dispatch:', error);
     return NextResponse.json(errorResponse('Failed to fetch dispatch'), { status: 500 });
   }
 }
@@ -107,7 +106,6 @@ export async function PUT(
     return NextResponse.json(updatedResponse(populatedDispatch, 'Dispatch updated successfully'));
 
   } catch (error: any) {
-    console.error('Error updating dispatch:', error);
     await logError('dispatch_update', 'dispatch', error.message, request);
     return NextResponse.json(errorResponse('Failed to update dispatch'), { status: 500 });
   }
@@ -145,7 +143,6 @@ export async function DELETE(
     return NextResponse.json(deletedResponse('Dispatch deleted successfully'));
 
   } catch (error: any) {
-    console.error('Error deleting dispatch:', error);
     await logError('dispatch_delete', 'dispatch', error.message, request);
     return NextResponse.json(errorResponse('Failed to delete dispatch'), { status: 500 });
   }

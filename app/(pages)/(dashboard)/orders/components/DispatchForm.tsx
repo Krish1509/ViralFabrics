@@ -162,7 +162,6 @@ const EnhancedDropdown: React.FC<EnhancedDropdownProps> = ({
   );
 };
 
-
 interface DispatchSubItem {
   id: string;
   finishMtr: string;
@@ -645,10 +644,7 @@ export default function DispatchForm({
 
   // Function to load existing dispatches
   const loadExistingDispatches = async () => {
-    console.log('loadExistingDispatches called with:', { order, existingDispatches });
-    
     if (!order || existingDispatches.length === 0) {
-      console.log('Early return - no order or existing dispatches');
       return;
     }
     
@@ -687,12 +683,9 @@ export default function DispatchForm({
         }))
       };
       
-      console.log('New form data to be set:', newFormData);
       setFormData(newFormData);
-      console.log('Form data set successfully');
-    } catch (error) {
-      console.error('Error loading existing dispatches:', error);
-    } finally {
+      } catch (error) {
+      } finally {
       setLoadingExistingData(false);
     }
   };
@@ -796,7 +789,6 @@ export default function DispatchForm({
 
   // Update sub-item
   const updateSubItem = (itemId: string, subItemId: string, field: keyof DispatchSubItem, value: string) => {
-    console.log('DispatchForm: updateSubItem called with:', { itemId, subItemId, field, value });
     setFormData(prevFormData => {
       const newFormData = {
         ...prevFormData,
@@ -812,7 +804,6 @@ export default function DispatchForm({
           return item;
         })
       };
-      console.log('DispatchForm: updateSubItem new form data:', newFormData);
       return newFormData;
     });
   };
@@ -842,11 +833,7 @@ export default function DispatchForm({
 
   // Handle quality select for sub-items
   const handleSubItemQualitySelect = (itemId: string, subItemId: string, quality: any) => {
-    console.log('DispatchForm: Quality selected:', quality);
-    console.log('DispatchForm: Quality ID:', getQualityId(quality));
-    console.log('DispatchForm: Quality name:', quality.name);
     const qualityId = getQualityId(quality);
-    console.log('DispatchForm: Setting quality ID:', qualityId);
     updateSubItem(itemId, subItemId, 'quality', qualityId);
     setQualitySearchStates(prev => ({ ...prev, [subItemId]: quality.name }));
     setCurrentQualitySearch(quality.name);
@@ -857,8 +844,7 @@ export default function DispatchForm({
       const currentFormData = formData;
       const currentItem = currentFormData.dispatchItems.find(item => item.id === itemId);
       const currentSubItem = currentItem?.subItems?.find(sub => sub.id === subItemId);
-      console.log('DispatchForm: After setting quality, subItem quality value:', currentSubItem?.quality);
-    }, 100);
+      }, 100);
   };
 
   // Clear quality search when dropdown is closed
@@ -928,7 +914,6 @@ export default function DispatchForm({
       onSuccess();
       onClose();
     } catch (error) {
-      console.error('Error handling dispatch:', error);
       setErrors({ submit: 'Failed to handle dispatch' });
     } finally {
       setSaving(false);
@@ -951,10 +936,6 @@ export default function DispatchForm({
           saleRate: parseFloat(subItem.saleRate),
           quality: subItem.quality
         };
-
-        console.log('DispatchForm: Sending dispatch data:', subDispatchData);
-        console.log('DispatchForm: Quality value:', subItem.quality);
-        console.log('DispatchForm: Quality type:', typeof subItem.quality);
 
         allDispatchPromises.push(
           fetch('/api/dispatch', {
@@ -1000,8 +981,6 @@ export default function DispatchForm({
     );
 
     const deleteResults = await Promise.all(deletePromises);
-    console.log('Delete results:', deleteResults);
-
     // Then create new ones with updated data
     await createNewDispatches();
   };
@@ -1121,7 +1100,6 @@ export default function DispatchForm({
                 </div>
               )}
 
-
               {/* Dispatch Items */}
               <div>
                 <div className="flex items-center justify-between mb-6">
@@ -1203,9 +1181,7 @@ export default function DispatchForm({
 
                         </div>
 
-                    
                       </div>
-
 
                       {/* Quality & Finish Items Section */}
                       <div className={`mt-6 p-4 rounded-xl border ${

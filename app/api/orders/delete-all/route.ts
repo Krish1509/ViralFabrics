@@ -45,7 +45,6 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error deleting all orders:', error);
     return NextResponse.json({
       success: false,
       message: 'Failed to delete all orders',

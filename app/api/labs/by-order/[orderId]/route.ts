@@ -36,15 +36,12 @@ export async function GET(
     .lean()
     .maxTimeMS(2000); // Reduced timeout to 2 seconds
 
-    console.log('Labs by-order API: Retrieved labs:', labs);
     if (labs.length > 0) {
-      console.log('Labs by-order API: First lab labSendData:', labs[0].labSendData);
-    }
+      }
     
     return NextResponse.json(successResponse(labs, 'Labs fetched successfully'));
     
   } catch (error: any) {
-    console.error('Error fetching labs by order:', error);
     return NextResponse.json(errorResponse('Failed to fetch labs'), { status: 500 });
   }
 }

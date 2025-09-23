@@ -29,8 +29,6 @@ export async function DELETE(
       softDeleted: true
     });
 
-    console.log(`Soft deleted ${result.modifiedCount} lab records for order ${orderId}`);
-
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -41,7 +39,6 @@ export async function DELETE(
     );
 
   } catch (error: unknown) {
-    console.error('Error deleting labs by order:', error);
     const message = error instanceof Error ? error.message : 'Unknown error occurred';
     
     return new Response(

@@ -129,7 +129,6 @@ export async function GET(request: NextRequest) {
     
     // Add cursor-based pagination if cursor is provided
     if (cursor) {
-      console.log(`API: Processing cursor=${cursor}, sortBy=${sortBy}, sortOrder=${sortOrder}`);
       try {
         // Handle compound cursor (timestamp_id)
         if (cursor.includes('_')) {
@@ -171,7 +170,6 @@ export async function GET(request: NextRequest) {
           }
         }
       } catch (error) {
-        console.error('Invalid cursor format:', error);
         // Continue without cursor if it's invalid
       }
     }
@@ -192,8 +190,7 @@ export async function GET(request: NextRequest) {
       const lastLog = results[results.length - 1];
       // Use compound cursor: timestamp_id for better pagination
       nextCursor = `${lastLog[sortBy]}_${lastLog._id}`;
-      console.log(`API: Generated nextCursor=${nextCursor}, hasMore=${hasMore}, results=${results.length}, limit=${limitNum}`);
-    }
+      }
     
     // Calculate statistics if requested
     let statistics = null;
@@ -259,8 +256,6 @@ export async function GET(request: NextRequest) {
     return new Response(JSON.stringify(response), { headers });
     
   } catch (error) {
-    console.error('Error fetching logs:', error);
-    
     // Handle MongoDB specific errors
     let message = 'Failed to fetch logs';
     if (error instanceof Error) {
@@ -311,7 +306,6 @@ export async function DELETE(request: NextRequest) {
     });   
     
   } catch (error) {
-    console.error('Error cleaning up logs:', error);
     return serverError(error);
   }
 }

@@ -83,7 +83,6 @@ DispatchSchema.pre('save', function(next) {
       this.totalValue = 0;
     }
   } catch (error) {
-    console.error('Error calculating totalValue:', error);
     this.totalValue = 0;
   }
   next();

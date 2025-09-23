@@ -596,11 +596,6 @@ export default function MillOutputForm({
   const { isDarkMode } = useDarkMode();
   
   // Debug logging for qualities prop
-  console.log('=== MillOutputForm Debug ===');
-  console.log('qualities prop:', qualities);
-  console.log('qualities type:', typeof qualities);
-  console.log('qualities is array:', Array.isArray(qualities));
-  console.log('qualities length:', qualities?.length);
   const [formData, setFormData] = useState<MillOutputFormData>({
     orderId: order?.orderId || '',
     millOutputItems: [{
@@ -651,11 +646,7 @@ export default function MillOutputForm({
 
   // Function to load existing mill outputs
   const loadExistingMillOutputs = async () => {
-    console.log('loadExistingMillOutputs called with:', { order, existingMillOutputs });
-    console.log('Raw existingMillOutputs:', existingMillOutputs);
-    
     if (!order || existingMillOutputs.length === 0) {
-      console.log('Early return - no order or existing outputs');
       return;
     }
     
@@ -663,8 +654,6 @@ export default function MillOutputForm({
     try {
       // Group mill outputs by bill number and date
       const groupedOutputs = groupMillOutputsByBillAndDate(existingMillOutputs);
-      console.log('Grouped outputs:', groupedOutputs);
-      
       if (groupedOutputs.length > 0) {
         const newFormData = {
           orderId: order.orderId,
@@ -683,24 +672,16 @@ export default function MillOutputForm({
           }))
         };
         
-        console.log('New form data to be set:', newFormData);
-        console.log('Number of form items:', newFormData.millOutputItems.length);
-        console.log('Quality data for main output:', groupedOutputs[0]?.mainOutput?.quality);
-        console.log('Quality data for additional outputs:', groupedOutputs[0]?.additionalOutputs?.map((output: any) => output.quality));
         setFormData(newFormData);
-        console.log('Form data set successfully');
-        console.log('Final form data after setting:', newFormData);
-      }
+        }
     } catch (error) {
-      console.error('Error loading existing mill outputs:', error);
-    } finally {
+      } finally {
       setLoadingExistingData(false);
     }
   };
 
   // Helper function to group mill outputs by bill and date
   const groupMillOutputsByBillAndDate = (millOutputs: any[]) => {
-    console.log('groupMillOutputsByBillAndDate called with:', millOutputs);
     const groups: any[] = [];
     
     // Sort outputs by creation date to ensure consistent ordering
@@ -711,18 +692,12 @@ export default function MillOutputForm({
     });
     
     sortedOutputs.forEach((output: any, index: number) => {
-      console.log(`Processing output ${index + 1}:`, output);
-      console.log('Output quality:', output.quality);
-      console.log('Output bill no:', output.millBillNo);
-      console.log('Output recd date:', output.recdDate);
-      
       const existingGroup = groups.find(group => 
         group.millBillNo === output.millBillNo && group.recdDate === output.recdDate
       );
       
       if (existingGroup) {
         // Add as additional output
-        console.log('Adding to existing group:', existingGroup);
         existingGroup.additionalOutputs.push({
           finishedMtr: output.finishedMtr,
           millRate: output.millRate,
@@ -730,7 +705,6 @@ export default function MillOutputForm({
         });
       } else {
         // Create new group
-        console.log('Creating new group for:', output.millBillNo, output.recdDate);
         groups.push({
           recdDate: output.recdDate,
           millBillNo: output.millBillNo,
@@ -744,7 +718,6 @@ export default function MillOutputForm({
       }
     });
     
-    console.log('Final groups:', groups);
     return groups;
   };
 
@@ -853,15 +826,8 @@ export default function MillOutputForm({
 
   const getFilteredQualities = (itemId: string, type: 'main' | 'additional', index?: number) => {
     // Debug logging
-    console.log('=== getFilteredQualities Debug ===');
-    console.log('qualities:', qualities);
-    console.log('qualities type:', typeof qualities);
-    console.log('qualities is array:', Array.isArray(qualities));
-    console.log('qualities length:', qualities?.length);
-    
     // Safety check for undefined qualities
     if (!qualities || !Array.isArray(qualities)) {
-      console.log('⚠️ QUALITIES IS EMPTY OR NOT ARRAY!');
       return [];
     }
     
@@ -961,7 +927,6 @@ export default function MillOutputForm({
       onSuccess();
       onClose();
     } catch (error) {
-      console.error('Error handling mill output:', error);
       setErrors({ submit: 'Failed to handle mill output' });
     } finally {
       setSaving(false);
@@ -970,8 +935,6 @@ export default function MillOutputForm({
 
   // Function to create new mill outputs
   const createNewMillOutputs = async () => {
-    console.log('createNewMillOutputs called with formData:', formData);
-    
     // Get auth token
     const token = localStorage.getItem('token');
     if (!token) {
@@ -990,10 +953,6 @@ export default function MillOutputForm({
         millRate: parseFloat(item.millRate),
         quality: item.quality // Add quality field
       };
-
-      console.log('Mill Output Data being sent:', millOutputData);
-      console.log('Quality field value:', item.quality);
-      console.log('Quality field type:', typeof item.quality);
 
       allMillOutputPromises.push(
         fetch('/api/mill-outputs', {
@@ -1016,8 +975,6 @@ export default function MillOutputForm({
           millRate: parseFloat(additional.rate),
           quality: additional.quality // Add quality field
         };
-
-        console.log('Additional Mill Output Data being sent:', additionalMillOutputData);
 
         allMillOutputPromises.push(
           fetch('/api/mill-outputs', {
@@ -1049,8 +1006,6 @@ export default function MillOutputForm({
 
   // Function to update existing mill outputs
   const updateExistingMillOutputs = async () => {
-    console.log('updateExistingMillOutputs called with existingMillOutputs:', existingMillOutputs);
-    
     // Get auth token
     const token = localStorage.getItem('token');
     if (!token) {
@@ -1059,7 +1014,6 @@ export default function MillOutputForm({
 
     // First delete existing mill outputs for this order
     const deletePromises = existingMillOutputs.map((output: any) => {
-      console.log('Deleting mill output:', output._id);
       return fetch(`/api/mill-outputs/${output._id}`, {
         method: 'DELETE',
         headers: {
@@ -1071,15 +1025,11 @@ export default function MillOutputForm({
 
     try {
       const deleteResults = await Promise.all(deletePromises);
-      console.log('Delete results:', deleteResults);
-      
       // Check if all deletions were successful
       const allDeleted = deleteResults.every(result => result.ok);
       if (!allDeleted) {
-        console.warn('Some mill outputs could not be deleted, but continuing with update...');
-      }
+        }
     } catch (error) {
-      console.error('Error deleting existing mill outputs:', error);
       // Continue with creating new ones even if deletion fails
     }
 
@@ -1200,8 +1150,6 @@ export default function MillOutputForm({
                   </div>
                 </div>
               )}
-
-          
 
               {/* Mill Output Items */}
               <div>

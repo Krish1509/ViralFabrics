@@ -63,8 +63,7 @@ export async function GET(request: NextRequest) {
         queryBuilder.populate('quality', 'name');
         queryBuilder.populate('additionalMeters.quality', 'name');
       } catch (qualityError) {
-        console.log('Quality population skipped:', qualityError instanceof Error ? qualityError.message : String(qualityError));
-      }
+        }
       
       millInputs = await queryBuilder
         .sort({ millDate: -1, createdAt: -1 })
@@ -73,7 +72,6 @@ export async function GET(request: NextRequest) {
         .lean();
         
     } catch (populateError) {
-      console.log('Population failed, getting basic data:', populateError);
       // Fallback: get basic data with minimal population
       millInputs = await MillInput.find(query)
         .populate('mill', 'name')
@@ -98,7 +96,6 @@ export async function GET(request: NextRequest) {
     }, 'Mill inputs fetched successfully'));
 
   } catch (error: any) {
-    console.error('Error fetching mill inputs:', error);
     return NextResponse.json(errorResponse('Failed to fetch mill inputs'), { status: 500 });
   }
 }
@@ -117,11 +114,6 @@ export async function POST(request: NextRequest) {
     const { orderId, mill, millDate, chalanNo, greighMtr, pcs, quality, additionalMeters, notes } = body;
 
     // Debug logging
-    console.log('API received body:', body);
-    console.log('Additional meters received:', additionalMeters);
-    console.log('Type of additionalMeters:', typeof additionalMeters);
-    console.log('Is array?', Array.isArray(additionalMeters));
-
     // Validate required fields
     if (!orderId) {
       return NextResponse.json(validationErrorResponse('Order ID is required'), { status: 400 });
@@ -210,21 +202,7 @@ export async function POST(request: NextRequest) {
       notes: notes?.trim()
     });
 
-    console.log('Creating new mill input with data:', {
-      orderId,
-      mill,
-      millDate,
-      chalanNo,
-      greighMtr,
-      pcs,
-      additionalMeters: millInput.additionalMeters,
-      additionalMetersLength: millInput.additionalMeters?.length || 0
-    });
-
     await millInput.save();
-    console.log('Mill input saved successfully with ID:', millInput._id);
-    console.log('Saved mill input additionalMeters:', millInput.additionalMeters);
-
     // Get the final record (newly created) - populate quality safely
     let finalMillInput;
     try {
@@ -235,7 +213,6 @@ export async function POST(request: NextRequest) {
         .populate('additionalMeters.quality', 'name')
         .lean();
     } catch (populateError) {
-      console.log('Populate failed, getting without quality:', populateError);
       // Fallback: get without quality population
       finalMillInput = await MillInput.findById(millInput._id)
         .populate('mill', 'name contactPerson contactPhone')
@@ -243,8 +220,6 @@ export async function POST(request: NextRequest) {
         .lean();
     }
     
-    console.log('Final retrieved mill input additionalMeters:', (finalMillInput as any)?.additionalMeters || 'No additionalMeters found');
-
     try {
       await logCreate('mill_input', (finalMillInput as any)?._id?.toString() || 'unknown', { 
         orderId, 
@@ -253,18 +228,15 @@ export async function POST(request: NextRequest) {
         hasAdditionalMeters: additionalMeters && additionalMeters.length > 0
       }, request);
     } catch (logError) {
-      console.log('Logging failed, continuing:', logError);
-    }
+      }
 
     return NextResponse.json(createdResponse(finalMillInput, 'Mill input created successfully'));
 
   } catch (error: any) {
-    console.error('Error creating mill input:', error);
     try {
       await logError('mill_input_create', 'mill_input', error.message, request);
     } catch (logError) {
-      console.log('Error logging failed, continuing:', logError);
-    }
+      }
     return NextResponse.json(errorResponse('Failed to create mill input'), { status: 500 });
   }
 }

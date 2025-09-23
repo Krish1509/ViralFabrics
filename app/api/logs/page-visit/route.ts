@@ -25,8 +25,7 @@ export async function POST(request: NextRequest) {
         }
       } catch (error) {
         // Silently continue with default pathname for malformed JSON
-        console.debug('Using default pathname due to JSON parse error');
-      }
+        }
     }
 
     // Determine the resource type based on the pathname
@@ -81,7 +80,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, message: 'Page visit logged' });
   } catch (error) {
-    console.error('Error logging page visit:', error);
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }

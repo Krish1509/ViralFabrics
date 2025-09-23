@@ -32,7 +32,6 @@ export async function GET(
     return NextResponse.json(successResponse(millInput, 'Mill input fetched successfully'));
 
   } catch (error: any) {
-    console.error('Error fetching mill input:', error);
     return NextResponse.json(errorResponse('Failed to fetch mill input'), { status: 500 });
   }
 }
@@ -127,7 +126,6 @@ export async function PUT(
     return NextResponse.json(updatedResponse(populatedMillInput, 'Mill input updated successfully'));
 
   } catch (error: any) {
-    console.error('Error updating mill input:', error);
     await logError('mill_input_update', 'mill_input', error.message, request);
     return NextResponse.json(errorResponse('Failed to update mill input'), { status: 500 });
   }
@@ -165,7 +163,6 @@ export async function DELETE(
     return NextResponse.json(deletedResponse('Mill input deleted successfully'));
 
   } catch (error: any) {
-    console.error('Error deleting mill input:', error);
     await logError('mill_input_delete', 'mill_input', error.message, request);
     return NextResponse.json(errorResponse('Failed to delete mill input'), { status: 500 });
   }

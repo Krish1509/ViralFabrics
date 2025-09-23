@@ -273,7 +273,6 @@ function CustomDatePicker({
                       </button>
           </div>
 
-        
       </div>
 
              {showCalendar && (
@@ -707,11 +706,9 @@ function ImageUploadSection({
       video.srcObject = cameraStream;
       video.onloadedmetadata = () => {
         video.play().catch(e => {
-          console.log('Video play error:', e);
           // Retry after a short delay
           setTimeout(() => {
-            video.play().catch(e2 => console.log('Retry video play error:', e2));
-          }, 200);
+            video.play().catch(e2 => {}); }, 200);
         });
       };
     }
@@ -724,7 +721,6 @@ function ImageUploadSection({
       setAvailableCameras(cameras);
       return cameras;
     } catch (error) {
-      console.error('Error getting cameras:', error);
       // On mobile, camera enumeration might fail, but we can still try to access camera
       // Return empty array to trigger fallback behavior
       return [];
@@ -794,12 +790,9 @@ function ImageUploadSection({
       // Try each constraint configuration until one works
       for (const constraints of constraintConfigs) {
         try {
-          console.log('Trying camera constraints:', constraints);
           stream = await navigator.mediaDevices.getUserMedia(constraints);
-          console.log('Camera stream obtained successfully');
           break;
         } catch (error: any) {
-          console.log('Camera constraint failed:', error.name, error.message);
           lastError = error;
           continue;
         }
@@ -819,17 +812,14 @@ function ImageUploadSection({
           videoRef.current.srcObject = stream;
           videoRef.current.onloadedmetadata = () => {
             videoRef.current?.play().catch(e => {
-              console.log('Video play error:', e);
               // Try to play again after a short delay
               setTimeout(() => {
-                videoRef.current?.play().catch(e2 => console.log('Retry video play error:', e2));
-              }, 200);
+                videoRef.current?.play().catch(e2 => {}); }, 200);
             });
           };
         }
       }, 200);
     } catch (error: any) {
-      console.error('Camera access error:', error);
       setCameraLoading(false);
       
       // More specific error messages
@@ -856,7 +846,6 @@ function ImageUploadSection({
   // Fallback function for minimal camera access
   const tryMinimalCamera = async () => {
     try {
-      console.log('Trying minimal camera constraints...');
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       setCameraStream(stream);
       setShowCamera(true);
@@ -867,12 +856,11 @@ function ImageUploadSection({
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play().catch(e => console.log('Video play error:', e));
+            videoRef.current?.play().catch(e => {});
           };
         }
       }, 200);
     } catch (error: any) {
-      console.error('Minimal camera access also failed:', error);
       setCameraError('Unable to access camera. Please check your device permissions.');
       setCameraLoading(false);
     }
@@ -938,12 +926,9 @@ function ImageUploadSection({
       // Try each constraint configuration until one works
       for (const constraints of constraintConfigs) {
         try {
-          console.log('Trying camera switch constraints:', constraints);
           stream = await navigator.mediaDevices.getUserMedia(constraints);
-          console.log('Camera switch successful');
           break;
         } catch (error: any) {
-          console.log('Camera switch constraint failed:', error.name);
           continue;
         }
       }
@@ -957,7 +942,6 @@ function ImageUploadSection({
         videoRef.current.srcObject = stream;
       }
     } catch (error: any) {
-      console.error('Error switching camera:', error);
       setCameraError(`Failed to switch camera: ${error.message || 'Unknown error'}`);
     }
   };
@@ -1059,13 +1043,11 @@ function ImageUploadSection({
           </div>
         )}
       </div>
-      
-      
+
                            {/* Image Previews */}
         {imageUrls && imageUrls.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {imageUrls.map((url, imgIndex) => {
-              console.log('🔍 Rendering image:', { itemIndex, imgIndex, url });
               return (
               <div key={`${itemIndex}-${imgIndex}-${url}`} className="relative group">
                   <div className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-lg transition-all duration-200 bg-gray-100 dark:bg-gray-700">
@@ -1074,12 +1056,10 @@ function ImageUploadSection({
                     alt={`Item ${itemIndex + 1} image ${imgIndex + 1}`}
                        className="w-full h-full object-cover"
                                           onError={(e) => {
-                         console.error('🔍 Image load error:', { url, error: e });
-                      const target = e.target as HTMLImageElement;
+                         const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
                        }}
                        onLoad={(e) => {
-                         console.log('🔍 Image loaded successfully:', { url });
                          const target = e.target as HTMLImageElement;
                          if (target) {
                            target.style.opacity = '1';
@@ -1252,7 +1232,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     poDate: '',
     deliveryDate: '',
 
-
     items: [{
       quality: '',
       quantity: '', // Always initialize as empty string, never null
@@ -1405,8 +1384,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     }
   }, [pendingNewParty]);
 
-
-
   // Update quality search states when qualities change
   useEffect(() => {
     formData.items.forEach((item, index) => {
@@ -1421,8 +1398,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       }
     });
   }, [formData.items, qualities]);
-
-
 
   // Initialize form data from existing order
   useEffect(() => {
@@ -1440,8 +1415,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         styleNo: order.styleNo || '',
         poDate: order.poDate ? new Date(order.poDate).toISOString().split('T')[0] : '',
         deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toISOString().split('T')[0] : '',
-    
-    
+
                  items: order.items.length > 0 ? order.items.map(item => ({
            quality: typeof item.quality === 'string' ? item.quality : item.quality?._id || '',
            quantity: item.quantity !== undefined && item.quantity !== null && item.quantity !== '' ? String(item.quantity) : '',
@@ -1464,7 +1438,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     } else {
       setFormInitialized(true);
     }
-    
 
   }, [order]);
 
@@ -1511,15 +1484,12 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   };
 
   const handleItemChange = (index: number, field: string, value: any) => {
-    console.log('🔍 handleItemChange called:', { index, field, value });
-    
     setFormData(prev => {
       const updatedItems = [...prev.items];
       if (!updatedItems[index]) {
         updatedItems[index] = { quality: '', quantity: '', imageUrls: [], description: '', weaverSupplierName: '', purchaseRate: '' };
       }
       updatedItems[index] = { ...updatedItems[index], [field]: value };
-      console.log('🔍 Updated form data:', { ...prev, items: updatedItems });
       return { ...prev, items: updatedItems };
     });
 
@@ -1567,15 +1537,10 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       });
 
       const data = await response.json();
-      console.log('🔍 Upload response:', data);
-      
       if (data.success) {
         // Use the correct field name from API response
         const imageUrl = data.imageUrl || data.url;
-        console.log('🔍 Using image URL:', imageUrl);
-        
         if (!imageUrl) {
-          console.error('No image URL in response');
           setValidationMessage({ type: 'error', text: 'Image upload failed: No URL received' });
           return;
         }
@@ -1589,7 +1554,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
             ...updatedItems[itemIndex],
             imageUrls: [...(updatedItems[itemIndex].imageUrls || []), imageUrl]
           };
-          console.log('🔍 Updated form data with image:', updatedItems[itemIndex]);
           return { ...prev, items: updatedItems };
         });
         
@@ -1606,11 +1570,9 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
           setFormData(prev => ({ ...prev }));
         }, 200);
       } else {
-        console.error('Upload failed:', data.message);
         setValidationMessage({ type: 'error', text: data.message || 'Image upload failed. Please try again.' });
       }
     } catch (error) {
-      console.error('Upload error:', error);
       setValidationMessage({ type: 'error', text: 'Image upload failed. Please try again.' });
     } finally {
       setImageUploading(prev => ({ ...prev, [itemIndex]: false }));
@@ -1664,9 +1626,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         cleanedFormData.styleNo = formData.styleNo;
         cleanedFormData.poDate = cleanDate(formData.poDate);
         cleanedFormData.deliveryDate = cleanDate(formData.deliveryDate);
-        
 
-        
         cleanedFormData.items = formData.items.map(item => ({
           quality: item.quality || undefined,
           quantity: item.quantity === '' || item.quantity === null || item.quantity === undefined ? 1 : Number(item.quantity),
@@ -1727,9 +1687,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
           cleanedFormData.styleNo = formData.styleNo;
           changedFields.push('styleNo');
         }
-        
 
-        
         const existingPoDate = normalizeDateForComparison(order.poDate);
         const newPoDate = normalizeDateForComparison(formData.poDate);
         
@@ -1745,10 +1703,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
           cleanedFormData.deliveryDate = cleanDate(formData.deliveryDate);
           changedFields.push('deliveryDate');
         }
-        
-        
 
-        
         // Check if items have changed - more accurate comparison
         const currentItems = order.items || [];
         const newItems = formData.items.map(item => ({
@@ -1776,29 +1731,18 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
             );
             
             if (itemChanged) {
-              console.log(`🔍 Item ${index + 1} changed in frontend:`, {
-                quality: { current: currentItem.quality?.toString(), new: newItem.quality?.toString() },
-                quantity: { current: currentItem.quantity, new: newItem.quantity },
-                description: { current: currentItem.description, new: newItem.description },
-                imageUrls: { current: currentItem.imageUrls, new: newItem.imageUrls }
-              });
-            }
+              }
             
             return itemChanged;
           });
-        
-        console.log('🔍 Items comparison result:', { itemsChanged, currentItemsCount: currentItems.length, newItemsCount: newItems.length });
         
         if (itemsChanged) {
           cleanedFormData.items = newItems;
           changedFields.push('items');
         }
         
-        console.log('🔍 Changed fields:', changedFields);
-        
         // If no fields changed, don't send update
         if (changedFields.length === 0) {
-          console.log('🔍 No changes detected, skipping update');
           setValidationMessage({ type: 'success', text: 'No changes detected' });
           setTimeout(() => {
             onClose();
@@ -1807,16 +1751,10 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         }
       }
 
-      console.log('🔍 Form data being submitted:', cleanedFormData);
-      console.log('🔍 Original order data:', order);
-      console.log('🔍 Current form data:', formData);
-
       const token = localStorage.getItem('token');
-      console.log('🔍 Token available:', !!token);
       const url = order ? `/api/orders/${order._id}` : '/api/orders';
       const method = order ? 'PUT' : 'POST';
 
-      console.log('🔍 Making request to:', url, 'with method:', method);
       const response = await fetch(url, {
         method,
         headers: {
@@ -1826,17 +1764,13 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         body: JSON.stringify(cleanedFormData)
       });
 
-      console.log('🔍 Response status:', response.status);
-
       const data = await response.json();
-      console.log('🔍 API response:', data);
       if (data.success) {
         setValidationMessage({ type: 'success', text: order ? 'Order updated successfully!' : 'Order created successfully!' });
         
         // Trigger real-time update for Order Activity Log
         if (order?._id) {
           // For order updates
-          console.log('🔍 Dispatching orderUpdated event for order:', order._id);
           const event = new CustomEvent('orderUpdated', { 
             detail: { 
               orderId: order._id,
@@ -1847,7 +1781,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
           window.dispatchEvent(event);
         } else if (data.data?._id) {
           // For new order creation
-          console.log('🔍 Dispatching orderUpdated event for new order:', data.data._id);
           const event = new CustomEvent('orderUpdated', { 
             detail: { 
               orderId: data.data._id,
@@ -1862,11 +1795,9 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         onSuccess();
         onClose();
       } else {
-        console.error('🔍 API error:', data.message);
         setValidationMessage({ type: 'error', text: data.message || 'Operation failed' });
       }
     } catch (error) {
-      console.error('🔍 Form submission error:', error);
       setValidationMessage({ type: 'error', text: 'An error occurred' });
     } finally {
       setLoading(false);
@@ -2022,9 +1953,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                 </div>
                 {errors.orderType && <p className="text-red-500 text-sm mt-2">{errors.orderType}</p>}
               </div>
-
-
-
 
               {/* Arrival Date */}
               <div>
@@ -2212,10 +2140,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                 </div>
               </div>
 
-
             </div>
-
-
 
             {/* Order Items */}
             <div>
@@ -2258,7 +2183,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                             }
                           }}
                                                        onSelect={(quality) => {
-                            console.log('🔍 Quality selected manually:', { quality, index });
                             handleItemChange(index, 'quality', getQualityId(quality));
                             setQualitySearchStates(prev => ({ ...prev, [index]: quality.name }));
                             setCurrentQualitySearch(quality.name);
@@ -2752,17 +2676,11 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
           <QualityModal
             onClose={() => setShowQualityModal(false)}
             onSuccess={(newQualityName, newQualityData) => {
-              console.log('🔍 QualityModal onSuccess called:', { newQualityName, newQualityData, activeQualityDropdown });
-              
               // Call the parent's onAddQuality function
               onAddQuality(newQualityData);
               
               // Immediately select the new quality for the active dropdown
               if (newQualityData && activeQualityDropdown !== null) {
-                console.log('🔍 Immediately selecting new quality:', newQualityData);
-                console.log('🔍 Active dropdown index:', activeQualityDropdown);
-                console.log('🔍 Quality ID:', getQualityId(newQualityData));
-                
                 // Set the quality for the active dropdown
                 handleItemChange(activeQualityDropdown, 'quality', getQualityId(newQualityData));
                 
@@ -2789,18 +2707,14 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                 // Force a re-render to ensure the selection is displayed
                 setTimeout(() => {
                   setFormData(prev => {
-                    console.log('🔍 Form data after auto-selection:', prev);
                     return { ...prev };
                   });
                 }, 100);
                 
-                console.log('🔍 Auto-selection completed');
-                
                 // Show success message
                 setValidationMessage({ type: 'success', text: 'New quality added and selected successfully!' });
               } else {
-                console.log('🔍 Cannot auto-select - missing data:', { newQualityData, activeQualityDropdown });
-              }
+                }
               
               setShowQualityModal(false);
             }}
@@ -2820,8 +2734,6 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
             }}
           />
         )}
-
-
 
         {/* Keyboard Shortcuts Modal */}
         {showKeyboardShortcuts && (

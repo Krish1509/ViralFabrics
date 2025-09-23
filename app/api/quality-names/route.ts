@@ -15,7 +15,6 @@ export async function GET(req: NextRequest) {
     }), { status: 200 });
     
   } catch (error) {
-    console.error('Quality names GET error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       message: "Failed to fetch quality names" 
@@ -63,7 +62,6 @@ export async function POST(req: NextRequest) {
     }), { status: 201 });
     
   } catch (error) {
-    console.error('Quality names POST error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       message: "Failed to create quality name" 

@@ -122,8 +122,7 @@ export async function GET(request: NextRequest) {
           }
         });
       } catch (labError) {
-        console.error('Error fetching lab data:', labError);
-      }
+        }
     }
 
     const result = {
@@ -139,7 +138,6 @@ export async function GET(request: NextRequest) {
     return ok(result);
 
   } catch (error) {
-    console.error('Error fetching dashboard orders:', error);
     return serverError(error);
   }
 }

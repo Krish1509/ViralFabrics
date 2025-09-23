@@ -32,7 +32,6 @@ export async function GET(request: NextRequest) {
         .limit(limit)
         .lean()
         .catch(error => {
-          console.log('Mill Output API: Populate failed in GET, using unpopulated data:', error);
           return MillOutput.find(query)
             .sort({ recdDate: -1 })
             .skip(skip)
@@ -47,9 +46,6 @@ export async function GET(request: NextRequest) {
       ...output,
       quality: output.quality || null
     }));
-
-    console.log('Mill Output API: Sample mill output:', millOutputs[0]);
-    console.log('Mill Output API: Raw mill output (first one):', await MillOutput.findById(millOutputs[0]?._id).lean());
 
     return NextResponse.json({
       success: true,
@@ -79,25 +75,14 @@ export async function GET(request: NextRequest) {
 // POST /api/mill-outputs - Create new mill output
 export async function POST(request: NextRequest) {
   try {
-    console.log('Mill Output API: Starting POST request');
-    
     // Validate session
     // await requireAuth(request);
-    console.log('Mill Output API: Session validation skipped');
-
     await dbConnect();
-    console.log('Mill Output API: Database connected');
-
     const body = await request.json();
-    console.log('Mill Output API: Request body:', body);
-    console.log('Mill Output API: Quality field in request:', body.quality);
-    console.log('Mill Output API: Quality field type:', typeof body.quality);
-    
     const { orderId, recdDate, millBillNo, finishedMtr, millRate, quality } = body;
 
     // Validate required fields
     if (!orderId || !recdDate || !millBillNo || !finishedMtr || !millRate) {
-      console.log('Mill Output API: Missing required fields');
       return NextResponse.json(
         { error: 'All fields are required' },
         { status: 400 }
@@ -120,27 +105,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the order by orderId to get the ObjectId
-    console.log('Mill Output API: Looking for order with orderId:', orderId);
     const { Order } = await import('@/models');
     const order = await Order.findOne({ orderId });
     
     if (!order) {
-      console.log('Mill Output API: Order not found');
       return NextResponse.json(
         { error: 'Order not found' },
         { status: 404 }
       );
     }
     
-    console.log('Mill Output API: Order found:', order._id);
-
     // Import and create MillOutput
     const { MillOutput } = await import('@/models');
-    console.log('Mill Output API: Model imported successfully');
-    
     // Create new mill output
-    console.log('Mill Output API: Creating MillOutput document');
-    
     const millOutputData = {
       orderId,
       order: order._id, // Use the actual ObjectId reference
@@ -151,13 +128,7 @@ export async function POST(request: NextRequest) {
       quality: quality && quality.trim() !== '' ? new mongoose.Types.ObjectId(quality) : null
     };
     
-    console.log('Mill Output API: Data to create:', millOutputData);
-    console.log('Mill Output API: Quality field in data:', millOutputData.quality);
-    
     const millOutput = await MillOutput.create(millOutputData);
-    console.log('Mill Output API: MillOutput created successfully:', millOutput._id);
-    console.log('Mill Output API: Created mill output object:', millOutput.toObject());
-
     // Return the created mill output
     return NextResponse.json({
       success: true,
@@ -166,7 +137,6 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Mill Output API: Error occurred:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logError('order_update', 'order', errorMessage, request);
     return NextResponse.json(
@@ -181,6 +151,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-
 

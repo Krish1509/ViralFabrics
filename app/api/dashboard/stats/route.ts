@@ -142,7 +142,6 @@ export async function GET(request: NextRequest) {
     return ok(stats);
 
   } catch (error) {
-    console.error('Error fetching dashboard stats:', error);
     return serverError(error);
   }
 }

@@ -85,7 +85,6 @@ export async function GET(
         }
       });
       } catch (labError) {
-        console.error('Error fetching lab data for order:', labError);
         // Initialize empty lab data for all items if there's an error
         order.items.forEach((item: any) => {
           item.labData = {
@@ -485,13 +484,6 @@ export async function PUT(
         const oldQualityValue = oldItem.quality;
         const newQualityValue = newItem.quality;
         
-        console.log(`🔍 Item ${index + 1} Quality Comparison:`, {
-          oldQualityValue,
-          newQualityValue,
-          oldType: typeof oldQualityValue,
-          newType: typeof newQualityValue
-        });
-        
         // Check if quality actually changed
         let qualityChanged = false;
         let oldQualityName = 'Not set';
@@ -519,7 +511,6 @@ export async function PUT(
                 newQualityName = 'Unknown Quality';
               }
             } catch (error) {
-              console.error('Error fetching new quality name:', error);
               newQualityName = 'Unknown Quality';
             }
           } else if (typeof newQualityValue === 'string') {
@@ -533,14 +524,6 @@ export async function PUT(
         
         qualityChanged = oldQualityId !== newQualityId;
         
-        console.log(`🔍 Item ${index + 1} Quality Result:`, {
-          oldQualityId,
-          newQualityId,
-          oldQualityName,
-          newQualityName,
-          qualityChanged
-        });
-        
         if (qualityChanged) {
           changes.quality = { old: oldQualityName, new: newQualityName };
           hasItemChanges = true;
@@ -548,7 +531,6 @@ export async function PUT(
         
         // Compare quantity
         if (oldItem.quantity !== newItem.quantity) {
-          console.log(`🔍 Item ${index + 1} Quantity changed:`, { old: oldItem.quantity, new: newItem.quantity });
           changes.quantity = { old: oldItem.quantity, new: newItem.quantity };
           hasItemChanges = true;
         }
@@ -557,7 +539,6 @@ export async function PUT(
          const oldDesc = oldItem.description || '';
          const newDesc = newItem.description || '';
          if (oldDesc !== newDesc) {
-           console.log(`🔍 Item ${index + 1} Description changed:`, { old: oldDesc, new: newDesc });
            changes.description = { old: oldDesc, new: newDesc };
           hasItemChanges = true;
         }
@@ -566,7 +547,6 @@ export async function PUT(
          const oldWeaver = oldItem.weaverSupplierName || '';
          const newWeaver = newItem.weaverSupplierName || '';
          if (oldWeaver !== newWeaver) {
-           console.log(`🔍 Item ${index + 1} Weaver changed:`, { old: oldWeaver, new: newWeaver });
            changes.weaverSupplierName = { old: oldWeaver, new: newWeaver };
           hasItemChanges = true;
         }
@@ -575,7 +555,6 @@ export async function PUT(
          const oldRate = oldItem.purchaseRate || 0;
          const newRate = newItem.purchaseRate || 0;
          if (oldRate !== newRate) {
-           console.log(`🔍 Item ${index + 1} Purchase rate changed:`, { old: oldRate, new: newRate });
            changes.purchaseRate = { old: oldRate, new: newRate };
           hasItemChanges = true;
         }
@@ -616,7 +595,6 @@ export async function PUT(
                 qualityName = qualityDoc.name;
               }
             } catch (error) {
-              console.error('Error fetching quality name:', error);
               qualityName = newItem.quality; // Fallback to ID if fetch fails
             }
           }
@@ -639,7 +617,6 @@ export async function PUT(
       }
       
       if (itemChanges.length > 0) {
-         console.log('🔍 Final itemChanges array:', JSON.stringify(itemChanges, null, 2));
          // Store the itemChanges in both oldValues and newValues for the logger
          oldValues.itemChanges = itemChanges;
          newValues.itemChanges = itemChanges;
@@ -675,7 +652,6 @@ export async function PUT(
       .populate('items.quality', '_id name');
 
     if (!populatedOrder) {
-      console.error('Failed to populate order after update');
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -687,13 +663,10 @@ export async function PUT(
 
     // Log changes if any
     if (changedFields.length > 0) {
-      console.log('🔍 Logging order changes:', changedFields);
-      
       // Only pass the changed fields to the logger, not the entire order objects
       await logOrderChange('update', id, oldValues, newValues, req);
     } else {
-      console.log('🔍 No changes detected, skipping log');
-    }
+      }
 
     return new Response(
       JSON.stringify({ 
@@ -710,8 +683,6 @@ export async function PUT(
       }
       
       if (error.message.includes('E11000')) {
-        console.error('🔍 Duplicate key error details:', error.message);
-        
         if (error.message.includes('orderId')) {
           return new Response(
             JSON.stringify({ 
@@ -807,7 +778,6 @@ export async function DELETE(
       { status: 200 }
     );
   } catch (error: unknown) {
-    console.error('DELETE error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error occurred';
     
     return new Response(
@@ -901,7 +871,7 @@ export async function PATCH(
     // Store old status for logging
     const oldStatus = existingOrder.status;
 
-    // Update the order
+    // Update the order - optimized for status change only
     const updatedOrder = await Order.findByIdAndUpdate(
       id,
       { status },
@@ -918,38 +888,24 @@ export async function PATCH(
       );
     }
 
-    // Populate the order
-    try {
-      const populatedOrder = await Order.findById(updatedOrder._id)
-        .populate('party', '_id name contactName contactPhone address')
-        .populate('items.quality', '_id name description')
-        .select('_id orderId orderType arrivalDate party contactName contactPhone poNumber styleNo poDate deliveryDate items status labData createdAt updatedAt');
+    // Log the status change (async, don't wait for it)
+    logOrderChange('status_change', id, { status: oldStatus }, { status: updatedOrder.status }, req)
+      .catch(error => {}); // Silent error handling
 
-      // Log the status change
-      await logOrderChange('status_change', id, { status: oldStatus }, { status: updatedOrder.status }, req);
-
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: "Order status updated successfully", 
-          data: populatedOrder 
-        }), 
-        { status: 200 }
-      );
-    } catch (populateError) {
-      console.error('Populate error:', populateError);
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: "Order status updated successfully (some data may not be fully populated)", 
-          data: updatedOrder 
-        }), 
-        { status: 200 }
-      );
-    }
+    // Return minimal response for faster performance
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: "Order status updated successfully", 
+        data: {
+          _id: updatedOrder._id,
+          orderId: updatedOrder.orderId,
+          status: updatedOrder.status
+        }
+      }), 
+      { status: 200 }
+    );
   } catch (error: unknown) {
-    console.error('PATCH error:', error);
-    
     if (error instanceof Error) {
       if (error.name === 'ValidationError') {
         const validationErrors = Object.values((error as any).errors).map((err: any) => err.message);
@@ -983,5 +939,4 @@ export async function PATCH(
     });
   }
 }
-
 

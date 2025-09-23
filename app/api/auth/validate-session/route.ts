@@ -27,8 +27,6 @@ export async function GET(
       return unauthorized('Invalid token');
     }
 
-
-
     // Return minimal user info for session validation
     return new Response(JSON.stringify({
       success: true,
@@ -46,7 +44,6 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('Session validation error:', error);
     return unauthorized('Session validation failed');
   }
 }

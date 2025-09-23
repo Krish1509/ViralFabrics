@@ -29,7 +29,6 @@ export async function GET(
     return NextResponse.json(successResponse(mill, 'Mill fetched successfully'));
 
   } catch (error: any) {
-    console.error('Error fetching mill:', error);
     return NextResponse.json(errorResponse('Failed to fetch mill'), { status: 500 });
   }
 }
@@ -94,8 +93,6 @@ export async function PUT(
     return NextResponse.json(updatedResponse(updatedMill, 'Mill updated successfully'));
 
   } catch (error: any) {
-    console.error('Error updating mill:', error);
-    
     if (error.code === 11000) {
       return NextResponse.json(validationErrorResponse('Mill with this name already exists'), { status: 400 });
     }
@@ -133,8 +130,7 @@ export async function DELETE(
     if (millInputsCount > 0) {
       // Delete all mill inputs that use this mill first
       await MillInput.deleteMany({ mill: id });
-      console.log(`Deleted ${millInputsCount} mill inputs that were using mill ${id}`);
-    }
+      }
 
     // Delete mill
     await Mill.findByIdAndDelete(id);
@@ -144,7 +140,6 @@ export async function DELETE(
     return NextResponse.json(deletedResponse('Mill deleted successfully'));
 
   } catch (error: any) {
-    console.error('Error deleting mill:', error);
     await logError('mill_delete', 'mill', error.message, request);
     return NextResponse.json(errorResponse('Failed to delete mill'), { status: 500 });
   }

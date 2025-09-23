@@ -39,8 +39,7 @@ export default function RecentActivity({ userRole }: RecentActivityProps) {
         setLogs(data.logs || []);
       }
     } catch (error) {
-      console.error('Error fetching recent logs:', error);
-    } finally {
+      } finally {
       setLoading(false);
     }
   };

@@ -75,8 +75,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(createdResponse(lab, 'Lab created successfully'));
     
   } catch (error: any) {
-    console.error('Error creating lab:', error);
-    
     // Check for duplicate key error specifically
     if (error.code === 11000) {
       return NextResponse.json(conflictResponse('A lab already exists for this order item'), { status: 409 });
@@ -153,7 +151,6 @@ export async function GET(request: NextRequest) {
     }, 'Labs fetched successfully'));
     
   } catch (error: any) {
-    console.error('Error fetching labs:', error);
     await logError('lab_view', 'lab', error.message || 'Unknown error', request);
     return NextResponse.json(errorResponse('Failed to fetch labs'), { status: 500 });
   }

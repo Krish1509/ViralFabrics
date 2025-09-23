@@ -6,7 +6,6 @@ import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import { useDarkMode } from './hooks/useDarkMode';
 
-
 import GlobalSkeleton from './components/GlobalSkeleton';
 
 import PWARegistration from './components/PWARegistration';
@@ -136,7 +135,6 @@ export default function SuperAdminLayout({
           setSessionStatus('expired');
         }
       } catch (error) {
-        console.error('Session refresh failed:', error);
         setSessionStatus('expired');
       }
     };
@@ -186,8 +184,7 @@ export default function SuperAdminLayout({
         });
       }
     } catch (error) {
-      console.error('Error logging logout:', error);
-    } finally {
+      } finally {
       // Always clear local storage and redirect
       localStorage.removeItem('token');
       localStorage.removeItem('user');
@@ -209,15 +206,11 @@ export default function SuperAdminLayout({
   }, []);
 
   const toggleSidebarCollapse = useCallback(() => {
-    console.log('Toggle sidebar collapse called, current state:', isSidebarCollapsed);
     setIsSidebarCollapsed(prev => {
       const newState = !prev;
-      console.log('Sidebar collapsed state changing from', prev, 'to', newState);
       return newState;
     });
   }, [isSidebarCollapsed]);
-
-
 
   // Fullscreen toggle function
   const handleFullscreenToggle = useCallback(() => {
@@ -225,14 +218,12 @@ export default function SuperAdminLayout({
       document.documentElement.requestFullscreen().then(() => {
         setIsFullscreen(true);
       }).catch(err => {
-        console.log('Error attempting to enable fullscreen:', err);
-      });
+        });
     } else {
       document.exitFullscreen().then(() => {
         setIsFullscreen(false);
       }).catch(err => {
-        console.log('Error attempting to exit fullscreen:', err);
-      });
+        });
     }
   }, []);
 
@@ -243,11 +234,9 @@ export default function SuperAdminLayout({
       e.preventDefault();
       // Store the event so it can be triggered later
       (window as any).deferredPrompt = e;
-      console.log('Install prompt captured and stored');
-    };
+      };
 
     const handleAppInstalled = () => {
-      console.log('PWA was installed');
       setIsInstalled(true);
       setIsInstalling(false);
       // Store install status in localStorage
@@ -260,13 +249,11 @@ export default function SuperAdminLayout({
     const checkIfInstalled = () => {
       // Check if running in standalone mode (installed PWA)
       if ('standalone' in navigator && (navigator as any).standalone === true) {
-        console.log('App is already installed and running in standalone mode');
         setIsInstalled(true);
       }
       // Check if there's a stored install status
       const storedInstallStatus = localStorage.getItem('pwa-installed');
       if (storedInstallStatus === 'true') {
-        console.log('App install status found in localStorage');
         setIsInstalled(true);
       }
     };
@@ -300,20 +287,17 @@ export default function SuperAdminLayout({
         // Wait for the user to respond to the prompt
         installPrompt.userChoice.then((choiceResult: any) => {
           if (choiceResult.outcome === 'accepted') {
-            console.log('User accepted the install prompt');
             setIsInstalled(true);
             // Store install status in localStorage
             localStorage.setItem('pwa-installed', 'true');
           } else {
-            console.log('User dismissed the install prompt');
-          }
+            }
           setIsInstalling(false);
           // Clear the prompt
           (window as any).deferredPrompt = null;
         });
       } else {
         // No install prompt available, try alternative method
-        console.log('No install prompt available, trying alternative method');
         // For some browsers, we can try to install directly
         if ('standalone' in navigator && (navigator as any).standalone === false) {
           // iOS Safari - show instructions
@@ -326,7 +310,6 @@ export default function SuperAdminLayout({
       }
     } else {
       // PWA not supported
-      console.log('PWA not supported in this browser');
       alert('PWA installation is not supported in your browser. Please use a modern browser like Chrome, Edge, or Firefox.');
       setIsInstalling(false);
     }
@@ -336,8 +319,7 @@ export default function SuperAdminLayout({
     // Handle opening in app mode
     if ('standalone' in navigator && (navigator as any).standalone === true) {
       // Already in app mode
-      console.log('Already running in app mode');
-    } else {
+      } else {
       // Try to open in app mode
       if (window.location.href.includes('localhost')) {
         // Development - show message

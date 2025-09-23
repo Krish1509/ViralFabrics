@@ -32,7 +32,6 @@ export async function GET(request: NextRequest) {
         .limit(limit)
         .lean()
         .catch(error => {
-          console.log('Dispatch API: Populate failed in GET, using unpopulated data:', error);
           return Dispatch.find(query)
             .sort({ dispatchDate: -1 })
             .skip(skip)
@@ -42,12 +41,8 @@ export async function GET(request: NextRequest) {
       Dispatch.countDocuments(query)
     ]);
 
-    console.log('Dispatch API: Raw dispatches data:', dispatches);
-    console.log('Dispatch API: First dispatch quality field:', dispatches[0]?.quality);
-
     // If population failed, try to manually populate quality data
     if (dispatches.length > 0 && dispatches[0].quality && typeof dispatches[0].quality === 'string') {
-      console.log('Dispatch API: Quality field is string, attempting manual population');
       try {
         const { Quality } = await import('@/models');
         const qualityIds = [...new Set(dispatches.map(d => d.quality).filter(Boolean))];
@@ -62,10 +57,8 @@ export async function GET(request: NextRequest) {
             dispatch.quality = qualityMap[dispatch.quality] || dispatch.quality;
           }
         });
-        console.log('Dispatch API: Manual quality population completed');
-      } catch (manualPopulateError) {
-        console.log('Dispatch API: Manual quality population failed:', manualPopulateError);
-      }
+        } catch (manualPopulateError) {
+        }
     }
 
     return NextResponse.json({
@@ -92,31 +85,14 @@ export async function GET(request: NextRequest) {
 // POST /api/dispatch - Create new dispatch record
 export async function POST(request: NextRequest) {
   try {
-    console.log('Dispatch API: Starting POST request');
-    
     // Validate session
     // await requireAuth(request);
-    console.log('Dispatch API: Session validation skipped');
-
     await dbConnect();
-    console.log('Dispatch API: Database connected');
-
     const body = await request.json();
-    console.log('Dispatch API: Request body:', body);
-    console.log('Dispatch API: Quality field from body:', body.quality);
-    console.log('Dispatch API: Quality field type:', typeof body.quality);
-    
     const { orderId, dispatchDate, billNo, finishMtr, saleRate, quality } = body;
 
     // Validate required fields
     if (!orderId || !dispatchDate || !billNo || !finishMtr || !saleRate) {
-      console.log('Dispatch API: Missing required fields');
-      console.log('Dispatch API: orderId:', orderId);
-      console.log('Dispatch API: dispatchDate:', dispatchDate);
-      console.log('Dispatch API: billNo:', billNo);
-      console.log('Dispatch API: finishMtr:', finishMtr);
-      console.log('Dispatch API: saleRate:', saleRate);
-      console.log('Dispatch API: quality:', quality);
       return NextResponse.json(
         { error: 'All fields are required' },
         { status: 400 }
@@ -139,26 +115,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the order by orderId to get the ObjectId
-    console.log('Dispatch API: Looking for order with orderId:', orderId);
     const { Order } = await import('@/models');
     const order = await Order.findOne({ orderId });
     
     if (!order) {
-      console.log('Dispatch API: Order not found');
       return NextResponse.json(
         { error: 'Order not found' },
         { status: 404 }
       );
     }
     
-    console.log('Dispatch API: Order found:', order._id);
-
     // Import and create Dispatch
     const { Dispatch } = await import('@/models');
-    console.log('Dispatch API: Model imported successfully');
-    
     // Create new dispatch record
-    console.log('Dispatch API: Creating Dispatch document');
     const finishMtrNum = Number(finishMtr);
     const saleRateNum = Number(saleRate);
     const totalValue = finishMtrNum * saleRateNum;
@@ -168,15 +137,11 @@ export async function POST(request: NextRequest) {
     if (quality && quality.trim() !== '') {
       try {
         qualityObjectId = new mongoose.Types.ObjectId(quality);
-        console.log('Dispatch API: Quality ObjectId created successfully:', qualityObjectId);
-      } catch (objectIdError) {
-        console.error('Dispatch API: Error creating ObjectId for quality:', objectIdError);
-        console.error('Dispatch API: Quality value that failed:', quality);
+        } catch (objectIdError) {
         qualityObjectId = null;
       }
     } else {
-      console.log('Dispatch API: No quality provided or empty quality');
-    }
+      }
 
     const dispatchData = {
       orderId,
@@ -189,20 +154,12 @@ export async function POST(request: NextRequest) {
       totalValue: totalValue
     };
     
-    console.log('Dispatch API: Data to create:', dispatchData);
-    
     const dispatch = await Dispatch.create(dispatchData);
-    console.log('Dispatch API: Dispatch created successfully:', dispatch._id);
-    console.log('Dispatch API: Created dispatch quality field:', dispatch.quality);
-    console.log('Dispatch API: Created dispatch object:', dispatch.toObject());
-
     // Safely populate the order and quality references
     let populatedDispatch;
     try {
       populatedDispatch = await dispatch.populate('order quality');
-      console.log('Dispatch API: Successfully populated order and quality');
-    } catch (populateError) {
-      console.log('Dispatch API: Populate failed, using unpopulated document:', populateError);
+      } catch (populateError) {
       populatedDispatch = dispatch;
     }
 
@@ -213,7 +170,6 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Dispatch API: Error occurred:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logError('dispatch_create', 'dispatch', errorMessage, request);
     return NextResponse.json(

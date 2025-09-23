@@ -26,40 +26,33 @@ const API_CACHE = [
 
 // Install event - cache static files
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing...');
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => {
-        console.log('Service Worker: Caching static files');
         return cache.addAll(STATIC_FILES);
       })
       .then(() => {
-        console.log('Service Worker: Static files cached');
         return self.skipWaiting();
       })
       .catch((error) => {
-        console.error('Service Worker: Error caching static files', error);
-      })
+        })
   );
 });
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activating...');
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
             if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
-              console.log('Service Worker: Deleting old cache', cacheName);
               return caches.delete(cacheName);
             }
           })
         );
       })
       .then(() => {
-        console.log('Service Worker: Activated');
         return self.clients.claim();
       })
   );
@@ -104,8 +97,7 @@ async function handleApiRequest(request) {
       return networkResponse;
     }
   } catch (error) {
-    console.log('Network failed for API request, trying cache...');
-  }
+    }
 
   // Fallback to cache
   const cachedResponse = await caches.match(request);
@@ -193,12 +185,10 @@ async function doBackgroundSync() {
         // Remove successful action from storage
         await removeOfflineAction(action.id);
       } catch (error) {
-        console.error('Background sync failed for action:', action, error);
-      }
+        }
     }
   } catch (error) {
-    console.error('Background sync error:', error);
-  }
+    }
 }
 
 // Push notification handling

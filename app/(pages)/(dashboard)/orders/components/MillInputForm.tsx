@@ -490,16 +490,7 @@ function EnhancedDropdown({
   
   // Debug: Log quality selection details
   if (placeholder?.includes('quality')) {
-    console.log('EnhancedDropdown quality debug:', {
-      value,
-      valueType: typeof value,
-      optionsCount: options.length,
-      selectedItem,
-      selectedItemName: selectedItem?.name,
-      firstOption: options[0],
-      firstOptionId: options[0]?._id
-    });
-  }
+    }
   const displayValue = selectedItem ? selectedItem.name : searchValue;
 
   return (
@@ -684,23 +675,9 @@ export default function MillInputForm({
   });
 
   // Debug logging
-  console.log('=== MillInputForm Debug ===');
-  console.log('Order ID:', order?.orderId);
-  console.log('Is Editing:', isEditing);
-  console.log('Existing Mill Inputs Count:', existingMillInputs.length);
-  console.log('Mills Count:', mills.length);
-  console.log('Mills Array:', mills);
-  console.log('Mills Type:', typeof mills);
-  console.log('Is Mills Array:', Array.isArray(mills));
-  console.log('Mills Details:', mills.map(m => ({ id: m._id, name: m.name })));
-  console.log('Form Data Mill:', formData.mill);
-  
   // Additional debugging for empty mills
   if (mills.length === 0) {
-    console.log('⚠️ MILLS ARRAY IS EMPTY!');
-    console.log('Mills prop received:', mills);
-    console.log('Mills prop type:', typeof mills);
-  }
+    }
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [saving, setSaving] = useState(false);
   const [savingProgress, setSavingProgress] = useState('');
@@ -728,25 +705,16 @@ export default function MillInputForm({
 
   // Load existing mill inputs when editing
   useEffect(() => {
-    console.log('=== useEffect for loading existing data ===');
-    console.log('isEditing:', isEditing);
-    console.log('existingMillInputs.length:', existingMillInputs.length);
-    console.log('existingMillInputs:', existingMillInputs);
-    
     if (isEditing && existingMillInputs.length > 0) {
-      console.log('Calling loadExistingMillInputs...');
       loadExistingMillInputs();
     } else {
-      console.log('Not loading existing data - conditions not met');
-    }
+      }
   }, [isEditing, existingMillInputs]);
 
   // Monitor mills array changes
   useEffect(() => {
-    console.log('Mills array updated:', mills.length, 'mills');
     mills.forEach(mill => {
-      console.log('Available mill:', mill._id, mill.name);
-    });
+      });
   }, [mills]);
 
   // Reset form when order changes (but not when editing)
@@ -780,44 +748,17 @@ export default function MillInputForm({
 
   // Function to load existing mill inputs
   const loadExistingMillInputs = async () => {
-    console.log('=== loadExistingMillInputs called ===');
-    console.log('order:', order);
-    console.log('existingMillInputs:', existingMillInputs);
-    console.log('existingMillInputs.length:', existingMillInputs.length);
-    
     // Debug: Log each existing mill input in detail
     existingMillInputs.forEach((input: any, index: number) => {
-      console.log(`Existing Mill Input ${index}:`, {
-        _id: input._id,
-        orderId: input.orderId,
-        mill: input.mill,
-        millDate: input.millDate,
-        chalanNo: input.chalanNo,
-        greighMtr: input.greighMtr,
-        pcs: input.pcs,
-        quality: input.quality,
-        additionalMeters: input.additionalMeters,
-        notes: input.notes
-      });
-      
       // Debug: Log additionalMeters array in detail
       if (input.additionalMeters && Array.isArray(input.additionalMeters)) {
-        console.log(`Additional Meters for input ${index}:`, input.additionalMeters);
         input.additionalMeters.forEach((additional: any, addIndex: number) => {
-          console.log(`  Additional Meter ${addIndex}:`, {
-            greighMtr: additional.greighMtr,
-            pcs: additional.pcs,
-            quality: additional.quality,
-            _id: additional._id
           });
-        });
       } else {
-        console.log(`No additionalMeters array found for input ${index}`);
-      }
+        }
     });
     
     if (!order || existingMillInputs.length === 0) {
-      console.log('Early return - no order or existing inputs');
       return;
     }
     
@@ -825,21 +766,12 @@ export default function MillInputForm({
     try {
       // Group mill inputs by mill and chalan number
       const groupedInputs = groupMillInputsByMillAndChalan(existingMillInputs);
-      console.log('Grouped inputs:', groupedInputs);
-      
       if (groupedInputs.length > 0) {
         const firstGroup = groupedInputs[0];
-        console.log('Setting form data with first group:', firstGroup);
-        
         const newFormData = {
           orderId: order.orderId,
           mill: firstGroup.millId,
           millItems: groupedInputs.map((group, index) => {
-            console.log(`Mapping group ${index}:`, group);
-            console.log(`Group additionalInputs:`, group.additionalInputs);
-            console.log(`Group mainInput quality:`, group.mainInput.quality);
-            console.log(`Group mainInput quality type:`, typeof group.mainInput.quality);
-            
             const mappedItem = {
               id: (index + 1).toString(),
               millDate: group.millDate,
@@ -848,7 +780,6 @@ export default function MillInputForm({
               pcs: group.mainInput.pcs.toString(),
               quality: group.mainInput.quality?._id || group.mainInput.quality || '', // Extract quality ID
               additionalMeters: group.additionalInputs.map((input: any) => {
-                console.log(`Mapping additional input:`, input);
                 return {
                   meters: input.greighMtr.toString(),
                   pieces: input.pcs.toString(),
@@ -857,55 +788,32 @@ export default function MillInputForm({
               })
             };
             
-            console.log(`Final mapped item ${index} additionalMeters:`, mappedItem.additionalMeters);
-            console.log(`Final mapped item ${index} quality:`, mappedItem.quality);
-            
-            console.log(`Mapped item ${index}:`, mappedItem);
             return mappedItem;
           })
         };
         
-        console.log('New form data to be set:', newFormData);
-        console.log('Form data millItems:', newFormData.millItems);
         newFormData.millItems.forEach((item: any, index: number) => {
-          console.log(`Form item ${index} additionalMeters:`, item.additionalMeters);
-          console.log(`Form item ${index} quality:`, item.quality);
-        });
+          });
         
-        console.log('Available qualities:', qualities);
-        console.log('Available qualities count:', qualities?.length || 0);
         setFormData(newFormData);
-        console.log('Form data set successfully');
-      } else {
-        console.log('No grouped inputs found');
-      }
+        } else {
+        }
     } catch (error) {
-      console.error('Error loading existing mill inputs:', error);
-    } finally {
+      } finally {
       setLoadingExistingData(false);
     }
   };
 
   // Helper function to group mill inputs by mill and chalan
   const groupMillInputsByMillAndChalan = (millInputs: any[]) => {
-    console.log('=== groupMillInputsByMillAndChalan called ===');
-    console.log('Input millInputs:', millInputs);
-    
     const groups: any[] = [];
     
     millInputs.forEach((input: any, index: number) => {
-      console.log(`Processing input ${index}:`, input);
-      console.log('input.mill:', input.mill);
-      console.log('input.mill._id:', input.mill?._id);
-      console.log('input.chalanNo:', input.chalanNo);
-      console.log('input.additionalMeters:', input.additionalMeters);
-      
       const existingGroup = groups.find(group => 
         group.millId === input.mill._id && group.chalanNo === input.chalanNo
       );
       
       if (existingGroup) {
-        console.log('Adding to existing group');
         // Add as additional input
         existingGroup.additionalInputs.push({
           greighMtr: input.greighMtr,
@@ -913,15 +821,12 @@ export default function MillInputForm({
           quality: input.quality || ''
         });
       } else {
-        console.log('Creating new group');
         // Create new group with main input and any additional meters from the database
         const additionalInputs: any[] = [];
         
         // Add the main input as the first additional input if it has additional meters
         if (input.additionalMeters && Array.isArray(input.additionalMeters) && input.additionalMeters.length > 0) {
-          console.log(`Processing ${input.additionalMeters.length} additional meters for input ${index}`);
           input.additionalMeters.forEach((additional: any, addIndex: number) => {
-            console.log(`  Processing additional meter ${addIndex}:`, additional);
             additionalInputs.push({
               greighMtr: additional.greighMtr,
               pcs: additional.pcs,
@@ -929,8 +834,7 @@ export default function MillInputForm({
             });
           });
         } else {
-          console.log(`No additional meters found for input ${index} or additionalMeters is not an array`);
-        }
+          }
         
         // IMPORTANT: If we have additional meters, we need to create a form structure that includes
         // both the main input (M1) and the additional inputs (M2, M3, etc.)
@@ -951,7 +855,6 @@ export default function MillInputForm({
       }
     });
     
-    console.log('Final groups:', groups);
     return groups;
   };
 
@@ -967,23 +870,17 @@ export default function MillInputForm({
       
       const data = await response.json();
       if (data.success && data.data.millInputs) {
-        console.log('📋 Mill inputs using this mill:');
         data.data.millInputs.forEach((input: any, index: number) => {
-          console.log(`   ${index + 1}. Order ID: ${input.orderId}, Date: ${input.millDate}, Chalan: ${input.chalanNo}`);
-        });
-        console.log(`📊 Total: ${data.data.millInputs.length} mill inputs using this mill`);
-      }
+          });
+        }
     } catch (error) {
-      console.error('Error fetching mill usage:', error);
-    }
+      }
   };
 
   // Simple delete mill function - no confirmations or alerts
   const handleDeleteMill = async (millId: string) => {
     try {
       const token = localStorage.getItem('token');
-      
-      console.log('Attempting to delete mill:', millId);
       
       const response = await fetch(`/api/mills/${millId}`, {
         method: 'DELETE',
@@ -993,39 +890,23 @@ export default function MillInputForm({
         }
       });
 
-      console.log('Delete response status:', response.status);
-      
       const data = await response.json();
-      console.log('Delete response data:', data);
-      
       if (data.success) {
         // Clear the selected mill and search
         setFormData(prev => ({ ...prev, mill: '' }));
         setMillSearch('');
         // Refresh mills list
         onRefreshMills();
-        console.log('✅ Mill deleted successfully');
-      } else {
+        } else {
         // This is expected behavior when mill is in use, not an error
-        console.log('ℹ️ Cannot delete mill:', data.message);
-        
         // If the error mentions mill inputs, show more details
         if (data.message && data.message.includes('mill input')) {
-          console.log('🔍 This mill is being used in mill inputs. Checking usage...');
           await showMillUsage(millId);
-          console.log('📋 To delete this mill, you need to:');
-          console.log('   1. Go to the Orders page');
-          console.log('   2. Find the orders listed above');
-          console.log('   3. Delete those mill inputs first');
-          console.log('   4. Then come back and delete this mill');
-          console.log('💡 Or you can keep this mill and use it for new mill inputs');
-        } else {
-          console.log('❓ Unknown issue occurred:', data.message);
-        }
+          } else {
+          }
       }
     } catch (error) {
-      console.error('❌ Error deleting mill:', error);
-    }
+      }
   };
 
   // Form handlers
@@ -1192,7 +1073,6 @@ export default function MillInputForm({
     setActiveQualityDropdown(null);
   };
 
-
   const validateForm = () => {
     const newErrors: ValidationErrors = {};
 
@@ -1258,7 +1138,6 @@ export default function MillInputForm({
       onSuccess();
       onClose();
     } catch (error) {
-      console.error('Error handling mill input:', error);
       setErrors({ submit: error instanceof Error ? error.message : 'Failed to handle mill input' });
     } finally {
       setSaving(false);
@@ -1282,9 +1161,6 @@ export default function MillInputForm({
         }));
 
       // Debug log to see what's being sent
-      console.log('Form Data for item:', item);
-      console.log('Additional Meters prepared:', additionalMeters);
-
       // Send single request with all data for this item
       const requestBody = {
         orderId: formData.orderId,
@@ -1297,8 +1173,6 @@ export default function MillInputForm({
         additionalMeters: additionalMeters.length > 0 ? additionalMeters : [],
         notes: ''
       };
-
-      console.log('Request body being sent:', requestBody);
 
       // Create AbortController for timeout
       const controller = new AbortController();
@@ -1318,16 +1192,11 @@ export default function MillInputForm({
 
       const data = await response.json();
       
-      console.log('API Response:', data);
-      console.log('Response status:', response.status);
-      
       if (!response.ok) {
-        console.error('HTTP Error:', response.status, response.statusText);
         throw new Error(`HTTP ${response.status}: ${data.message || 'Server error'}`);
       }
       
       if (!data.success) {
-        console.error('API Error:', data);
         throw new Error(data.message || 'Failed to add mill input');
       }
 
@@ -1337,9 +1206,7 @@ export default function MillInputForm({
     // Execute all requests in parallel
     try {
       const results = await Promise.all(requests);
-      console.log('All mill inputs created successfully:', results);
-    } catch (error) {
-      console.error('Error creating mill inputs:', error);
+      } catch (error) {
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           throw new Error('Request timeout - please try again');
@@ -1394,13 +1261,9 @@ export default function MillInputForm({
 
       const data = await response.json();
       if (data.success) {
-        console.log('New mill added successfully:', data.data);
-        
         // Auto-select the newly added mill
         const newMillId = data.data._id;
         const newMillName = data.data.name;
-        console.log('Auto-selecting new mill:', newMillId, newMillName);
-        
         setFormData(prev => ({ ...prev, mill: newMillId }));
         setMillSearch(newMillName);
         
@@ -1412,8 +1275,6 @@ export default function MillInputForm({
         
         // Close modal and show success
         setShowAddMillModal(false);
-        console.log(`✅ Mill "${newMillName}" added and selected successfully!`);
-        
         // Clear the "recently added" indicator after 3 seconds
         setTimeout(() => {
           setRecentlyAddedMill(null);
@@ -1431,7 +1292,6 @@ export default function MillInputForm({
         setErrors({ addMill: data.message || 'Failed to add mill' });
       }
     } catch (error) {
-      console.error('Error adding mill:', error);
       setErrors({ addMill: 'Failed to add mill' });
     } finally {
       setAddingMill(false);
@@ -1560,8 +1420,7 @@ export default function MillInputForm({
                 }`}>
                     Mill Name <span className="text-red-500">*</span>
                 </label>
-                
-                
+
                 {mills.length === 0 ? (
                   <div className={`p-4 text-center rounded-lg border ${
                     isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-300 text-gray-600'
@@ -1586,7 +1445,6 @@ export default function MillInputForm({
                     options={mills}
                     value={formData.mill}
                     onChange={(value) => {
-                      console.log('Mill selection changed to:', value);
                       setFormData({ ...formData, mill: value });
                     }}
                     placeholder="Search mills..."
@@ -1595,7 +1453,6 @@ export default function MillInputForm({
                     showDropdown={showMillDropdown}
                     onToggleDropdown={() => setShowMillDropdown(!showMillDropdown)}
                     onSelect={(mill) => {
-                      console.log('Mill selected:', mill);
                       setFormData({ ...formData, mill: mill._id });
                       setMillSearch(mill.name);
                       setShowMillDropdown(false);
@@ -1686,8 +1543,6 @@ export default function MillInputForm({
                         )}
                       </div>
                     </div>
-
-
 
                     {/* Additional Meters & Pieces Section */}
                     <div className={`mt-6 p-4 rounded-xl border ${
@@ -1919,8 +1774,6 @@ export default function MillInputForm({
                       </div>
                     </div>
 
-
-
                       {/* Remove Item Button */}
                       {formData.millItems.length > 1 && (
                         <div className="mt-4 flex justify-end">
@@ -2059,7 +1912,6 @@ export default function MillInputForm({
                     }`}
                   />
                 </div>
-
 
                 {/* Modal Actions */}
                 <div className="flex items-center justify-end space-x-3 pt-4">

@@ -26,7 +26,6 @@ export async function POST(request: NextRequest) {
     }, { status: 200 });
 
   } catch (error) {
-    console.error('Error resetting order counter:', error);
     return NextResponse.json({
       success: false,
       message: 'Failed to reset order counter'

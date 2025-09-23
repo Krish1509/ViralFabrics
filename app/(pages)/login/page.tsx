@@ -32,8 +32,6 @@ interface LoginErrors {
   general?: string;
 }
 
-
-
 // Separate component for search params logic
 function LoginForm() {
   const router = useRouter();
@@ -128,7 +126,6 @@ function LoginForm() {
         localStorage.removeItem('user');
         
       } catch (error) {
-        console.error('Session validation error:', error);
         // On error, clear stored data to be safe
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -147,8 +144,6 @@ function LoginForm() {
       return () => clearTimeout(timer);
     }
   }, [searchParams]);
-
-
 
   const toggleDarkMode = () => {
     // Use the hook's toggle function for smooth animation
@@ -205,11 +200,9 @@ function LoginForm() {
           router.push('/dashboard');
         }
       } else {
-        console.error('Login failed:', { status: response.status, data });
         setErrors({ general: data.message || `Login failed (${response.status})` });
       }
     } catch (error) {
-      console.error('Login error:', error);
       setErrors({ general: 'Network error. Please try again.' });
     } finally {
       setIsLoading(false);
@@ -239,8 +232,6 @@ function LoginForm() {
     setFocusedField(null);
   };
 
-
-
   // Show skeleton while checking session or not mounted
   if (isCheckingSession || !mounted) {
     return <GlobalSkeleton type="login" />;
@@ -253,7 +244,6 @@ function LoginForm() {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row theme-switch-root">
-
 
       {/* Left Side - Professional Design (Hidden on mobile, 55% on desktop) */}
       <div className={`hidden lg:block lg:w-[55%] relative overflow-hidden transition-all duration-700 ${
@@ -511,8 +501,6 @@ function LoginForm() {
               )}
             </button>
           </div>
-          
-
 
         {/* Login Form Container */}
         <div className="w-full max-w-sm lg:max-w-sm xl:max-w-md">

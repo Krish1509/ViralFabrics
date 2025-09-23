@@ -14,7 +14,6 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
     const JWT_SECRET = process.env.JWT_SECRET;
     
     if (!JWT_SECRET) {
-      console.error("JWT_SECRET is not configured");
       return null;
     }
 
@@ -34,7 +33,6 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
       address: (payload as any).address,
     };
   } catch (error) {
-    console.error("Token verification error:", error);
     return null;
   }
 }

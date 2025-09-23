@@ -34,7 +34,6 @@ export async function POST(request: NextRequest) {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    console.error('Logout error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       message: 'Logout failed' 

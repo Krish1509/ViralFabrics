@@ -14,12 +14,9 @@ export async function GET(
   const { id } = await params;
   
   try {
-    console.log(`[${new Date().toISOString()}] GET fabric request for ID: ${id}`);
-    
     // Check cache first
     const cached = fabricCache.get(id);
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-      console.log(`[${new Date().toISOString()}] Returning cached fabric data for ID: ${id}`);
       return new Response(JSON.stringify({ 
         success: true, 
         data: cached.data,
@@ -37,8 +34,6 @@ export async function GET(
     const dbStartTime = Date.now();
     await dbConnect();
     const dbConnectTime = Date.now() - dbStartTime;
-    console.log(`[${new Date().toISOString()}] Database connected in ${dbConnectTime}ms`);
-    
     // First, get the fabric to find its quality code
     const queryStartTime = Date.now();
     const fabric = await Fabric.findById(id)
@@ -46,10 +41,7 @@ export async function GET(
       .select('qualityCode qualityName')
       .maxTimeMS(3000);
     const queryTime = Date.now() - queryStartTime;
-    console.log(`[${new Date().toISOString()}] Initial fabric query completed in ${queryTime}ms`);
-    
     if (!fabric) {
-      console.log(`[${new Date().toISOString()}] Fabric not found for ID: ${id}`);
       return new Response(JSON.stringify({ 
         success: false, 
         message: "Fabric not found" 
@@ -65,15 +57,9 @@ export async function GET(
       .select('qualityCode qualityName weaver weaverQualityName greighWidth finishWidth weight gsm danier reed pick greighRate images')
       .maxTimeMS(3000);
     const allItemsQueryTime = Date.now() - allItemsQueryStart;
-    console.log(`[${new Date().toISOString()}] All items query completed in ${allItemsQueryTime}ms - Found ${allItems.length} items`);
-    
     const totalTime = Date.now() - startTime;
-    console.log(`[${new Date().toISOString()}] All items loaded successfully for quality code: ${fabric.qualityCode} (Total time: ${totalTime}ms)`);
-    
     // Cache the data
     fabricCache.set(id, { data: allItems, timestamp: Date.now() });
-    console.log(`[${new Date().toISOString()}] All items data cached for ID: ${id}`);
-    
     return new Response(JSON.stringify({ 
       success: true, 
       data: allItems,
@@ -89,7 +75,6 @@ export async function GET(
     
   } catch (error) {
     const totalTime = Date.now() - startTime;
-    console.error(`[${new Date().toISOString()}] Fabric GET error after ${totalTime}ms:`, error);
     return new Response(JSON.stringify({ 
       success: false, 
       message: "Failed to fetch fabric" 
@@ -105,7 +90,6 @@ export async function PUT(
   const { id } = await params;
   
   try {
-    console.log(`[${new Date().toISOString()}] PUT fabric request for ID: ${id}`);
     await dbConnect();
     
     const {
@@ -164,8 +148,6 @@ export async function PUT(
     
          // Handle quality code change updates
      if (updateAllWithQualityCode && originalQualityCode) {
-       console.log('Updating all items with quality code change from', originalQualityCode, 'to', qualityCode);
-       
        // IMPORTANT: Check if the new quality code already exists
        const existingFabricsWithNewQuality = await Fabric.find({
          qualityCode: qualityCode.trim()
@@ -173,7 +155,6 @@ export async function PUT(
        
        if (existingFabricsWithNewQuality.length > 0) {
          // Quality code already exists - prevent the change
-         console.log('Quality code change blocked - new code already exists');
          return new Response(JSON.stringify({ 
            success: false, 
            message: `Quality code "${qualityCode.trim()}" already exists and cannot be used. Please choose a different quality code.`,
@@ -182,8 +163,6 @@ export async function PUT(
        }
        
        // Quality code is unique - proceed with update
-       console.log('Quality code is unique - proceeding with update');
-       
        // Update ALL fabrics that share the original quality code
        const updateResult = await Fabric.updateMany(
          { qualityCode: originalQualityCode },
@@ -192,8 +171,6 @@ export async function PUT(
            qualityName: qualityName.trim()
          }
        );
-       
-       console.log(`Updated ${updateResult.modifiedCount} fabrics with new quality code`);
        
        // Return success
        return new Response(JSON.stringify({ 
@@ -205,14 +182,10 @@ export async function PUT(
     
     // Handle updating all items in a quality code group
     if (updateAllItems && allItems && Array.isArray(allItems)) {
-      console.log('Updating all items in quality code group:', qualityCode);
-      
       // First, get all existing fabrics with this quality code
       const existingFabrics = await Fabric.find({ 
         qualityCode: currentFabric.qualityCode 
       }).sort({ createdAt: 1 });
-      
-      console.log(`Found ${existingFabrics.length} existing fabrics to update`);
       
       // Update each existing fabric with the new data
       const updatePromises = existingFabrics.map(async (existingFabric, index) => {
@@ -244,8 +217,6 @@ export async function PUT(
       // Wait for all updates to complete
       const updatedFabrics = await Promise.all(updatePromises.filter(Boolean));
       
-      console.log(`Successfully updated ${updatedFabrics.length} fabrics`);
-      
       // Invalidate cache after update
       fabricCache.delete(id);
       
@@ -264,8 +235,6 @@ export async function PUT(
     
     if (isQualityChange) {
       // This is a quality code/name change - always allow it
-      console.log('Quality code/name change detected - allowing update');
-      
       // Check if other fabrics use the new quality code (for warning purposes only)
       const otherFabricsWithSameQuality = await Fabric.find({
         qualityCode: qualityCode.trim(),
@@ -275,8 +244,6 @@ export async function PUT(
       if (otherFabricsWithSameQuality.length > 0) {
         // Show warning but proceed with update
         const warningMessage = `Quality code "${qualityCode.trim()}" is already used by ${otherFabricsWithSameQuality.length} other fabric(s). Proceeding with update.`;
-        console.log('Quality change with existing fabrics - showing warning');
-        
         // Update the fabric
         const fabric = await Fabric.findByIdAndUpdate(
           id,
@@ -327,8 +294,6 @@ export async function PUT(
     // This handles cases where:
     // 1. Quality change with no conflicts
     // 2. No quality change and no duplicates
-    console.log('Proceeding with fabric update');
-    
     // Update fabric with flexible validation
     const fabric = await Fabric.findByIdAndUpdate(
       id,
@@ -359,11 +324,7 @@ export async function PUT(
     
     // Invalidate cache after update
     fabricCache.delete(id);
-    console.log(`[${new Date().toISOString()}] Cache invalidated for updated fabric ID: ${id}`);
-    
     const totalTime = Date.now() - startTime;
-    console.log(`[${new Date().toISOString()}] Fabric updated successfully in ${totalTime}ms`);
-    
     return new Response(JSON.stringify({ 
       success: true, 
       message: "Fabric updated successfully",
@@ -372,7 +333,6 @@ export async function PUT(
     
   } catch (error) {
     const totalTime = Date.now() - startTime;
-    console.error(`[${new Date().toISOString()}] Fabric PUT error after ${totalTime}ms:`, error);
     return new Response(JSON.stringify({ 
       success: false, 
       message: "Failed to update fabric" 
@@ -399,15 +359,12 @@ export async function DELETE(
     
     // Invalidate cache after deletion
     fabricCache.delete(id);
-    console.log(`[${new Date().toISOString()}] Cache invalidated for deleted fabric ID: ${id}`);
-    
     return new Response(JSON.stringify({ 
       success: true, 
       message: "Fabric deleted successfully" 
     }), { status: 200 });
     
   } catch (error) {
-    console.error('Fabric DELETE error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       message: "Failed to delete fabric" 

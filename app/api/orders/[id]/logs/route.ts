@@ -90,8 +90,6 @@ export async function GET(
       { status: 200, headers }
     );
   } catch (error: unknown) {
-    console.error('Error fetching order logs:', error);
-    
     // Handle MongoDB specific errors
     let message = 'Unknown error occurred';
     if (error instanceof Error) {

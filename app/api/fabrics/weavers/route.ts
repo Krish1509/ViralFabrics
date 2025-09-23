@@ -76,7 +76,6 @@ export async function GET(req: NextRequest) {
     }), { status: 200, headers });
     
   } catch (error) {
-    console.error('Weavers GET error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       message: "Failed to fetch weavers" 

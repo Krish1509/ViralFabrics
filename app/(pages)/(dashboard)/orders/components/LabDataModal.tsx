@@ -487,7 +487,6 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
 
       if (result.success) {
         // Immediately update local state for better UX
-        console.log('LabDataModal: Updating local state with sampleNumber:', labData.sampleNumber);
         setLocalItems(prevItems => 
           prevItems.map(item => 
             item._id === editingItemId 
@@ -524,7 +523,6 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
         setError(result.message || 'Failed to save lab data');
       }
     } catch (err) {
-      console.error('Error saving lab data:', err);
       setError('Failed to save lab data. Please try again.');
     } finally {
       setIsLoading(false);
@@ -575,7 +573,6 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
         setError(result.message || 'Failed to delete lab data');
       }
     } catch (err) {
-      console.error('Error deleting lab data:', err);
       setError('Failed to delete lab data. Please try again.');
     } finally {
       setIsLoading(false);

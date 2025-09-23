@@ -81,7 +81,6 @@ export default function UsersPage() {
           return;
         }
       } catch (error) {
-        console.error('Error parsing user from localStorage:', error);
         router.push('/login');
       }
     } else {
@@ -145,7 +144,6 @@ export default function UsersPage() {
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        console.error('Request timeout');
         if (retryCount < 2) {
           // Retry once more
           setTimeout(() => fetchUsers(retryCount + 1), 1000);
@@ -153,7 +151,6 @@ export default function UsersPage() {
         }
         setMessage({ type: 'error', text: 'Request timeout - please try again' });
       } else {
-        console.error('Error fetching users:', error);
         setMessage({ type: 'error', text: 'Failed to fetch users' });
       }
     } finally {
@@ -727,8 +724,6 @@ export default function UsersPage() {
           </div>
         </div>
       )}
-
-
 
       {/* Users Table */}
       <div className={`rounded-lg border overflow-hidden ${

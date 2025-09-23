@@ -70,8 +70,7 @@ export default function Sidebar({
 
   // Debug current pathname
   useEffect(() => {
-    console.log('Current pathname:', pathname);
-  }, [pathname]);
+    }, [pathname]);
 
   // Helper function to get user initials
   const getUserInitials = (name: string) => {
@@ -184,23 +183,13 @@ export default function Sidebar({
     if (screenSize > 0 && !hasSetInitialState) {
       const isLargeScreen = screenSize >= 1600;
       
-      console.log('Sidebar: Setting initial state', {
-        screenSize,
-        isLargeScreen,
-        isCollapsed,
-        shouldExpand: isLargeScreen && isCollapsed,
-        shouldCollapse: !isLargeScreen && !isCollapsed
-      });
-      
       // Only set initial state if it doesn't match the expected state
       // This prevents unnecessary toggles on mount
       if (isLargeScreen && isCollapsed) {
         // Large screen but collapsed - expand to show text
-        console.log('Sidebar: Expanding sidebar for large screen');
         onToggleCollapse();
       } else if (!isLargeScreen && !isCollapsed) {
         // Small/medium screen but expanded - collapse to icons-only
-        console.log('Sidebar: Collapsing sidebar for small/medium screen');
         onToggleCollapse();
       }
       
@@ -214,7 +203,6 @@ export default function Sidebar({
   // Memoize active state calculation
   const isActive = useCallback((href: string) => {
     const result = href === '/dashboard' ? pathname === href : pathname.startsWith(href);
-    console.log(`isActive check for ${href}: pathname=${pathname}, result=${result}`);
     return result;
   }, [pathname]);
 
@@ -242,8 +230,6 @@ export default function Sidebar({
     //   return () => clearTimeout(timer);
     // }
   }, [pathname, screenConfig.isSmallScreen, isOpen, onClose]);
-
-
 
   // Memoize sidebar width calculation
   const sidebarWidth = useMemo(() => {
@@ -303,8 +289,7 @@ export default function Sidebar({
             <Link 
               href="/dashboard" 
               onClick={() => {
-                console.log('Logo clicked - redirecting to /dashboard');
-              }}
+                }}
               className={`group cursor-pointer ${shouldShowText ? 'flex items-center space-x-3' : 'flex justify-center'}`}
             >
               <div className={`h-10 w-10 rounded-lg flex items-center justify-center shadow-lg transition-all duration-300 ${
@@ -629,8 +614,7 @@ export default function Sidebar({
             <Link 
               href="/dashboard" 
               onClick={() => {
-                console.log('Mobile logo clicked - redirecting to /dashboard');
-              }}
+                }}
               className="flex items-center space-x-3 group cursor-pointer"
             >
               <div className={`h-10 w-10 rounded-lg flex items-center justify-center shadow-lg transition-all duration-300 ${
@@ -682,7 +666,6 @@ export default function Sidebar({
                   key={item.name}
                   href={item.href}
                   onClick={() => {
-                    console.log('Mobile navigation clicked:', item.href);
                     // Close sidebar manually
                     onClose();
                   }}
@@ -728,9 +711,6 @@ export default function Sidebar({
           </div>
         </div>
       </aside>
-
-
-
 
     </>
   );

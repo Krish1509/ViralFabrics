@@ -42,7 +42,6 @@ export async function GET(
     return NextResponse.json(successResponse(lab, 'Lab fetched successfully'));
     
   } catch (error: any) {
-    console.error('Error fetching lab:', error);
     await logError('lab_view', 'lab', error.message || 'Unknown error', request);
     return NextResponse.json(errorResponse('Failed to fetch lab'), { status: 500 });
   }
@@ -110,7 +109,6 @@ export async function PUT(
     return NextResponse.json(updatedResponse(lab, 'Lab updated successfully'));
     
   } catch (error: any) {
-    console.error('Error updating lab:', error);
     await logError('lab_update', 'lab', error.message || 'Unknown error', request);
     return NextResponse.json(errorResponse('Failed to update lab'), { status: 500 });
   }
@@ -156,7 +154,6 @@ export async function DELETE(
     return NextResponse.json(deletedResponse('Lab deleted successfully'));
     
   } catch (error: any) {
-    console.error('Error deleting lab:', error);
     await logError('lab_delete', 'lab', error.message || 'Unknown error', request);
     return NextResponse.json(errorResponse('Failed to delete lab'), { status: 500 });
   }

@@ -69,8 +69,6 @@ export default function CreateFabricPage() {
   const [originalItemCount, setOriginalItemCount] = useState<number>(1); // Track original number of items
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false); // Control dropdown open/close state
 
-
-
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -90,8 +88,6 @@ export default function CreateFabricPage() {
     
     try {
       setLoading(true);
-      console.log('Starting to load fabric for edit:', editId);
-      
       // Use a longer timeout for better reliability in edit mode
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased to 30s timeout for better reliability
@@ -126,13 +122,8 @@ export default function CreateFabricPage() {
       
       const data = await response.json();
       
-      console.log('Raw API response:', data);
-      
       if (data.success && data.data) {
         const allItems = data.data;
-        
-        console.log(`Successfully loaded ${allItems.length} items for edit with quality code: ${data.qualityCode}`);
-        console.log('Raw items data:', allItems);
         
         // Set the original quality code for edit mode
         setOriginalQualityCode(data.qualityCode || '');
@@ -158,7 +149,6 @@ export default function CreateFabricPage() {
           images: item.images || []
           };
           
-          console.log('Formatted item:', formattedItem);
           return formattedItem;
         });
         
@@ -166,14 +156,11 @@ export default function CreateFabricPage() {
           items: formattedItems
         });
         
-        console.log('Final form data set:', formattedItems);
         showValidationMessage('success', `Loaded ${allItems.length} item(s) for editing!`);
       } else {
         throw new Error(data.message || 'Failed to load fabric data');
       }
     } catch (error: any) {
-      console.error('Error loading fabric:', error);
-      
       if (error.name === 'AbortError') {
         showValidationMessage('error', 'Request timed out after 30 seconds - Please check your connection and try again');
       } else if (error.message.includes('HTTP 404')) {
@@ -264,9 +251,7 @@ export default function CreateFabricPage() {
   // Check if quality code already exists when creating new fabric
   const checkQualityCodeExists = async (qualityCode: string) => {
     if (!qualityCode.trim() || isEditMode) return; // Skip if editing or empty
-    
 
-    
     // Check cache first for instant response
     const normalizedCode = qualityCode.trim().toLowerCase();
     if (qualityCodeCache.hasOwnProperty(normalizedCode)) {
@@ -301,8 +286,6 @@ export default function CreateFabricPage() {
       }
       
       const data = await response.json();
-      console.log('Quality code check response:', data);
-      
       // Check if the API returned data and if any item has the exact quality code
       if (data.success && data.data && Array.isArray(data.data)) {
         const exactMatch = data.data.find((item: any) => 
@@ -330,8 +313,6 @@ export default function CreateFabricPage() {
         setIsQualityCodeValid(true);
       }
     } catch (error: any) {
-      console.error('Error checking quality code:', error);
-      
       if (error.name === 'AbortError') {
         // Request timed out, assume it's valid to avoid blocking the user
         setQualityCodeCache(prev => ({ ...prev, [normalizedCode]: false }));
@@ -423,8 +404,6 @@ export default function CreateFabricPage() {
     }, duration);
   };
 
-
-
   const addItem = () => {
     setFormData(prev => {
       // SHARED FIELDS (copied from first item):
@@ -465,8 +444,6 @@ export default function CreateFabricPage() {
     setErrors({});
     setIsQualityCodeValid(false);
     setQualityCodeCache({}); // Clear cache when adding new items
-
-
 
     // Scroll down smoothly to show the new item after it's added
     setTimeout(() => {
@@ -514,24 +491,19 @@ export default function CreateFabricPage() {
   };
 
   const handleFiles = async (files: FileList | File[], retryCount = 0) => {
-    console.log('handleFiles called with:', files.length, 'files');
     setUploadingImages(true);
     try {
       const uploadedUrls: string[] = [];
       
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        console.log('Processing file:', file.name, 'Type:', file.type, 'Size:', file.size);
-        
         if (file.type.startsWith('image/')) {
           try {
             // Upload to server instead of base64 conversion
             const uploadedUrl = await uploadFileWithRetry(file, retryCount);
             uploadedUrls.push(uploadedUrl);
           } catch (uploadError: any) {
-            console.error('Failed to upload file:', file.name, uploadError);
             if (uploadError.message.includes('timeout') && retryCount < 2) {
-              console.log(`Retrying upload for ${file.name}...`);
               const retryUrl = await uploadFileWithRetry(file, retryCount + 1);
               uploadedUrls.push(retryUrl);
             } else {
@@ -539,11 +511,8 @@ export default function CreateFabricPage() {
             }
           }
         } else {
-          console.warn('Skipping non-image file:', file.name, file.type);
-        }
+          }
       }
-      
-      console.log('Total images processed:', uploadedUrls.length);
       
       // Add images to ALL items (shared across all items of same quality)
       setFormData(prev => {
@@ -557,7 +526,6 @@ export default function CreateFabricPage() {
             images: newImages // All items get the same images
           }))
         };
-        console.log('Updated images for ALL items:', newImages.length, 'images');
         return newFormData;
       });
       
@@ -565,7 +533,6 @@ export default function CreateFabricPage() {
         showValidationMessage('success', `${uploadedUrls.length} image(s) uploaded successfully!`);
       }
     } catch (error: any) {
-      console.error('Error uploading images:', error);
       const errorMessage = error.message?.includes('timeout') 
         ? 'Upload timeout - please try again with smaller files or check your connection.'
         : 'Failed to upload images. Please try again.';
@@ -590,13 +557,6 @@ export default function CreateFabricPage() {
         formData.append('folder', 'fabrics');
 
         const token = localStorage.getItem('token');
-        console.log('Uploading file:', {
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          hasToken: !!token
-        });
-        
         const response = await fetch('/api/upload', {
           method: 'POST',
           headers: {
@@ -609,31 +569,23 @@ export default function CreateFabricPage() {
 
         clearTimeout(timeoutId);
 
-        console.log('Upload response status:', response.status);
-        
         if (!response.ok) {
           let errorMessage = `HTTP error! status: ${response.status}`;
           try {
             const errorData = await response.json();
-            console.error('Upload error response:', errorData);
             errorMessage = errorData.message || errorMessage;
           } catch (parseError) {
-            console.error('Failed to parse error response:', parseError);
-          }
+            }
           throw new Error(errorMessage);
         }
 
         const data = await response.json();
-        console.log('Upload success response:', data);
-        
         if (data.success && (data.url || data.imageUrl)) {
           return data.url || data.imageUrl;
         } else {
           throw new Error(data.message || 'Upload failed');
         }
       } catch (error: any) {
-        console.log(`Upload attempt ${attempt + 1} failed:`, error.message);
-        
         if (attempt === maxRetries) {
           throw error;
         }
@@ -674,7 +626,6 @@ export default function CreateFabricPage() {
       setAvailableCameras(cameras);
       return cameras;
     } catch (error) {
-      console.error('Error getting cameras:', error);
       return [];
     }
   };
@@ -714,17 +665,13 @@ export default function CreateFabricPage() {
           videoRef.current.srcObject = stream;
           videoRef.current.onloadedmetadata = () => {
             videoRef.current?.play().catch(e => {
-              console.log('Video play error:', e);
               setTimeout(() => {
-                videoRef.current?.play().catch(e2 => console.log('Retry video play error:', e2));
-              }, 200);
+                videoRef.current?.play().catch(e2 => {}); }, 200);
             });
           };
         }
       }, 200);
     } catch (error: any) {
-      console.error('Camera access denied:', error);
-      
       if (error.name === 'NotAllowedError') {
         setCameraError('Camera access denied. Please allow camera access in your browser settings.');
       } else if (error.name === 'NotFoundError') {
@@ -774,7 +721,6 @@ export default function CreateFabricPage() {
         videoRef.current.srcObject = stream;
       }
     } catch (error: any) {
-      console.error('Error switching camera:', error);
       setCameraError(`Failed to switch camera: ${error.message || 'Unknown error'}`);
     }
   };
@@ -821,13 +767,6 @@ export default function CreateFabricPage() {
     
     // Validate each item's weaver and weaverQualityName fields
     formData.items.forEach((item, index) => {
-      console.log(`Validating item ${index}:`, {
-        weaver: item.weaver,
-        weaverQualityName: item.weaverQualityName,
-        weaverTrimmed: item.weaver?.trim(),
-        weaverQualityNameTrimmed: item.weaverQualityName?.trim()
-      });
-      
       if (!item.weaver?.trim()) {
         newErrors[`items.${index}.weaver`] = 'Weaver is required';
       }
@@ -876,8 +815,6 @@ export default function CreateFabricPage() {
       if (isEditMode && editId) {
         // For edit mode, we need to handle multiple items properly
         try {
-          console.log('Updating existing fabric with ID:', editId);
-          
           // Check if quality code changed - this affects how we handle the update
           const currentQualityCode = formData.items[0]?.qualityCode?.trim();
           const qualityCodeChanged = originalQualityCode !== currentQualityCode;
@@ -934,8 +871,6 @@ export default function CreateFabricPage() {
             }
           } else {
             // No quality code change - handle item updates and additions
-            console.log('Processing edit mode with', apiData.length, 'items');
-            
             // First, update existing items
             const updateResponse = await fetch(`/api/fabrics/${editId}`, {
               method: 'PUT',
@@ -959,7 +894,6 @@ export default function CreateFabricPage() {
               
               if (newItemsCount > 0) {
                 // Create new items for the additional ones
-                console.log(`Creating ${newItemsCount} new items`);
                 showValidationMessage('info', `Updating existing items and creating ${newItemsCount} new item(s)...`);
                 
                 // Get the new items (items beyond the original count)
@@ -1018,7 +952,6 @@ export default function CreateFabricPage() {
             }
           }
         } catch (error) {
-          console.error('Error in edit mode:', error);
           showValidationMessage('error', 'An error occurred while updating fabric');
         }
       } else {
@@ -1048,7 +981,6 @@ export default function CreateFabricPage() {
         }
       }
     } catch (error) {
-      console.error('Form submission error:', error);
       showValidationMessage('error', 'An error occurred');
     } finally {
       setLoading(false);
@@ -1142,7 +1074,6 @@ export default function CreateFabricPage() {
         ? 'text-white bg-gray-900' 
         : 'text-gray-900 bg-white'
     }`}>
-
 
       {/* Floating Validation Message */}
       {validationMessage && (
@@ -1358,8 +1289,7 @@ export default function CreateFabricPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit}>
-           
-           
+
           {/* Shared Fabric Information */}
           <div className={`p-2 sm:p-3 lg:p-4 rounded-xl border mb-3 sm:mb-4 lg:mb-6 transition-all duration-500 ease-out animate-in fade-in-0 slide-in-from-top-4 delay-200 ${
             isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
@@ -1628,7 +1558,6 @@ export default function CreateFabricPage() {
                           alt={`Quality image ${imageIndex + 1}`}
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            console.error('Image failed to load:', image);
                             const target = e.target as HTMLImageElement;
                             target.style.display = 'none';
                             // Show fallback
@@ -1647,8 +1576,7 @@ export default function CreateFabricPage() {
                             }
                           }}
                           onLoad={(e) => {
-                            console.log('Image loaded successfully:', image);
-                          }}
+                            }}
                         />
                         
                         {/* Preview Button - Shows on Hover */}

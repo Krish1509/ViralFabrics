@@ -61,7 +61,6 @@ export async function GET(request: NextRequest) {
     }), { status: 200, headers });
 
   } catch (error) {
-    console.error('GET /api/qualities error:', error);
     return new Response(JSON.stringify({
       success: false,
       message: 'Failed to retrieve qualities'
@@ -115,10 +114,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response, { status: 201 });
 
   } catch (error) {
-    console.error('POST /api/qualities error:', error);
-    
     if (error instanceof ValidationError) {
-      console.error('Validation error details:', error.message);
       return NextResponse.json({
         success: false,
         message: `Validation error: ${error.message}`,

@@ -353,14 +353,11 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
     }
   };
 
-
-
   const formatChanges = (details: any) => {
     if (!details) return null;
 
     // Priority 1: Use the changeSummary if available (this contains the detailed change info)
     if (details.changeSummary && Array.isArray(details.changeSummary)) {
-      console.log('🔍 Using changeSummary for formatting:', details.changeSummary);
       return details.changeSummary;
     }
 
@@ -368,8 +365,6 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
     if (details.oldValues?.itemChanges || details.newValues?.itemChanges) {
       const itemChanges = details.oldValues?.itemChanges || details.newValues?.itemChanges || [];
       const changes: string[] = [];
-      
-      console.log('🔍 Processing itemChanges in modal:', itemChanges);
       
       itemChanges.forEach((change: any) => {
         if (change.type === 'item_updated') {
@@ -442,13 +437,9 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
       }
     }
 
-
-
     // Priority 3: Fallback to old format
     if (details.oldValues && details.newValues) {
       const changes: string[] = [];
-      
-      console.log('🔍 Formatting changes for:', details.oldValues, details.newValues);
       
       // Only check fields that are actually present in oldValues (meaning they were changed)
       Object.keys(details.oldValues).forEach(field => {
@@ -457,7 +448,6 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
         
         // Skip if values are the same
         if (oldVal === newVal) {
-          console.log('🔍 Skipping field', field, 'because values are the same:', oldVal);
           return;
         }
         
@@ -504,7 +494,6 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
           }
         }
         
-        console.log('🔍 Adding change for field:', field, 'from', oldDisplay, 'to', newDisplay);
         changes.push(`${getFieldDisplayName(field)}: "${oldDisplay}" → "${newDisplay}"`);
       });
 
@@ -717,9 +706,7 @@ export default function OrderLogsModal({ orderId, orderNumber, onClose }: OrderL
                >
                  <ArrowPathIcon className={`h-6 w-6 ${(loading || isFetching) ? 'animate-spin' : ''}`} />
                </button>
-             
 
-            
             <button
               onClick={() => setShowColorLegend(!showColorLegend)}
               className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${

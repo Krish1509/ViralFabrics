@@ -164,7 +164,6 @@ export default function DashboardPage() {
           not_set: deliveredOrdersForStats.filter((order: Order) => !order.orderType).length
         };
 
-
         // Calculate monthly trends (last 12 months)
         const monthlyTrends = [];
         const now = new Date();
@@ -271,23 +270,19 @@ export default function DashboardPage() {
         setDeliveredOrders(deliveredOrders);
         setUpcomingDeliveryOrders(upcomingDeliveryOrders);
       } else {
-        console.error('Dashboard: Failed to fetch orders, status:', allOrdersResponse.status);
         if (allOrdersResponse.status === 401) {
           setError('Authentication failed. Please log in again.');
           return;
         }
         const errorData = await allOrdersResponse.json();
-        console.error('Dashboard: Error data:', errorData);
-      }
+        }
 
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
       setError('Failed to load dashboard data. Please try again.');
     } finally {
       setLoading(false);
     }
   }, [filters]);
-
 
   useEffect(() => {
     if (mounted) {
@@ -326,7 +321,6 @@ export default function DashboardPage() {
   // Listen for order updates from other pages
   useEffect(() => {
     const handleOrderUpdate = (event: CustomEvent) => {
-      console.log('Dashboard: Order update detected, refreshing data...', event.detail);
       // Show auto-refresh indicator
       setAutoRefreshing(true);
       setError(null); // Clear any previous errors
@@ -336,7 +330,6 @@ export default function DashboardPage() {
         // Clear success message after 3 seconds
         setTimeout(() => setSuccessMessage(null), 3000);
       }).catch((error) => {
-        console.error('Dashboard: Failed to refresh after order update:', error);
         setError('Failed to refresh dashboard data');
       }).finally(() => {
         setAutoRefreshing(false);
@@ -365,7 +358,6 @@ export default function DashboardPage() {
   }, [router]);
 
   const handleManualRefresh = async () => {
-    console.log('Dashboard: Manual refresh triggered');
     await fetchDashboardData();
   };
 
@@ -450,7 +442,6 @@ export default function DashboardPage() {
           onFiltersChange={handleFiltersChange}
           loading={loading}
         />
-
 
         {/* Metrics Cards - Updated */}
         {stats && (
@@ -546,7 +537,6 @@ export default function DashboardPage() {
             </Suspense>
           )}
         </div>
-
 
       </div>
     </div>

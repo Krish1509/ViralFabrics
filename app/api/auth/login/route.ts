@@ -39,8 +39,7 @@ export async function POST(req: Request) {
       try {
         await user.recordFailedLogin();
       } catch (error) {
-        console.error('Error recording failed login:', error);
-      }
+        }
       
       await logLogin(username, false, req as any, 'Invalid password');
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
@@ -63,12 +62,10 @@ export async function POST(req: Request) {
         });
       }
     } catch (error) {
-      console.error('Error updating login count:', error);
-    }
+      }
 
     const JWT_SECRET = process.env.JWT_SECRET;
     if (!JWT_SECRET) {
-      console.error("JWT_SECRET is not configured");
       return NextResponse.json({ message: "Server misconfiguration" }, { status: 500 });
     }
 
@@ -118,12 +115,10 @@ export async function POST(req: Request) {
         userAgent: req.headers.get('user-agent') || 'unknown'
       });
     } catch (error) {
-      console.error('Error logging successful login:', error);
-    }
+      }
     
     return NextResponse.json({ token, user: userSafe }, { status: 200 });
   } catch (err) {
-    console.error("Login error:", err);
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }

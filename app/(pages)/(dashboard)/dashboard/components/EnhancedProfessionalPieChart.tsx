@@ -254,7 +254,6 @@ export default function EnhancedProfessionalPieChart({
             )}
           </div>
 
-
           {/* Legend */}
           <div className="space-y-3">
             {chartData.map((item, index) => {
@@ -285,7 +284,6 @@ export default function EnhancedProfessionalPieChart({
               );
             })}
           </div>
-
 
           {/* Summary */}
           <div className={`pt-4 border-t transition-colors duration-300 ${

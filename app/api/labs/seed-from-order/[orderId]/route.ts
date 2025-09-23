@@ -105,7 +105,6 @@ export async function POST(
           });
         }
       } catch (populateError) {
-        console.log('Populate failed for lab:', lab._id, populateError);
         // Continue without populate - the lab was still created successfully
       }
     }));
@@ -124,7 +123,6 @@ export async function POST(
     });
     
   } catch (error) {
-    console.error('Error seeding labs from order:', error);
     return serverError(error);
   }
 }

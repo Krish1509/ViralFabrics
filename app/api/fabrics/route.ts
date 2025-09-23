@@ -62,8 +62,6 @@ export async function GET(req: NextRequest) {
     const sortObj: any = {};
     sortObj[sortBy] = sortOrder === 'asc' ? 1 : -1;
     
-    console.log('Fabrics API - Sorting parameters:', { sortBy, sortOrder, sortObj });
-    
     // Optimized query with pagination, limits and timeout
     const fabrics = await Fabric.find(query)
       .sort(sortObj)
@@ -97,7 +95,6 @@ export async function GET(req: NextRequest) {
     }), { status: 200, headers });
     
   } catch (error) {
-    console.error('Fabrics GET error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       message: "Failed to fetch fabrics" 
@@ -237,7 +234,6 @@ export async function POST(req: NextRequest) {
     }), { status: 201 });
     
   } catch (error) {
-    console.error('Fabrics POST error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       message: "Failed to create fabric" 
@@ -274,8 +270,7 @@ export async function DELETE(req: NextRequest) {
           }), { status: 200 });
         }
       } catch (parseError) {
-        console.error('Error parsing request body:', parseError);
-      }
+        }
     }
     
     // Fallback to quality code and quality name deletion
@@ -312,7 +307,6 @@ export async function DELETE(req: NextRequest) {
     }), { status: 200 });
     
   } catch (error) {
-    console.error('Fabrics DELETE error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       message: "Failed to delete fabrics" 

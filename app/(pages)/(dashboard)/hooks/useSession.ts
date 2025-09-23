@@ -22,8 +22,7 @@ export function useSession() {
         const userData = JSON.parse(userStr);
         setUser(userData);
       } catch (error) {
-        console.error('Error parsing user from localStorage:', error);
-      }
+        }
     }
     setIsLoading(false);
   }, []);

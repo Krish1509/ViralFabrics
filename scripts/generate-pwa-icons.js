@@ -44,8 +44,7 @@ iconSizes.forEach(size => {
   // For now, we'll create a placeholder file
   // In a real implementation, you'd convert SVG to PNG
   fs.writeFileSync(iconPath.replace('.png', '.svg'), svgContent);
-  console.log(`Created icon: icon-${size}x${size}.svg`);
-});
+  });
 
 // Create special icons
 const specialIcons = [
@@ -60,8 +59,7 @@ specialIcons.forEach(icon => {
   const svgContent = createSVGIcon(icon.size);
   const iconPath = path.join(iconsDir, icon.name);
   fs.writeFileSync(iconPath, svgContent);
-  console.log(`Created special icon: ${icon.name}`);
-});
+  });
 
 // Create browserconfig.xml for Windows
 const browserConfig = `<?xml version="1.0" encoding="utf-8"?>
@@ -75,8 +73,3 @@ const browserConfig = `<?xml version="1.0" encoding="utf-8"?>
 </browserconfig>`;
 
 fs.writeFileSync(path.join(__dirname, '../public/browserconfig.xml'), browserConfig);
-console.log('Created browserconfig.xml');
-
-console.log('\nPWA icons generated successfully!');
-console.log('Note: These are SVG placeholders. For production, convert them to PNG using a tool like ImageMagick or an online converter.');
-console.log('You can also use a service like https://realfavicongenerator.net/ to generate proper icons.');

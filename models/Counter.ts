@@ -227,7 +227,6 @@ CounterSchema.statics.getNextSequence = async function(name: string, prefix?: st
     );
     return counter.sequence;
   } catch (error) {
-    console.error(`Error getting next sequence for ${name}:`, error);
     throw new Error(`Failed to generate sequence for ${name}`);
   }
 };

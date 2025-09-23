@@ -58,7 +58,6 @@ export async function GET(request: NextRequest) {
     }, 'Mills fetched successfully'));
 
   } catch (error: any) {
-    console.error('Error fetching mills:', error);
     return NextResponse.json(errorResponse('Failed to fetch mills'), { status: 500 });
   }
 }
@@ -104,8 +103,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(createdResponse(mill, 'Mill created successfully'));
 
   } catch (error: any) {
-    console.error('Error creating mill:', error);
-    
     if (error.code === 11000) {
       return NextResponse.json(validationErrorResponse('Mill with this name already exists'), { status: 400 });
     }

@@ -36,7 +36,6 @@ export async function getSession(req: NextRequest): Promise<SessionUser | null> 
 
     return sessionUser;
   } catch (error) {
-    console.error("Session verification error:", error);
     return null;
   }
 }

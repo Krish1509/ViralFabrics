@@ -124,7 +124,6 @@ export default function LogsPage() {
   const [sortField, setSortField] = useState('timestamp');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-
   // Optimized fetch logs with better caching and performance
   const fetchLogs = useCallback(async (loadMore = false) => {
     try {
@@ -213,7 +212,6 @@ export default function LogsPage() {
       if (err instanceof Error && err.name === 'AbortError') {
         setError('Request timeout. Please try again.');
       } else {
-        console.error('Error fetching logs:', err);
         setError('Error loading logs');
       }
     } finally {
@@ -268,8 +266,6 @@ export default function LogsPage() {
       fetchLogs(true);
     }
   };
-
-
 
   // Redirect if not authenticated
   useEffect(() => {

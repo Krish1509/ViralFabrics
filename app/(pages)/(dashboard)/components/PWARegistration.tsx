@@ -49,8 +49,7 @@ export default function PWARegistration() {
 
           // Service Worker registered successfully (debug disabled)
         } catch (error) {
-          console.error('Service Worker registration failed:', error);
-        }
+          }
       }
     };
 

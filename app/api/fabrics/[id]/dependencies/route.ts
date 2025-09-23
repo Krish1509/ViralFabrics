@@ -58,7 +58,6 @@ export async function GET(
     }), { status: 200, headers });
     
   } catch (error) {
-    console.error('Fabric dependencies check error:', error);
     return new Response(JSON.stringify({
       success: false,
       message: "Failed to check fabric dependencies"

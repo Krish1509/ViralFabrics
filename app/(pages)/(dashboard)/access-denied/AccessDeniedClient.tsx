@@ -18,8 +18,7 @@ export default function AccessDeniedClient() {
         const userData = JSON.parse(userStr);
         setUser(userData);
       } catch (error) {
-        console.error('Error parsing user data:', error);
-      }
+        }
     }
   }, []);
 

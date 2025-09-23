@@ -62,72 +62,58 @@ export default function OrderDetailsPage() {
           if (orderData.success) {
             setOrder(orderData.data);
             
-            // Fetch mill inputs for this order using the order's orderId
-            const millInputsResponse = await fetch(`/api/mill-inputs?orderId=${orderData.data.orderId}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            }
-          });
-            const millInputsData = await millInputsResponse.json();
+            // Fetch all order-related data in parallel for better performance
+            const [millInputsResponse, millOutputsResponse, dispatchesResponse] = await Promise.all([
+              fetch(`/api/mill-inputs?orderId=${orderData.data.orderId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              }),
+              fetch(`/api/mill-outputs?orderId=${orderData.data.orderId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              }),
+              fetch(`/api/dispatch?orderId=${orderData.data.orderId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              })
+            ]);
+
+            const [millInputsData, millOutputsData, dispatchesData] = await Promise.all([
+              millInputsResponse.json(),
+              millOutputsResponse.json(),
+              dispatchesResponse.json()
+            ]);
+
             if (millInputsData.success) {
-              console.log('Mill inputs API response:', millInputsData);
-              console.log('Mill inputs data:', millInputsData.data?.millInputs);
               setMillInputs(millInputsData.data?.millInputs || []);
-              console.log('Set millInputs state to:', millInputsData.data?.millInputs || []);
             }
-
-            // Fetch mill outputs for this order using the order's orderId
-            const millOutputsResponse = await fetch(`/api/mill-outputs?orderId=${orderData.data.orderId}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            }
-          });
-            const millOutputsData = await millOutputsResponse.json();
             if (millOutputsData.success) {
-              console.log('Mill outputs API response:', millOutputsData);
-              console.log('Mill outputs data:', millOutputsData.data);
               setMillOutputs(millOutputsData.data || []);
-              console.log('Set millOutputs state to:', millOutputsData.data || []);
             }
-
-            // Fetch dispatches for this order using the order's orderId
-            const dispatchesResponse = await fetch(`/api/dispatch?orderId=${orderData.data.orderId}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            }
-          });
-            const dispatchesData = await dispatchesResponse.json();
             if (dispatchesData.success) {
-              console.log('Dispatches API response:', dispatchesData);
-              console.log('Dispatches data:', dispatchesData.data);
               setDispatches(dispatchesData.data || []);
-              console.log('Set dispatches state to:', dispatchesData.data || []);
             }
           }
 
-          // Fetch mills
-          const millsResponse = await fetch('/api/mills', {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            }
-          });
-          const millsData = await millsResponse.json();
+          // Fetch mills and qualities in parallel
+          const [millsResponse, qualitiesResponse] = await Promise.all([
+            fetch('/api/mills', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            }),
+            fetch('/api/qualities', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+          ]);
+
+          const [millsData, qualitiesData] = await Promise.all([
+            millsResponse.json(),
+            qualitiesResponse.json()
+          ]);
+
           if (millsData.success) {
             setMills(millsData.data || []);
           }
-
-          // Fetch qualities
-          const qualitiesResponse = await fetch('/api/qualities', {
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                }
-              });
-          const qualitiesData = await qualitiesResponse.json();
           if (qualitiesData.success) {
             setQualities(qualitiesData.data || []);
-              }
+          }
             } catch (error) {
-          console.error('Error fetching order data:', error);
             } finally {
           setLoading(false);
         }
@@ -196,7 +182,6 @@ export default function OrderDetailsPage() {
             setMillInputs(millInputsData.data || []);
           }
         } catch (error) {
-          console.error('Error refreshing mill inputs:', error);
         }
       };
       fetchMillInputs();
@@ -869,8 +854,6 @@ export default function OrderDetailsPage() {
                 </h2>
                      </div>
                        {(() => {
-                console.log('Rendering Mill Input Data section - millInputs:', millInputs);
-                console.log('millInputs.length:', millInputs?.length);
                 return millInputs && millInputs.length > 0;
               })() ? (
                       <div className="space-y-4">
@@ -1029,8 +1012,6 @@ export default function OrderDetailsPage() {
                 </h2>
                             </div>
               {(() => {
-                console.log('Rendering Mill Output Data section - millOutputs:', millOutputs);
-                console.log('millOutputs.length:', millOutputs?.length);
                 return millOutputs && millOutputs.length > 0;
               })() ? (
                       <div className="space-y-4">
@@ -1139,8 +1120,6 @@ export default function OrderDetailsPage() {
                 </h2>
                 </div>
               {(() => {
-                console.log('Rendering Dispatch Data section - dispatches:', dispatches);
-                console.log('dispatches.length:', dispatches?.length);
                 return dispatches && dispatches.length > 0;
               })() ? (
               <div className="space-y-4">
@@ -1344,7 +1323,6 @@ export default function OrderDetailsPage() {
                   setMills(millsData.data || []);
                 }
               } catch (error) {
-                console.error('Error refreshing mills:', error);
               }
             };
             fetchMills();

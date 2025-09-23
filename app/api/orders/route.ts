@@ -55,68 +55,57 @@ export async function GET(request: NextRequest) {
       .lean()
       .maxTimeMS(10000); // Increased to 10 second timeout for better reliability
 
-    // Fetch lab data for all orders and attach to items
-    if (orders.length > 0) {
-      try {
-        const Lab = (await import('@/models/Lab')).default;
-        const orderIds = orders.map(order => order._id);
-        
-        const labs = await Lab.find({ 
-          order: { $in: orderIds },
-          softDeleted: { $ne: true }
-        })
-        .select('orderItemId labSendDate labSendData labSendNumber status remarks')
-        .lean()
-        .maxTimeMS(5000);
-        
-        // Create a map of orderItemId to lab data
-        const labMap = new Map();
-        labs.forEach(lab => {
-          labMap.set(lab.orderItemId.toString(), lab);
-        });
-        
-        // Attach lab data to order items
-        orders.forEach(order => {
-          if (order.items) {
-            order.items.forEach((item: any) => {
-              const labData = labMap.get(item._id.toString());
-              if (labData && labData.labSendData) {
-                item.labData = {
-                  color: labData.labSendData.color || '',
-                  shade: labData.labSendData.shade || '',
-                  notes: labData.labSendData.notes || '',
-                  labSendDate: labData.labSendDate,
-                  approvalDate: labData.labSendData.approvalDate,
-                  sampleNumber: labData.labSendData.sampleNumber || '',
-                  imageUrl: labData.labSendData.imageUrl || '',
-                  labSendNumber: labData.labSendNumber || '',
-                  status: labData.status || 'sent',
-                  remarks: labData.remarks || ''
-                };
-              } else {
-                // Initialize empty lab data structure for items without lab data
-                item.labData = {
-                  color: '',
-                  shade: '',
-                  notes: '',
-                  labSendDate: null,
-                  approvalDate: null,
-                  sampleNumber: '',
-                  imageUrl: '',
-                  labSendNumber: '',
-                  status: 'not_sent',
-                  remarks: ''
-                };
-              }
-            });
-          }
-        });
-      } catch (labError) {
-        console.error('Error fetching lab data:', labError);
-        // Continue without lab data if there's an error
-        orders.forEach(order => {
-          if (order.items) {
-            order.items.forEach((item: any) => {
+    // Use Promise.all to parallelize lab data fetching and total count
+    const [labs, total] = await Promise.all([
+      // Fetch lab data for all orders
+      orders.length > 0 ? (async () => {
+        try {
+          const Lab = (await import('@/models/Lab')).default;
+          const orderIds = orders.map(order => order._id);
+          
+          return await Lab.find({ 
+            order: { $in: orderIds },
+            softDeleted: { $ne: true }
+          })
+          .select('orderItemId labSendDate labSendData labSendNumber status remarks')
+          .lean()
+          .maxTimeMS(5000);
+        } catch (labError) {
+          return [];
+        }
+      })() : Promise.resolve([]),
+      // Get total count in parallel
+      Order.countDocuments(query).maxTimeMS(2000)
+    ]);
+
+    // Attach lab data to order items
+    if (orders.length > 0 && labs.length > 0) {
+      // Create a map of orderItemId to lab data
+      const labMap = new Map();
+      labs.forEach(lab => {
+        labMap.set(lab.orderItemId.toString(), lab);
+      });
+      
+      // Attach lab data to order items
+      orders.forEach(order => {
+        if (order.items) {
+          order.items.forEach((item: any) => {
+            const labData = labMap.get(item._id.toString());
+            if (labData && labData.labSendData) {
+              item.labData = {
+                color: labData.labSendData.color || '',
+                shade: labData.labSendData.shade || '',
+                notes: labData.labSendData.notes || '',
+                labSendDate: labData.labSendDate,
+                approvalDate: labData.labSendData.approvalDate,
+                sampleNumber: labData.labSendData.sampleNumber || '',
+                imageUrl: labData.labSendData.imageUrl || '',
+                labSendNumber: labData.labSendNumber || '',
+                status: labData.status || 'sent',
+                remarks: labData.remarks || ''
+              };
+            } else {
+              // Initialize empty lab data structure for items without lab data
               item.labData = {
                 color: '',
                 shade: '',
@@ -129,16 +118,32 @@ export async function GET(request: NextRequest) {
                 status: 'not_sent',
                 remarks: ''
               };
-            });
-          }
-        });
-      }
+            }
+          });
+        }
+      });
+    } else if (orders.length > 0) {
+      // Initialize empty lab data for all items if no lab data found
+      orders.forEach(order => {
+        if (order.items) {
+          order.items.forEach((item: any) => {
+            item.labData = {
+              color: '',
+              shade: '',
+              notes: '',
+              labSendDate: null,
+              approvalDate: null,
+              sampleNumber: '',
+              imageUrl: '',
+              labSendNumber: '',
+              status: 'not_sent',
+              remarks: ''
+            };
+          });
+        }
+      });
     }
-    
-    const total = await Order.countDocuments(query).maxTimeMS(2000); // Further reduced timeout
-    
 
-    
     // Add cache headers - short cache for better performance while maintaining real-time updates
     const headers = {
       'Content-Type': 'application/json',
@@ -158,7 +163,6 @@ export async function GET(request: NextRequest) {
     }), { headers });
     
   } catch (error) {
-    console.error('Error fetching orders:', error);
     return new Response(JSON.stringify({
       success: false,
       message: 'Failed to fetch orders'
@@ -185,11 +189,6 @@ export async function POST(req: NextRequest) {
       items
     } = await req.json();
     
-    console.log('🔍 API - Received status from frontend:', status);
-    console.log('🔍 API - Received order data:', { orderType, status, items: items?.length });
-
-    console.log('🔍 Received order data:', { orderType, status, items: items?.length });
-
     // Validation
     const errors: string[] = [];
     
@@ -224,9 +223,7 @@ export async function POST(req: NextRequest) {
     if (styleNo && styleNo.trim().length > 50) {
       errors.push("Style number cannot exceed 50 characters");
     }
-    
 
-    
     if (poDate) {
       const po = new Date(poDate);
       if (isNaN(po.getTime())) {
@@ -292,8 +289,6 @@ export async function POST(req: NextRequest) {
         break;
       } catch (dbError) {
         connectionAttempts++;
-        console.error(`Database connection attempt ${connectionAttempts} failed:`, dbError);
-        
         if (connectionAttempts >= maxAttempts) {
           return new Response(
             JSON.stringify({ 
@@ -309,28 +304,53 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Verify party exists only if provided
+    // Use Promise.all to parallelize party and quality validation
+    const validationPromises = [];
+    
+    // Add party validation promise if party is provided
     if (party && party !== '' && party !== 'null' && party !== 'undefined') {
-      const partyExists = await Party.findById(party).maxTimeMS(5000);
-      if (!partyExists) {
-        return new Response(
-          JSON.stringify({ message: "Party not found" }), 
-          { status: 400 }
-        );
-      }
+      validationPromises.push(
+        Party.findById(party).maxTimeMS(5000).then(partyExists => ({
+          type: 'party',
+          exists: !!partyExists,
+          id: party
+        }))
+      );
     }
-
-    // Verify qualities exist if provided
+    
+    // Add quality validation promises for all items
     if (items && items.length > 0) {
-      for (const item of items) {
-        if (item.quality && item.quality !== '' && item.quality !== 'null' && item.quality !== 'undefined') {
-          const qualityExists = await Quality.findById(item.quality).maxTimeMS(5000);
-          if (!qualityExists) {
-            return new Response(
-              JSON.stringify({ message: `Quality not found for item` }), 
-              { status: 400 }
-            );
-          }
+      const uniqueQualityIds = [...new Set(
+        items
+          .filter((item: any) => item.quality && item.quality !== '' && item.quality !== 'null' && item.quality !== 'undefined')
+          .map((item: any) => item.quality)
+      )];
+      
+      uniqueQualityIds.forEach(qualityId => {
+        validationPromises.push(
+          Quality.findById(qualityId).maxTimeMS(5000).then(qualityExists => ({
+            type: 'quality',
+            exists: !!qualityExists,
+            id: qualityId
+          }))
+        );
+      });
+    }
+    
+    // Execute all validations in parallel
+    if (validationPromises.length > 0) {
+      const validationResults = await Promise.all(validationPromises);
+      
+      // Check validation results
+      for (const result of validationResults) {
+        if (!result.exists) {
+          const message = result.type === 'party' 
+            ? "Party not found" 
+            : `Quality not found for item`;
+          return new Response(
+            JSON.stringify({ message }), 
+            { status: 400 }
+          );
         }
       }
     }
@@ -372,13 +392,9 @@ export async function POST(req: NextRequest) {
     }
     if (status && status !== '' && status !== 'null' && status !== 'undefined') {
       orderData.status = status;
-      console.log('🔍 Setting order status to:', status);
-    } else {
+      } else {
       // Don't set status - let database default handle it
-      console.log('🔍 No status provided, will use database default');
-    }
-    console.log('🔍 Final orderData before creation:', orderData);
-    
+      }
     // Use the new sequential order creation method with timeout
     // Temporarily bypass schema validation for status
     const orderPromise = (Order as IOrderModel).createOrder(orderData);
@@ -479,8 +495,6 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error: unknown) {
-    console.error('Orders POST error:', error);
-    
     if (error instanceof Error) {
       if (error.message.includes("Unauthorized")) {
         return new Response(JSON.stringify({ 

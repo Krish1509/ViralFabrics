@@ -145,16 +145,5 @@ export const globalErrorHandler = (error: any, req: any, res: any, next: any) =>
   const errorResponse = formatErrorResponse(error);
   
   // Log error for debugging
-  console.error('Error:', {
-    message: error.message,
-    stack: error.stack,
-    url: req.url,
-    method: req.method,
-    body: req.body,
-    params: req.params,
-    query: req.query,
-    user: req.user?.id
-  });
-
   res.status(errorResponse.error.statusCode).json(errorResponse);
 };

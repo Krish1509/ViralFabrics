@@ -33,7 +33,6 @@ export async function POST(request: NextRequest) {
     // Create a new token with extended expiration
     const JWT_SECRET = process.env.JWT_SECRET;
     if (!JWT_SECRET) {
-      console.error("JWT_SECRET is not configured");
       return new Response(JSON.stringify({ message: "Server misconfiguration" }), { status: 500 });
     }
 
@@ -68,7 +67,6 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Session refresh error:', error);
     return unauthorized('Session refresh failed');
   }
 }
