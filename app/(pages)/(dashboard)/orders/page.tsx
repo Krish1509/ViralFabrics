@@ -309,13 +309,12 @@ export default function OrdersPage() {
     } catch (error: any) {
       if (error.name === 'AbortError') {
         if (retryCount < maxRetries) {
-          // Show retry message for better UX
-          showMessage('warning', `Request timeout. Retrying... (${retryCount + 1}/${maxRetries})`, { autoDismiss: true, dismissTime: 2000 });
+          // Silent retry - no notification to avoid bad UX
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
           return fetchOrders(retryCount + 1, page, limit);
         } else {
           setLoading(false);
-          showMessage('error', 'Request timed out. Please check your connection and try again.', { autoDismiss: true, dismissTime: 5000 });
+          // Silent timeout - no notification to avoid bad UX
           return; // Don't throw error, just return gracefully
         }
       } else if (error.message?.includes('Failed to fetch')) {
@@ -721,77 +720,82 @@ export default function OrdersPage() {
     }
   }, []);
 
-  // Optimized data initialization with better timeout handling
+  // Optimized data initialization with Promise.all for maximum performance
   useEffect(() => {
     // Prevent multiple initializations
     if (isInitialized) return;
     
-    const initializeData = async () => {
+    const initializeAllData = async () => {
       setLoading(true);
-      let ordersLoaded = false;
-      let criticalDataLoaded = false;
       
       try {
-        // Fetch orders first (most critical)
-        await fetchOrders();
-        ordersLoaded = true;
-        criticalDataLoaded = true;
-        // Show success message for orders
-        showMessage('success', 'Orders loaded successfully', { 
-          autoDismiss: true, 
-          dismissTime: 2000 
-        });
-        
-        // Fetch additional data in background (non-blocking)
-        const backgroundPromises = [
+        // Fetch all critical data in parallel using Promise.all for maximum performance
+        const [
+          ordersResult,
+          partiesResult,
+          qualitiesResult,
+          millsResult,
+          millInputsResult,
+          millOutputsResult,
+          dispatchesResult
+        ] = await Promise.allSettled([
+          fetchOrders(),
           fetchParties(),
           fetchQualities(),
           fetchMills(),
           fetchAllOrderMillInputs(),
           fetchAllOrderMillOutputs(),
           fetchAllOrderDispatches()
-        ];
-        
-        // Process background data as it loads
-        backgroundPromises.forEach((promise, index) => {
-          promise.then(() => {
-            const dataTypes = ['parties', 'qualities', 'mills', 'mill inputs', 'mill outputs', 'dispatches'];
-            }).catch((error) => {
-            const dataTypes = ['parties', 'qualities', 'mills', 'mill inputs', 'mill outputs', 'dispatches'];
-            });
-        });
+        ]);
+
+        // Count successful results
+        const results = [ordersResult, partiesResult, qualitiesResult, millsResult, millInputsResult, millOutputsResult, dispatchesResult];
+        const successCount = results.filter(result => result.status === 'fulfilled').length;
+        const totalCount = results.length;
+
+        // Silent loading - no success message to avoid duplicates
+        if (successCount === totalCount) {
+          // Data loaded successfully - no notification needed
+          setLoading(false); // Only set loading false when orders are loaded
+        } else if (successCount > 0) {
+          // Silent partial success - no notification to avoid spam
+          setLoading(false); // Set loading false even for partial success
+        } else {
+          showMessage('error', 'Failed to load data. Please refresh the page.', { 
+            autoDismiss: true, 
+            dismissTime: 5000 
+          });
+          setLoading(false); // Set loading false on error
+        }
         
       } catch (error) {
-        if (!ordersLoaded) {
-          // Silent error handling for better UX
-        }
+        console.error('Error during data initialization:', error);
+        showMessage('error', 'Failed to initialize data. Please refresh the page.', { 
+          autoDismiss: true, 
+          dismissTime: 5000 
+        });
+        setLoading(false); // Set loading false on error
       } finally {
-        setLoading(false);
-        setIsInitialized(true);
-        }
+        setIsInitialized(true); // Only set initialized, not loading
+      }
     };
     
-    initializeData();
+    initializeAllData();
     
-    // Fallback timeout to prevent infinite loading (increased to 12 seconds)
+    // Fallback timeout to prevent infinite loading (reduced to 8 seconds since we're loading in parallel)
     const timeoutId = setTimeout(() => {
       if (!isInitialized) {
         setLoading(false);
         setIsInitialized(true);
-        // Silent handling for better UX
+        // Silent timeout - no notification to avoid bad UX
       }
-    }, 12000); // 12 second timeout
+    }, 8000); // 8 second timeout (reduced from 12 seconds)
     
     return () => clearTimeout(timeoutId);
-  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderData, showMessage, isInitialized]);
+  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderMillInputs, fetchAllOrderMillOutputs, fetchAllOrderDispatches, showMessage, isInitialized]);
 
-  // Refresh mill inputs, outputs, and dispatches when orders are initially loaded
-  // This only runs when orders are loaded from server, not on optimistic updates
-  useEffect(() => {
-    if (orders.length > 0 && isInitialized) {
-      fetchAllOrderData(); // Use optimized single function instead of three separate calls
-    }
-  }, [isInitialized, fetchAllOrderData]); // Removed 'orders' dependency to prevent unnecessary calls
+  // This useEffect is removed to prevent duplicate data loading
+  // fetchAllOrderData is already called in initializeAllData, so no need for separate call
 
 
   // Keyboard navigation for image preview
@@ -815,16 +819,8 @@ export default function OrdersPage() {
           event.detail?.action === 'lab_add') {
         // OrdersPage: Refreshing orders due to action
         
-        // Immediate refresh without loading state for better UX
-        Promise.all([fetchOrders(), fetchAllOrderData()]).then(() => {
-          // OrdersPage: Successfully refreshed orders and mill inputs
-          // Show success message for automatic refresh
-          if (event.detail?.action === 'order_create') {
-            showMessage('success', 'New order added to table automatically!', { autoDismiss: true, dismissTime: 3000 });
-          } else if (event.detail?.action === 'lab_add') {
-            showMessage('success', 'Lab data updated in table automatically!', { autoDismiss: true, dismissTime: 3000 });
-          }
-        }).catch(error => {
+        // Silent refresh - no notifications to avoid duplicate messages
+        Promise.allSettled([fetchOrders(), fetchAllOrderData()]).catch(error => {
           // Silent error handling for better UX
         });
       } else if (event.detail?.action === 'order_status_change') {
@@ -846,41 +842,53 @@ export default function OrdersPage() {
     };
   }, [fetchOrders, showMessage]);
 
-  // Optimized refresh function with better error handling
+  // Optimized refresh function with Promise.all for maximum performance
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     
     try {
-      // Refresh orders with current settings
-      await fetchOrders();
-      
-      // Refresh additional data in background
-      Promise.allSettled([
+      // Refresh all data in parallel using Promise.all for maximum performance
+      const [
+        ordersResult,
+        partiesResult,
+        qualitiesResult,
+        millsResult,
+        millInputsResult,
+        millOutputsResult,
+        dispatchesResult
+      ] = await Promise.allSettled([
+        fetchOrders(),
         fetchParties(),
         fetchQualities(),
         fetchMills(),
         fetchAllOrderMillInputs(),
         fetchAllOrderMillOutputs(),
         fetchAllOrderDispatches()
-      ]).then((results) => {
-        const successCount = results.filter(result => result.status === 'fulfilled').length;
-        const totalCount = results.length;
-        
-        if (successCount === totalCount) {
-          showMessage('success', 'All data refreshed successfully', { 
-            autoDismiss: true, 
-            dismissTime: 3000 
-          });
-        } else if (successCount > 0) {
-          showMessage('warning', `Orders refreshed, but ${totalCount - successCount} data sources failed`, { 
-            autoDismiss: true, 
-            dismissTime: 4000 
-          });
-        }
-      });
+      ]);
+
+      // Count successful results
+      const results = [ordersResult, partiesResult, qualitiesResult, millsResult, millInputsResult, millOutputsResult, dispatchesResult];
+      const successCount = results.filter(result => result.status === 'fulfilled').length;
+      const totalCount = results.length;
+      
+      // Silent refresh - no success messages to avoid duplicates
+      if (successCount === totalCount) {
+        // Data refreshed successfully - no notification needed
+      } else if (successCount > 0) {
+        // Silent partial success - no notification to avoid spam
+      } else {
+        showMessage('error', 'Failed to refresh data', { 
+          autoDismiss: true, 
+          dismissTime: 4000 
+        });
+      }
       
     } catch (error: any) {
-      // Silent error handling for better UX
+      console.error('Error during refresh:', error);
+      showMessage('error', 'Failed to refresh data', { 
+        autoDismiss: true, 
+        dismissTime: 4000 
+      });
     } finally {
       setRefreshing(false);
     }
@@ -1738,8 +1746,8 @@ export default function OrdersPage() {
                 </button>
               )}
               
-              {/* Reset Counter - Only show when no orders exist */}
-              {orders.length === 0 && (
+              {/* Reset Counter - Only show when no orders exist and not loading */}
+              {!loading && orders.length === 0 && (
                 <button
                   onClick={handleResetCounter}
                   disabled={resettingCounter}
@@ -2206,33 +2214,48 @@ export default function OrdersPage() {
                    {/* Order Information Column */}
                    <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
                       <div className="space-y-3">
-                        {/* Row 1: Order ID and Type */}
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-base font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                              Order ID:
-                            </span>
-                            <span className={`text-base font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                         {order.orderId}
-                            </span>
-                       </div>
-                           <div className="flex items-center gap-2">
-                            <span className={`text-base font-bold ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
-                              Order Type:
-                            </span>
-                            <span className={`text-base font-bold ${
-                               order.orderType === 'Dying'
-                                 ? isDarkMode
-                                  ? 'text-orange-400'
-                                  : 'text-orange-600'
-                                 : isDarkMode
-                                  ? 'text-blue-400'
-                                  : 'text-blue-600'
-                             }`}>
-                               {order.orderType || 'Not selected'}
-                             </span>
-                           </div>
-                             </div>
+                        {/* Row 1: Order ID and Type in separate columns */}
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* Order ID Column */}
+                          <div className={`p-3 rounded-lg border ${
+                            isDarkMode 
+                              ? 'bg-green-500/10 border-green-500/20' 
+                              : 'bg-green-50 border-green-200'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-bold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                                Order ID:
+                              </span>
+                              <span className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {order.orderId}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Order Type Column */}
+                          <div className={`p-3 rounded-lg border ${
+                            isDarkMode 
+                              ? 'bg-purple-500/10 border-purple-500/20' 
+                              : 'bg-purple-50 border-purple-200'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-bold ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                                Order Type:
+                              </span>
+                              <span className={`text-lg font-bold ${
+                                 order.orderType === 'Dying'
+                                   ? isDarkMode
+                                    ? 'text-orange-400'
+                                    : 'text-orange-600'
+                                   : isDarkMode
+                                    ? 'text-blue-400'
+                                    : 'text-blue-600'
+                               }`}>
+                                 {order.orderType || 'Not selected'}
+                               </span>
+                            </div>
+                          </div>
+                        </div>
 
                         {/* Responsive Layout: Single column on small screens, 2 columns on larger screens */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -2413,37 +2436,37 @@ export default function OrdersPage() {
                                  : 'bg-gray-50 border-b border-gray-200'
                              }`}>
                                <tr>
-                                 <th className={`px-2 py-1 text-left text-xs font-bold uppercase tracking-wider ${
+                                 <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
                                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
                                  }`}>
                                    Quality
                                  </th>
-                                 <th className={`px-2 py-1 text-left text-xs font-bold uppercase tracking-wider ${
+                                 <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
                                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
                                  }`}>
                                    Qty
                                  </th>
-                                 <th className={`px-2 py-1 text-left text-xs font-bold uppercase tracking-wider ${
+                                 <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
                                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
                                  }`}>
                                    Description
                                  </th>
-                                 <th className={`px-2 py-1 text-left text-xs font-bold uppercase tracking-wider ${
+                                 <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
                                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
                                  }`}>
                                    Weaver
                                  </th>
-                                 <th className={`px-2 py-1 text-left text-xs font-bold uppercase tracking-wider ${
+                                 <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
                                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
                                  }`}>
                                    Rate
                                  </th>
-                                 <th className={`px-2 py-1 text-left text-xs font-bold uppercase tracking-wider ${
+                                 <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
                                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
                                  }`}>
                                    Images
                                  </th>
-                                 <th className={`px-2 py-1 text-center text-xs font-bold uppercase tracking-wider ${
+                                 <th className={`px-4 py-3 text-center text-xs font-bold uppercase tracking-wider ${
                                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
                                  }`}>
                                    Actions
@@ -2458,14 +2481,14 @@ export default function OrdersPage() {
                                    isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
                                  } transition-colors duration-200`}>
                                    {/* Quality */}
-                                   <td className="px-2 py-2">
+                                   <td className="px-4 py-4">
                                      <div className={`text-xs font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                                 {item.quality && typeof item.quality === 'object' ? item.quality.name || 'Not selected' : 'Not selected'}
                                      </div>
                                    </td>
                                    
                                    {/* Quantity */}
-                                   <td className="px-2 py-2">
+                                   <td className="px-4 py-4">
                               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                                 isDarkMode 
                                   ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' 
@@ -2476,52 +2499,50 @@ export default function OrdersPage() {
                                    </td>
                             
                             {/* Description */}
-                                   <td className="px-2 py-2">
+                                   <td className="px-4 py-4">
                                      <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} max-w-[120px] truncate`}>
                                        {item.description || '-'}
                               </div>
                                    </td>
                                    
                                    {/* Weaver/Supplier */}
-                                   <td className="px-2 py-2">
+                                   <td className="px-4 py-4">
                                      <div className={`text-xs ${isDarkMode ? 'text-orange-300' : 'text-orange-600'} max-w-[100px] truncate`}>
                                        {item.weaverSupplierName || '-'}
                               </div>
                                    </td>
                             
                             {/* Purchase Rate */}
-                                   <td className="px-2 py-2">
+                                   <td className="px-4 py-4">
                                      <div className={`text-xs ${isDarkMode ? 'text-green-300' : 'text-green-600'}`}>
                                        {item.purchaseRate ? `₹${Number(item.purchaseRate).toFixed(2)}` : '-'}
                               </div>
                                    </td>
                                    
                                    {/* Images */}
-                                   <td className="px-2 py-2">
+                                   <td className="px-4 py-4">
                                      {item.imageUrls && item.imageUrls.length > 0 ? (
-                                       <div className="flex items-center gap-2">
-                                  {/* Show first image */}
+                                       <div className="relative group">
+                                  {/* Show first image with hover overlay */}
                                     <img 
                                       src={item.imageUrls[0]} 
                                            alt={`Item ${index + 1}`}
-                                           className="h-8 w-8 object-cover rounded border"
+                                           className="h-16 w-16 object-cover rounded-lg border-2 cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg"
                                       onError={(e) => {
                                              (e.target as HTMLImageElement).style.display = 'none';
                                       }}
+                                      onClick={() => handleImagePreview(item.imageUrls![0], `Item ${index + 1}`, item.imageUrls, 0)}
                                     />
-                                         {/* View button for more images */}
-                                  {item.imageUrls.length > 1 && (
-                                      <button
-                                             onClick={() => handleImagePreview(item.imageUrls![0], `Item ${index + 1}`, item.imageUrls, 0)}
-                                             className="text-blue-500 hover:text-blue-700 text-xs underline"
-                                      >
-                                             View ({item.imageUrls.length})
-                                      </button>
+                                         {/* Image count badge for multiple images */}
+                                         {item.imageUrls.length > 1 && (
+                                           <div className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                                             {item.imageUrls.length}
+                                           </div>
                                          )}
                                     </div>
                                      ) : (
-                                       <div className="flex items-center gap-1">
-                                         <PhotoIcon className="h-3 w-3 text-gray-400" />
+                                       <div className="flex items-center gap-2 h-16 w-16">
+                                         <PhotoIcon className="h-6 w-6 text-gray-400" />
                                          <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>No images</span>
                                     </div>
                                   )}
@@ -2659,7 +2680,7 @@ export default function OrdersPage() {
                              title={orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? "Edit Mill Input" : "Add Mill Input"}
                            >
                              <CubeIcon className="h-4 w-4" />
-                             <span>Add Mill Input</span>
+                             <span>{orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? "Edit Mill Input" : "Add Mill Input"}</span>
                            </button>
 
                            <button
@@ -2669,10 +2690,10 @@ export default function OrdersPage() {
                                  ? 'bg-teal-600/20 text-teal-400 border border-teal-500/30 hover:bg-teal-600/30'
                                  : 'bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100'
                              }`}
-                             title="Add Mill Output"
+                             title={orderMillOutputs[order.orderId] && orderMillOutputs[order.orderId].length > 0 ? "Edit Mill Output" : "Add Mill Output"}
                            >
                              <DocumentTextIcon className="h-4 w-4" />
-                             <span>Add Mill Output</span>
+                             <span>{orderMillOutputs[order.orderId] && orderMillOutputs[order.orderId].length > 0 ? "Edit Mill Output" : "Add Mill Output"}</span>
                            </button>
 
                            <button
@@ -2682,10 +2703,10 @@ export default function OrdersPage() {
                                  ? 'bg-orange-600/20 text-orange-400 border border-orange-500/30 hover:bg-orange-600/30'
                                  : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
                              }`}
-                             title="Add Dispatch"
+                             title={orderDispatches[order.orderId] && orderDispatches[order.orderId].length > 0 ? "Edit Dispatch" : "Add Dispatch"}
                            >
                              <TruckIcon className="h-4 w-4" />
-                             <span>Add Dispatch</span>
+                             <span>{orderDispatches[order.orderId] && orderDispatches[order.orderId].length > 0 ? "Edit Dispatch" : "Add Dispatch"}</span>
                            </button>
                          </div>
 
@@ -2830,7 +2851,7 @@ export default function OrdersPage() {
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
                 <p>Loading orders...</p>
               </div>
-            ) : orders.length === 0 ? (
+            ) : !loading && orders.length === 0 ? (
               <div className="space-y-4">
                 <div className={`mx-auto h-16 w-16 rounded-full flex items-center justify-center ${
                   isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
@@ -3108,34 +3129,13 @@ export default function OrdersPage() {
                                         setShowImagePreview(true);
                                       }}
                                     />
-                                    {item.imageUrls.length > 1 && (
+                                    {item.imageUrls.length > 0 && (
                                       <>
-                                        <div className="absolute top-1 right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                                          {item.imageUrls.length}
-                                        </div>
-                                        {/* Navigation Arrows */}
-                                        <button
-                                          className="absolute left-1 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            // Previous image logic
-                                          }}
-                                        >
-                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                          </svg>
-                                        </button>
-                                        <button
-                                          className="absolute right-1 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            // Next image logic
-                                          }}
-                                        >
-                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                          </svg>
-                                        </button>
+                                        {item.imageUrls.length > 1 && (
+                                          <div className="absolute top-1 right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                                            {item.imageUrls.length}
+                                          </div>
+                                        )}
                                       </>
                                     )}
                                   </>
@@ -3260,7 +3260,7 @@ export default function OrdersPage() {
                       title={orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? "Edit Mill Input" : "Add Mill Input"}
                     >
                       <CubeIcon className="h-4 w-4" />
-                      <span>Add Mill Input</span>
+                      <span>{orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? "Edit Mill Input" : "Add Mill Input"}</span>
                     </button>
 
                     <button
@@ -3270,10 +3270,10 @@ export default function OrdersPage() {
                           ? 'bg-teal-600/20 text-teal-400 border border-teal-500/30 hover:bg-teal-600/30'
                           : 'bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100'
                       }`}
-                      title="Add Mill Output"
+                      title={orderMillOutputs[order.orderId] && orderMillOutputs[order.orderId].length > 0 ? "Edit Mill Output" : "Add Mill Output"}
                     >
                       <DocumentTextIcon className="h-4 w-4" />
-                      <span>Add Mill Output</span>
+                      <span>{orderMillOutputs[order.orderId] && orderMillOutputs[order.orderId].length > 0 ? "Edit Mill Output" : "Add Mill Output"}</span>
                     </button>
 
                     <button
@@ -3283,10 +3283,10 @@ export default function OrdersPage() {
                           ? 'bg-orange-600/20 text-orange-400 border border-orange-500/30 hover:bg-orange-600/30'
                           : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
                       }`}
-                      title="Add Dispatch"
+                      title={orderDispatches[order.orderId] && orderDispatches[order.orderId].length > 0 ? "Edit Dispatch" : "Add Dispatch"}
                     >
                       <TruckIcon className="h-4 w-4" />
-                      <span>Add Dispatch</span>
+                      <span>{orderDispatches[order.orderId] && orderDispatches[order.orderId].length > 0 ? "Edit Dispatch" : "Add Dispatch"}</span>
                     </button>
                   </div>
 

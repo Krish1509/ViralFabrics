@@ -43,85 +43,127 @@ export default function OrderDetailsPage() {
   const [isEditingMillInput, setIsEditingMillInput] = useState(false);
   const [mills, setMills] = useState<Mill[]>([]);
   const [qualities, setQualities] = useState<Quality[]>([]);
+  const [loadingSections, setLoadingSections] = useState({
+    millInputs: true,
+    millOutputs: true,
+    dispatches: true,
+    mills: true,
+    qualities: true
+  });
 
-  // Fetch order data and mill inputs
+  // Ultra-fast progressive loading - show data as it arrives
   useEffect(() => {
     if (orderMongoId) {
-      const fetchOrderData = async () => {
+      const fetchAllOrderData = async () => {
+        const token = localStorage.getItem('token');
+        
+        // Fetch critical order data first for instant display
         try {
-          setLoading(true);
-          const token = localStorage.getItem('token');
-          
-          // Fetch order data
           const orderResponse = await fetch(`/api/orders/${orderMongoId}`, {
-            headers: {
+            headers: { 
               'Authorization': `Bearer ${token}`,
-            }
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            },
+            cache: 'no-cache', // Ensure fresh data
+            method: 'GET'
           });
+          
+          if (!orderResponse.ok) {
+            setLoading(false);
+            return;
+          }
+          
           const orderData = await orderResponse.json();
+          
           if (orderData.success) {
             setOrder(orderData.data);
-            
-            // Fetch all order-related data in parallel for better performance
-            const [millInputsResponse, millOutputsResponse, dispatchesResponse] = await Promise.all([
-              fetch(`/api/mill-inputs?orderId=${orderData.data.orderId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-              }),
-              fetch(`/api/mill-outputs?orderId=${orderData.data.orderId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-              }),
-              fetch(`/api/dispatch?orderId=${orderData.data.orderId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-              })
-            ]);
-
-            const [millInputsData, millOutputsData, dispatchesData] = await Promise.all([
-              millInputsResponse.json(),
-              millOutputsResponse.json(),
-              dispatchesResponse.json()
-            ]);
-
-            if (millInputsData.success) {
-              setMillInputs(millInputsData.data?.millInputs || []);
-            }
-            if (millOutputsData.success) {
-              setMillOutputs(millOutputsData.data || []);
-            }
-            if (dispatchesData.success) {
-              setDispatches(dispatchesData.data || []);
-            }
+            // Small delay to ensure state updates properly
+            setTimeout(() => setLoading(false), 100);
+          } else {
+            // If order not found, keep loading false but don't set order
+            setTimeout(() => setLoading(false), 100);
           }
-
-          // Fetch mills and qualities in parallel
-          const [millsResponse, qualitiesResponse] = await Promise.all([
-            fetch('/api/mills', {
-              headers: { 'Authorization': `Bearer ${token}` }
-            }),
-            fetch('/api/qualities', {
-              headers: { 'Authorization': `Bearer ${token}` }
-            })
-          ]);
-
-          const [millsData, qualitiesData] = await Promise.all([
-            millsResponse.json(),
-            qualitiesResponse.json()
-          ]);
-
-          if (millsData.success) {
-            setMills(millsData.data || []);
-          }
-          if (qualitiesData.success) {
-            setQualities(qualitiesData.data || []);
-          }
-            } catch (error) {
-            } finally {
-          setLoading(false);
+        } catch (error) {
+          console.error('Error fetching order:', error);
+          setTimeout(() => setLoading(false), 100);
         }
+
+        // Fetch all other data in parallel in background with progress tracking
+        const backgroundPromises = [
+          // Fetch mills and qualities with optimized headers
+          fetch('/api/mills', { 
+            headers: { 'Authorization': `Bearer ${token}` },
+            cache: 'default' // Allow caching for static data
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) setMills(data.data || []);
+              setLoadingSections(prev => ({ ...prev, mills: false }));
+            }),
+          
+          fetch('/api/qualities', { 
+            headers: { 'Authorization': `Bearer ${token}` },
+            cache: 'default' // Allow caching for static data
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) setQualities(data.data || []);
+              setLoadingSections(prev => ({ ...prev, qualities: false }));
+            }),
+          
+          // Fetch order-specific data if order is available
+          order && Promise.all([
+            fetch(`/api/mill-inputs?orderId=${order.orderId}`, { 
+              headers: { 'Authorization': `Bearer ${token}` },
+              cache: 'no-cache' // Fresh data for order-specific info
+            })
+              .then(res => res.json())
+              .then(data => {
+                if (data.success) setMillInputs(data.data?.millInputs || []);
+                setLoadingSections(prev => ({ ...prev, millInputs: false }));
+              }),
+            
+            fetch(`/api/mill-outputs?orderId=${order.orderId}`, { 
+              headers: { 'Authorization': `Bearer ${token}` },
+              cache: 'no-cache' // Fresh data for order-specific info
+            })
+              .then(res => res.json())
+              .then(data => {
+                if (data.success) setMillOutputs(data.data || []);
+                setLoadingSections(prev => ({ ...prev, millOutputs: false }));
+              }),
+            
+            fetch(`/api/dispatch?orderId=${order.orderId}`, { 
+              headers: { 'Authorization': `Bearer ${token}` },
+              cache: 'no-cache' // Fresh data for order-specific info
+            })
+              .then(res => res.json())
+              .then(data => {
+                if (data.success) setDispatches(data.data || []);
+                setLoadingSections(prev => ({ ...prev, dispatches: false }));
+              })
+          ])
+        ];
+
+        // Process background data as it loads
+        Promise.allSettled(backgroundPromises).catch(error => {
+          console.error('Error in background data loading:', error);
+        });
       };
       
-      fetchOrderData();
+      fetchAllOrderData();
+      
+      // Fallback timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        if (loading) {
+          setLoading(false);
+        }
+      }, 1500); // 1.5 second timeout for super fast loading
+      
+      return () => clearTimeout(timeoutId);
     }
-  }, [orderMongoId]);
+  }, [orderMongoId, order?.orderId, loading]);
 
 
   const party = typeof order?.party === 'string' ? null : order?.party;
@@ -167,24 +209,38 @@ export default function OrderDetailsPage() {
   };
 
   const handleMillInputSuccess = () => {
-    // Refresh mill inputs data
-    if (orderMongoId) {
-      const fetchMillInputs = async () => {
+    // Refresh mill inputs data using Promise.all for better performance
+    if (orderMongoId && order) {
+      const refreshMillInputs = async () => {
         try {
-        const token = localStorage.getItem('token');
-          const millInputsResponse = await fetch(`/api/mill-inputs?orderId=${orderMongoId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          }
-        });
-          const millInputsData = await millInputsResponse.json();
+          const token = localStorage.getItem('token');
+          
+          // Fetch mill inputs and mills in parallel
+          const [millInputsResponse, millsResponse] = await Promise.all([
+            fetch(`/api/mill-inputs?orderId=${order.orderId}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            }),
+            fetch('/api/mills', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+          ]);
+
+          const [millInputsData, millsData] = await Promise.all([
+            millInputsResponse.json(),
+            millsResponse.json()
+          ]);
+
           if (millInputsData.success) {
-            setMillInputs(millInputsData.data || []);
+            setMillInputs(millInputsData.data?.millInputs || []);
+          }
+          if (millsData.success) {
+            setMills(millsData.data || []);
           }
         } catch (error) {
+          console.error('Error refreshing mill inputs:', error);
         }
       };
-      fetchMillInputs();
+      refreshMillInputs();
     }
     setShowMillInputModal(false);
     setIsEditingMillInput(false);
@@ -236,226 +292,65 @@ export default function OrderDetailsPage() {
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchEndX, setTouchEndX] = useState<number | null>(null);
 
+  // Loading logic moved below to prevent "Order not found" flash
+
+  // If still loading, show loading skeleton
   if (loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-900">
-        <div className="w-full bg-white dark:bg-gray-900">
-          {/* Header Skeleton */}
-          <div className={`border-b ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
-            <div className="px-1 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className={`w-8 h-8 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                  <div>
-                    <div className={`w-32 h-8 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse mb-2`}></div>
-                    <div className={`w-20 h-6 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                  </div>
-                </div>
-                <div className={`w-8 h-8 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+        {/* Simple Header */}
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-6 h-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+              <div className="w-32 h-5 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+            </div>
+            <div className="w-6 h-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+          </div>
+        </div>
+
+        {/* Simple Content */}
+        <div className="p-4 space-y-4">
+          {/* Top Row */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                <div className="w-16 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
+                <div className="w-12 h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
               </div>
+            ))}
+          </div>
+
+          {/* Main Content */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+              <div className="w-20 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
+              <div className="w-full h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
+              <div className="w-full h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+              <div className="w-16 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
+              <div className="w-full h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
+              <div className="w-full h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
             </div>
           </div>
 
-          {/* Main Content Skeleton */}
-          <div className="px-1 py-4">
-            {/* Cards Row Skeleton */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 mb-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className={`w-10 h-10 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                    <div className={`w-24 h-6 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                  </div>
-                  <div className="space-y-3">
-                    {[1, 2, 3, 4].map((j) => (
-                      <div key={j}>
-                        <div className={`w-16 h-4 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse mb-1`}></div>
-                        <div className={`w-20 h-4 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Order Items and Lab Data Skeleton */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-              {/* Order Items Skeleton */}
-              <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className={`w-10 h-10 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                  <div className={`w-32 h-6 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                </div>
-                <div className="space-y-3">
-                  {[1, 2].map((i) => (
-                    <div key={i} className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className={`w-16 h-4 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></div>
-                        <div className={`w-8 h-6 rounded-full ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[1, 2, 3, 4, 5, 6].map((j) => (
-                          <div key={j}>
-                            <div className={`w-12 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse mb-1`}></div>
-                            <div className={`w-16 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+          {/* Bottom Sections */}
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                <div className="w-24 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
+                <div className="w-full h-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
               </div>
-
-              {/* Lab Data Skeleton */}
-              <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className={`w-10 h-10 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                  <div className={`w-24 h-6 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                </div>
-                <div className="space-y-3">
-                  {[1, 2].map((i) => (
-                    <div key={i} className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className={`w-20 h-4 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></div>
-                        <div className={`w-8 h-6 rounded-full ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></div>
-                      </div>
-                      <div className="space-y-2">
-                        {[1, 2, 3].map((j) => (
-                          <div key={j}>
-                            <div className={`w-20 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse mb-1`}></div>
-                            <div className={`w-24 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Mill Input Data Skeleton */}
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} mb-4`}>
-              <div className="flex items-center space-x-3 mb-4">
-                <div className={`w-10 h-10 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                <div className={`w-40 h-6 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-              </div>
-              <div className="space-y-4">
-                <div className={`rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
-                  <div className={`px-2 py-2 border-b ${isDarkMode ? 'border-gray-600 bg-gray-800' : 'border-gray-200 bg-gray-100'}`}>
-                    <div className={`w-32 h-6 rounded-lg ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse mb-2`}></div>
-                    <div className={`w-20 h-4 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></div>
-                  </div>
-                  <div className="p-1">
-                    <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
-                      <div className={`w-16 h-4 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse mb-3`}></div>
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-4">
-                          {[1, 2].map((i) => (
-                            <div key={i}>
-                              <div className={`w-16 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse mb-1`}></div>
-                              <div className={`w-20 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="grid grid-cols-3 gap-4">
-                          {[1, 2, 3].map((i) => (
-                            <div key={i}>
-                              <div className={`w-16 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse mb-1`}></div>
-                              <div className={`w-20 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Mill Output Data Skeleton */}
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} mb-4`}>
-              <div className="flex items-center space-x-3 mb-4">
-                <div className={`w-10 h-10 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                <div className={`w-40 h-6 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-              </div>
-              <div className="space-y-4">
-                <div className={`rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
-                  <div className={`px-2 py-2 border-b ${isDarkMode ? 'border-gray-600 bg-gray-800' : 'border-gray-200 bg-gray-100'}`}>
-                    <div className="grid grid-cols-2 gap-4">
-                      {[1, 2].map((i) => (
-                        <div key={i}>
-                          <div className={`w-20 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse mb-1`}></div>
-                          <div className={`w-24 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="p-1">
-                    <div className="grid grid-cols-3 gap-4">
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
-                          <div className={`w-16 h-4 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse mb-3`}></div>
-                          <div className="grid grid-cols-3 gap-4">
-                            {[1, 2, 3].map((j) => (
-                              <div key={j}>
-                                <div className={`w-12 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse mb-1`}></div>
-                                <div className={`w-16 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Dispatch Data Skeleton */}
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-              <div className="flex items-center space-x-3 mb-4">
-                <div className={`w-10 h-10 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-                <div className={`w-32 h-6 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
-              </div>
-              <div className="space-y-4">
-                <div className={`rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
-                  <div className={`px-2 py-2 border-b ${isDarkMode ? 'border-gray-600 bg-gray-800' : 'border-gray-200 bg-gray-100'}`}>
-                    <div className="grid grid-cols-2 gap-4">
-                      {[1, 2].map((i) => (
-                        <div key={i}>
-                          <div className={`w-20 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse mb-1`}></div>
-                          <div className={`w-24 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="p-1">
-                    <div className="grid grid-cols-3 gap-4">
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
-                          <div className={`w-16 h-4 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse mb-3`}></div>
-                          <div className="grid grid-cols-3 gap-4">
-                            {[1, 2, 3].map((j) => (
-                              <div key={j}>
-                                <div className={`w-12 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse mb-1`}></div>
-                                <div className={`w-16 h-3 rounded ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
     );
   }
 
-  if (!order) {
+  // Only show "Order not found" if we're not loading and have confirmed no order exists
+  if (!loading && !order) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-900 py-8 flex items-center justify-center">
         <div className="text-center">
@@ -851,6 +746,9 @@ export default function OrderDetailsPage() {
                      </div>
                 <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Mill Input Data {millInputs.length > 0 && `(${millInputs.length})`}
+                  {loadingSections.millInputs && (
+                    <span className="ml-2 inline-block w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></span>
+                  )}
                 </h2>
                      </div>
                        {(() => {
@@ -1009,6 +907,9 @@ export default function OrderDetailsPage() {
                     </div>
                 <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Mill Output Data {millOutputs.length > 0 && `(${millOutputs.length})`}
+                  {loadingSections.millOutputs && (
+                    <span className="ml-2 inline-block w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></span>
+                  )}
                 </h2>
                             </div>
               {(() => {
@@ -1117,6 +1018,9 @@ export default function OrderDetailsPage() {
                 </div>
                 <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Dispatch Data {dispatches.length > 0 && `(${dispatches.length})`}
+                  {loadingSections.dispatches && (
+                    <span className="ml-2 inline-block w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></span>
+                  )}
                 </h2>
                 </div>
               {(() => {
@@ -1309,23 +1213,36 @@ export default function OrderDetailsPage() {
           onSuccess={handleMillInputSuccess}
           onAddMill={() => {}}
           onRefreshMills={() => {
-            // Refresh mills when needed
-            const fetchMills = async () => {
+            // Refresh mills and qualities in parallel for better performance
+            const refreshMillsAndQualities = async () => {
               try {
                 const token = localStorage.getItem('token');
-                const millsResponse = await fetch('/api/mills', {
-                  headers: {
-                    'Authorization': `Bearer ${token}`,
-                  }
-                });
-                const millsData = await millsResponse.json();
+                
+                const [millsResponse, qualitiesResponse] = await Promise.all([
+                  fetch('/api/mills', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                  }),
+                  fetch('/api/qualities', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                  })
+                ]);
+
+                const [millsData, qualitiesData] = await Promise.all([
+                  millsResponse.json(),
+                  qualitiesResponse.json()
+                ]);
+
                 if (millsData.success) {
                   setMills(millsData.data || []);
                 }
+                if (qualitiesData.success) {
+                  setQualities(qualitiesData.data || []);
+                }
               } catch (error) {
+                console.error('Error refreshing mills and qualities:', error);
               }
             };
-            fetchMills();
+            refreshMillsAndQualities();
           }}
           isEditing={isEditingMillInput}
           existingMillInputs={millInputs}

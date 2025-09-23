@@ -275,13 +275,18 @@ export const generateOrderPDF = (order: OrderData): void => {
     doc.text('', leftCol + 25, yPosition + 5);
     yPosition += fieldHeight; // No gap - fields touch each other
     
-    // STYLE field (no individual border)
+    // STYLE field (no individual border) - always show field, but only add data if exists
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.text('STYLE:', leftCol + 2, yPosition + 5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 43, 89); // #002b59 color
-    doc.text(order.styleNo || '', leftCol + 20, yPosition + 5);
+    // Right align the style number if it exists
+    if (order.styleNo && order.styleNo.trim() !== '') {
+      const styleText = order.styleNo;
+      const styleTextWidth = doc.getTextWidth(styleText);
+      doc.text(styleText, leftCol + fieldWidth - styleTextWidth - 2, yPosition + 5);
+    }
     doc.setTextColor(0, 0, 0); // Reset to black
     yPosition += fieldHeight + 45; // Reduced gap after STYLE
   
@@ -303,10 +308,17 @@ export const generateOrderPDF = (order: OrderData): void => {
     doc.rect(rightCol, rightBoxY, rightFieldWidth, fieldHeight);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
-    doc.text('PURCHASE:', rightCol + 2, rightBoxY + 5);
+    // Center "PURCHASE" text
+    const purchaseText = 'PURCHASE';
+    const purchaseTextWidth = doc.getTextWidth(purchaseText);
+    doc.text(purchaseText, rightCol + (rightFieldWidth - purchaseTextWidth) / 2, rightBoxY + 5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 43, 89); // #002b59 color
-    doc.text(`₹${formatCurrency(totals.totalMillCost)}`, rightCol + 25, rightBoxY + 5);
+    // Remove .00 from the amount and hide if 0
+    if (totals.totalMillCost > 0) {
+      const purchaseAmount = totals.totalMillCost % 1 === 0 ? totals.totalMillCost.toString() : totals.totalMillCost.toFixed(2);
+      doc.text(`₹${purchaseAmount}`, rightCol + 25, rightBoxY + 5);
+    }
     doc.setTextColor(0, 0, 0); // Reset to black
     let rightY = rightBoxY + fieldHeight; // No gap - fields touch each other
     
@@ -330,7 +342,7 @@ export const generateOrderPDF = (order: OrderData): void => {
   doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.text('ORDER QTY:', rightCol + 2, rightY + 5);
-    doc.text('RATE:', rightCol + 50, rightY + 5);
+    doc.text('RATE', rightCol + 50, rightY + 5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 43, 89); // #002b59 color
     doc.text(firstItem.quantity?.toString() || '', rightCol + 25, rightY + 5); // Real order quantity
@@ -443,13 +455,7 @@ export const generateOrderPDF = (order: OrderData): void => {
     doc.text('L:', rightCol + tableWidth -74, tableY + 5); // L: on right side
     doc.text('GREY REPORT:', rightCol + 2, tableY + 9); // GREY REPORT on left side, closer to L:
     
-    // Add real data in GREY REPORT section
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(0, 43, 89); // #002b59 color
-    doc.text(`Total Greigh: ${totals.totalGreighMtr}m`, rightCol + 2, tableY + 15);
-    doc.text(`Total Pieces: ${totals.totalPieces}`, rightCol + 2, tableY + 19);
-    doc.setTextColor(0, 0, 0); // Reset to black
+    // GREY REPORT section - no data text, just empty space
     
     tableY += tableRowHeight * 3 + 4; // Space after GREY REPORT
     
