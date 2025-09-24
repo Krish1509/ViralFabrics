@@ -7,7 +7,7 @@ export interface IDispatch extends Document {
   dispatchDate: Date;
   billNo: string;
   finishMtr: number;
-  saleRate: number;
+  saleRate?: number;
   quality?: mongoose.Types.ObjectId;
   totalValue: number;
   createdAt: Date;
@@ -49,8 +49,9 @@ const DispatchSchema = new Schema<IDispatch>({
   },
   saleRate: {
     type: Number,
-    required: true,
-    min: 0
+    required: false,
+    min: 0,
+    default: 0
   },
   quality: {
     type: Schema.Types.ObjectId,

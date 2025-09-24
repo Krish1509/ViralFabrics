@@ -8,7 +8,7 @@ import mongoose from 'mongoose';
 export async function GET(request: NextRequest) {
   try {
     // Validate session
-    // await requireAuth(request);
+    await requireAuth(request);
 
     await dbConnect();
 
@@ -76,15 +76,15 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Validate session
-    // await requireAuth(request);
+    await requireAuth(request);
     await dbConnect();
     const body = await request.json();
     const { orderId, recdDate, millBillNo, finishedMtr, millRate, quality } = body;
 
     // Validate required fields
-    if (!orderId || !recdDate || !millBillNo || !finishedMtr || !millRate) {
+    if (!orderId || !recdDate || !millBillNo || !finishedMtr) {
       return NextResponse.json(
-        { error: 'All fields are required' },
+        { error: 'Order ID, received date, mill bill number, and finished meters are required' },
         { status: 400 }
       );
     }
@@ -97,11 +97,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (isNaN(Number(millRate)) || Number(millRate) < 0) {
-      return NextResponse.json(
-        { error: 'Mill rate must be a valid positive number' },
-        { status: 400 }
-      );
+    // Validate millRate if provided
+    if (millRate !== undefined && millRate !== null && millRate !== '') {
+      if (isNaN(Number(millRate)) || Number(millRate) < 0) {
+        return NextResponse.json(
+          { error: 'Mill rate must be a valid positive number' },
+          { status: 400 }
+        );
+      }
     }
 
     // Find the order by orderId to get the ObjectId
@@ -124,7 +127,7 @@ export async function POST(request: NextRequest) {
       recdDate: new Date(recdDate),
       millBillNo: millBillNo.trim(),
       finishedMtr: Number(finishedMtr),
-      millRate: Number(millRate),
+      millRate: millRate !== undefined && millRate !== null && millRate !== '' ? Number(millRate) : undefined,
       quality: quality && quality.trim() !== '' ? new mongoose.Types.ObjectId(quality) : null
     };
     

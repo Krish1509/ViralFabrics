@@ -7,6 +7,7 @@ export interface IMillOutput extends Document {
   recdDate: Date;
   millBillNo: string;
   finishedMtr: number;
+  millRate?: number;
   quality?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -47,6 +48,10 @@ const MillOutputSchema = new Schema<IMillOutput>({
     type: Number,
     required: [true, "Finished meters is required"],
     min: [0, "Finished meters cannot be negative"]
+  },
+  millRate: {
+    type: Number,
+    min: [0, "Mill rate cannot be negative"]
   },
   quality: {
     type: Schema.Types.ObjectId,

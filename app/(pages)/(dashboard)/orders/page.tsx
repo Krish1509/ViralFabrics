@@ -61,6 +61,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
   const [orderMillInputs, setOrderMillInputs] = useState<{[key: string]: any[]}>({});
+  const [processDataByQuality, setProcessDataByQuality] = useState<{[key: string]: string[]}>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showPartyModal, setShowPartyModal] = useState(false);
@@ -216,6 +217,86 @@ export default function OrdersPage() {
     const trimmedValue = value.trim();
     setSearchTerm(trimmedValue);
   }, []);
+
+  // Function to process mill input data and group by quality
+  const processMillInputDataByQuality = useCallback((millInputs: any[]) => {
+    const processMap: {[key: string]: Set<string>} = {};
+    
+    millInputs.forEach((millInput) => {
+      // Process main input
+      if (millInput.quality && millInput.processName) {
+        const qualityId = typeof millInput.quality === 'object' ? millInput.quality._id : millInput.quality;
+        const qualityName = typeof millInput.quality === 'object' ? millInput.quality.name : millInput.quality;
+        const key = `${qualityId}_${qualityName}`;
+        
+        if (!processMap[key]) {
+          processMap[key] = new Set();
+        }
+        processMap[key].add(millInput.processName);
+      }
+      
+      // Process additional meters
+      if (millInput.additionalMeters && Array.isArray(millInput.additionalMeters)) {
+        millInput.additionalMeters.forEach((additional: any) => {
+          if (additional.quality && additional.processName) {
+            const qualityId = typeof additional.quality === 'object' ? additional.quality._id : additional.quality;
+            const qualityName = typeof additional.quality === 'object' ? additional.quality.name : additional.quality;
+            const key = `${qualityId}_${qualityName}`;
+            
+            if (!processMap[key]) {
+              processMap[key] = new Set();
+            }
+            processMap[key].add(additional.processName);
+          }
+        });
+      }
+    });
+    
+    // Convert Set to Array and sort by priority
+    const processPriority = [
+      'Lot No Greigh',
+      'Charkha',
+      'Drum',
+      'Soflina WR',
+      'long jet',
+      'setting',
+      'In Dyeing',
+      'jigar',
+      'in printing',
+      'loop',
+      'washing',
+      'Finish',
+      'folding',
+      'ready to dispatch'
+    ];
+    
+    const result: {[key: string]: string[]} = {};
+    Object.keys(processMap).forEach(key => {
+      const processes = Array.from(processMap[key]);
+      // Sort by priority, with unknown processes at the end
+      result[key] = processes.sort((a, b) => {
+        const aIndex = processPriority.indexOf(a);
+        const bIndex = processPriority.indexOf(b);
+        if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        return aIndex - bIndex;
+      });
+    });
+    
+    return result;
+  }, []);
+
+  // Function to get process data for a specific quality
+  const getProcessDataForQuality = useCallback((quality: any) => {
+    if (!quality) return [];
+    
+    const qualityId = typeof quality === 'object' ? quality._id : quality;
+    const qualityName = typeof quality === 'object' ? quality.name : quality;
+    const key = `${qualityId}_${qualityName}`;
+    
+    return processDataByQuality[key] || [];
+  }, [processDataByQuality]);
 
   // Optimized fetch functions with retry logic and better timeout handling
   const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage) => {
@@ -534,9 +615,14 @@ export default function OrdersPage() {
         });
         console.log('Grouped mill inputs:', groupedInputs);
         setOrderMillInputs(groupedInputs);
+        
+        // Process mill input data by quality
+        const processedData = processMillInputDataByQuality(millInputsData.data.millInputs);
+        setProcessDataByQuality(processedData);
       } else {
         console.log('No mill inputs data found');
         setOrderMillInputs({});
+        setProcessDataByQuality({});
       }
 
       // Process mill outputs
@@ -605,13 +691,21 @@ export default function OrdersPage() {
           ...prev,
           [orderId]: data.data.millInputs || []
         }));
+        
+        // Process mill input data by quality for this order
+        const processedData = processMillInputDataByQuality(data.data.millInputs);
+        setProcessDataByQuality(prev => ({ ...prev, ...processedData }));
         } else if (data.success && data.data && Array.isArray(data.data)) {
         // Handle case where data.data is directly the array
         setOrderMillInputs(prev => ({
           ...prev,
           [orderId]: data.data || []
         }));
-        }
+        
+        // Process mill input data by quality for this order
+        const processedData = processMillInputDataByQuality(data.data);
+        setProcessDataByQuality(prev => ({ ...prev, ...processedData }));
+      }
     } catch (error) {
       }
   }, []);
@@ -2435,8 +2529,7 @@ export default function OrdersPage() {
                                     {new Date(order.createdAt).toLocaleTimeString('en-US', {
                                       hour: '2-digit',
                                       minute: '2-digit',
-                                      hour12: true
-                                    })}
+                                     })}
                           </span>
                         </div>
                               </div>
@@ -2521,6 +2614,11 @@ export default function OrdersPage() {
                                  <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
                                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
                                  }`}>
+                                   Process
+                                 </th>
+                                 <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
+                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                                 }`}>
                                    Images
                                  </th>
                                  <th className={`px-4 py-3 text-center text-xs font-bold uppercase tracking-wider ${
@@ -2588,6 +2686,31 @@ export default function OrdersPage() {
                                      <div className={`text-xs ${isDarkMode ? 'text-purple-300' : 'text-purple-600'}`}>
                                        {item.salesRate ? `₹${Number(item.salesRate).toFixed(2)}` : '-'}
                               </div>
+                                   </td>
+                                   
+                                   {/* Process */}
+                                   <td className="px-4 py-4">
+                                     <div className="max-w-[150px]">
+                                       {(() => {
+                                         const processes = getProcessDataForQuality(item.quality);
+                                         if (processes.length === 0) {
+                                           return <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>No process data</span>;
+                                         }
+                                         
+                                         // Show only the highest priority process (last one in the sorted array)
+                                         const highestPriorityProcess = processes[processes.length - 1];
+                                         
+                                         return (
+                                           <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                                             isDarkMode 
+                                               ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30' 
+                                               : 'bg-blue-100 text-blue-700 border border-blue-200'
+                                           }`}>
+                                             {highestPriorityProcess}
+                                           </div>
+                                         );
+                                       })()}
+                                     </div>
                                    </td>
                                    
                                    {/* Images */}

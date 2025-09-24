@@ -69,20 +69,27 @@ export async function PUT(
     if (!finishedMtr || finishedMtr <= 0) {
       return NextResponse.json(validationErrorResponse('Valid finished meters is required'), { status: 400 });
     }
-    if (!millRate || millRate <= 0) {
-      return NextResponse.json(validationErrorResponse('Valid mill rate is required'), { status: 400 });
+    // Validate millRate if provided
+    if (millRate !== undefined && millRate !== null && millRate !== '' && (isNaN(Number(millRate)) || Number(millRate) < 0)) {
+      return NextResponse.json(validationErrorResponse('Mill rate must be a valid positive number'), { status: 400 });
     }
 
     // Update mill output
+    const updateData: any = {
+      recdDate: new Date(recdDate),
+      millBillNo: millBillNo.trim(),
+      finishedMtr: parseFloat(finishedMtr),
+      quality: quality || null
+    };
+    
+    // Only include millRate if it's provided
+    if (millRate !== undefined && millRate !== null && millRate !== '') {
+      updateData.millRate = parseFloat(millRate);
+    }
+    
     const updatedMillOutput = await MillOutput.findByIdAndUpdate(
       id,
-      {
-        recdDate: new Date(recdDate),
-        millBillNo: millBillNo.trim(),
-        finishedMtr: parseFloat(finishedMtr),
-        millRate: parseFloat(millRate),
-        quality: quality || null
-      },
+      updateData,
       { new: true, runValidators: true }
     );
 

@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { orderId, mill, millDate, chalanNo, greighMtr, pcs, quality, additionalMeters, notes } = body;
+    const { orderId, mill, millDate, chalanNo, greighMtr, pcs, quality, processName, additionalMeters, notes } = body;
 
     // Debug logging
     // Validate required fields
@@ -137,6 +137,10 @@ export async function POST(request: NextRequest) {
     // if (!quality) {
     //   return NextResponse.json(validationErrorResponse('Quality is required'), { status: 400 });
     // }
+    // Process name is optional
+    // if (!processName || processName.trim() === '') {
+    //   return NextResponse.json(validationErrorResponse('Process name is required'), { status: 400 });
+    // }
 
     // Validate additional meters if provided
     if (additionalMeters && Array.isArray(additionalMeters)) {
@@ -151,6 +155,10 @@ export async function POST(request: NextRequest) {
         // Quality is optional for additional meters too
         // if (!additional.quality) {
         //   return NextResponse.json(validationErrorResponse(`Quality is required for additional entry ${i + 1}`), { status: 400 });
+        // }
+        // Process name is optional for additional meters
+        // if (!additional.processName || additional.processName.trim() === '') {
+        //   return NextResponse.json(validationErrorResponse(`Process name is required for additional entry ${i + 1}`), { status: 400 });
         // }
         
         // Check if additional quality exists only if provided
@@ -193,10 +201,12 @@ export async function POST(request: NextRequest) {
       greighMtr: parseFloat(greighMtr),
       pcs: parseInt(pcs),
       quality: quality || undefined,
+      processName: processName ? processName.trim() : '',
       additionalMeters: additionalMeters && Array.isArray(additionalMeters) ? additionalMeters.map(additional => ({
         greighMtr: parseFloat(additional.greighMtr),
         pcs: parseInt(additional.pcs),
         quality: additional.quality || undefined,
+        processName: additional.processName ? additional.processName.trim() : '',
         notes: additional.notes?.trim()
       })) : [],
       notes: notes?.trim()

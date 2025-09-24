@@ -8,7 +8,7 @@ import mongoose from 'mongoose';
 export async function GET(request: NextRequest) {
   try {
     // Validate session
-    // await requireAuth(request);
+    await requireAuth(request);
 
     await dbConnect();
 
@@ -86,15 +86,15 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Validate session
-    // await requireAuth(request);
+    await requireAuth(request);
     await dbConnect();
     const body = await request.json();
     const { orderId, dispatchDate, billNo, finishMtr, saleRate, quality } = body;
 
     // Validate required fields
-    if (!orderId || !dispatchDate || !billNo || !finishMtr || !saleRate) {
+    if (!orderId || !dispatchDate || !billNo || !finishMtr) {
       return NextResponse.json(
-        { error: 'All fields are required' },
+        { error: 'Order ID, dispatch date, bill number, and finish meters are required' },
         { status: 400 }
       );
     }
@@ -107,11 +107,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (isNaN(Number(saleRate)) || Number(saleRate) < 0) {
-      return NextResponse.json(
-        { error: 'Sale rate must be a valid positive number' },
-        { status: 400 }
-      );
+    // Validate saleRate if provided
+    if (saleRate !== undefined && saleRate !== null && saleRate !== '') {
+      if (isNaN(Number(saleRate)) || Number(saleRate) < 0) {
+        return NextResponse.json(
+          { error: 'Sale rate must be a valid positive number' },
+          { status: 400 }
+        );
+      }
     }
 
     // Find the order by orderId to get the ObjectId
@@ -129,7 +132,7 @@ export async function POST(request: NextRequest) {
     const { Dispatch } = await import('@/models');
     // Create new dispatch record
     const finishMtrNum = Number(finishMtr);
-    const saleRateNum = Number(saleRate);
+    const saleRateNum = saleRate !== undefined && saleRate !== null && saleRate !== '' ? Number(saleRate) : 0;
     const totalValue = finishMtrNum * saleRateNum;
     
     // Handle quality ObjectId conversion

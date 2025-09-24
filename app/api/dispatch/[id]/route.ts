@@ -68,23 +68,31 @@ export async function PUT(
     if (!finishMtr || finishMtr <= 0) {
       return NextResponse.json(validationErrorResponse('Valid finish meters is required'), { status: 400 });
     }
-    if (!saleRate || saleRate <= 0) {
-      return NextResponse.json(validationErrorResponse('Valid sale rate is required'), { status: 400 });
+    // Validate saleRate if provided
+    if (saleRate !== undefined && saleRate !== null && saleRate !== '' && (isNaN(Number(saleRate)) || Number(saleRate) < 0)) {
+      return NextResponse.json(validationErrorResponse('Sale rate must be a valid positive number'), { status: 400 });
     }
 
     // Calculate total value
-    const totalValue = parseFloat(finishMtr) * parseFloat(saleRate);
+    const saleRateNum = saleRate !== undefined && saleRate !== null && saleRate !== '' ? parseFloat(saleRate) : 0;
+    const totalValue = parseFloat(finishMtr) * saleRateNum;
 
     // Update dispatch
+    const updateData: any = {
+      dispatchDate: new Date(dispatchDate),
+      billNo: billNo.trim(),
+      finishMtr: parseFloat(finishMtr),
+      totalValue: totalValue
+    };
+    
+    // Only include saleRate if it's provided
+    if (saleRate !== undefined && saleRate !== null && saleRate !== '') {
+      updateData.saleRate = parseFloat(saleRate);
+    }
+    
     const updatedDispatch = await Dispatch.findByIdAndUpdate(
       id,
-      {
-        dispatchDate: new Date(dispatchDate),
-        billNo: billNo.trim(),
-        finishMtr: parseFloat(finishMtr),
-        saleRate: parseFloat(saleRate),
-        totalValue: totalValue
-      },
+      updateData,
       { new: true, runValidators: true }
     );
 

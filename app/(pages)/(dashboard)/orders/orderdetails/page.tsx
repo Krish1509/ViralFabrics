@@ -39,6 +39,7 @@ export default function OrderDetailsPage() {
   const [millInputs, setMillInputs] = useState<any[]>([]);
   const [millOutputs, setMillOutputs] = useState<any[]>([]);
   const [dispatches, setDispatches] = useState<any[]>([]);
+  const [processDataByQuality, setProcessDataByQuality] = useState<{[key: string]: string[]}>({});
   const [showMillInputModal, setShowMillInputModal] = useState(false);
   const [isEditingMillInput, setIsEditingMillInput] = useState(false);
   const [mills, setMills] = useState<Mill[]>([]);
@@ -120,7 +121,13 @@ export default function OrderDetailsPage() {
             })
               .then(res => res.json())
               .then(data => {
-                if (data.success) setMillInputs(data.data?.millInputs || []);
+                if (data.success) {
+                  const millInputsData = data.data?.millInputs || [];
+                  setMillInputs(millInputsData);
+                  // Process mill input data by quality
+                  const processedData = processMillInputDataByQuality(millInputsData);
+                  setProcessDataByQuality(processedData);
+                }
                 setLoadingSections(prev => ({ ...prev, millInputs: false }));
               }),
             
@@ -165,6 +172,86 @@ export default function OrderDetailsPage() {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  // Function to process mill input data and group by quality
+  const processMillInputDataByQuality = (millInputs: any[]) => {
+    const processMap: {[key: string]: Set<string>} = {};
+    
+    millInputs.forEach((millInput) => {
+      // Process main input
+      if (millInput.quality && millInput.processName) {
+        const qualityId = typeof millInput.quality === 'object' ? millInput.quality._id : millInput.quality;
+        const qualityName = typeof millInput.quality === 'object' ? millInput.quality.name : millInput.quality;
+        const key = `${qualityId}_${qualityName}`;
+        
+        if (!processMap[key]) {
+          processMap[key] = new Set();
+        }
+        processMap[key].add(millInput.processName);
+      }
+      
+      // Process additional meters
+      if (millInput.additionalMeters && Array.isArray(millInput.additionalMeters)) {
+        millInput.additionalMeters.forEach((additional: any) => {
+          if (additional.quality && additional.processName) {
+            const qualityId = typeof additional.quality === 'object' ? additional.quality._id : additional.quality;
+            const qualityName = typeof additional.quality === 'object' ? additional.quality.name : additional.quality;
+            const key = `${qualityId}_${qualityName}`;
+            
+            if (!processMap[key]) {
+              processMap[key] = new Set();
+            }
+            processMap[key].add(additional.processName);
+          }
+        });
+      }
+    });
+    
+    // Convert Set to Array and sort by priority
+    const processPriority = [
+      'Lot No Greigh',
+      'Charkha',
+      'Drum',
+      'Soflina WR',
+      'long jet',
+      'setting',
+      'In Dyeing',
+      'jigar',
+      'in printing',
+      'loop',
+      'washing',
+      'Finish',
+      'folding',
+      'ready to dispatch'
+    ];
+    
+    const result: {[key: string]: string[]} = {};
+    Object.keys(processMap).forEach(key => {
+      const processes = Array.from(processMap[key]);
+      // Sort by priority, with unknown processes at the end
+      result[key] = processes.sort((a, b) => {
+        const aIndex = processPriority.indexOf(a);
+        const bIndex = processPriority.indexOf(b);
+        if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        return aIndex - bIndex;
+      });
+    });
+    
+    return result;
+  };
+
+  // Function to get process data for a specific quality
+  const getProcessDataForQuality = (quality: any) => {
+    if (!quality) return [];
+    
+    const qualityId = typeof quality === 'object' ? quality._id : quality;
+    const qualityName = typeof quality === 'object' ? quality.name : quality;
+    const key = `${qualityId}_${qualityName}`;
+    
+    return processDataByQuality[key] || [];
   };
 
   const showSuccessMessage = (message: string) => {
@@ -222,7 +309,11 @@ export default function OrderDetailsPage() {
           ]);
 
           if (millInputsData.success) {
-            setMillInputs(millInputsData.data?.millInputs || []);
+            const millInputsArray = millInputsData.data?.millInputs || [];
+            setMillInputs(millInputsArray);
+            // Process mill input data by quality
+            const processedData = processMillInputDataByQuality(millInputsArray);
+            setProcessDataByQuality(processedData);
           }
           if (millsData.success) {
             setMills(millsData.data || []);
@@ -288,7 +379,11 @@ export default function OrderDetailsPage() {
   // If still loading, show loading skeleton
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:bg-slate-800">
+      <div className={`min-h-screen ${
+        isDarkMode 
+          ? 'bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800' 
+          : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
+      }`}>
         {/* Simple Header */}
         <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-gray-600 px-4 py-3">
           <div className="flex items-center justify-between">
@@ -353,8 +448,16 @@ export default function OrderDetailsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-800">
-      <div className="w-full bg-white dark:bg-slate-800">
+    <div className={`min-h-screen ${
+      isDarkMode 
+        ? 'bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800' 
+        : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
+    }`}>
+      <div className={`w-full ${
+        isDarkMode 
+          ? 'bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800' 
+          : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
+      }`}>
         {/* Clean Header */}
         <div className={`border-b ${isDarkMode ? 'border-gray-600 bg-slate-800' : 'border-gray-200 bg-white'}`}>
            {/* Success Message */}
@@ -410,11 +513,15 @@ export default function OrderDetailsPage() {
         </div>
 
         {/* Main Content */}
-        <div className="px-4 py-6 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:bg-slate-800 min-h-screen">
+        <div className={`px-4 py-6 min-h-screen ${
+          isDarkMode 
+            ? 'bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800' 
+            : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
+        }`}>
           {/* Header Cards Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {/* Order Information */}
-            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-white border-gray-200 hover:shadow-md'} transition-all duration-200`}>
+            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
               <div className="flex items-center space-x-3 mb-4">
                 <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-blue-600/20' : 'bg-blue-100'}`}>
                   <DocumentTextIcon className={`h-6 w-6 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`} />
@@ -444,7 +551,7 @@ export default function OrderDetailsPage() {
                  </div>
 
             {/* Party Information */}
-            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-white border-gray-200 hover:shadow-md'} transition-all duration-200`}>
+            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
               <div className="flex items-center space-x-3 mb-4">
                 <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-green-600/20' : 'bg-green-100'}`}>
                   <UserIcon className={`h-6 w-6 ${isDarkMode ? 'text-green-400' : 'text-green-600'}`} />
@@ -476,7 +583,7 @@ export default function OrderDetailsPage() {
             </div>
 
             {/* Important Dates */}
-            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-white border-gray-200 hover:shadow-md'} transition-all duration-200`}>
+            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
               <div className="flex items-center space-x-3 mb-4">
                 <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-purple-600/20' : 'bg-purple-100'}`}>
                   <CalendarIcon className={`h-6 w-6 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`} />
@@ -508,7 +615,7 @@ export default function OrderDetailsPage() {
             </div>
 
             {/* System Timestamps */}
-            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-white border-gray-200 hover:shadow-md'} transition-all duration-200`}>
+            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
               <div className="flex items-center space-x-3 mb-4">
                 <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-100'}`}>
                   <ClockIconSolid className={`h-6 w-6 ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`} />
@@ -550,7 +657,7 @@ export default function OrderDetailsPage() {
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Order Items Cards */}
             {order?.items && order.items.length > 0 && (
-              <div className={`p-6 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}`}>
+              <div className={`p-6 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
                 <div className="flex items-center space-x-3 mb-6">
                   <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-indigo-600/20' : 'bg-indigo-100'}`}>
                     <DocumentTextIcon className={`h-6 w-6 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`} />
@@ -561,7 +668,7 @@ export default function OrderDetailsPage() {
                 </div>
                 <div className="space-y-4">
                   {order.items.map((item, index) => (
-                    <div key={index} className={`p-4 rounded-xl border ${isDarkMode ? 'bg-gray-600 border-gray-500 hover:bg-gray-550' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'} transition-all duration-200`}>
+                    <div key={index} className={`p-4 rounded-xl border ${isDarkMode ? 'bg-gray-600 border-gray-500 hover:bg-gray-500 hover:shadow-lg' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:shadow-md'} transition-all duration-200`}>
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -574,7 +681,7 @@ export default function OrderDetailsPage() {
                           </span>
                         </div>
                           
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="space-y-1">
                             <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                               Quality
@@ -592,7 +699,36 @@ export default function OrderDetailsPage() {
                               {item.quantity || '--'}
                             </p>
                           </div>
-                                  
+
+                          <div className="space-y-1">
+                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              Process
+                            </label>
+                            <div className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {(() => {
+                                const processes = getProcessDataForQuality(item.quality);
+                                if (processes.length === 0) {
+                                  return <span className="text-gray-500">No process data</span>;
+                                }
+                                
+                                // Show only the highest priority process (last one in the sorted array)
+                                const highestPriorityProcess = processes[processes.length - 1];
+                                
+                                return (
+                                  <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                                    isDarkMode 
+                                      ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30' 
+                                      : 'bg-blue-100 text-blue-700 border border-blue-200'
+                                  }`}>
+                                    {highestPriorityProcess}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           <div className="space-y-1">
                             <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                               Description
@@ -699,7 +835,7 @@ export default function OrderDetailsPage() {
                           )}
                           
             {/* Lab Data Section */}
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
               <div className="flex items-center space-x-3 mb-4">
                 <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-yellow-600/20' : 'bg-yellow-100'}`}>
                   <BeakerIcon className={`h-6 w-6 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`} />
@@ -760,7 +896,7 @@ export default function OrderDetailsPage() {
 
           {/* Mill Input Data Section */}
           <div className="mt-4">
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
               <div className="flex items-center space-x-3 mb-4">
                 <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-teal-600/20' : 'bg-teal-100'}`}>
                   <CogIcon className={`h-6 w-6 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`} />
@@ -768,7 +904,13 @@ export default function OrderDetailsPage() {
                 <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Mill Input Data {millInputs.length > 0 && `(${millInputs.length})`}
                   {loadingSections.millInputs && (
-                    <span className="ml-2 inline-block w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></span>
+                    <div className="ml-2 inline-flex items-center">
+                      <div className={`animate-spin rounded-full h-4 w-4 border-2 ${
+                        isDarkMode 
+                          ? 'border-gray-600 border-t-blue-400' 
+                          : 'border-gray-300 border-t-blue-600'
+                      }`}></div>
+                    </div>
                   )}
                 </h2>
                      </div>
@@ -921,7 +1063,7 @@ export default function OrderDetailsPage() {
                   
           {/* Mill Output Data Section */}
           <div className="mt-4">
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
               <div className="flex items-center space-x-3 mb-4">
                 <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-emerald-600/20' : 'bg-emerald-100'}`}>
                   <BuildingOfficeIcon className={`h-6 w-6 ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`} />
@@ -929,7 +1071,13 @@ export default function OrderDetailsPage() {
                 <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Mill Output Data {millOutputs.length > 0 && `(${millOutputs.length})`}
                   {loadingSections.millOutputs && (
-                    <span className="ml-2 inline-block w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></span>
+                    <div className="ml-2 inline-flex items-center">
+                      <div className={`animate-spin rounded-full h-4 w-4 border-2 ${
+                        isDarkMode 
+                          ? 'border-gray-600 border-t-blue-400' 
+                          : 'border-gray-300 border-t-blue-600'
+                      }`}></div>
+                    </div>
                   )}
                 </h2>
                             </div>
@@ -1032,7 +1180,7 @@ export default function OrderDetailsPage() {
 
           {/* Dispatch Data Section */}
           <div className="mt-4">
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
               <div className="flex items-center space-x-3 mb-4">
                 <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-100'}`}>
                   <TruckIcon className={`h-6 w-6 ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`} />
@@ -1040,7 +1188,13 @@ export default function OrderDetailsPage() {
                 <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Dispatch Data {dispatches.length > 0 && `(${dispatches.length})`}
                   {loadingSections.dispatches && (
-                    <span className="ml-2 inline-block w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></span>
+                    <div className="ml-2 inline-flex items-center">
+                      <div className={`animate-spin rounded-full h-4 w-4 border-2 ${
+                        isDarkMode 
+                          ? 'border-gray-600 border-t-blue-400' 
+                          : 'border-gray-300 border-t-blue-600'
+                      }`}></div>
+                    </div>
                   )}
                 </h2>
                 </div>

@@ -26,7 +26,8 @@ interface MillItem {
   greighMtr: string;
   pcs: string;
   quality: string; // Add quality field
-  additionalMeters: { meters: string; pieces: string; quality: string }[]; // Add quality to additional meters
+  process: string; // Add process field
+  additionalMeters: { meters: string; pieces: string; quality: string; process: string }[]; // Add process to additional meters
 }
 
 interface MillInputFormData {
@@ -50,6 +51,24 @@ interface MillInputFormProps {
 interface ValidationErrors {
   [key: string]: string;
 }
+
+// Process options
+const PROCESS_OPTIONS = [
+  'Lot No Greigh',
+  'Charkha',
+  'Drum',
+  'Soflina WR',
+  'long jet',
+  'setting',
+  'In Dyeing',
+  'jigar',
+  'in printing',
+  'loop',
+  'washing',
+  'Finish',
+  'folding',
+  'ready to dispatch'
+];
 
 // Custom Date Picker Component (from LabDataModal)
 function CustomDatePicker({ 
@@ -472,7 +491,10 @@ function EnhancedDropdown({
         if (target.closest('.calendar-container') || target.closest('.date-picker')) {
           return;
         }
-        onToggleDropdown();
+        // Only close if dropdown is currently open
+        if (showDropdown) {
+          onToggleDropdown();
+        }
       }
     };
 
@@ -565,6 +587,12 @@ function EnhancedDropdown({
               const bIsRecent = recentlyAddedId === (b._id || (b as any).id);
               if (aIsRecent && !bIsRecent) return 1;
               if (!aIsRecent && bIsRecent) return -1;
+              
+              // For process options, maintain the original order (don't sort alphabetically)
+              if (placeholder?.toLowerCase().includes('process')) {
+                return 0; // Keep original order
+              }
+              
               return a.name.localeCompare(b.name);
             }).map((option, index) => (
               <button
@@ -678,6 +706,7 @@ export default function MillInputForm({
       greighMtr: '',
       pcs: '',
       quality: '', // Add quality field
+      process: '', // Add process field
       additionalMeters: []
     }],
   });
@@ -711,6 +740,11 @@ export default function MillInputForm({
   const [currentQualitySearch, setCurrentQualitySearch] = useState('');
   const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
 
+  // Process-related state
+  const [activeProcessDropdown, setActiveProcessDropdown] = useState<{ itemId: string; type: 'main' | 'additional'; index?: number } | null>(null);
+  const [processSearchStates, setProcessSearchStates] = useState<{ [key: string]: string }>({});
+  const [currentProcessSearch, setCurrentProcessSearch] = useState('');
+
   // Load existing mill inputs when editing
   useEffect(() => {
     console.log('MillInputForm useEffect triggered:', { isEditing, existingMillInputsLength: existingMillInputs.length });
@@ -739,6 +773,7 @@ export default function MillInputForm({
           greighMtr: '',
           pcs: '',
           quality: '', // Add quality field
+          process: '', // Add process field
           additionalMeters: []
         }],
       });
@@ -783,11 +818,13 @@ export default function MillInputForm({
               greighMtr: group.mainInput.greighMtr.toString(),
               pcs: group.mainInput.pcs.toString(),
               quality: group.mainInput.quality?._id || group.mainInput.quality || '', // Extract quality ID
+              process: group.mainInput.processName || '', // Extract process name
               additionalMeters: group.additionalInputs.map((input: any) => {
                 return {
                   meters: input.greighMtr.toString(),
                   pieces: input.pcs.toString(),
-                  quality: input.quality?._id || input.quality || '' // Extract quality ID
+                  quality: input.quality?._id || input.quality || '', // Extract quality ID
+                  process: input.processName || '' // Extract process name
                 };
               })
             };
@@ -822,7 +859,8 @@ export default function MillInputForm({
         existingGroup.additionalInputs.push({
           greighMtr: input.greighMtr,
           pcs: input.pcs,
-          quality: input.quality || ''
+          quality: input.quality || '',
+          processName: input.processName || ''
         });
       } else {
         // Create new group with main input and any additional meters from the database
@@ -834,7 +872,8 @@ export default function MillInputForm({
             additionalInputs.push({
               greighMtr: additional.greighMtr,
               pcs: additional.pcs,
-              quality: additional.quality || ''
+              quality: additional.quality || '',
+              processName: additional.processName || ''
             });
           });
         } else {
@@ -852,7 +891,8 @@ export default function MillInputForm({
           mainInput: {
             greighMtr: input.greighMtr,
             pcs: input.pcs,
-            quality: input.quality || ''
+            quality: input.quality || '',
+            processName: input.processName || ''
           },
           additionalInputs: additionalInputs
         });
@@ -927,6 +967,7 @@ export default function MillInputForm({
           greighMtr: '',
           pcs: '',
           quality: '', // Add quality field
+          process: '', // Add process field
           additionalMeters: []
         }
       ]
@@ -998,7 +1039,7 @@ export default function MillInputForm({
         item.id === itemId
           ? {
               ...item,
-              additionalMeters: [...item.additionalMeters, { meters: '', pieces: '', quality: '' }]
+              additionalMeters: [...item.additionalMeters, { meters: '', pieces: '', quality: '', process: '' }]
             }
           : item
       )
@@ -1019,7 +1060,7 @@ export default function MillInputForm({
     });
   };
 
-  const updateAdditionalMeters = (itemId: string, index: number, field: 'meters' | 'pieces' | 'quality', value: string) => {
+  const updateAdditionalMeters = (itemId: string, index: number, field: 'meters' | 'pieces' | 'quality' | 'process', value: string) => {
     setFormData({
       ...formData,
       millItems: formData.millItems.map(item =>
@@ -1078,6 +1119,34 @@ export default function MillInputForm({
     setQualitySearchStates(prev => ({ ...prev, [searchKey]: quality.name }));
     setCurrentQualitySearch(quality.name);
     setActiveQualityDropdown(null);
+  };
+
+  // Process helper functions
+  const getFilteredProcesses = (itemId: string, type: 'main' | 'additional', index?: number) => {
+    const searchKey = `${itemId}_${type}${index !== undefined ? `_${index}` : ''}`;
+    const searchTerm = activeProcessDropdown?.itemId === itemId && activeProcessDropdown?.type === type && activeProcessDropdown?.index === index 
+      ? currentProcessSearch 
+      : (processSearchStates[searchKey] || '');
+    
+    const filtered = PROCESS_OPTIONS.filter(process =>
+      process.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    return filtered;
+  };
+
+  const handleProcessSelect = (itemId: string, type: 'main' | 'additional', process: string, index?: number) => {
+    const searchKey = `${itemId}_${type}${index !== undefined ? `_${index}` : ''}`;
+    
+    if (type === 'main') {
+      updateMillItem(itemId, 'process', process);
+    } else {
+      updateAdditionalMeters(itemId, index!, 'process', process);
+    }
+    
+    setProcessSearchStates(prev => ({ ...prev, [searchKey]: process }));
+    setCurrentProcessSearch(process);
+    setActiveProcessDropdown(null);
   };
 
   const validateForm = () => {
@@ -1164,7 +1233,8 @@ export default function MillInputForm({
         .map(additional => ({
           greighMtr: parseFloat(additional.meters),
           pcs: parseInt(additional.pieces),
-          quality: additional.quality
+          quality: additional.quality,
+          processName: additional.process || ''
         }));
 
       // Debug log to see what's being sent
@@ -1177,6 +1247,7 @@ export default function MillInputForm({
         greighMtr: parseFloat(item.greighMtr),
         pcs: parseInt(item.pcs),
         quality: item.quality, // Add quality field
+        processName: item.process, // Add process field
         additionalMeters: additionalMeters.length > 0 ? additionalMeters : [],
         notes: ''
       };
@@ -1458,7 +1529,15 @@ export default function MillInputForm({
                     searchValue={millSearch}
                     onSearchChange={setMillSearch}
                     showDropdown={showMillDropdown}
-                    onToggleDropdown={() => setShowMillDropdown(!showMillDropdown)}
+                    onToggleDropdown={() => {
+                      // Close any active quality and process dropdowns first
+                      setActiveQualityDropdown(null);
+                      setCurrentQualitySearch('');
+                      setActiveProcessDropdown(null);
+                      setCurrentProcessSearch('');
+                      // Toggle mill dropdown
+                      setShowMillDropdown(!showMillDropdown);
+                    }}
                     onSelect={(mill) => {
                       setFormData({ ...formData, mill: mill._id });
                       setMillSearch(mill.name);
@@ -1564,7 +1643,7 @@ export default function MillInputForm({
                       
                       <div className="space-y-4">
                         {/* M1 and P1 Fields (Always visible) */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                           {/* Quality for M1 */}
                           <div>
                             <label className={`block text-sm font-medium mb-2 ${
@@ -1572,36 +1651,123 @@ export default function MillInputForm({
                             }`}>
                               Quality M1 <span className="text-red-500">*</span>
                             </label>
-                            <EnhancedDropdown
-                              options={getFilteredQualities(item.id, 'main')}
-                              value={item.quality}
-                              onChange={(value) => updateMillItem(item.id, 'quality', value)}
-                              placeholder="Search quality..."
-                              searchValue={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main' 
-                                ? currentQualitySearch 
-                                : (qualitySearchStates[`${item.id}_main`] || '')}
-                              onSearchChange={(value) => {
-                                if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main') {
-                                  setCurrentQualitySearch(value);
-                                } else {
-                                  setQualitySearchStates(prev => ({ ...prev, [`${item.id}_main`]: value }));
-                                }
-                              }}
-                              showDropdown={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main'}
-                              onToggleDropdown={() => {
-                                if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main') {
+                            <div className="relative">
+                              <EnhancedDropdown
+                                options={getFilteredQualities(item.id, 'main')}
+                                value={item.quality}
+                                onChange={(value) => updateMillItem(item.id, 'quality', value)}
+                                placeholder="Search quality..."
+                                searchValue={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main' 
+                                  ? currentQualitySearch 
+                                  : (qualitySearchStates[`${item.id}_main`] || '')}
+                                onSearchChange={(value) => {
+                                  if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main') {
+                                    setCurrentQualitySearch(value);
+                                  } else {
+                                    setQualitySearchStates(prev => ({ ...prev, [`${item.id}_main`]: value }));
+                                  }
+                                }}
+                                showDropdown={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main'}
+                                onToggleDropdown={() => {
+                                  // Close mill and process dropdowns if open
+                                  setShowMillDropdown(false);
+                                  setActiveProcessDropdown(null);
+                                  setCurrentProcessSearch('');
+                                  
+                                  if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main') {
+                                    setActiveQualityDropdown(null);
+                                    setCurrentQualitySearch('');
+                                  } else {
+                                    setActiveQualityDropdown({ itemId: item.id, type: 'main' });
+                                    setCurrentQualitySearch(qualitySearchStates[`${item.id}_main`] || '');
+                                  }
+                                }}
+                                onSelect={(quality) => handleQualitySelect(item.id, 'main', quality)}
+                                isDarkMode={isDarkMode}
+                                error={errors[`quality_${item.id}`]}
+                                recentlyAddedId={recentlyAddedQuality}
+                              />
+                              {item.quality && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateMillItem(item.id, 'quality', '')}
+                                  className={`absolute right-8 top-1/2 transform -translate-y-1/2 p-1 rounded-full hover:bg-opacity-80 transition-colors ${
+                                    isDarkMode 
+                                      ? 'text-gray-400 hover:text-red-400 hover:bg-red-500/20' 
+                                      : 'text-gray-500 hover:text-red-500 hover:bg-red-100'
+                                  }`}
+                                  title="Clear quality"
+                                >
+                                  <XMarkIcon className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Process for M1 */}
+                          <div>
+                            <label className={`block text-sm font-medium mb-2 ${
+                              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                            }`}>
+                              Process M1
+                            </label>
+                            <div className="relative">
+                              <EnhancedDropdown
+                                options={getFilteredProcesses(item.id, 'main').map(process => ({ name: process, _id: process }))}
+                                value={item.process}
+                                onChange={(value) => updateMillItem(item.id, 'process', value)}
+                                placeholder="Search process..."
+                                searchValue={activeProcessDropdown?.itemId === item.id && activeProcessDropdown?.type === 'main' 
+                                  ? currentProcessSearch 
+                                  : (processSearchStates[`${item.id}_main`] || '')}
+                                onSearchChange={(value) => {
+                                  if (activeProcessDropdown?.itemId === item.id && activeProcessDropdown?.type === 'main') {
+                                    setCurrentProcessSearch(value);
+                                  } else {
+                                    setProcessSearchStates(prev => ({ ...prev, [`${item.id}_main`]: value }));
+                                  }
+                                }}
+                                showDropdown={activeProcessDropdown?.itemId === item.id && activeProcessDropdown?.type === 'main'}
+                                onToggleDropdown={() => {
+                                  // Close mill and quality dropdowns if open
+                                  setShowMillDropdown(false);
                                   setActiveQualityDropdown(null);
                                   setCurrentQualitySearch('');
-                                } else {
-                                  setActiveQualityDropdown({ itemId: item.id, type: 'main' });
-                                  setCurrentQualitySearch(qualitySearchStates[`${item.id}_main`] || '');
-                                }
-                              }}
-                              onSelect={(quality) => handleQualitySelect(item.id, 'main', quality)}
-                              isDarkMode={isDarkMode}
-                              error={errors[`quality_${item.id}`]}
-                              recentlyAddedId={recentlyAddedQuality}
-                            />
+                                  
+                                  if (activeProcessDropdown?.itemId === item.id && activeProcessDropdown?.type === 'main') {
+                                    setActiveProcessDropdown(null);
+                                    setCurrentProcessSearch('');
+                                  } else {
+                                    setActiveProcessDropdown({ itemId: item.id, type: 'main' });
+                                    setCurrentProcessSearch(processSearchStates[`${item.id}_main`] || '');
+                                  }
+                                }}
+                                onSelect={(process) => handleProcessSelect(item.id, 'main', process.name)}
+                                isDarkMode={isDarkMode}
+                                error={errors[`process_${item.id}`]}
+                              />
+                              {item.process && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateMillItem(item.id, 'process', '')}
+                                  className={`absolute right-8 top-1/2 transform -translate-y-1/2 p-1 rounded-full hover:bg-opacity-80 transition-colors ${
+                                    isDarkMode 
+                                      ? 'text-gray-400 hover:text-red-400 hover:bg-red-500/20' 
+                                      : 'text-gray-500 hover:text-red-500 hover:bg-red-100'
+                                  }`}
+                                  title="Clear process"
+                                >
+                                  <XMarkIcon className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                            {errors[`process_${item.id}`] && (
+                              <p className={`text-sm mt-1 ${
+                                isDarkMode ? 'text-red-400' : 'text-red-600'
+                              }`}>
+                                {errors[`process_${item.id}`]}
+                              </p>
+                            )}
                           </div>
 
                           <div>
@@ -1658,7 +1824,7 @@ export default function MillInputForm({
                         </div>
 
                         {item.additionalMeters.map((additional, index) => (
-                          <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {/* Quality for Additional Meters */}
                             <div>
                               <label className={`block text-sm font-medium mb-2 ${
@@ -1666,36 +1832,123 @@ export default function MillInputForm({
                               }`}>
                                 Quality M{index + 2} <span className="text-red-500">*</span>
                               </label>
-                              <EnhancedDropdown
-                                options={getFilteredQualities(item.id, 'additional', index)}
-                                value={additional.quality}
-                                onChange={(value) => updateAdditionalMeters(item.id, index, 'quality', value)}
-                                placeholder="Search quality..."
-                                searchValue={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index
-                                  ? currentQualitySearch 
-                                  : (qualitySearchStates[`${item.id}_additional_${index}`] || '')}
-                                onSearchChange={(value) => {
-                                  if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index) {
-                                    setCurrentQualitySearch(value);
-                                  } else {
-                                    setQualitySearchStates(prev => ({ ...prev, [`${item.id}_additional_${index}`]: value }));
-                                  }
-                                }}
-                                showDropdown={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index}
-                                onToggleDropdown={() => {
-                                  if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index) {
+                              <div className="relative">
+                                <EnhancedDropdown
+                                  options={getFilteredQualities(item.id, 'additional', index)}
+                                  value={additional.quality}
+                                  onChange={(value) => updateAdditionalMeters(item.id, index, 'quality', value)}
+                                  placeholder="Search quality..."
+                                  searchValue={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index
+                                    ? currentQualitySearch 
+                                    : (qualitySearchStates[`${item.id}_additional_${index}`] || '')}
+                                  onSearchChange={(value) => {
+                                    if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index) {
+                                      setCurrentQualitySearch(value);
+                                    } else {
+                                      setQualitySearchStates(prev => ({ ...prev, [`${item.id}_additional_${index}`]: value }));
+                                    }
+                                  }}
+                                  showDropdown={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index}
+                                  onToggleDropdown={() => {
+                                    // Close mill and process dropdowns if open
+                                    setShowMillDropdown(false);
+                                    setActiveProcessDropdown(null);
+                                    setCurrentProcessSearch('');
+                                    
+                                    if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index) {
+                                      setActiveQualityDropdown(null);
+                                      setCurrentQualitySearch('');
+                                    } else {
+                                      setActiveQualityDropdown({ itemId: item.id, type: 'additional', index });
+                                      setCurrentQualitySearch(qualitySearchStates[`${item.id}_additional_${index}`] || '');
+                                    }
+                                  }}
+                                  onSelect={(quality) => handleQualitySelect(item.id, 'additional', quality, index)}
+                                  isDarkMode={isDarkMode}
+                                  error={errors[`additionalQuality_${item.id}_${index}`]}
+                                  recentlyAddedId={recentlyAddedQuality}
+                                />
+                                {additional.quality && (
+                                  <button
+                                    type="button"
+                                    onClick={() => updateAdditionalMeters(item.id, index, 'quality', '')}
+                                    className={`absolute right-8 top-1/2 transform -translate-y-1/2 p-1 rounded-full hover:bg-opacity-80 transition-colors ${
+                                      isDarkMode 
+                                        ? 'text-gray-400 hover:text-red-400 hover:bg-red-500/20' 
+                                        : 'text-gray-500 hover:text-red-500 hover:bg-red-100'
+                                    }`}
+                                    title="Clear quality"
+                                  >
+                                    <XMarkIcon className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Process for Additional Meters */}
+                            <div>
+                              <label className={`block text-sm font-medium mb-2 ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                              }`}>
+                                Process M{index + 2}
+                              </label>
+                              <div className="relative">
+                                <EnhancedDropdown
+                                  options={getFilteredProcesses(item.id, 'additional', index).map(process => ({ name: process, _id: process }))}
+                                  value={additional.process}
+                                  onChange={(value) => updateAdditionalMeters(item.id, index, 'process', value)}
+                                  placeholder="Search process..."
+                                  searchValue={activeProcessDropdown?.itemId === item.id && activeProcessDropdown?.type === 'additional' && activeProcessDropdown?.index === index
+                                    ? currentProcessSearch 
+                                    : (processSearchStates[`${item.id}_additional_${index}`] || '')}
+                                  onSearchChange={(value) => {
+                                    if (activeProcessDropdown?.itemId === item.id && activeProcessDropdown?.type === 'additional' && activeProcessDropdown?.index === index) {
+                                      setCurrentProcessSearch(value);
+                                    } else {
+                                      setProcessSearchStates(prev => ({ ...prev, [`${item.id}_additional_${index}`]: value }));
+                                    }
+                                  }}
+                                  showDropdown={activeProcessDropdown?.itemId === item.id && activeProcessDropdown?.type === 'additional' && activeProcessDropdown?.index === index}
+                                  onToggleDropdown={() => {
+                                    // Close mill and quality dropdowns if open
+                                    setShowMillDropdown(false);
                                     setActiveQualityDropdown(null);
                                     setCurrentQualitySearch('');
-                                  } else {
-                                    setActiveQualityDropdown({ itemId: item.id, type: 'additional', index });
-                                    setCurrentQualitySearch(qualitySearchStates[`${item.id}_additional_${index}`] || '');
-                                  }
-                                }}
-                                onSelect={(quality) => handleQualitySelect(item.id, 'additional', quality, index)}
-                                isDarkMode={isDarkMode}
-                                error={errors[`additionalQuality_${item.id}_${index}`]}
-                                recentlyAddedId={recentlyAddedQuality}
-                              />
+                                    
+                                    if (activeProcessDropdown?.itemId === item.id && activeProcessDropdown?.type === 'additional' && activeProcessDropdown?.index === index) {
+                                      setActiveProcessDropdown(null);
+                                      setCurrentProcessSearch('');
+                                    } else {
+                                      setActiveProcessDropdown({ itemId: item.id, type: 'additional', index });
+                                      setCurrentProcessSearch(processSearchStates[`${item.id}_additional_${index}`] || '');
+                                    }
+                                  }}
+                                  onSelect={(process) => handleProcessSelect(item.id, 'additional', process.name, index)}
+                                  isDarkMode={isDarkMode}
+                                  error={errors[`additionalProcess_${item.id}_${index}`]}
+                                />
+                                {additional.process && (
+                                  <button
+                                    type="button"
+                                    onClick={() => updateAdditionalMeters(item.id, index, 'process', '')}
+                                    className={`absolute right-8 top-1/2 transform -translate-y-1/2 p-1 rounded-full hover:bg-opacity-80 transition-colors ${
+                                      isDarkMode 
+                                        ? 'text-gray-400 hover:text-red-400 hover:bg-red-500/20' 
+                                        : 'text-gray-500 hover:text-red-500 hover:bg-red-100'
+                                    }`}
+                                    title="Clear process"
+                                  >
+                                    <XMarkIcon className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                              {errors[`additionalProcess_${item.id}_${index}`] && (
+                                <p className={`text-sm mt-1 ${
+                                  isDarkMode ? 'text-red-400' : 'text-red-600'
+                                }`}>
+                                  {errors[`additionalProcess_${item.id}_${index}`]}
+                                </p>
+                              )}
                             </div>
 
                             <div>
