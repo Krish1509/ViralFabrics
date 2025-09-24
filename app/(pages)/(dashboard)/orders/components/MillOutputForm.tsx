@@ -22,9 +22,8 @@ interface MillOutputItem {
   recdDate: string;
   millBillNo: string;
   finishedMtr: string;
-  millRate: string;
   quality: string; // Add quality field
-  additionalFinishedMtr: { meters: string; rate: string; quality: string }[]; // Add quality to additional fields
+  additionalFinishedMtr: { meters: string; quality: string }[]; // Add quality to additional fields
 }
 
 interface MillOutputFormData {
@@ -595,6 +594,13 @@ export default function MillOutputForm({
 }: MillOutputFormProps) {
   const { isDarkMode } = useDarkMode();
   
+  console.log('MillOutputForm props:', { 
+    order: order?.orderId, 
+    qualities: qualities?.length, 
+    isEditing, 
+    existingMillOutputs: existingMillOutputs?.length 
+  });
+  
   // Debug logging for qualities prop
   const [formData, setFormData] = useState<MillOutputFormData>({
     orderId: order?.orderId || '',
@@ -603,7 +609,6 @@ export default function MillOutputForm({
     recdDate: '',
     millBillNo: '',
     finishedMtr: '',
-      millRate: '',
       quality: '', // Add quality field
       additionalFinishedMtr: []
     }]
@@ -620,7 +625,9 @@ export default function MillOutputForm({
 
   // Load existing mill outputs when editing
   useEffect(() => {
+    console.log('useEffect triggered:', { isEditing, existingMillOutputsLength: existingMillOutputs.length });
     if (isEditing && existingMillOutputs.length > 0) {
+      console.log('Loading existing mill outputs...');
       loadExistingMillOutputs();
     }
   }, [isEditing, existingMillOutputs]);
@@ -635,7 +642,6 @@ export default function MillOutputForm({
         recdDate: '',
         millBillNo: '',
         finishedMtr: '',
-          millRate: '',
           quality: '', // Add quality field
           additionalFinishedMtr: []
         }]
@@ -646,7 +652,10 @@ export default function MillOutputForm({
 
   // Function to load existing mill outputs
   const loadExistingMillOutputs = async () => {
+    console.log('Loading existing mill outputs:', { order: order?.orderId, existingMillOutputs });
+    
     if (!order || existingMillOutputs.length === 0) {
+      console.log('No order or existing mill outputs found');
       return;
     }
     
@@ -654,6 +663,8 @@ export default function MillOutputForm({
     try {
       // Group mill outputs by bill number and date
       const groupedOutputs = groupMillOutputsByBillAndDate(existingMillOutputs);
+      console.log('Grouped outputs:', groupedOutputs);
+      
       if (groupedOutputs.length > 0) {
         const newFormData = {
           orderId: order.orderId,
@@ -662,20 +673,22 @@ export default function MillOutputForm({
             recdDate: group.recdDate,
             millBillNo: group.millBillNo,
             finishedMtr: group.mainOutput.finishedMtr.toString(),
-            millRate: group.mainOutput.millRate.toString(),
             quality: group.mainOutput.quality?._id || group.mainOutput.quality || '', // Extract quality ID
             additionalFinishedMtr: group.additionalOutputs.map((output: any) => ({
               meters: output.finishedMtr.toString(),
-              rate: output.millRate.toString(),
               quality: output.quality?._id || output.quality || '' // Extract quality ID
             }))
           }))
         };
         
+        console.log('Setting form data:', newFormData);
         setFormData(newFormData);
-        }
+      } else {
+        console.log('No grouped outputs found');
+      }
     } catch (error) {
-      } finally {
+      console.error('Error loading existing mill outputs:', error);
+    } finally {
       setLoadingExistingData(false);
     }
   };
@@ -700,7 +713,6 @@ export default function MillOutputForm({
         // Add as additional output
         existingGroup.additionalOutputs.push({
           finishedMtr: output.finishedMtr,
-          millRate: output.millRate,
           quality: output.quality || ''
         });
       } else {
@@ -710,7 +722,6 @@ export default function MillOutputForm({
           millBillNo: output.millBillNo,
           mainOutput: {
             finishedMtr: output.finishedMtr,
-            millRate: output.millRate,
             quality: output.quality || ''
           },
           additionalOutputs: []
@@ -733,7 +744,6 @@ export default function MillOutputForm({
           recdDate: '',
           millBillNo: '',
           finishedMtr: '',
-          millRate: '',
           quality: '', // Add quality field
           additionalFinishedMtr: []
         }
@@ -772,7 +782,7 @@ export default function MillOutputForm({
     });
   };
 
-  // Add additional finished meters and rates
+  // Add additional finished meters
   const addAdditionalFinishedMtr = (itemId: string) => {
     setFormData({
       ...formData,
@@ -780,14 +790,14 @@ export default function MillOutputForm({
         item.id === itemId
           ? {
               ...item,
-              additionalFinishedMtr: [...item.additionalFinishedMtr, { meters: '', rate: '', quality: '' }]
+              additionalFinishedMtr: [...item.additionalFinishedMtr, { meters: '', quality: '' }]
             }
           : item
       )
     });
   };
 
-  // Remove additional finished meters and rates
+  // Remove additional finished meters
   const removeAdditionalFinishedMtr = (itemId: string, index: number) => {
     setFormData({
       ...formData,
@@ -802,8 +812,8 @@ export default function MillOutputForm({
     });
   };
 
-  // Update additional finished meters and rates
-  const updateAdditionalFinishedMtr = (itemId: string, index: number, field: 'meters' | 'rate' | 'quality', value: string) => {
+  // Update additional finished meters
+  const updateAdditionalFinishedMtr = (itemId: string, index: number, field: 'meters' | 'quality', value: string) => {
     setFormData({
       ...formData,
       millOutputItems: formData.millOutputItems.map(item =>
@@ -826,8 +836,10 @@ export default function MillOutputForm({
 
   const getFilteredQualities = (itemId: string, type: 'main' | 'additional', index?: number) => {
     // Debug logging
+    console.log('getFilteredQualities called:', { itemId, type, index, qualities });
     // Safety check for undefined qualities
     if (!qualities || !Array.isArray(qualities)) {
+      console.log('No qualities available or not an array:', qualities);
       return [];
     }
     
@@ -879,21 +891,16 @@ export default function MillOutputForm({
         newErrors[`finishedMtr_${item.id}`] = 'Valid finished meters is required';
       }
 
-      if (!item.millRate || item.millRate.trim() === '' || parseFloat(item.millRate) <= 0) {
-        newErrors[`millRate_${item.id}`] = 'Valid mill rate is required';
-      }
+      // Mill rate is now optional - no validation required
 
       if (!item.quality || item.quality.trim() === '') {
         newErrors[`quality_${item.id}`] = 'Quality is required';
       }
 
-      // Validate additional finished meters and rates
+      // Validate additional finished meters
       item.additionalFinishedMtr.forEach((additional, additionalIndex) => {
         if (!additional.meters || additional.meters.trim() === '' || parseFloat(additional.meters) <= 0) {
           newErrors[`additionalFinishedMtr_${item.id}_${additionalIndex}_meters`] = 'Valid additional finished meters is required';
-        }
-        if (!additional.rate || additional.rate.trim() === '' || parseFloat(additional.rate) <= 0) {
-          newErrors[`additionalFinishedMtr_${item.id}_${additionalIndex}_rate`] = 'Valid additional mill rate is required';
         }
         if (!additional.quality || additional.quality.trim() === '') {
           newErrors[`additionalQuality_${item.id}_${additionalIndex}`] = 'Quality is required';
@@ -950,7 +957,6 @@ export default function MillOutputForm({
         recdDate: item.recdDate,
         millBillNo: item.millBillNo.trim(),
         finishedMtr: parseFloat(item.finishedMtr),
-        millRate: parseFloat(item.millRate),
         quality: item.quality // Add quality field
       };
 
@@ -972,7 +978,6 @@ export default function MillOutputForm({
           recdDate: item.recdDate,
           millBillNo: item.millBillNo.trim(),
           finishedMtr: parseFloat(additional.meters),
-          millRate: parseFloat(additional.rate),
           quality: additional.quality // Add quality field
         };
 
@@ -1307,41 +1312,9 @@ export default function MillOutputForm({
                     </p>
                   )}
                 </div>
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Mill Rate R1 <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    value={item.millRate}
-                    onChange={(e) => updateMillOutputItem(item.id, 'millRate', e.target.value)}
-                    placeholder="Enter mill rate"
-                    step="0.01"
-                    min="0"
-                    required
-                    className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      errors[`millRate_${item.id}`]
-                        ? isDarkMode
-                          ? 'border-red-500 bg-gray-800 text-white'
-                          : 'border-red-500 bg-white text-gray-900'
-                        : isDarkMode
-                          ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                          : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                    }`}
-                  />
-                  {errors[`millRate_${item.id}`] && (
-                    <p className={`text-sm mt-1 ${
-                      isDarkMode ? 'text-red-400' : 'text-red-600'
-                    }`}>
-                      {errors[`millRate_${item.id}`]}
-                    </p>
-                  )}
-                </div>
               </div>
 
-              {/* Additional Fields (M2, R2, M3, R3, etc.) */}
+              {/* Additional Fields (M2, M3, M4, etc.) */}
               {item.additionalFinishedMtr.map((additional, index) => (
                 <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Quality for Additional Meters */}
@@ -1403,27 +1376,6 @@ export default function MillOutputForm({
                       }`}
                     />
                   </div>
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${
-                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                    }`}>
-                      Mill Rate R{index + 2} <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      value={additional.rate}
-                      onChange={(e) => updateAdditionalFinishedMtr(item.id, index, 'rate', e.target.value)}
-                      placeholder="Enter mill rate"
-                      step="0.01"
-                      min="0"
-                      required
-                      className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                        isDarkMode
-                          ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500' 
-                          : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                      }`}
-                    />
-                  </div>
                   <div className="flex items-end">
                     <button
                       type="button"
@@ -1452,7 +1404,7 @@ export default function MillOutputForm({
                            }`}
                          >
                            <PlusIcon className="h-4 w-4 mr-2" />
-                           Add More Finished Meters & Rates
+                           Add More Finished Meters
                          </button>
                        </div>
 

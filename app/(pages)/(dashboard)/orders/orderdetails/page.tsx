@@ -288,9 +288,9 @@ export default function OrderDetailsPage() {
   // If still loading, show loading skeleton
   if (loading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-gray-900">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:bg-slate-800">
         {/* Simple Header */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+        <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-gray-600 px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-6 h-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
@@ -305,7 +305,7 @@ export default function OrderDetailsPage() {
           {/* Top Row */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+              <div key={i} className="bg-white dark:bg-slate-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
                 <div className="w-16 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
                 <div className="w-12 h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
               </div>
@@ -314,12 +314,12 @@ export default function OrderDetailsPage() {
 
           {/* Main Content */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+            <div className="bg-white dark:bg-slate-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
               <div className="w-20 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
               <div className="w-full h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
               <div className="w-full h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
             </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+            <div className="bg-white dark:bg-slate-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
               <div className="w-16 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
               <div className="w-full h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
               <div className="w-full h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
@@ -329,7 +329,7 @@ export default function OrderDetailsPage() {
           {/* Bottom Sections */}
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+              <div key={i} className="bg-white dark:bg-slate-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
                 <div className="w-24 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
                 <div className="w-full h-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
               </div>
@@ -353,10 +353,10 @@ export default function OrderDetailsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
-      <div className="w-full bg-white dark:bg-gray-900">
+    <div className="min-h-screen bg-white dark:bg-slate-800">
+      <div className="w-full bg-white dark:bg-slate-800">
         {/* Clean Header */}
-        <div className={`border-b ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
+        <div className={`border-b ${isDarkMode ? 'border-gray-600 bg-slate-800' : 'border-gray-200 bg-white'}`}>
            {/* Success Message */}
            {successMessage && (
             <div className={`px-2 py-2 text-center ${isDarkMode ? 'bg-green-600 text-white' : 'bg-green-500 text-white'}`}>
@@ -367,7 +367,7 @@ export default function OrderDetailsPage() {
              </div>
            )}
           
-          <div className="px-1 py-4">
+          <div className="px-1 py-4 ">
           <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
               <button
@@ -410,244 +410,286 @@ export default function OrderDetailsPage() {
         </div>
 
         {/* Main Content */}
-        <div className="px-1 py-4">
-          {/* All Cards in One Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
+        <div className="px-4 py-6 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:bg-slate-800 min-h-screen">
+          {/* Header Cards Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {/* Order Information */}
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-white border-gray-200 hover:shadow-md'} transition-all duration-200`}>
               <div className="flex items-center space-x-3 mb-4">
-                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-blue-600/20' : 'bg-blue-100'}`}>
+                <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-blue-600/20' : 'bg-blue-100'}`}>
                   <DocumentTextIcon className={`h-6 w-6 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                     </div>
+                </div>
                 <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Order Information
                 </h2>
-                     </div>
+              </div>
               <div className="space-y-3">
-                           <div>
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Order ID:</span>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.orderId}</p>
-                   </div>
-                           <div>
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Order Type:</span>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.orderType || 'Not selected'}</p>
-                        </div>
-                           <div>
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>PO:</span>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.poNumber || 'Not selected'}</p>
-                            </div>
-                                    <div>
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Style:</span>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.styleNo || 'Not selected'}</p>
-                           </div>
-                   </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Order ID</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.orderId}</p>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Order Type</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.orderType || 'Not selected'}</p>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>PO Number</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.poNumber || 'Not selected'}</p>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Style No</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.styleNo || 'Not selected'}</p>
+                </div>
+              </div>
                  </div>
 
             {/* Party Information */}
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-white border-gray-200 hover:shadow-md'} transition-all duration-200`}>
               <div className="flex items-center space-x-3 mb-4">
-                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-green-600/20' : 'bg-green-100'}`}>
+                <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-green-600/20' : 'bg-green-100'}`}>
                   <UserIcon className={`h-6 w-6 ${isDarkMode ? 'text-green-400' : 'text-green-600'}`} />
-                     </div>
+                </div>
                 <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Party Information
                 </h2>
-                     </div>
+              </div>
               <div className="space-y-3">
-                <div>
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Name:</span>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>234</p>
-                   </div>
-                           <div>
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Contact:</span>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>234</p>
-                      </div>
-                           <div>
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Phone:</span>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>324</p>
-                        </div>
-                   </div>
-                 </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Name</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {party?.name || 'Not available'}
+                  </p>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Contact</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {party?.contactName || 'Not available'}
+                  </p>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Phone</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {party?.contactPhone || 'Not available'}
+                  </p>
+                </div>
+              </div>
+            </div>
 
             {/* Important Dates */}
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-white border-gray-200 hover:shadow-md'} transition-all duration-200`}>
               <div className="flex items-center space-x-3 mb-4">
-                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-purple-600/20' : 'bg-purple-100'}`}>
+                <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-purple-600/20' : 'bg-purple-100'}`}>
                   <CalendarIcon className={`h-6 w-6 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`} />
-                       </div>
+                </div>
                 <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Important Dates
                 </h2>
-                       </div>
+              </div>
               <div className="space-y-3">
-                        <div>
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Arrival:</span>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Arrival Date</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {order?.arrivalDate ? formatDate(order.arrivalDate) : 'Not selected'}
-                         </p>
-                       </div>
-                           <div>
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>PO Date:</span>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  </p>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>PO Date</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {order?.poDate ? formatDate(order.poDate) : 'Not selected'}
-                             </p>
-                           </div>
-                           <div>
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Delivery:</span>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  </p>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Delivery Date</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {order?.deliveryDate ? formatDate(order.deliveryDate) : 'Not selected'}
-                             </p>
-                           </div>
-                         </div>
-                     </div>
+                  </p>
+                </div>
+              </div>
+            </div>
 
             {/* System Timestamps */}
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-650' : 'bg-white border-gray-200 hover:shadow-md'} transition-all duration-200`}>
               <div className="flex items-center space-x-3 mb-4">
-                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-100'}`}>
+                <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-100'}`}>
                   <ClockIconSolid className={`h-6 w-6 ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`} />
-                       </div>
+                </div>
                 <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   System Timestamps
                 </h2>
-                       </div>
+              </div>
               <div className="space-y-3">
-                  <div>
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Created:</span>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Created</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {order?.createdAt ? new Date(order.createdAt).toLocaleDateString('en-US', {
-                                           year: 'numeric',
+                      year: 'numeric',
                       month: 'short',
                       day: 'numeric',
                       hour: '2-digit',
                       minute: '2-digit'
                     }) : 'Not available'}
-                           </p>
-                         </div>
-                           <div>
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Updated:</span>
-                  <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  </p>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Updated</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {order?.updatedAt ? new Date(order.updatedAt).toLocaleDateString('en-US', {
-                                           year: 'numeric',
+                      year: 'numeric',
                       month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
                     }) : 'Not available'}
-                             </p>
-                           </div>
-                         </div>
-                     </div>
+                  </p>
+                </div>
+              </div>
+            </div>
                </div>
 
           {/* Order Items and Lab Data Section */}
-          <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Order Items Cards */}
-                 {order?.items && order.items.length > 0 && (
-              <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-indigo-600/20' : 'bg-indigo-100'}`}>
+            {order?.items && order.items.length > 0 && (
+              <div className={`p-6 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'}`}>
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-indigo-600/20' : 'bg-indigo-100'}`}>
                     <DocumentTextIcon className={`h-6 w-6 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`} />
-                    </div>
-                  <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  </div>
+                  <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     Order Items ({order?.items?.length || 0})
                   </h2>
                 </div>
-                <div className="space-y-3">
-                      {order.items.map((item, index) => (
-                    <div key={index} className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
-                      <div className="space-y-2">
+                <div className="space-y-4">
+                  {order.items.map((item, index) => (
+                    <div key={index} className={`p-4 rounded-xl border ${isDarkMode ? 'bg-gray-600 border-gray-500 hover:bg-gray-550' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'} transition-all duration-200`}>
+                      <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <h3 className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                              Item {index + 1}
+                          <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            Item {index + 1}
                           </h3>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
                             isDarkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'
                           }`}>
                             #{index + 1}
-                              </span>
-                          </div>
+                          </span>
+                        </div>
                           
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                               Quality
                             </label>
-                            <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               {typeof item.quality === 'string' ? item.quality : item.quality?.name || '--'}
                             </p>
-                              </div>
+                          </div>
                           
-                          <div>
-                            <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                          <div className="space-y-1">
+                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                               Quantity
                             </label>
-                            <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               {item.quantity || '--'}
                             </p>
-                                  </div>
+                          </div>
                                   
-                          <div>
-                            <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                          <div className="space-y-1">
+                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                               Description
                             </label>
-                            <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               {item.description || '--'}
-                                       </p>
-                                     </div>
+                            </p>
+                          </div>
                                      
-                          <div>
-                            <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                          <div className="space-y-1">
+                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                               Weaver
                             </label>
-                            <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               {item.weaverSupplierName || '--'}
                             </p>
-                                   </div>
+                          </div>
                                   
-                          <div>
-                            <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                              Rate
+                          <div className="space-y-1">
+                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              Purchase Rate
                             </label>
-                            <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               {item.purchaseRate ? `₹${Number(item.purchaseRate).toFixed(0)}` : '--'}
-                                      </p>
-                              </div>
+                            </p>
+                          </div>
                           
-                          <div>
-                            <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                          <div className="space-y-1">
+                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              Mill Rate
+                            </label>
+                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {item.millRate ? `₹${Number(item.millRate).toFixed(0)}` : '--'}
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              Sales Rate
+                            </label>
+                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {item.salesRate ? `₹${Number(item.salesRate).toFixed(0)}` : '--'}
+                            </p>
+                          </div>
+                          
+                          <div className="md:col-span-2">
+                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                               Images
                             </label>
-                            <div className="flex items-center space-x-1">
+                            <div className="flex items-center space-x-3 mt-2">
                               {item.imageUrls && item.imageUrls.length > 0 ? (
                                 <>
-                                  <img
-                                    src={item.imageUrls[0]}
-                                    alt={`Item ${index + 1}`}
-                                    className="w-6 h-6 rounded-full border border-white dark:border-gray-800 object-cover cursor-pointer hover:scale-110 transition-transform"
-                                    onClick={() => handleImageClick(item.imageUrls!, 0)}
-                                       onError={(e) => {
-                                      (e.target as HTMLImageElement).style.display = 'none';
-                                    }}
-                                  />
+                                  <div className="relative group">
+                                    <img
+                                      src={item.imageUrls[0]}
+                                      alt={`Item ${index + 1} - Image 1`}
+                                      className="w-16 h-16 rounded-lg border-2 border-gray-200 dark:border-gray-600 object-cover cursor-pointer hover:scale-110 transition-all duration-200 shadow-sm hover:shadow-lg"
+                                      onClick={() => handleImageClick(item.imageUrls!, 0)}
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = 'none';
+                                        // Show fallback icon if image fails to load
+                                        const fallback = target.nextElementSibling as HTMLElement;
+                                        if (fallback) fallback.style.display = 'block';
+                                      }}
+                                      loading="lazy"
+                                    />
+                                    <PhotoIcon className="h-6 w-6 text-gray-400 absolute inset-0 m-auto hidden" />
+                                    {/* Hover tooltip */}
+                                    <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                                      Click to view images
+                                    </div>
+                                  </div>
                                   {item.imageUrls.length > 1 && (
                                     <button
                                       onClick={() => handleImageClick(item.imageUrls!, 0)}
-                                      className={`text-xs px-1 py-0.5 rounded-full font-bold ${
+                                      className={`text-xs px-2 py-1 rounded-full font-semibold border transition-all duration-200 ${
                                         isDarkMode 
-                                          ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' 
-                                          : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                      } transition-colors`}
+                                          ? 'bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/30 hover:border-blue-500/50' 
+                                          : 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200 hover:border-blue-300'
+                                      }`}
+                                      title={`View all ${item.imageUrls.length} images`}
                                     >
                                       +{item.imageUrls.length - 1}
-                       </button>
+                                    </button>
                                   )}
                                 </>
                               ) : (
-                                <PhotoIcon className="h-3 w-3 text-gray-400" />
-                       )}
-                                       </div>
-                                     </div>
+                                <div className="flex items-center space-x-1">
+                                  <PhotoIcon className="h-4 w-4 text-gray-400" />
+                                  <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    No images
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                                        </div>
                                      </div>
                                    </div>
@@ -702,7 +744,7 @@ export default function OrderDetailsPage() {
                                   
                                     <div>
                           <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                            Sample Number *
+                            Sample Number
                           </label>
                           <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                             {item.labData?.sampleNumber || '--'}
@@ -1104,77 +1146,103 @@ export default function OrderDetailsPage() {
 
       {/* Image Preview Modal */}
       {showImagePreview && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="relative max-w-4xl max-h-[90vh] w-full">
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-sm z-50 flex items-center justify-center p-2">
+          <div className="relative max-w-7xl max-h-[98vh] w-full">
             {/* Close Button */}
-                <button
-                onClick={() => setShowImagePreview(false)}
-              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-              >
+            <button
+              onClick={() => setShowImagePreview(false)}
+              className="absolute top-4 right-4 z-20 p-3 rounded-full bg-black/60 text-white hover:bg-black/80 transition-all duration-200 backdrop-blur-sm"
+            >
               <XMarkIcon className="h-6 w-6" />
-                </button>
+            </button>
 
             {/* Navigation Buttons */}
             {previewImages.length > 1 && (
               <>
                 <button
                   onClick={() => navigateImage('prev')}
-                  className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-              >
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 text-white hover:bg-black/80 transition-all duration-200 backdrop-blur-sm"
+                >
                   <ChevronLeftIcon className="h-6 w-6" />
                 </button>
-              <button
+                <button
                   onClick={() => navigateImage('next')}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-              >
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 text-white hover:bg-black/80 transition-all duration-200 backdrop-blur-sm"
+                >
                   <ChevronRightIcon className="h-6 w-6" />
-              </button>
+                </button>
               </>
             )}
 
-            {/* Main Image */}
+            {/* Main Image Container */}
             <div
-              className="w-full h-full flex items-center justify-center"
+              className="w-full h-full flex items-center justify-center p-4"
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
             >
-              <img
-                src={previewImages[currentImageIndex]}
-                alt={`Preview ${currentImageIndex + 1}`}
-                className="max-w-full max-h-full object-contain rounded-lg"
-              />
-                </div>
+              <div className="relative w-full h-full flex items-center justify-center">
+                <img
+                  src={previewImages[currentImageIndex]}
+                  alt={`Preview ${currentImageIndex + 1}`}
+                  className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    // Show error message
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'flex items-center justify-center h-64 bg-gray-800 rounded-lg text-white';
+                    errorDiv.innerHTML = '<div class="text-center"><PhotoIcon class="h-12 w-12 mx-auto mb-2 opacity-50"/><p>Failed to load image</p></div>';
+                    target.parentNode?.appendChild(errorDiv);
+                  }}
+                />
+              </div>
+            </div>
 
             {/* Image Counter */}
             {previewImages.length > 1 && (
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+              <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm font-medium backdrop-blur-sm">
                 {currentImageIndex + 1} / {previewImages.length}
-                    </div>
-              )}
+              </div>
+            )}
 
             {/* Thumbnail Strip */}
             {previewImages.length > 1 && (
-              <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 flex space-x-2">
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-3 max-w-full overflow-x-auto pb-2">
                 {previewImages.map((image, index) => (
-                    <button
+                  <button
                     key={index}
                     onClick={() => setCurrentImageIndex(index)}
-                    className={`w-12 h-12 rounded-lg overflow-hidden border-2 transition-all ${
+                    className={`w-20 h-20 rounded-lg overflow-hidden border-2 transition-all duration-200 flex-shrink-0 ${
                       index === currentImageIndex
-                        ? 'border-white'
-                        : 'border-transparent opacity-60 hover:opacity-80'
+                        ? 'border-white shadow-lg scale-110'
+                        : 'border-transparent opacity-60 hover:opacity-80 hover:scale-105'
                     }`}
                   >
                     <img
                       src={image}
                       alt={`Thumbnail ${index + 1}`}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = '<div class="w-full h-full bg-gray-600 flex items-center justify-center"><PhotoIcon class="h-6 w-6 text-white opacity-50"/></div>';
+                        }
+                      }}
                     />
-                    </button>
+                  </button>
                 ))}
-                  </div>
-                        )}
+              </div>
+            )}
+
+            {/* Keyboard Instructions */}
+            {previewImages.length > 1 && (
+              <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-2 rounded-lg text-xs backdrop-blur-sm">
+                Use ← → keys or swipe to navigate
+              </div>
+            )}
           </div>
         </div>
       )}

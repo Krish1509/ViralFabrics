@@ -11,6 +11,8 @@ export interface IOrderItem {
   description?: string;
   weaverSupplierName?: string; // Weaver / Supplier Name moved to item level
   purchaseRate?: number; // Purchase Rate moved to item level
+  millRate?: number; // Mill Rate field
+  salesRate?: number; // Sales Rate field
   specifications?: Record<string, any>;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   priority: number;
@@ -190,6 +192,14 @@ const OrderSchema = new Schema<IOrder>({
       purchaseRate: {
         type: Number,
         min: [0, "Purchase rate cannot be negative"]
+      },
+      millRate: {
+        type: Number,
+        min: [0, "Mill rate cannot be negative"]
+      },
+      salesRate: {
+        type: Number,
+        min: [0, "Sales rate cannot be negative"]
       },
       specifications: {
         type: Schema.Types.Mixed,

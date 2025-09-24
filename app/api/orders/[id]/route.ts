@@ -235,6 +235,20 @@ export async function PUT(
           if (item.description && item.description.trim().length > 200) {
             errors.push(`Description cannot exceed 200 characters in item ${index + 1}`);
           }
+          
+          // Validate millRate if provided
+          if (item.millRate !== undefined && item.millRate !== null && item.millRate !== '') {
+            if (typeof item.millRate !== 'number' || item.millRate < 0) {
+              errors.push(`Mill rate must be a non-negative number in item ${index + 1}`);
+            }
+          }
+          
+          // Validate salesRate if provided
+          if (item.salesRate !== undefined && item.salesRate !== null && item.salesRate !== '') {
+            if (typeof item.salesRate !== 'number' || item.salesRate < 0) {
+              errors.push(`Sales rate must be a non-negative number in item ${index + 1}`);
+            }
+          }
         });
       }
     }
@@ -317,6 +331,16 @@ export async function PUT(
         purchaseRate: item.purchaseRate !== undefined && item.purchaseRate !== null && item.purchaseRate !== '' ? 
           (() => {
             const rate = parseFloat(item.purchaseRate);
+            return isNaN(rate) ? undefined : rate;
+          })() : undefined,
+        millRate: item.millRate !== undefined && item.millRate !== null && item.millRate !== '' ? 
+          (() => {
+            const rate = parseFloat(item.millRate);
+            return isNaN(rate) ? undefined : rate;
+          })() : undefined,
+        salesRate: item.salesRate !== undefined && item.salesRate !== null && item.salesRate !== '' ? 
+          (() => {
+            const rate = parseFloat(item.salesRate);
             return isNaN(rate) ? undefined : rate;
           })() : undefined,
       }));
@@ -844,7 +868,41 @@ export async function PATCH(
       );
     }
 
-    // Validate status
+    // Fast status change - minimal validation and no logging for speed
+    if (status && ['pending', 'delivered'].includes(status)) {
+      // Direct update without validation or logging for maximum speed
+      const updatedOrder = await Order.findByIdAndUpdate(
+        id,
+        { status },
+        { new: true, runValidators: false, select: '_id orderId status' }
+      );
+
+      if (!updatedOrder) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: "Order not found" 
+          }), 
+          { status: 404 }
+        );
+      }
+
+      // Return minimal response immediately
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Order status updated successfully", 
+          data: {
+            _id: updatedOrder._id,
+            orderId: updatedOrder.orderId,
+            status: updatedOrder.status
+          }
+        }), 
+        { status: 200 }
+      );
+    }
+
+    // Fallback for other status values
     const validStatuses = ['Not selected', 'pending', 'delivered'];
     if (status && !validStatuses.includes(status)) {
       return new Response(

@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .skip((page - 1) * limit)
       .lean()
-      .maxTimeMS(10000); // Increased to 10 second timeout for better reliability
+      .maxTimeMS(15000); // Increased to 15 second timeout for better reliability
 
     // Use Promise.all to parallelize lab data fetching and total count
     const [labs, total] = await Promise.all([
@@ -69,13 +69,13 @@ export async function GET(request: NextRequest) {
           })
           .select('orderItemId labSendDate labSendData labSendNumber status remarks')
           .lean()
-          .maxTimeMS(5000);
+          .maxTimeMS(8000);
         } catch (labError) {
           return [];
         }
       })() : Promise.resolve([]),
       // Get total count in parallel
-      Order.countDocuments(query).maxTimeMS(2000)
+      Order.countDocuments(query).maxTimeMS(5000)
     ]);
 
     // Attach lab data to order items
@@ -268,6 +268,20 @@ export async function POST(req: NextRequest) {
         if (item.description && item.description.trim().length > 200) {
           errors.push(`Description cannot exceed 200 characters in item ${index + 1}`);
         }
+        
+        // Validate millRate if provided
+        if (item.millRate !== undefined && item.millRate !== null && item.millRate !== '') {
+          if (typeof item.millRate !== 'number' || item.millRate < 0) {
+            errors.push(`Mill rate must be a non-negative number in item ${index + 1}`);
+          }
+        }
+        
+        // Validate salesRate if provided
+        if (item.salesRate !== undefined && item.salesRate !== null && item.salesRate !== '') {
+          if (typeof item.salesRate !== 'number' || item.salesRate < 0) {
+            errors.push(`Sales rate must be a non-negative number in item ${index + 1}`);
+          }
+        }
       });
     }
     
@@ -375,6 +389,16 @@ export async function POST(req: NextRequest) {
         purchaseRate: item.purchaseRate !== undefined && item.purchaseRate !== null && item.purchaseRate !== '' ? 
           (() => {
             const rate = parseFloat(item.purchaseRate);
+            return isNaN(rate) ? undefined : rate;
+          })() : undefined,
+        millRate: item.millRate !== undefined && item.millRate !== null && item.millRate !== '' ? 
+          (() => {
+            const rate = parseFloat(item.millRate);
+            return isNaN(rate) ? undefined : rate;
+          })() : undefined,
+        salesRate: item.salesRate !== undefined && item.salesRate !== null && item.salesRate !== '' ? 
+          (() => {
+            const rate = parseFloat(item.salesRate);
             return isNaN(rate) ? undefined : rate;
           })() : undefined,
       })) : [],

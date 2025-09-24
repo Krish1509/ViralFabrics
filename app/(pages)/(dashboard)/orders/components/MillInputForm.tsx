@@ -660,6 +660,14 @@ export default function MillInputForm({
 }: MillInputFormProps) {
   const { isDarkMode } = useDarkMode();
   
+  console.log('MillInputForm props:', { 
+    order: order?.orderId, 
+    mills: mills?.length, 
+    qualities: qualities?.length, 
+    isEditing, 
+    existingMillInputs: existingMillInputs?.length 
+  });
+  
   const [formData, setFormData] = useState<MillInputFormData>({
     orderId: order?.orderId || '',
     mill: '',
@@ -705,10 +713,11 @@ export default function MillInputForm({
 
   // Load existing mill inputs when editing
   useEffect(() => {
+    console.log('MillInputForm useEffect triggered:', { isEditing, existingMillInputsLength: existingMillInputs.length });
     if (isEditing && existingMillInputs.length > 0) {
+      console.log('Loading existing mill inputs...');
       loadExistingMillInputs();
-    } else {
-      }
+    }
   }, [isEditing, existingMillInputs]);
 
   // Monitor mills array changes
@@ -748,17 +757,10 @@ export default function MillInputForm({
 
   // Function to load existing mill inputs
   const loadExistingMillInputs = async () => {
-    // Debug: Log each existing mill input in detail
-    existingMillInputs.forEach((input: any, index: number) => {
-      // Debug: Log additionalMeters array in detail
-      if (input.additionalMeters && Array.isArray(input.additionalMeters)) {
-        input.additionalMeters.forEach((additional: any, addIndex: number) => {
-          });
-      } else {
-        }
-    });
+    console.log('Loading existing mill inputs:', { order: order?.orderId, existingMillInputs });
     
     if (!order || existingMillInputs.length === 0) {
+      console.log('No order or existing mill inputs found');
       return;
     }
     
@@ -766,6 +768,8 @@ export default function MillInputForm({
     try {
       // Group mill inputs by mill and chalan number
       const groupedInputs = groupMillInputsByMillAndChalan(existingMillInputs);
+      console.log('Grouped inputs:', groupedInputs);
+      
       if (groupedInputs.length > 0) {
         const firstGroup = groupedInputs[0];
         const newFormData = {
@@ -792,14 +796,14 @@ export default function MillInputForm({
           })
         };
         
-        newFormData.millItems.forEach((item: any, index: number) => {
-          });
-        
+        console.log('Setting form data:', newFormData);
         setFormData(newFormData);
-        } else {
-        }
+      } else {
+        console.log('No grouped inputs found');
+      }
     } catch (error) {
-      } finally {
+      console.error('Error loading existing mill inputs:', error);
+    } finally {
       setLoadingExistingData(false);
     }
   };
@@ -1037,8 +1041,11 @@ export default function MillInputForm({
   };
 
   const getFilteredQualities = (itemId: string, type: 'main' | 'additional', index?: number) => {
+    // Debug logging
+    console.log('MillInputForm getFilteredQualities called:', { itemId, type, index, qualities });
     // Safety check for undefined qualities
     if (!qualities || !Array.isArray(qualities)) {
+      console.log('MillInputForm: No qualities available or not an array:', qualities);
       return [];
     }
     

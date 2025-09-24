@@ -219,9 +219,9 @@ export default function OrdersPage() {
 
   // Optimized fetch functions with retry logic and better timeout handling
   const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage) => {
-    const maxRetries = 1; // Reduced retries for faster loading
-    const baseTimeout = 5000; // 5 seconds base timeout (much faster)
-    const timeoutIncrement = 2000; // Add 2 seconds per retry
+    const maxRetries = 2; // Increased retries for better reliability
+    const baseTimeout = 10000; // 10 seconds base timeout (increased for stability)
+    const timeoutIncrement = 5000; // Add 5 seconds per retry
     
     try {
       const controller = new AbortController();
@@ -501,7 +501,7 @@ export default function OrdersPage() {
 
       // Create abort controller for timeout handling
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout (much faster)
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout (increased for stability)
 
       // Fetch all three endpoints in parallel for better performance
       const [millInputsResponse, millOutputsResponse, dispatchesResponse] = await Promise.all([
@@ -523,6 +523,7 @@ export default function OrdersPage() {
 
       // Process mill inputs
       const millInputsData = await millInputsResponse.json();
+      console.log('Mill inputs API response:', millInputsData);
       if (millInputsData.success && millInputsData.data?.millInputs) {
         const groupedInputs: {[key: string]: any[]} = {};
         millInputsData.data.millInputs.forEach((input: any) => {
@@ -531,13 +532,16 @@ export default function OrdersPage() {
           }
           groupedInputs[input.orderId].push(input);
         });
+        console.log('Grouped mill inputs:', groupedInputs);
         setOrderMillInputs(groupedInputs);
       } else {
+        console.log('No mill inputs data found');
         setOrderMillInputs({});
       }
 
       // Process mill outputs
       const millOutputsData = await millOutputsResponse.json();
+      console.log('Mill outputs API response:', millOutputsData);
       if (millOutputsData.success && millOutputsData.data && Array.isArray(millOutputsData.data)) {
         const groupedOutputs: {[key: string]: any[]} = {};
         millOutputsData.data.forEach((output: any) => {
@@ -546,8 +550,10 @@ export default function OrdersPage() {
           }
           groupedOutputs[output.orderId].push(output);
         });
+        console.log('Grouped mill outputs:', groupedOutputs);
         setOrderMillOutputs(groupedOutputs);
       } else {
+        console.log('No mill outputs data found');
         setOrderMillOutputs({});
       }
 
@@ -613,7 +619,7 @@ export default function OrdersPage() {
   const fetchParties = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout (much faster)
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 second timeout (increased for stability)
       
       const token = localStorage.getItem('token');
       const response = await fetch('/api/parties?limit=50', { // Increased limit for better UX
@@ -649,7 +655,7 @@ export default function OrdersPage() {
   const fetchQualities = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout (much faster)
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 second timeout (increased for stability)
       
       const token = localStorage.getItem('token');
       const response = await fetch('/api/qualities?limit=100', { // Increased limit for better UX
@@ -686,7 +692,7 @@ export default function OrdersPage() {
   const fetchMills = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout (much faster)
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 second timeout (increased for stability)
       
       const token = localStorage.getItem('token');
       
@@ -786,14 +792,14 @@ export default function OrdersPage() {
     
     initializeAllData();
     
-    // Fallback timeout to prevent infinite loading (reduced to 8 seconds since we're loading in parallel)
+    // Fallback timeout to prevent infinite loading (increased to 15 seconds for better reliability)
     const timeoutId = setTimeout(() => {
       if (!isInitialized) {
         setLoading(false);
         setIsInitialized(true);
         // Silent timeout - no notification to avoid bad UX
       }
-    }, 8000); // 8 second timeout (reduced from 12 seconds)
+    }, 15000); // 15 second timeout (increased for better reliability)
     
     return () => clearTimeout(timeoutId);
   }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderMillInputs, fetchAllOrderMillOutputs, fetchAllOrderDispatches, showMessage, isInitialized]);
@@ -1014,23 +1020,35 @@ export default function OrdersPage() {
     
     // Close modal immediately for better UX
     setShowStatusConfirmModal(false);
-    setStatusChangeData(null);
+    // Don't clear statusChangeData yet - we need it for loading state
     
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/orders/${statusChangeData.orderId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` })
-        },
-        body: JSON.stringify({ status: statusChangeData.newStatus }),
-      });
+      try {
+        const token = localStorage.getItem('token');
+        
+        // Create AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout (increased for stability)
+        
+        const response = await fetch(`/api/orders/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
+          body: JSON.stringify({ 
+            orderId: statusChangeData.orderId,
+            status: statusChangeData.newStatus 
+          }),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
 
       const data = await response.json();
       
       if (data.success) {
-        showMessage('success', `Order ${statusChangeData.orderIdDisplay} status updated to ${statusChangeData.newStatus}`, { autoDismiss: true, dismissTime: 2000 });
+        // Show only one success message
+        showMessage('success', `Order ${statusChangeData.orderIdDisplay} status updated to ${statusChangeData.newStatus}`, { autoDismiss: true, dismissTime: 1000 });
         
         // No need to trigger real-time update since we already have optimistic updates
         // The UI is already updated, so no additional API calls needed
@@ -1039,16 +1057,23 @@ export default function OrdersPage() {
         setOrders(prev => prev.map(order => 
           order._id === statusChangeData.orderId ? { ...order, status: statusChangeData.newStatus === 'pending' ? 'delivered' : 'pending' } : order
         ));
-        showMessage('error', data.message || 'Failed to update order status', { autoDismiss: true, dismissTime: 4000 });
+        showMessage('error', data.message || 'Failed to update order status', { autoDismiss: true, dismissTime: 1500 });
       }
     } catch (error) {
       // Revert optimistic update on error
       setOrders(prev => prev.map(order => 
         order._id === statusChangeData.orderId ? { ...order, status: statusChangeData.newStatus === 'pending' ? 'delivered' : 'pending' } : order
       ));
-      showMessage('error', 'Failed to update order status', { autoDismiss: true, dismissTime: 4000 });
+      
+      // Handle different error types
+      if (error instanceof Error && error.name === 'AbortError') {
+        showMessage('error', 'Request timed out. Please try again.', { autoDismiss: true, dismissTime: 1500 });
+      } else {
+        showMessage('error', 'Failed to update order status', { autoDismiss: true, dismissTime: 1500 });
+      }
     } finally {
       setChangingStatus(false);
+      setStatusChangeData(null); // Clear statusChangeData after loading is complete
     }
   }, [statusChangeData, showMessage]);
 
@@ -1281,6 +1306,7 @@ export default function OrdersPage() {
   };
 
   const handleMillInput = async (order: Order) => {
+    console.log('handleMillInput called for order:', order.orderId);
     // Clear cache before opening form
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('millInputFormCache');
@@ -1292,6 +1318,13 @@ export default function OrdersPage() {
     // Check if there's existing mill input data for this order
     const existingData = orderMillInputs[order.orderId] || [];
     const hasExistingData = existingData.length > 0;
+    
+    console.log('Mill input data check:', { 
+      orderId: order.orderId, 
+      existingData, 
+      hasExistingData,
+      orderMillInputs: orderMillInputs 
+    });
     
     // Set editing state and existing data
     setIsEditingMillInput(hasExistingData);
@@ -1307,9 +1340,17 @@ export default function OrdersPage() {
   };
 
   const handleMillOutput = async (order: Order) => {
+    console.log('handleMillOutput called for order:', order.orderId);
     // Check if there's existing mill output data for this order
     const existingData = orderMillOutputs[order.orderId] || [];
     const hasExistingData = existingData.length > 0;
+    
+    console.log('Mill output data check:', { 
+      orderId: order.orderId, 
+      existingData, 
+      hasExistingData,
+      orderMillOutputs: orderMillOutputs 
+    });
     
     // Set editing state and existing data
     setIsEditingMillOutput(hasExistingData);
@@ -2176,6 +2217,8 @@ export default function OrdersPage() {
                 </div>
               )}
             </div>
+
+
       {/* Orders Display */}
       {viewMode === 'table' ? (
       <div className={`rounded-xl border overflow-hidden shadow-lg ${
@@ -2453,7 +2496,7 @@ export default function OrdersPage() {
                                  <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
                                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
                                  }`}>
-                                   Description
+                                  Desc.
                                  </th>
                                  <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
                                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
@@ -2463,7 +2506,17 @@ export default function OrdersPage() {
                                  <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
                                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
                                  }`}>
-                                   Rate
+                                   P-Rate
+                                 </th>
+                                 <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
+                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                                 }`}>
+                                   M-Rate
+                                 </th>
+                                 <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
+                                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                                 }`}>
+                                   S-Rate
                                  </th>
                                  <th className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${
                                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
@@ -2520,6 +2573,20 @@ export default function OrdersPage() {
                                    <td className="px-4 py-4">
                                      <div className={`text-xs ${isDarkMode ? 'text-green-300' : 'text-green-600'}`}>
                                        {item.purchaseRate ? `₹${Number(item.purchaseRate).toFixed(2)}` : '-'}
+                              </div>
+                                   </td>
+                                   
+                                   {/* Mill Rate */}
+                                   <td className="px-4 py-4">
+                                     <div className={`text-xs ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>
+                                       {item.millRate ? `₹${Number(item.millRate).toFixed(2)}` : '-'}
+                              </div>
+                                   </td>
+                                   
+                                   {/* Sales Rate */}
+                                   <td className="px-4 py-4">
+                                     <div className={`text-xs ${isDarkMode ? 'text-purple-300' : 'text-purple-600'}`}>
+                                       {item.salesRate ? `₹${Number(item.salesRate).toFixed(2)}` : '-'}
                               </div>
                                    </td>
                                    
@@ -2607,10 +2674,11 @@ export default function OrdersPage() {
                           }`}>
                             Status:
                           </label>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
                             <button
                               onClick={() => handleStatusChangeClick(order._id, 'pending', order.orderId)}
-                              className={`px-3 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center justify-center ${
+                              disabled={changingStatus}
+                              className={`px-3 py-2 text-sm font-semibold rounded-lg transition-all duration-200 whitespace-nowrap flex items-center justify-center ${
                                 (order.status || 'pending') === 'pending'
                                   ? isDarkMode
                                     ? 'bg-blue-600 text-white'
@@ -2618,13 +2686,14 @@ export default function OrdersPage() {
                                   : isDarkMode
                                     ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                              }`}
+                              } ${changingStatus ? 'opacity-50 cursor-not-allowed pointer-events-none scale-95' : 'hover:scale-105'}`}
                             >
                               Pending
                             </button>
                             <button
                               onClick={() => handleStatusChangeClick(order._id, 'delivered', order.orderId)}
-                              className={`px-3 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center justify-center ${
+                              disabled={changingStatus}
+                              className={`px-3 py-2 text-sm font-semibold rounded-lg transition-all duration-200 whitespace-nowrap flex items-center justify-center ${
                                 order.status === 'delivered'
                                   ? isDarkMode
                                     ? 'bg-green-600 text-white'
@@ -2632,7 +2701,7 @@ export default function OrdersPage() {
                                   : isDarkMode
                                     ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                              }`}
+                              } ${changingStatus ? 'opacity-50 cursor-not-allowed pointer-events-none scale-95' : 'hover:scale-105'}`}
                             >
                               Delivered
                             </button>
@@ -2979,7 +3048,8 @@ export default function OrdersPage() {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => handleStatusChangeClick(order._id, 'pending', order.orderId)}
-                        className={`px-2 py-1 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center justify-center ${
+                        disabled={changingStatus}
+                        className={`px-2 py-1 text-xs font-semibold rounded transition-all duration-200 whitespace-nowrap flex items-center justify-center ${
                           (order.status || 'pending') === 'pending'
                             ? isDarkMode
                               ? 'bg-blue-600 text-white'
@@ -2987,13 +3057,14 @@ export default function OrdersPage() {
                             : isDarkMode
                               ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
+                        } ${changingStatus ? 'opacity-50 cursor-not-allowed pointer-events-none scale-95' : 'hover:scale-105'}`}
                       >
                         Pending
                       </button>
                       <button
                         onClick={() => handleStatusChangeClick(order._id, 'delivered', order.orderId)}
-                        className={`px-2 py-1 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center justify-center ${
+                        disabled={changingStatus}
+                        className={`px-2 py-1 text-xs font-semibold rounded transition-all duration-200 whitespace-nowrap flex items-center justify-center ${
                           order.status === 'delivered'
                             ? isDarkMode
                               ? 'bg-green-600 text-white'
@@ -3001,7 +3072,7 @@ export default function OrdersPage() {
                             : isDarkMode
                               ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
+                        } ${changingStatus ? 'opacity-50 cursor-not-allowed pointer-events-none scale-95' : 'hover:scale-105'}`}
                       >
                         Delivered
                       </button>

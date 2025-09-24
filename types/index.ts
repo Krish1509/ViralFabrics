@@ -24,6 +24,8 @@ export interface OrderItem {
   description?: string;
   weaverSupplierName?: string; // Weaver / Supplier Name moved to item level
   purchaseRate?: number | string; // Purchase Rate moved to item level (can be string in form)
+  millRate?: number | string; // Mill Rate field
+  salesRate?: number | string; // Sales Rate field
   labData?: {
     color?: string;
     shade?: string;
@@ -138,7 +140,6 @@ export interface MillOutput {
   recdDate: string;
   millBillNo: string;
   finishedMtr: number;
-  millRate: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -148,5 +149,4 @@ export interface MillOutputFormData {
   recdDate: string;
   millBillNo: string;
   finishedMtr: string;
-  millRate: string;
 }

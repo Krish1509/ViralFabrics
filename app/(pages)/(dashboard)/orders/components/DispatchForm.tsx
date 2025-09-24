@@ -165,7 +165,6 @@ const EnhancedDropdown: React.FC<EnhancedDropdownProps> = ({
 interface DispatchSubItem {
   id: string;
   finishMtr: string;
-  saleRate: string;
   quality: string;
 }
 
@@ -179,7 +178,6 @@ interface DispatchItem {
   dispatchDate: string;
   billNo: string;
   finishMtr: string;
-  saleRate: string;
   quality: string;
   subItems?: DispatchSubItem[];
 }
@@ -591,12 +589,10 @@ export default function DispatchForm({
         dispatchDate: '',
         billNo: '',
         finishMtr: '',
-      saleRate: '',
       quality: '',
       subItems: [{
         id: '1_1',
         finishMtr: '',
-        saleRate: '',
         quality: ''
       }]
     }]
@@ -628,12 +624,10 @@ export default function DispatchForm({
           dispatchDate: '',
           billNo: '',
           finishMtr: '',
-          saleRate: '',
           quality: '',
           subItems: [{
             id: '1_1',
             finishMtr: '',
-            saleRate: '',
             quality: ''
           }]
         }]
@@ -663,7 +657,6 @@ export default function DispatchForm({
         groups[key].subItems.push({
           id: `${groups[key].subItems.length + 1}_${groups[key].subItems.length + 1}`,
           finishMtr: dispatch.finishMtr.toString(),
-          saleRate: dispatch.saleRate.toString(),
           quality: dispatch.quality?._id || dispatch.quality || ''
         });
         return groups;
@@ -677,7 +670,6 @@ export default function DispatchForm({
           dispatchDate: group.dispatchDate,
           billNo: group.billNo,
           finishMtr: '',
-          saleRate: '',
           quality: '',
           subItems: group.subItems
         }))
@@ -702,12 +694,10 @@ export default function DispatchForm({
           dispatchDate: '',
           billNo: '',
           finishMtr: '',
-          saleRate: '',
           quality: '',
           subItems: [{
             id: `${newId}_1`,
             finishMtr: '',
-            saleRate: '',
             quality: ''
           }]
         }
@@ -760,7 +750,6 @@ export default function DispatchForm({
               {
                 id: newSubId,
                 finishMtr: '',
-                saleRate: '',
                 quality: ''
               }
             ]
@@ -878,9 +867,6 @@ export default function DispatchForm({
           newErrors[`finishMtr_${subItem.id}`] = 'Valid finish meters is required';
         }
 
-        if (!subItem.saleRate || subItem.saleRate.trim() === '' || parseFloat(subItem.saleRate) <= 0) {
-          newErrors[`saleRate_${subItem.id}`] = 'Valid sale rate is required';
-        }
 
         if (!subItem.quality || subItem.quality.trim() === '') {
           newErrors[`quality_${subItem.id}`] = 'Quality is required';
@@ -933,7 +919,6 @@ export default function DispatchForm({
           dispatchDate: item.dispatchDate,
           billNo: item.billNo.trim(),
           finishMtr: parseFloat(subItem.finishMtr),
-          saleRate: parseFloat(subItem.saleRate),
           quality: subItem.quality
         };
 
@@ -1283,39 +1268,6 @@ export default function DispatchForm({
                               )}
                           </div>
 
-                              {/* Sub-item Sale Rate */}
-                              <div>
-                                <label className={`block text-sm font-medium mb-2 ${
-                                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                                }`}>
-                            Sale Rate <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                  type="number"
-                                  value={subItem.saleRate}
-                                  onChange={(e) => updateSubItem(item.id, subItem.id, 'saleRate', e.target.value)}
-                            placeholder="Enter sale rate"
-                                  step="0.01"
-                                  min="0"
-                                  required
-                            className={`w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                    errors[`saleRate_${subItem.id}`]
-                                ? isDarkMode
-                                  ? 'border-red-500 bg-gray-800 text-white'
-                                  : 'border-red-500 bg-white text-gray-900'
-                                : isDarkMode
-                                  ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
-                                  : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                            }`}
-                                />
-                                {errors[`saleRate_${subItem.id}`] && (
-                                  <p className={`text-sm mt-1 ${
-                                    isDarkMode ? 'text-red-400' : 'text-red-600'
-                                  }`}>
-                                    {errors[`saleRate_${subItem.id}`]}
-                                  </p>
-                                )}
-                        </div>
 
                               </div>
                             </div>
