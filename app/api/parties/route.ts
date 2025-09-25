@@ -6,7 +6,7 @@ import { logCreate } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   try {
-    console.log('Parties API GET request received');
+    console.log('Parties API GET request received - Fixed');
     
     // Remove authentication requirement for now
     // await requireAuth(req);
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       .limit(limit)
       .select('_id name contactName contactPhone address createdAt updatedAt')
       .lean()
-      .maxTimeMS(3000); // 3 second timeout for faster response
+      .maxTimeMS(5000); // 5 second timeout for better reliability
 
     // Add cache headers
     const headers = {
@@ -54,11 +54,17 @@ export async function GET(req: NextRequest) {
           message: "Unauthorized" 
         }), { status: 401 });
       }
+      if (error.message.includes("timeout")) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          message: "Request timeout" 
+        }), { status: 408 });
+      }
     }
     const message = error instanceof Error ? error.message : "Internal Server Error";
     return new Response(JSON.stringify({ 
       success: false, 
-      message 
+      message: "Parties API error: " + message 
     }), { status: 500 });
   }
 }

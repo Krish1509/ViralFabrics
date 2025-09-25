@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   PlusIcon,
@@ -65,7 +65,9 @@ export default function UsersPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [validationAlert, setValidationAlert] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const usersPerPage = 7;
+  const usersPerPage = 10; // Increased for better performance
+  const [viewMode, setViewMode] = useState<'table' | 'card'>('table'); // Default to table view
+  const [initialLoad, setInitialLoad] = useState(true); // Track initial load
 
   // Get current user from localStorage and check access
   useEffect(() => {
@@ -104,23 +106,24 @@ export default function UsersPage() {
   const isSmallScreen = screenSize > 500;
   const isTinyScreen = screenSize <= 500;
 
-  // Fetch users with optimization
+  // Optimized fetch users with aggressive caching
   const fetchUsers = async (retryCount = 0) => {
     setLoading(true);
     
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for faster response
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout for super fast response
       
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('No authentication token found');
       }
       
-      const response = await fetch('/api/users?limit=100', { // Increased limit
+      const response = await fetch('/api/users?limit=50', { // Optimized limit for faster loading
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'no-cache' // Disable cache to ensure fresh data
+          'Cache-Control': 'max-age=60', // Cache for 1 minute for faster subsequent loads
+          'Accept': 'application/json'
         },
         signal: controller.signal
       });
@@ -139,14 +142,15 @@ export default function UsersPage() {
       if (data.success) {
         setUsers(data.data || []);
         setMessage(null); // Clear any previous error messages
+        setInitialLoad(false); // Mark initial load as complete
       } else {
         throw new Error(data.message || 'Failed to fetch users');
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
         if (retryCount < 1) {
-          // Retry once more with shorter delay
-          setTimeout(() => fetchUsers(retryCount + 1), 500);
+          // Single fast retry
+          setTimeout(() => fetchUsers(retryCount + 1), 300);
           return;
         }
         setMessage({ type: 'error', text: 'Request timeout - please try again' });
@@ -159,18 +163,27 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    // Start fetching immediately
+    // Start fetching immediately with aggressive prefetching
     fetchUsers();
     
-    // Preload other data in background for faster navigation
+    // Aggressive prefetching for faster navigation
     const preloadData = () => {
-      // Preload other pages that users might navigate to
+      // Preload critical pages immediately
       router.prefetch('/dashboard');
       router.prefetch('/orders');
+      router.prefetch('/fabrics');
+      
+      // Prefetch API endpoints for faster subsequent loads
+      const token = localStorage.getItem('token');
+      if (token) {
+        fetch('/api/users?limit=10', { 
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(() => {}); // Silent fail
+      }
     };
     
-    // Preload after a short delay
-    const timer = setTimeout(preloadData, 1000);
+    // Start preloading immediately for faster subsequent loads
+    const timer = setTimeout(preloadData, 100);
     return () => clearTimeout(timer);
   }, []);
 
@@ -195,46 +208,55 @@ export default function UsersPage() {
   };
 
   // Filter and sort users
-  const filteredUsers = users
-    .filter(user => {
-      const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           user.username.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-      return matchesSearch && matchesRole;
-    })
-    .sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
-      return dateSort === 'latest' ? dateB - dateA : dateA - dateB;
-    });
+  // Memoized filtering for better performance
+  const filteredUsers = useMemo(() => {
+    return users
+      .filter(user => {
+        const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                             user.username.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+        return matchesSearch && matchesRole;
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateSort === 'latest' ? dateB - dateA : dateA - dateB;
+      });
+  }, [users, searchTerm, roleFilter, dateSort]);
 
-  // Pagination logic
-  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
-  const indexOfLastUser = currentPage * usersPerPage;
-  const indexOfFirstUser = indexOfLastUser - usersPerPage;
-  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+  // Memoized pagination logic
+  const paginationData = useMemo(() => {
+    const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+    const indexOfLastUser = currentPage * usersPerPage;
+    const indexOfFirstUser = indexOfLastUser - usersPerPage;
+    const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+    
+    return { totalPages, currentUsers };
+  }, [filteredUsers, currentPage, usersPerPage]);
+
+  const { totalPages, currentUsers } = paginationData;
 
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, roleFilter, dateSort]);
 
-  // Page navigation functions
-  const goToPage = (pageNumber: number) => {
+  // Optimized page navigation functions
+  const goToPage = useCallback((pageNumber: number) => {
     setCurrentPage(pageNumber);
-  };
+  }, []);
 
-  const goToNextPage = () => {
+  const goToNextPage = useCallback(() => {
     if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
     }
-  };
+  }, [currentPage, totalPages]);
 
-  const goToPreviousPage = () => {
+  const goToPreviousPage = useCallback(() => {
     if (currentPage > 1) {
       setCurrentPage(currentPage - 1);
     }
-  };
+  }, [currentPage]);
 
   // Show message
   const showMessage = (type: 'success' | 'error', text: string) => {
@@ -395,19 +417,19 @@ export default function UsersPage() {
   };
 
   // Get user initials
-  const getUserInitials = (name: string) => {
+  const getUserInitials = useCallback((name: string) => {
     return name
       .split(' ')
       .map(word => word.charAt(0))
       .join('')
       .toUpperCase()
       .slice(0, 2);
-  };
+  }, []);
 
   // Check if user can be deleted (prevent self-deletion)
-  const canDeleteUser = (user: User) => {
+  const canDeleteUser = useCallback((user: User) => {
     return currentUser && user._id !== currentUser._id;
-  };
+  }, [currentUser]);
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -427,22 +449,26 @@ export default function UsersPage() {
     );
   }
 
-  if (loading) {
+  if (loading && initialLoad) {
     return (
-      <div className="space-y-4">
-        {/* Header Skeleton */}
+      <div className="space-y-4 px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
+        {/* Header Skeleton - Match actual layout */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <div className={`h-8 w-48 rounded-lg animate-pulse ${
-              isDarkMode ? 'bg-white/10' : 'bg-gray-200'
-            }`}></div>
-            <div className={`h-4 w-64 rounded-lg animate-pulse mt-2 ${
+          {/* Add User Button Skeleton */}
+          <div className="flex-shrink-0">
+            <div className={`h-10 w-32 rounded-lg animate-pulse ${
               isDarkMode ? 'bg-white/10' : 'bg-gray-200'
             }`}></div>
           </div>
-          <div className={`h-10 w-32 rounded-lg animate-pulse ${
-            isDarkMode ? 'bg-white/10' : 'bg-gray-200'
-          }`}></div>
+          {/* View Toggle Skeleton */}
+          <div className="flex items-center space-x-2">
+            <div className={`h-4 w-8 rounded animate-pulse ${
+              isDarkMode ? 'bg-white/10' : 'bg-gray-200'
+            }`}></div>
+            <div className={`h-8 w-20 rounded-lg animate-pulse ${
+              isDarkMode ? 'bg-white/10' : 'bg-gray-200'
+            }`}></div>
+          </div>
         </div>
 
         {/* Filters Skeleton */}
@@ -537,31 +563,75 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            Users
-          </h1>
-          <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            User management and administration
-          </p>
+    <div className="space-y-4 px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
+      {/* Loading indicator for non-initial loads */}
+      {loading && !initialLoad && (
+        <div className="flex items-center justify-center py-4">
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              Loading users...
+            </span>
+          </div>
         </div>
-        <button
-          onClick={() => {
-            setShowCreateModal(true);
-            setValidationAlert(null);
-          }}
-          className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 active:scale-95 ${
-            isDarkMode
-              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
-              : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
-          }`}
-        >
-          <PlusIcon className="h-5 w-5 mr-2" />
-          Add New User
-        </button>
+      )}
+
+      {/* Header with Add Button and View Toggle */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {/* Add New User Button - Left Side */}
+        <div className="flex-shrink-0">
+          <button
+            onClick={() => {
+              setShowCreateModal(true);
+              setValidationAlert(null);
+            }}
+            className={`inline-flex items-center px-4 py-2 rounded-lg font-medium ${
+              isDarkMode
+                ? 'bg-blue-600 text-white border border-blue-500/30'
+                : 'bg-blue-600 text-white border border-blue-500/30'
+            }`}
+          >
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Add New User
+          </button>
+        </div>
+
+        {/* View Toggle - Right Side */}
+        <div className="flex items-center space-x-2">
+          <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+            View:
+          </span>
+          <div className={`flex rounded-lg p-1 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'table'
+                  ? isDarkMode
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-blue-600 text-white'
+                  : isDarkMode
+                    ? 'text-gray-300 hover:text-white'
+                    : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode('card')}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'card'
+                  ? isDarkMode
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-blue-600 text-white'
+                  : isDarkMode
+                    ? 'text-gray-300 hover:text-white'
+                    : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Cards
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Message */}
@@ -582,6 +652,28 @@ export default function UsersPage() {
               <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
             )}
             {message.text}
+          </div>
+        </div>
+      )}
+
+      {/* Validation Alert - Only show if not already showing message and no modals are open */}
+      {validationAlert && !message && !showCreateModal && !showEditModal && !showDeleteModal && (
+        <div className={`p-4 rounded-lg border ${
+          validationAlert.type === 'success'
+            ? isDarkMode
+              ? 'bg-green-900/20 border-green-500/30 text-green-400'
+              : 'bg-green-50 border-green-200 text-green-800'
+            : isDarkMode
+              ? 'bg-red-900/20 border-red-500/30 text-red-400'
+              : 'bg-red-50 border-red-200 text-red-800'
+        }`}>
+          <div className="flex items-center">
+            {validationAlert.type === 'success' ? (
+              <CheckIcon className="h-5 w-5 mr-2" />
+            ) : (
+              <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+            )}
+            {validationAlert.text}
           </div>
         </div>
       )}
@@ -689,55 +781,10 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Error Message Display */}
-      {message && (
-        <div className={`mb-4 p-4 rounded-lg border ${
-          message.type === 'success'
-            ? isDarkMode
-              ? 'bg-green-900/20 border-green-500/30 text-green-400'
-              : 'bg-green-50 border-green-200 text-green-800'
-            : isDarkMode
-              ? 'bg-red-900/20 border-red-500/30 text-red-400'
-              : 'bg-red-50 border-red-200 text-red-800'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              {message.type === 'success' ? (
-                <CheckIcon className="h-5 w-5 mr-2" />
-              ) : (
-                <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
-              )}
-              {message.text}
-            </div>
-            <div className="flex items-center space-x-2">
-              {message.type === 'error' && (
-                <button
-                  onClick={handleRetry}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors duration-300 ${
-                    isDarkMode
-                      ? 'bg-white/10 text-white hover:bg-white/20'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Retry
-                </button>
-              )}
-              <button
-                onClick={() => setMessage(null)}
-                className={`p-1 rounded transition-colors duration-300 ${
-                  isDarkMode
-                    ? 'text-gray-400 hover:text-white hover:bg-white/10'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <XMarkIcon className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Users Table */}
+      {/* Users Display - Table or Card View */}
+      {viewMode === 'table' ? (
+        /* Table View */
       <div className={`rounded-lg border overflow-hidden ${
         isDarkMode
           ? 'bg-white/5 border-white/10'
@@ -947,14 +994,149 @@ export default function UsersPage() {
           </table>
         </div>
 
-        {filteredUsers.length === 0 && (
-          <div className={`text-center py-12 ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-          }`}>
-            <p>No users found</p>
-          </div>
-        )}
-      </div>
+          {filteredUsers.length === 0 && (
+            <div className={`text-center py-12 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-500'
+            }`}>
+              <p>No users found</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Card View */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {currentUsers.map((user) => (
+            <div
+              key={user._id}
+              className={`rounded-lg border p-6 transition-all duration-200 hover:shadow-lg ${
+                isDarkMode
+                  ? 'bg-white/5 border-white/10 hover:bg-white/10'
+                  : 'bg-white border-gray-200 hover:shadow-md'
+              } ${
+                currentUser && user._id === currentUser._id
+                  ? isDarkMode
+                    ? 'ring-2 ring-blue-500 bg-blue-500/5'
+                    : 'ring-2 ring-blue-500 bg-blue-50'
+                  : ''
+              }`}
+            >
+              {/* User Avatar and Name */}
+              <div className="flex items-center space-x-3 mb-4">
+                <div className={`h-12 w-12 rounded-full flex items-center justify-center text-lg font-semibold ${
+                  isDarkMode
+                    ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
+                    : 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white'
+                }`}>
+                  {getUserInitials(user.name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className={`text-lg font-semibold truncate ${
+                    isDarkMode ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    {user.name}
+                  </h3>
+                  <p className={`text-sm truncate ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    @{user.username}
+                  </p>
+                </div>
+              </div>
+
+              {/* Role Badge */}
+              <div className="mb-4">
+                <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                  user.role === 'superadmin'
+                    ? isDarkMode
+                      ? 'bg-purple-500/20 text-purple-300'
+                      : 'bg-purple-100 text-purple-800'
+                    : isDarkMode
+                      ? 'bg-blue-500/20 text-blue-300'
+                      : 'bg-blue-100 text-blue-800'
+                }`}>
+                  {user.role === 'superadmin' ? 'Super Admin' : 'User'}
+                </span>
+              </div>
+
+              {/* Contact Info */}
+              <div className="space-y-2 mb-4">
+                <div className={`text-sm ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>
+                  <span className="font-medium">Phone:</span> {user.phoneNumber || 'N/A'}
+                </div>
+                <div className={`text-sm ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>
+                  <span className="font-medium">Address:</span> {user.address || 'No address'}
+                </div>
+                <div className={`text-sm ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>
+                  <span className="font-medium">Created:</span> {new Date(user.createdAt).toLocaleDateString()}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end space-x-2 pt-4 border-t border-gray-200 dark:border-white/10">
+                <button
+                  onClick={() => {
+                    setFormData({
+                      name: user.name,
+                      username: user.username,
+                      password: '',
+                      phoneNumber: user.phoneNumber || '',
+                      address: user.address || '',
+                      role: user.role
+                    });
+                    setShowEditModal(true);
+                    setValidationAlert(null);
+                  }}
+                  className={`p-2 rounded-lg transition-all duration-200 ${
+                    isDarkMode
+                      ? 'text-blue-400 hover:bg-blue-500/20 hover:text-blue-300'
+                      : 'text-blue-600 hover:bg-blue-50 hover:text-blue-700'
+                  }`}
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (canDeleteUser(user) && user._id) {
+                      setSelectedUser(user);
+                      setShowDeleteModal(true);
+                      setValidationAlert(null);
+                    } else if (!user._id) {
+                      setValidationAlert({ type: 'error', text: 'Invalid user data' });
+                      setTimeout(() => setValidationAlert(null), 5000);
+                    }
+                  }}
+                  disabled={!canDeleteUser(user) || !user._id}
+                  className={`p-2 rounded-lg transition-all duration-200 ${
+                    isDarkMode
+                      ? 'text-red-400 hover:bg-red-500/20 hover:text-red-300'
+                      : 'text-red-600 hover:bg-red-50 hover:text-red-700'
+                  } ${!canDeleteUser(user) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <TrashIcon className={`h-4 w-4 transition-transform duration-200 ${
+                    !canDeleteUser(user) 
+                      ? 'opacity-60 scale-95' 
+                      : 'hover:scale-110'
+                  }`} />
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {filteredUsers.length === 0 && (
+            <div className={`col-span-full text-center py-12 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-500'
+            }`}>
+              <p>No users found</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (
