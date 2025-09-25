@@ -516,33 +516,33 @@ export default function OrderDetailsPage() {
         </div>
 
         {/* Main Content */}
-        <div className={`px-4 py-6 min-h-screen ${
+        <div className={`px-2 py-3 min-h-screen ${
           isDarkMode 
             ? 'bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800' 
             : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
         }`}>
           {/* Header Cards Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
             {/* Order Information */}
-            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-3 mb-4">
-                <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-blue-600/20' : 'bg-blue-100'}`}>
-                  <DocumentTextIcon className={`h-6 w-6 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+            <div className={`p-3 rounded-lg shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
+              <div className="flex items-center space-x-2 mb-3">
+                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-blue-600/20' : 'bg-blue-100'}`}>
+                  <DocumentTextIcon className={`h-5 w-5 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`} />
                 </div>
                 <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Order Information
                 </h2>
               </div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
                   <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Order ID</span>
                   <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.orderId}</p>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
                   <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Order Type</span>
                   <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.orderType || 'Not selected'}</p>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
                   <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>PO Number</span>
                   <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.poNumber || 'Not selected'}</p>
                 </div>
@@ -554,8 +554,8 @@ export default function OrderDetailsPage() {
                  </div>
 
             {/* Party Information */}
-            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-3 mb-4">
+            <div className={`p-3 rounded-lg shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
+              <div className="flex items-center space-x-2 mb-3">
                 <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-green-600/20' : 'bg-green-100'}`}>
                   <UserIcon className={`h-6 w-6 ${isDarkMode ? 'text-green-400' : 'text-green-600'}`} />
                 </div>
@@ -563,14 +563,14 @@ export default function OrderDetailsPage() {
                   Party Information
                 </h2>
               </div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
                   <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Name</span>
                   <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {party?.name || 'Not available'}
                   </p>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
                   <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Contact</span>
                   <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {party?.contactName || 'Not available'}
@@ -586,8 +586,8 @@ export default function OrderDetailsPage() {
             </div>
 
             {/* Important Dates */}
-            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-3 mb-4">
+            <div className={`p-3 rounded-lg shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
+              <div className="flex items-center space-x-2 mb-3">
                 <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-purple-600/20' : 'bg-purple-100'}`}>
                   <CalendarIcon className={`h-6 w-6 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`} />
                 </div>
@@ -595,14 +595,14 @@ export default function OrderDetailsPage() {
                   Important Dates
                 </h2>
               </div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
                   <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Arrival Date</span>
                   <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {order?.arrivalDate ? formatDate(order.arrivalDate) : 'Not selected'}
                   </p>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
                   <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>PO Date</span>
                   <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {order?.poDate ? formatDate(order.poDate) : 'Not selected'}
@@ -618,8 +618,8 @@ export default function OrderDetailsPage() {
             </div>
 
             {/* System Timestamps */}
-            <div className={`p-4 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-3 mb-4">
+            <div className={`p-3 rounded-lg shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
+              <div className="flex items-center space-x-2 mb-3">
                 <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-100'}`}>
                   <ClockIconSolid className={`h-6 w-6 ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`} />
                 </div>
@@ -627,8 +627,8 @@ export default function OrderDetailsPage() {
                   System Timestamps
                 </h2>
               </div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
                   <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Created</span>
                   <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {order?.createdAt ? new Date(order.createdAt).toLocaleDateString('en-US', {
@@ -657,22 +657,22 @@ export default function OrderDetailsPage() {
                </div>
 
           {/* Order Items and Lab Data Section */}
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Order Items Cards */}
             {order?.items && order.items.length > 0 && (
-              <div className={`p-6 rounded-xl shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-indigo-600/20' : 'bg-indigo-100'}`}>
-                    <DocumentTextIcon className={`h-6 w-6 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`} />
+              <div className={`p-4 rounded-lg shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-indigo-600/20' : 'bg-indigo-100'}`}>
+                    <DocumentTextIcon className={`h-5 w-5 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`} />
                   </div>
                   <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     Order Items ({order?.items?.length || 0})
                   </h2>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {order.items.map((item, index) => (
-                    <div key={index} className={`p-4 rounded-xl border ${isDarkMode ? 'bg-gray-600 border-gray-500 hover:bg-gray-500 hover:shadow-lg' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:shadow-md'} transition-all duration-200`}>
-                      <div className="space-y-4">
+                    <div key={index} className={`p-2 rounded-lg border ${isDarkMode ? 'bg-gray-600 border-gray-500 hover:bg-gray-500 hover:shadow-lg' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:shadow-md'} transition-all duration-200`}>
+                      <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                             Item {index + 1}
@@ -839,7 +839,7 @@ export default function OrderDetailsPage() {
                           
             {/* Lab Data Section */}
             <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-3 mb-4">
+              <div className="flex items-center space-x-2 mb-3">
                 <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-yellow-600/20' : 'bg-yellow-100'}`}>
                   <BeakerIcon className={`h-6 w-6 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`} />
                                       </div>
@@ -847,7 +847,7 @@ export default function OrderDetailsPage() {
                   Lab Data ({order?.items?.length || 0})
                 </h2>
                                       </div>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {order?.items?.map((item, index) => (
                   <div key={index} className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
                     <div className="space-y-2">
@@ -900,7 +900,7 @@ export default function OrderDetailsPage() {
           {/* Mill Input Data Section */}
           <div className="mt-4">
             <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-3 mb-4">
+              <div className="flex items-center space-x-2 mb-3">
                 <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-teal-600/20' : 'bg-teal-100'}`}>
                   <CogIcon className={`h-6 w-6 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`} />
                      </div>
@@ -956,7 +956,7 @@ export default function OrderDetailsPage() {
                          </div>
                          
                                 {/* All Data Fields - Main + Additional */}
-                                <div className="space-y-3">
+                                <div className="space-y-2">
                                   {/* Row 1: Mill Date and Chalan Number */}
                                   <div className="grid grid-cols-2 gap-4">
                             <div>
@@ -1010,7 +1010,7 @@ export default function OrderDetailsPage() {
 
                                   {/* Additional Meters - Same UI Style */}
                                   {millInput.additionalMeters && millInput.additionalMeters.length > 0 && (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                                       {millInput.additionalMeters.map((additional: any, addIndex: number) => (
                                         <div key={addIndex} className="space-y-3">
                                           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -1067,7 +1067,7 @@ export default function OrderDetailsPage() {
           {/* Mill Output Data Section */}
           <div className="mt-4">
             <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-3 mb-4">
+              <div className="flex items-center space-x-2 mb-3">
                 <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-emerald-600/20' : 'bg-emerald-100'}`}>
                   <BuildingOfficeIcon className={`h-6 w-6 ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`} />
                     </div>
@@ -1184,7 +1184,7 @@ export default function OrderDetailsPage() {
           {/* Dispatch Data Section */}
           <div className="mt-4">
             <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-3 mb-4">
+              <div className="flex items-center space-x-2 mb-3">
                 <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-100'}`}>
                   <TruckIcon className={`h-6 w-6 ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`} />
                 </div>

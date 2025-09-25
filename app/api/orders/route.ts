@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     await dbConnect();
     
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '100'); // Higher limit for dashboard
+    const limit = Math.min(parseInt(searchParams.get('limit') || '1000'), 2000); // Max 2000 for EXTREME performance
     const page = parseInt(searchParams.get('page') || '1');
     const search = searchParams.get('search') || '';
     const orderType = searchParams.get('orderType') || '';
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       query.status = status;
     }
     
-    // Optimized query with limits and proper indexing
+    // Super optimized query with limits and proper indexing
     const orders = await Order.find(query)
       .populate('party', 'name contactName contactPhone address')
       .populate('items.quality', 'name')
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .skip((page - 1) * limit)
       .lean()
-      .maxTimeMS(5000); // 5 second timeout for faster response
+      .maxTimeMS(1000); // 1 second timeout for ULTRA speed
 
     // Use Promise.all to parallelize lab data fetching and total count
     const [labs, total] = await Promise.all([

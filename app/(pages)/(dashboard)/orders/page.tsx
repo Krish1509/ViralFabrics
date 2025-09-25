@@ -832,16 +832,48 @@ export default function OrdersPage() {
     }
   }, []);
 
-  // Optimized data initialization with Promise.all for maximum performance
+  // AGGRESSIVE prefetching for EXTREME speed
   useEffect(() => {
-    // Prevent multiple initializations
+    // Prefetch all critical routes and APIs immediately
+    const prefetchAll = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      // Prefetch all APIs in background - NO WAITING
+      Promise.allSettled([
+        fetch('/api/orders?limit=1000&page=1', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/parties?limit=500', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/qualities?limit=500', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/mills?limit=500', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/mill-inputs?limit=2000', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/mill-outputs?limit=2000', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/dispatch?limit=2000', { headers: { 'Authorization': `Bearer ${token}` } })
+      ]).catch(() => {}); // Silent prefetch
+    };
+
+    prefetchAll();
+  }, []);
+
+  // EXTREME SPEED initialization - NO COMPROMISES
+  useEffect(() => {
     if (isInitialized) return;
     
     const initializeAllData = async () => {
       setLoading(true);
       
       try {
-        // Fetch all critical data in parallel using Promise.all for maximum performance
+        const token = localStorage.getItem('token');
+        if (!token) {
+          showMessage('error', 'Please login to view orders', { autoDismiss: true, dismissTime: 3000 });
+          setLoading(false);
+          return;
+        }
+
+        // AGGRESSIVE timeout - 5 seconds max
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        // Fetch ALL data in parallel with MAXIMUM performance
         const [
           ordersResult,
           partiesResult,
@@ -851,61 +883,212 @@ export default function OrdersPage() {
           millOutputsResult,
           dispatchesResult
         ] = await Promise.allSettled([
-          fetchOrders(),
-          fetchParties(),
-          fetchQualities(),
-          fetchMills(),
-          fetchAllOrderMillInputs(),
-          fetchAllOrderMillOutputs(),
-          fetchAllOrderDispatches()
+          // Orders - MAXIMUM limit for speed
+          fetch('/api/orders?limit=1000&page=1', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json'
+            },
+            signal: controller.signal
+          }),
+          // Parties - MAXIMUM limit
+          fetch('/api/parties?limit=500', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json'
+            },
+            signal: controller.signal
+          }),
+          // Qualities - MAXIMUM limit
+          fetch('/api/qualities?limit=500', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json'
+            },
+            signal: controller.signal
+          }),
+          // Mills - MAXIMUM limit
+          fetch('/api/mills?limit=500', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json'
+            },
+            signal: controller.signal
+          }),
+          // Mill inputs - MAXIMUM limit
+          fetch('/api/mill-inputs?limit=2000', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json'
+            },
+            signal: controller.signal
+          }),
+          // Mill outputs - MAXIMUM limit
+          fetch('/api/mill-outputs?limit=2000', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json'
+            },
+            signal: controller.signal
+          }),
+          // Dispatches - MAXIMUM limit
+          fetch('/api/dispatch?limit=2000', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json'
+            },
+            signal: controller.signal
+          })
         ]);
 
-        // Count successful results
-        const results = [ordersResult, partiesResult, qualitiesResult, millsResult, millInputsResult, millOutputsResult, dispatchesResult];
-        const successCount = results.filter(result => result.status === 'fulfilled').length;
-        const totalCount = results.length;
+        clearTimeout(timeoutId);
 
-        // Only set loading false when orders are actually loaded
+        // Process ALL results in parallel - NO WAITING
+        const processPromises = [];
+
+        // Process orders
         if (ordersResult.status === 'fulfilled') {
-          // Orders loaded successfully - set both states
-          setOrdersLoaded(true);
-          setLoading(false);
-        } else {
-          // Orders failed to load - show error and set loading false
-          showMessage('error', 'Failed to load orders. Please refresh the page.', { 
-            autoDismiss: true, 
-            dismissTime: 5000 
-          });
-          setOrdersLoaded(true); // Mark as loaded even if failed
-          setLoading(false);
+          processPromises.push(
+            ordersResult.value.json().then(data => {
+              if (data.success && data.data) {
+                console.log('Orders loaded:', data.data.orders?.length || 0);
+                setOrders(data.data.orders || []);
+                setPaginationInfo(data.pagination || {
+                  totalCount: 0,
+                  totalPages: 0,
+                  currentPage: 1,
+                  hasNextPage: false,
+                  hasPrevPage: false
+                });
+                setOrdersLoaded(true); // Only set when orders are actually loaded
+              }
+            })
+          );
         }
+
+        // Process parties
+        if (partiesResult.status === 'fulfilled') {
+          processPromises.push(
+            partiesResult.value.json().then(data => {
+              if (data.success && data.data) {
+                setParties(data.data || []);
+              }
+            })
+          );
+        }
+
+        // Process qualities
+        if (qualitiesResult.status === 'fulfilled') {
+          processPromises.push(
+            qualitiesResult.value.json().then(data => {
+              if (data.success && data.data) {
+                setQualities(data.data || []);
+              }
+            })
+          );
+        }
+
+        // Process mills
+        if (millsResult.status === 'fulfilled') {
+          processPromises.push(
+            millsResult.value.json().then(data => {
+              if (data.success && data.data) {
+                setMills(data.data || []);
+              }
+            })
+          );
+        }
+
+        // Process mill inputs
+        if (millInputsResult.status === 'fulfilled') {
+          processPromises.push(
+            millInputsResult.value.json().then(data => {
+              if (data.success && data.data?.millInputs) {
+                console.log('Mill inputs loaded:', data.data.millInputs.length);
+                const groupedInputs: {[key: string]: any[]} = {};
+                data.data.millInputs.forEach((input: any) => {
+                  if (!groupedInputs[input.orderId]) {
+                    groupedInputs[input.orderId] = [];
+                  }
+                  groupedInputs[input.orderId].push(input);
+                });
+                setOrderMillInputs(groupedInputs);
+                
+                // Process mill input data by quality
+                const processedData = processMillInputDataByQuality(data.data.millInputs);
+                setProcessDataByQuality(processedData);
+              }
+            })
+          );
+        }
+
+        // Process mill outputs
+        if (millOutputsResult.status === 'fulfilled') {
+          processPromises.push(
+            millOutputsResult.value.json().then(data => {
+              if (data.success && data.data?.millOutputs) {
+                const groupedOutputs: {[key: string]: any[]} = {};
+                data.data.millOutputs.forEach((output: any) => {
+                  if (!groupedOutputs[output.orderId]) {
+                    groupedOutputs[output.orderId] = [];
+                  }
+                  groupedOutputs[output.orderId].push(output);
+                });
+                setOrderMillOutputs(groupedOutputs);
+              }
+            })
+          );
+        }
+
+        // Process dispatches
+        if (dispatchesResult.status === 'fulfilled') {
+          processPromises.push(
+            dispatchesResult.value.json().then(data => {
+              if (data.success && data.data?.dispatches) {
+                const groupedDispatches: {[key: string]: any[]} = {};
+                data.data.dispatches.forEach((dispatch: any) => {
+                  if (!groupedDispatches[dispatch.orderId]) {
+                    groupedDispatches[dispatch.orderId] = [];
+                  }
+                  groupedDispatches[dispatch.orderId].push(dispatch);
+                });
+                setOrderDispatches(groupedDispatches);
+              }
+            })
+          );
+        }
+
+        // Wait for all processing to complete
+        await Promise.allSettled(processPromises);
+
+        // Set loading to false after all data is processed
+        setLoading(false);
+        
+        // Force re-render to ensure buttons appear
+        setTimeout(() => {
+          setLoading(false);
+        }, 100);
         
       } catch (error) {
         console.error('Error during data initialization:', error);
-        showMessage('error', 'Failed to initialize data. Please refresh the page.', { 
-          autoDismiss: true, 
-          dismissTime: 5000 
-        });
-        setOrdersLoaded(true); // Mark as loaded even on error
-        setLoading(false); // Set loading false on error
+        setLoading(false);
       } finally {
-        setIsInitialized(true); // Only set initialized, not loading
+        setIsInitialized(true);
       }
     };
     
     initializeAllData();
     
-    // Fallback timeout to prevent infinite loading (increased to 15 seconds for better reliability)
+    // AGGRESSIVE timeout - 3 seconds max
     const timeoutId = setTimeout(() => {
       if (!isInitialized) {
         setLoading(false);
         setIsInitialized(true);
-        // Silent timeout - no notification to avoid bad UX
       }
-    }, 15000); // 15 second timeout (increased for better reliability)
+    }, 3000);
     
     return () => clearTimeout(timeoutId);
-  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderMillInputs, fetchAllOrderMillOutputs, fetchAllOrderDispatches, showMessage, isInitialized]);
+  }, [showMessage, isInitialized]);
 
   // This useEffect is removed to prevent duplicate data loading
   // fetchAllOrderData is already called in initializeAllData, so no need for separate call
@@ -1228,9 +1411,6 @@ export default function OrdersPage() {
 
   // Memoized filtered and sorted orders
   const filteredOrders = useMemo(() => {
-    if (orders.length > 0) {
-      }
-    
     // Filtering orders
     let filtered = orders
       .filter(order => {
@@ -1255,8 +1435,9 @@ export default function OrdersPage() {
         }
         
         // Debug logging for status filter
-        if (filters.statusFilter === 'pending' && normalizedStatus !== 'pending') {
-          }
+        // if (filters.statusFilter === 'pending' && normalizedStatus !== 'pending') {
+        //   console.log('Status filter debug:', { orderId: order.orderId, orderStatus, normalizedStatus, statusFilter: filters.statusFilter });
+        // }
         
         const matchesStatus = filters.statusFilter === 'all' || normalizedStatus === filters.statusFilter;
 
@@ -1280,8 +1461,7 @@ export default function OrdersPage() {
       });
     }
 
-    if (searchTerm && filtered.length === 0) {
-      }
+    // No search results handling
 
     // Apply client-side pagination
     if (itemsPerPage === 'All') {
@@ -1460,9 +1640,9 @@ export default function OrdersPage() {
     setExistingMillInputs(existingData);
     setSelectedOrderForMillInputForm(order);
     
-    // Ensure mills are loaded before opening the form
+    // Ensure mills are loaded before opening the form - fetch in background
     if (mills.length === 0) {
-      await fetchMills();
+      fetchMills().catch(() => {});
     }
     
     setShowMillInputForm(true);
@@ -1716,7 +1896,7 @@ export default function OrdersPage() {
 
   if (!mounted) return null;
 
-  if (loading) {
+  if (loading || (!ordersLoaded && !isInitialized)) {
     return <LoadingSkeleton />;
   }
 
@@ -3073,16 +3253,11 @@ export default function OrdersPage() {
           </div>
         )}
 
-        {currentOrders.length === 0 && (
+        {currentOrders.length === 0 && ordersLoaded && (
           <div className={`text-center py-12 ${
             isDarkMode ? 'text-gray-400' : 'text-gray-500'
           }`}>
-            {loading ? (
-              <div className="space-y-4">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-                <p>Loading orders...</p>
-              </div>
-            ) : ordersLoaded && orders.length === 0 ? (
+            {orders.length === 0 ? (
               <div className="space-y-4">
                 <div className={`mx-auto h-16 w-16 rounded-full flex items-center justify-center ${
                   isDarkMode ? 'bg-gray-700' : 'bg-gray-100'

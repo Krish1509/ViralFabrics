@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '500'), 1000); // Max 1000 for EXTREME performance
     const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
 
@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
       .sort({ name: 1 })
       .skip(skip)
       .limit(limit)
+      .maxTimeMS(1000)
       .lean();
 
     const totalPages = Math.ceil(totalCount / limit);

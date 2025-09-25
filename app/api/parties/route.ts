@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search');
-    const limit = parseInt(searchParams.get('limit') || '20'); // Default limit for performance
+    const limit = Math.min(parseInt(searchParams.get('limit') || '500'), 1000); // Max 1000 for EXTREME performance
 
     let query = {};
     
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       .limit(limit)
       .select('_id name contactName contactPhone address createdAt updatedAt')
       .lean()
-      .maxTimeMS(5000); // 5 second timeout for better reliability
+      .maxTimeMS(1000); // 1 second timeout for ULTRA speed
 
     // Add cache headers
     const headers = {
