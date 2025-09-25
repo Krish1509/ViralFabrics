@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     await dbConnect();
     
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '50'); // Default limit for faster loading
+    const limit = parseInt(searchParams.get('limit') || '100'); // Higher limit for dashboard
     const page = parseInt(searchParams.get('page') || '1');
     const search = searchParams.get('search') || '';
     const orderType = searchParams.get('orderType') || '';
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .skip((page - 1) * limit)
       .lean()
-      .maxTimeMS(15000); // Increased to 15 second timeout for better reliability
+      .maxTimeMS(5000); // 5 second timeout for faster response
 
     // Use Promise.all to parallelize lab data fetching and total count
     const [labs, total] = await Promise.all([

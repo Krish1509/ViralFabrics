@@ -6,6 +6,8 @@ import { logCreate } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   try {
+    console.log('Parties API GET request received');
+    
     // Remove authentication requirement for now
     // await requireAuth(req);
 
@@ -30,7 +32,7 @@ export async function GET(req: NextRequest) {
       .limit(limit)
       .select('_id name contactName contactPhone address createdAt updatedAt')
       .lean()
-      .maxTimeMS(2000); // Reduced to 2 second timeout for faster response
+      .maxTimeMS(3000); // 3 second timeout for faster response
 
     // Add cache headers
     const headers = {
@@ -43,6 +45,8 @@ export async function GET(req: NextRequest) {
       data: parties 
     }), { status: 200, headers });
   } catch (error: unknown) {
+    console.error('Parties API GET error:', error);
+    
     if (error instanceof Error) {
       if (error.message.includes("Unauthorized")) {
         return new Response(JSON.stringify({ 

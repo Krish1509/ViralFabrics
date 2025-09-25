@@ -16,13 +16,13 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get('limit') || '50'); // Default limit for performance
     
-    // Optimized query with limits and timeout
+    // Super fast optimized query
     const users = await User.find() // Get all users (including inactive)
       .select("-password") // exclude password field directly
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean()
-      .maxTimeMS(5000); // Increased to 5 second timeout
+      .maxTimeMS(3000); // 3 second timeout for faster response
 
     // Map user fields to send only needed info (use username, not email)
     const usersSafe = users.map(user => ({

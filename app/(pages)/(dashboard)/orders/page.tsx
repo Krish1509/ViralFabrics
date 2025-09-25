@@ -716,10 +716,10 @@ export default function OrdersPage() {
   const fetchParties = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 second timeout (increased for stability)
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout for faster response
       
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/parties?limit=50', { // Increased limit for better UX
+      const response = await fetch('/api/parties?limit=100', { // Higher limit for better UX
         headers: {
           'Authorization': `Bearer ${token}`,
           'Cache-Control': 'no-cache, no-store, must-revalidate', // No cache for fresh data
@@ -733,6 +733,11 @@ export default function OrdersPage() {
       
       if (!response.ok) {
         if (response.status === 401) return; // Skip on auth error
+        if (response.status === 404) {
+          // Handle 404 gracefully - parties API might not be available
+          console.warn('Parties API not available (404)');
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
@@ -743,8 +748,9 @@ export default function OrdersPage() {
     } catch (error: any) {
       if (error.name === 'AbortError') {
         // Silent timeout for parties - not critical for main functionality
-      } else if (!error.message?.includes('401')) {
+      } else if (!error.message?.includes('401') && !error.message?.includes('404')) {
         // Silent error for parties - not critical for main functionality
+        console.warn('Parties fetch failed:', error.message);
       }
     }
   }, []);

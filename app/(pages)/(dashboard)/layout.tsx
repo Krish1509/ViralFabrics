@@ -381,7 +381,7 @@ export default function SuperAdminLayout({
 
   return (
     <div className={`min-h-screen transition-colors duration-300 theme-switch-root ${
-      mounted && isDarkMode 
+      isDarkMode 
         ? 'bg-slate-800' 
         : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
     }`}>
@@ -426,7 +426,7 @@ export default function SuperAdminLayout({
         {/* Main Content - Starts immediately below navbar */}
         <main className="">
           <div className={`${contentPadding} transition-colors duration-300 ${
-            mounted && isDarkMode ? 'text-white' : 'text-gray-900'
+            isDarkMode ? 'text-white' : 'text-gray-900'
           }`}>
             {children}
           </div>

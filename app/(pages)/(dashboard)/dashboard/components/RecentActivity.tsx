@@ -33,13 +33,23 @@ export default function RecentActivity({ userRole }: RecentActivityProps) {
 
   const fetchRecentLogs = async () => {
     try {
-      const response = await fetch('/api/logs?limit=10');
+      // Add timeout for faster response
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+      
+      const response = await fetch('/api/logs?limit=5', { // Reduced limit for faster loading
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (response.ok) {
         const data = await response.json();
         setLogs(data.logs || []);
       }
     } catch (error) {
-      } finally {
+      // Silent fail for better UX
+    } finally {
       setLoading(false);
     }
   };

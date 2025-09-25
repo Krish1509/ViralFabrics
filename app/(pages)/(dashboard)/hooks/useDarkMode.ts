@@ -14,7 +14,18 @@ interface DarkModeReturn {
 
 export function useDarkMode(): DarkModeReturn {
   // Initialize with the theme from the optimized script in layout.tsx
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    // Prevent white flash by checking localStorage immediately
+    if (typeof window !== 'undefined') {
+      const savedMode = localStorage.getItem('darkMode');
+      if (savedMode !== null) {
+        return savedMode === 'true';
+      }
+      // Fallback to system preference
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
   
   const [mounted, setMounted] = useState<boolean>(false);
   const themeSwitchRef = useRef<HTMLButtonElement | null>(null);
@@ -41,6 +52,13 @@ export function useDarkMode(): DarkModeReturn {
   }, []);
 
   useEffect(() => {
+    // Apply theme immediately to prevent white flash
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    
     setMounted(true);
     
     // Initialize theme from the layout script or localStorage

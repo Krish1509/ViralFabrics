@@ -208,6 +208,8 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
   }, []);
 
   const handleThemeToggle = useCallback(() => {
+    if (isThemeTransitioning) return; // Prevent rapid toggling
+    
     setIsThemeTransitioning(true);
     
     // Toggle dark mode with smooth animation
@@ -216,8 +218,8 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
     // Remove transition state after animation completes
     setTimeout(() => {
       setIsThemeTransitioning(false);
-    }, 800); // Match the animation duration from useDarkMode hook
-  }, [toggleDarkMode]);
+    }, 300); // Reduced for faster response
+  }, [toggleDarkMode, isThemeTransitioning]);
 
   // Helper functions
   const getUserInitials = useCallback((name: string) => {

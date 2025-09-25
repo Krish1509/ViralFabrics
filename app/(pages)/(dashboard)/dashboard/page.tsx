@@ -13,16 +13,18 @@ import {
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
 import MetricsCard from './components/MetricsCard';
-import OrdersTable from './components/OrdersTable';
-import UpcomingDeliveriesTable from './components/UpcomingDeliveriesTable';
 import DashboardFilters from './components/DashboardFilters';
-import EnhancedProfessionalPieChart from './components/EnhancedProfessionalPieChart';
 
-// Lazy load heavy components for better performance
+// Lazy load heavy components for better performance with aggressive optimization
 const OrderTrendsChart = lazy(() => import('./components/OrderTrendsChart'));
 const OrderTypeChart = lazy(() => import('./components/OrderTypeChart'));
 const StatusChart = lazy(() => import('./components/StatusChart'));
 const RecentActivity = lazy(() => import('./components/RecentActivity'));
+
+// Lazy load even more components to reduce initial bundle size
+const OrdersTable = lazy(() => import('./components/OrdersTable'));
+const UpcomingDeliveriesTable = lazy(() => import('./components/UpcomingDeliveriesTable'));
+const EnhancedProfessionalPieChart = lazy(() => import('./components/EnhancedProfessionalPieChart'));
 import { Order } from '@/types';
 
 interface DashboardStats {
@@ -98,16 +100,23 @@ export default function DashboardPage() {
         return;
       }
 
-      // Fetch all orders first to calculate statistics
+      // Fetch all orders with aggressive optimization
       const allOrdersParams = new URLSearchParams();
-      allOrdersParams.append('limit', '500'); // Reduced limit for faster loading
+      allOrdersParams.append('limit', '100'); // Much smaller limit for faster loading
       if (filters.orderType !== 'all') allOrdersParams.append('orderType', filters.orderType);
+
+      // Add timeout for faster response
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
 
       const allOrdersResponse = await fetch(`/api/orders?${allOrdersParams}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-        }
+        },
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (allOrdersResponse.ok) {
         const allOrdersData = await allOrdersResponse.json();
@@ -286,7 +295,22 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (mounted) {
+      // Start loading immediately
       fetchDashboardData();
+      
+      // Progressive loading - load sections in stages
+      const loadSections = () => {
+        // Load tables first (most important)
+        setTimeout(() => setLoadedSections(prev => ({ ...prev, tables: true })), 500);
+        
+        // Load charts second
+        setTimeout(() => setLoadedSections(prev => ({ ...prev, charts: true })), 1000);
+        
+        // Load activity last
+        setTimeout(() => setLoadedSections(prev => ({ ...prev, activity: true })), 1500);
+      };
+      
+      loadSections();
     }
   }, [mounted, fetchDashboardData]);
 
@@ -471,52 +495,62 @@ export default function DashboardPage() {
         )}
 
         {/* Professional Pie Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8" data-section="charts">
-          {/* Pending Orders Pie Chart */}
-          {stats && (
-            <EnhancedProfessionalPieChart 
-              title="Pending Orders"
-              data={{
-                pending: stats.statusStats.pending + stats.statusStats.not_set,
-                in_progress: 0,
-                completed: 0,
-                delivered: 0,
-                cancelled: 0,
-                not_set: 0
-              }}
-              typeBreakdown={stats.pendingTypeStats}
-              loading={loading}
-              variant="pending"
-            />
-          )}
+        {loadedSections.charts && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8" data-section="charts">
+            {/* Pending Orders Pie Chart */}
+            {stats && (
+              <Suspense fallback={<div className={`h-64 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>}>
+                <EnhancedProfessionalPieChart 
+                  title="Pending Orders"
+                  data={{
+                    pending: stats.statusStats.pending + stats.statusStats.not_set,
+                    in_progress: 0,
+                    completed: 0,
+                    delivered: 0,
+                    cancelled: 0,
+                    not_set: 0
+                  }}
+                  typeBreakdown={stats.pendingTypeStats}
+                  loading={loading}
+                  variant="pending"
+                />
+              </Suspense>
+            )}
 
-          {/* Delivered Orders Pie Chart */}
-          {stats && (
-            <EnhancedProfessionalPieChart 
-              title="Delivered Orders"
-              data={{
-                pending: 0,
-                in_progress: 0,
-                completed: 0,
-                delivered: stats.statusStats.delivered + stats.statusStats.completed,
-                cancelled: 0,
-                not_set: 0
-              }}
-              typeBreakdown={stats.deliveredTypeStats}
-              loading={loading}
-              variant="delivered"
-            />
-          )}
-        </div>
+            {/* Delivered Orders Pie Chart */}
+            {stats && (
+              <Suspense fallback={<div className={`h-64 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>}>
+                <EnhancedProfessionalPieChart 
+                  title="Delivered Orders"
+                  data={{
+                    pending: 0,
+                    in_progress: 0,
+                    completed: 0,
+                    delivered: stats.statusStats.delivered + stats.statusStats.completed,
+                    cancelled: 0,
+                    not_set: 0
+                  }}
+                  typeBreakdown={stats.deliveredTypeStats}
+                  loading={loading}
+                  variant="delivered"
+                />
+              </Suspense>
+            )}
+          </div>
+        )}
 
         {/* Upcoming Deliveries Table */}
-        <div className="mb-6 sm:mb-8">
-          <UpcomingDeliveriesTable
-            orders={upcomingDeliveryOrders}
-            title="Upcoming Deliveries"
-            loading={loading}
-          />
-        </div>
+        {loadedSections.tables && (
+          <div className="mb-6 sm:mb-8">
+            <Suspense fallback={<div className={`h-64 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>}>
+              <UpcomingDeliveriesTable
+                orders={upcomingDeliveryOrders}
+                title="Upcoming Deliveries"
+                loading={loading}
+              />
+            </Suspense>
+          </div>
+        )}
 
         {/* Status Overview and Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8" data-section="activity">

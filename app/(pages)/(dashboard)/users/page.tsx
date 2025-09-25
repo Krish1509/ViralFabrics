@@ -110,7 +110,7 @@ export default function UsersPage() {
     
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased to 8s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for faster response
       
       const token = localStorage.getItem('token');
       if (!token) {
@@ -144,9 +144,9 @@ export default function UsersPage() {
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        if (retryCount < 2) {
-          // Retry once more
-          setTimeout(() => fetchUsers(retryCount + 1), 1000);
+        if (retryCount < 1) {
+          // Retry once more with shorter delay
+          setTimeout(() => fetchUsers(retryCount + 1), 500);
           return;
         }
         setMessage({ type: 'error', text: 'Request timeout - please try again' });
@@ -159,7 +159,19 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
+    // Start fetching immediately
     fetchUsers();
+    
+    // Preload other data in background for faster navigation
+    const preloadData = () => {
+      // Preload other pages that users might navigate to
+      router.prefetch('/dashboard');
+      router.prefetch('/orders');
+    };
+    
+    // Preload after a short delay
+    const timer = setTimeout(preloadData, 1000);
+    return () => clearTimeout(timer);
   }, []);
 
   // Handle refresh
@@ -530,21 +542,21 @@ export default function UsersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            Manage Users
+            Users
           </h1>
           <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            Create, edit, and manage user accounts
+            User management and administration
           </p>
         </div>
         <button
-                      onClick={() => {
-              setShowCreateModal(true);
-              setValidationAlert(null);
-            }}
-          className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+          onClick={() => {
+            setShowCreateModal(true);
+            setValidationAlert(null);
+          }}
+          className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 active:scale-95 ${
             isDarkMode
-              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
-              : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
+              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
+              : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
           }`}
         >
           <PlusIcon className="h-5 w-5 mr-2" />
@@ -608,14 +620,14 @@ export default function UsersPage() {
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
-                className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                   refreshing
                     ? 'opacity-50 cursor-not-allowed'
                     : 'hover:scale-105 active:scale-95'
                 } ${
                   isDarkMode
-                    ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-white/30'
-                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                    ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-white/30 shadow-lg hover:shadow-xl'
+                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-lg hover:shadow-xl'
                 }`}
                 title="Refresh users list"
               >
@@ -889,10 +901,10 @@ export default function UsersPage() {
                           setShowEditModal(true);
                           setValidationAlert(null);
                         }}
-                        className={`p-2 rounded-lg transition-all duration-300 ${
+                        className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${
                           isDarkMode
-                            ? 'text-blue-400 hover:bg-blue-500/20'
-                            : 'text-blue-600 hover:bg-blue-50'
+                            ? 'text-blue-400 hover:bg-blue-500/20 hover:text-blue-300'
+                            : 'text-blue-600 hover:bg-blue-50 hover:text-blue-700'
                         }`}
                         title="Edit user"
                       >
@@ -910,11 +922,11 @@ export default function UsersPage() {
                           }
                         }}
                         disabled={!canDeleteUser(user) || !user._id}
-                        className={`p-2 rounded-lg transition-all duration-300 ${
+                        className={`p-2 rounded-lg transition-all duration-200 ${
                           canDeleteUser(user) && user._id
-                            ? isDarkMode
+                            ? 'hover:scale-110 active:scale-95 ' + (isDarkMode
                               ? 'text-red-400 hover:bg-red-500/20 hover:text-red-300 active:bg-red-500/30'
-                              : 'text-red-600 hover:bg-red-50 hover:text-red-700 active:bg-red-100'
+                              : 'text-red-600 hover:bg-red-50 hover:text-red-700 active:bg-red-100')
                             : isDarkMode
                               ? 'text-gray-500 cursor-not-allowed opacity-50 hover:bg-gray-500/10 hover:text-gray-400'
                               : 'text-gray-400 cursor-not-allowed opacity-50 hover:bg-gray-100 hover:text-gray-500'
