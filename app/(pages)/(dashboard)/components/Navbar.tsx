@@ -164,8 +164,8 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
 
   // Memoize screen size calculations
   const screenConfig = useMemo(() => {
-    const isLargeScreen = screenSize >= 1600;
-    const isMediumScreen = screenSize >= 800 && screenSize < 1600;
+    const isLargeScreen = screenSize >= 1900; // Changed to 1900px
+    const isMediumScreen = screenSize >= 800 && screenSize < 1900; // Updated range
     const isSmallScreen = screenSize < 800;
 
     return {
@@ -316,7 +316,7 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
       );
     } else {
       // Desktop: Toggle collapse button with responsive text
-      const isLargeScreen = screenSize >= 1600;
+      const isLargeScreen = screenSize >= 1900; // Changed to 1900px
       
       return (
         <button
@@ -337,7 +337,7 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
             ) : (
               <ChevronLeftIcon className="h-5 w-5" />
             )}
-            {/* Show text only on large screens (1600px+) */}
+            {/* Show text only on large screens (1900px+) */}
             {isLargeScreen && (
               <span className="text-sm font-medium">
                 {isCollapsed ? "Expand" : "Collapse"}

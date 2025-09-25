@@ -183,15 +183,14 @@ export default function Sidebar({
   // Set initial collapse state based on screen size (only once)
   useEffect(() => {
     if (screenSize > 0 && !hasSetInitialState) {
-      const isLargeScreen = screenSize >= 1600;
+      const isLargeScreen = screenSize >= 1900; // 1900px+
       
-      // Only set initial state if it doesn't match the expected state
-      // This prevents unnecessary toggles on mount
+      // Set the correct default state based on screen size
       if (isLargeScreen && isCollapsed) {
-        // Large screen but collapsed - expand to show text
+        // Large screen (1900px+) should show text with icons (not collapsed)
         onToggleCollapse();
       } else if (!isLargeScreen && !isCollapsed) {
-        // Small/medium screen but expanded - collapse to icons-only
+        // Medium screen (800px-1899px) should show icons only (collapsed)
         onToggleCollapse();
       }
       
@@ -210,9 +209,9 @@ export default function Sidebar({
 
   // Memoize screen size calculations
   const screenConfig = useMemo(() => {
-    const isLargeScreen = screenSize >= 1600;
-    const isMediumScreen = screenSize >= 800 && screenSize < 1600;
-    const isSmallScreen = screenSize < 800;
+    const isLargeScreen = screenSize >= 1900; // 1900px+ for full sidebar with text
+    const isMediumScreen = screenSize >= 800 && screenSize < 1900; // 800px-1899px for icon-only
+    const isSmallScreen = screenSize < 800; // Below 800px for mobile
 
     return {
       isLargeScreen,
@@ -237,10 +236,10 @@ export default function Sidebar({
   const sidebarWidth = useMemo(() => {
     if (screenConfig.isSmallScreen) return 'w-80'; // Mobile overlay
     if (screenConfig.isMediumScreen) {
-      return isCollapsed ? 'w-20' : 'w-64'; // Icons-only by default, allow toggle for medium screens (800px - 1599px)
+      return isCollapsed ? 'w-20' : 'w-64'; // Icons-only by default, allow toggle for medium screens (800px - 1899px)
     }
     if (screenConfig.isLargeScreen) {
-      return isCollapsed ? 'w-20' : 'w-64'; // Full by default, toggle to icons-only for large screens (1600px+)
+      return isCollapsed ? 'w-20' : 'w-64'; // Full by default, toggle to icons-only for large screens (1900px+)
     }
     return 'w-64';
   }, [screenConfig, isCollapsed]);
@@ -248,8 +247,8 @@ export default function Sidebar({
   // Memoize text visibility
   const shouldShowText = useMemo(() => {
     if (screenConfig.isSmallScreen) return true; // Always show text in mobile overlay
-    if (screenConfig.isMediumScreen) return !isCollapsed; // Allow toggle for medium screens (800px - 1599px)
-    if (screenConfig.isLargeScreen) return !isCollapsed; // Show text when not collapsed (toggle)
+    if (screenConfig.isMediumScreen) return !isCollapsed; // Allow toggle for medium screens (800px - 1899px)
+    if (screenConfig.isLargeScreen) return !isCollapsed; // Show text when not collapsed (toggle) for large screens (1900px+)
     return true;
   }, [screenConfig, isCollapsed]);
 

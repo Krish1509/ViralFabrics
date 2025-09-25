@@ -51,10 +51,10 @@ export default function SuperAdminLayout({
         setScreenSize(newScreenSize);
         
         // Set default collapsed state based on screen size
-        if (newScreenSize >= 800 && newScreenSize < 1600) {
+        if (newScreenSize >= 800 && newScreenSize < 1900) {
           // Medium screens: icons-only by default
           setIsSidebarCollapsed(true);
-        } else if (newScreenSize >= 1600) {
+        } else if (newScreenSize >= 1900) {
           // Large screens: full sidebar by default (icons + text)
           setIsSidebarCollapsed(false);
         }
@@ -66,9 +66,9 @@ export default function SuperAdminLayout({
     const initialSize = window.innerWidth;
     setScreenSize(initialSize);
     
-    if (initialSize >= 800 && initialSize < 1600) {
+    if (initialSize >= 800 && initialSize < 1900) {
       setIsSidebarCollapsed(true);
-    } else if (initialSize >= 1600) {
+    } else if (initialSize >= 1900) {
       setIsSidebarCollapsed(false);
     }
     
