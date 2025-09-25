@@ -420,7 +420,10 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [localItems, setLocalItems] = useState<OrderItem[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
   // Initialize local items when modal opens
   useEffect(() => {
@@ -433,6 +436,9 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
         sampleNumber: ''
       });
       setError('');
+      setSuccessMessage('');
+      setShowDeleteConfirm(false);
+      setItemToDelete(null);
     }
   }, [isOpen, order.items]);
 
@@ -440,9 +446,10 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
   const handleEditLabData = async (item: OrderItem) => {
     setEditingItemId(item._id || '');
     setError('');
+    setSuccessMessage('');
 
-    // Check if item already has lab data
-    if (item.labData?.sampleNumber) {
+    // Check if item already has lab data (check for labSendDate instead of sampleNumber)
+    if (item.labData?.labSendDate) {
       // Existing lab data found - load it
       setLabData({
         labSendDate: item.labData.labSendDate || '',
@@ -465,6 +472,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
 
     setIsLoading(true);
     setError('');
+    setSuccessMessage('');
 
     try {
       const response = await fetch(`/api/labs/${order._id}/${editingItemId || 'item_0'}`, {
@@ -486,6 +494,9 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       const result = await response.json();
 
       if (result.success) {
+        // Show success message
+        setSuccessMessage('Lab data saved successfully!');
+        
         // Immediately update local state for better UX
         setLocalItems(prevItems => 
           prevItems.map(item => 
@@ -509,13 +520,16 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
           )
         );
 
-        // Close editing mode
-        setEditingItemId(null);
-        setLabData({
-          labSendDate: '',
-          approvalDate: '',
-          sampleNumber: ''
-        });
+        // Close editing mode after a short delay to show success message
+        setTimeout(() => {
+          setEditingItemId(null);
+          setLabData({
+            labSendDate: '',
+            approvalDate: '',
+            sampleNumber: ''
+          });
+          setSuccessMessage('');
+        }, 1500);
 
         // Notify parent component
         onLabDataUpdate();
@@ -529,15 +543,23 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
     }
   };
 
+  // Show delete confirmation modal
+  const handleDeleteClick = (itemId: string) => {
+    setItemToDelete(itemId);
+    setShowDeleteConfirm(true);
+  };
+
   // Delete lab data with immediate UI update
-  const handleDelete = async (itemId: string) => {
-    if (!confirm('Are you sure you want to delete this lab data?')) return;
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
 
     setIsLoading(true);
     setError('');
+    setSuccessMessage('');
+    setShowDeleteConfirm(false);
 
     try {
-      const response = await fetch(`/api/labs/${order._id}/${itemId || 'item_0'}`, {
+      const response = await fetch(`/api/labs/${order._id}/${itemToDelete || 'item_0'}`, {
         method: 'DELETE',
       });
 
@@ -551,14 +573,14 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
         // Immediately update local state
         setLocalItems(prevItems => 
           prevItems.map(item => 
-            item._id === itemId 
+            item._id === itemToDelete 
               ? { ...item, labData: undefined }
               : item
           )
         );
 
         // Close editing if this was the item being edited
-        if (editingItemId === itemId) {
+        if (editingItemId === itemToDelete) {
           setEditingItemId(null);
           setLabData({
             labSendDate: '',
@@ -576,7 +598,14 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       setError('Failed to delete lab data. Please try again.');
     } finally {
       setIsLoading(false);
+      setItemToDelete(null);
     }
+  };
+
+  // Cancel delete confirmation
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setItemToDelete(null);
   };
 
   // Clear date field
@@ -596,6 +625,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       sampleNumber: ''
     });
     setError('');
+    setSuccessMessage('');
   };
 
   if (!isOpen || !mounted) return null;
@@ -703,14 +733,14 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                       </div>
                       
                       <div className="flex items-center gap-2">
-                        {item.labData?.sampleNumber && (
+                        {item.labData?.labSendDate && (
                           <div className="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs">
                             <CheckCircle size={12} />
                             Lab Data
                           </div>
                         )}
                         
-                        {item.labData?.sampleNumber ? (
+                        {item.labData?.labSendDate ? (
                           <button
                             onClick={() => handleEditLabData(item)}
                             disabled={isLoading}
@@ -742,7 +772,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                   </div>
 
                   {/* Lab Data Display */}
-                  {item.labData?.sampleNumber && (
+                  {item.labData?.labSendDate && (
                     <div className={`p-4 ${
                       isDarkMode ? 'bg-blue-900/20' : 'bg-blue-50'
                     }`}>
@@ -751,7 +781,9 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                           <span className={`font-medium ${
                             isDarkMode ? 'text-gray-400' : 'text-gray-600'
                           }`}>Sample:</span>
-                          <p className={isDarkMode ? 'text-white' : 'text-gray-800'}>{item.labData.sampleNumber}</p>
+                          <p className={isDarkMode ? 'text-white' : 'text-gray-800'}>
+                            {item.labData.sampleNumber || 'Not provided'}
+                          </p>
                         </div>
                         {item.labData.labSendDate && (
                           <div>
@@ -771,7 +803,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                         )}
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => handleDelete(item._id || '')}
+                            onClick={() => handleDeleteClick(item._id || '')}
                             disabled={isLoading}
                             className="flex items-center gap-1 px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs transition-colors disabled:opacity-50"
                           >
@@ -795,7 +827,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                           <h5 className={`text-lg font-semibold ${
                             isDarkMode ? 'text-white' : 'text-gray-800'
                           }`}>
-                            {item.labData?.sampleNumber ? 'Edit Lab Data' : 'Add Lab Data'}
+                            {item.labData?.labSendDate ? 'Edit Lab Data' : 'Add Lab Data'}
                           </h5>
                           <button
                             onClick={handleCancelEdit}
@@ -846,7 +878,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                             <label className={`block text-sm font-medium mb-3 ${
                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
                             }`}>
-                              Sample Number <span className="text-red-500">*</span>
+                              Sample Number
                             </label>
                             <div className="relative">
                               <input
@@ -859,7 +891,6 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                                     ? 'bg-gray-800 border-gray-600 text-white hover:border-gray-500'
                                     : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
                                 }`}
-                                required
                               />
                               <Hash size={20} className={`absolute left-4 top-1/2 transform -translate-y-1/2 ${
                                 isDarkMode ? 'text-gray-400' : 'text-gray-500'
@@ -867,6 +898,20 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                             </div>
                           </div>
                         </div>
+
+                        {/* Success Message */}
+                        {successMessage && (
+                          <div className={`p-4 rounded-lg border ${
+                            isDarkMode 
+                              ? 'bg-green-900/20 border-green-500/30 text-green-400' 
+                              : 'bg-green-50 border-green-200 text-green-800'
+                          }`}>
+                            <div className="flex items-center">
+                              <CheckCircle className="h-5 w-5 mr-2" />
+                              {successMessage}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Error Message */}
                         {error && (
@@ -903,7 +948,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                             ) : (
                               <>
                                 <CheckCircle size={16} />
-                                {item.labData?.sampleNumber ? 'Update Lab Data' : 'Save Lab Data'}
+                                {item.labData?.labSendDate ? 'Update Lab Data' : 'Save Lab Data'}
                               </>
                             )}
                           </button>
@@ -927,6 +972,107 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className={`relative w-full max-w-md rounded-xl shadow-2xl ${
+            isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
+          }`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between p-6 border-b ${
+              isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+            }`}>
+              <div className="flex items-center space-x-3">
+                <div className={`p-3 rounded-lg border ${
+                  isDarkMode
+                    ? 'bg-red-600/20 border-red-500/30'
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  <Trash2 className={`h-6 w-6 ${
+                    isDarkMode ? 'text-red-400' : 'text-red-600'
+                  }`} />
+                </div>
+                <h3 className="text-lg font-semibold">Delete Lab Data</h3>
+              </div>
+              <button
+                onClick={handleCancelDelete}
+                className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+                  isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+                }`}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="space-y-4">
+                <p className={`text-sm ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>
+                  Are you sure you want to delete this lab data? This action cannot be undone.
+                </p>
+                
+                <div className={`p-4 rounded-lg border ${
+                  isDarkMode 
+                    ? 'bg-red-900/20 border-red-500/30' 
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center">
+                    <ExclamationTriangleIcon className={`h-5 w-5 mr-2 ${
+                      isDarkMode ? 'text-red-400' : 'text-red-600'
+                    }`} />
+                    <span className={`text-sm font-medium ${
+                      isDarkMode ? 'text-red-400' : 'text-red-800'
+                    }`}>
+                      This will permanently remove all lab data for this item.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-6">
+                <button
+                  onClick={handleDelete}
+                  disabled={isLoading}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isLoading
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : isDarkMode
+                        ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg' 
+                        : 'bg-red-500 hover:bg-red-600 text-white shadow-lg'
+                  }`}
+                >
+                  {isLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} />
+                      Delete Lab Data
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleCancelDelete}
+                  disabled={isLoading}
+                  className={`px-6 py-3 border rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
+                    isDarkMode
+                      ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

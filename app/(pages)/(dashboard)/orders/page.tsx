@@ -218,16 +218,17 @@ export default function OrdersPage() {
     setSearchTerm(trimmedValue);
   }, []);
 
-  // Function to process mill input data and group by quality
+  // Function to process mill input data and group by order and quality
   const processMillInputDataByQuality = useCallback((millInputs: any[]) => {
     const processMap: {[key: string]: Set<string>} = {};
     
     millInputs.forEach((millInput) => {
       // Process main input
-      if (millInput.quality && millInput.processName) {
+      if (millInput.quality && millInput.processName && millInput.orderId) {
         const qualityId = typeof millInput.quality === 'object' ? millInput.quality._id : millInput.quality;
         const qualityName = typeof millInput.quality === 'object' ? millInput.quality.name : millInput.quality;
-        const key = `${qualityId}_${qualityName}`;
+        // Include orderId in the key to make it order-specific
+        const key = `${millInput.orderId}_${qualityId}_${qualityName}`;
         
         if (!processMap[key]) {
           processMap[key] = new Set();
@@ -238,10 +239,11 @@ export default function OrdersPage() {
       // Process additional meters
       if (millInput.additionalMeters && Array.isArray(millInput.additionalMeters)) {
         millInput.additionalMeters.forEach((additional: any) => {
-          if (additional.quality && additional.processName) {
+          if (additional.quality && additional.processName && millInput.orderId) {
             const qualityId = typeof additional.quality === 'object' ? additional.quality._id : additional.quality;
             const qualityName = typeof additional.quality === 'object' ? additional.quality.name : additional.quality;
-            const key = `${qualityId}_${qualityName}`;
+            // Include orderId in the key to make it order-specific
+            const key = `${millInput.orderId}_${qualityId}_${qualityName}`;
             
             if (!processMap[key]) {
               processMap[key] = new Set();
@@ -287,13 +289,14 @@ export default function OrdersPage() {
     return result;
   }, []);
 
-  // Function to get process data for a specific quality
-  const getProcessDataForQuality = useCallback((quality: any) => {
-    if (!quality) return [];
+  // Function to get process data for a specific quality and order
+  const getProcessDataForQuality = useCallback((quality: any, orderId?: string) => {
+    if (!quality || !orderId) return [];
     
     const qualityId = typeof quality === 'object' ? quality._id : quality;
     const qualityName = typeof quality === 'object' ? quality.name : quality;
-    const key = `${qualityId}_${qualityName}`;
+    // Include orderId in the key to make it order-specific
+    const key = `${orderId}_${qualityId}_${qualityName}`;
     
     return processDataByQuality[key] || [];
   }, [processDataByQuality]);
@@ -2692,7 +2695,7 @@ export default function OrdersPage() {
                                    <td className="px-4 py-4">
                                      <div className="max-w-[150px]">
                                        {(() => {
-                                         const processes = getProcessDataForQuality(item.quality);
+                                         const processes = getProcessDataForQuality(item.quality, order.orderId);
                                          if (processes.length === 0) {
                                            return <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>No process data</span>;
                                          }

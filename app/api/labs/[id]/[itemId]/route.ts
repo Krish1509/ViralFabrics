@@ -69,9 +69,9 @@ export async function POST(
     const { labSendDate, approvalDate, sampleNumber } = body;
     
     // Validate required fields
-    if (!labSendDate || !sampleNumber) {
+    if (!labSendDate) {
       return NextResponse.json(
-        { success: false, message: 'Lab Send Date and Sample Number are required' },
+        { success: false, message: 'Lab Send Date is required' },
         { status: 400 }
       );
     }
