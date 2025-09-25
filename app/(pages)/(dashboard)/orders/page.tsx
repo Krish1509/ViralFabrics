@@ -218,7 +218,7 @@ export default function OrdersPage() {
     setSearchTerm(trimmedValue);
   }, []);
 
-  // Function to process mill input data and group by order and quality
+   // Function to process mill input data and group by order and quality
   const processMillInputDataByQuality = useCallback((millInputs: any[]) => {
     const processMap: {[key: string]: Set<string>} = {};
     
@@ -1004,14 +1004,40 @@ export default function OrdersPage() {
   // PDF Download function for individual items
   const handleDownloadItemPDF = useCallback((order: any, item: any, itemIndex: number) => {
     try {
+      // Debug: Log the order data being passed to PDF generator
+      console.log('PDF Download - Original Order Data:', {
+        orderId: order.orderId,
+        styleNo: order.styleNo,
+        styleNoType: typeof order.styleNo,
+        poNumber: order.poNumber,
+        party: order.party
+      });
+      
       // Create a modified order object with only the specific item
       const itemOrder = {
         ...order,
         items: [item], // Only include the specific item
         // Add item-specific information to the order
         itemIndex: itemIndex + 1,
-        qualityName: item.quality && typeof item.quality === 'object' ? item.quality.name || 'Not selected' : 'Not selected'
+        qualityName: item.quality && typeof item.quality === 'object' ? item.quality.name || 'Not selected' : 'Not selected',
+        // Ensure mill inputs are included
+        millInputs: orderMillInputs[order.orderId] || [],
+        millOutputs: orderMillOutputs[order.orderId] || [],
+        dispatches: orderDispatches[order.orderId] || []
       };
+      
+      // Debug: Log the final order data being passed to PDF generator
+      console.log('PDF Download - Final Order Data:', {
+        orderId: itemOrder.orderId,
+        styleNo: itemOrder.styleNo,
+        styleNoType: typeof itemOrder.styleNo,
+        poNumber: itemOrder.poNumber,
+        party: itemOrder.party,
+        millInputs: itemOrder.millInputs,
+        millInputsLength: itemOrder.millInputs?.length,
+        millOutputs: itemOrder.millOutputs,
+        dispatches: itemOrder.dispatches
+      });
       
       generateOrderPDF(itemOrder);
       showMessage('success', `PDF downloaded for ${item.quality && typeof item.quality === 'object' ? item.quality.name || 'Item' : 'Item'}`, { 
