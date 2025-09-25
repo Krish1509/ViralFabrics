@@ -8,72 +8,53 @@ import { logLogin } from "@/lib/logger";
 
 export async function POST(req: Request) {
   try {
-    await dbConnect();
+    // Parse request body first
     const { username, password, rememberMe } = await req.json();
 
     if (!username || !password) {
       return NextResponse.json({ message: "Username and password are required" }, { status: 400 });
     }
-    // First try to find by username (exact match)
-    let user = await User.findOne({ username: username.trim() }).select('+password');
+
+    // Connect to database first, then find user
+    await dbConnect();
     
-    // If not found by username, try by name (for backward compatibility)
+    // Try username first, then name if not found
+    let user = await User.findOne({ username: username.trim() }).select('+password');
     if (!user) {
       user = await User.findOne({ name: username.trim() }).select('+password');
     }
-    
+
     if (!user) {
-      await logLogin(username, false, req as any, 'User not found');
+      // Log in background - don't wait for it
+      logLogin(username, false, req as any, 'User not found').catch(() => {});
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    // Check if account is locked
+    // Check if account is locked (non-blocking)
     if (user.accountLocked && user.lockExpiresAt && user.lockExpiresAt > new Date()) {
-      await logLogin(username, false, req as any, 'Account locked');
+      logLogin(username, false, req as any, 'Account locked').catch(() => {});
       return NextResponse.json({ message: "Account is temporarily locked due to too many failed attempts" }, { status: 423 });
     }
 
+    // Verify password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      // Record failed login attempt
-      try {
-        await user.recordFailedLogin();
-      } catch (error) {
-        }
-      
-      await logLogin(username, false, req as any, 'Invalid password');
+      // Record failed login attempt in background - don't wait
+      user.recordFailedLogin().catch(() => {});
+      logLogin(username, false, req as any, 'Invalid password').catch(() => {});
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    // Reset failed login attempts on successful login
-    try {
-      if (user && typeof user.incrementLoginCount === 'function') {
-        await user.incrementLoginCount();
-      } else {
-        // Fallback: manually update the user
-        await User.findByIdAndUpdate(user._id, {
-          $inc: { loginCount: 1 },
-          $set: { 
-            lastLogin: new Date(),
-            failedLoginAttempts: 0,
-            accountLocked: false
-          },
-          $unset: { lockExpiresAt: 1 }
-        });
-      }
-    } catch (error) {
-      }
-
+    // Prepare JWT token and user data in parallel
     const JWT_SECRET = process.env.JWT_SECRET;
     if (!JWT_SECRET) {
       return NextResponse.json({ message: "Server misconfiguration" }, { status: 500 });
     }
 
     const secretKey = new TextEncoder().encode(JWT_SECRET);
-    
-    // Set expiration time based on rememberMe option
     const expirationTime = rememberMe ? "30d" : "7d";
     
+    // Create JWT token
     const token = await new SignJWT({ 
       id: user._id.toString(), 
       role: user.role,
@@ -97,9 +78,22 @@ export async function POST(req: Request) {
       updatedAt: user.updatedAt,
     };
 
-    // Log successful login with user info
-    try {
-      await (Log as ILogModel).logUserAction({
+    // Start all background tasks in parallel - don't wait for any
+    Promise.all([
+      // Reset failed login attempts
+      user.incrementLoginCount ? 
+        user.incrementLoginCount() : 
+        User.findByIdAndUpdate(user._id, {
+          $inc: { loginCount: 1 },
+          $set: { 
+            lastLogin: new Date(),
+            failedLoginAttempts: 0,
+            accountLocked: false
+          },
+          $unset: { lockExpiresAt: 1 }
+        }),
+      // Log successful login
+      (Log as ILogModel).logUserAction({
         userId: user._id.toString(),
         username: user.username || user.name,
         userRole: user.role,
@@ -113,10 +107,10 @@ export async function POST(req: Request) {
         severity: 'info',
         ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown',
         userAgent: req.headers.get('user-agent') || 'unknown'
-      });
-    } catch (error) {
-      }
+      })
+    ]).catch(() => {}); // Silent fail for all background tasks
     
+    // Return immediately - don't wait for background tasks
     return NextResponse.json({ token, user: userSafe }, { status: 200 });
   } catch (err) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });

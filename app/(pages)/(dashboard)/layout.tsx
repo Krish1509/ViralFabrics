@@ -178,9 +178,7 @@ export default function SuperAdminLayout({
   }, []);
 
   const handleLogoutConfirm = useCallback(async () => {
-    // Close modal immediately
-    setShowLogoutConfirm(false);
-    // Set logging out state
+    // Set logging out state but keep modal open
     setIsLoggingOut(true);
     
     try {
@@ -197,20 +195,22 @@ export default function SuperAdminLayout({
       }
     } catch (error) {
       // Even if logout API fails, we still want to logout locally
+      console.error('Logout API error:', error);
     } finally {
       // Always clear local storage and redirect
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      // Small delay to show loading state briefly
-      setTimeout(() => {
-        router.push('/login');
-      }, 500);
+      // Close modal and redirect immediately - no delay
+      setShowLogoutConfirm(false);
+      router.push('/login');
     }
   }, [router]);
 
   const handleLogoutCancel = useCallback(() => {
+    // Don't allow canceling if logout is in progress
+    if (isLoggingOut) return;
     setShowLogoutConfirm(false);
-  }, []);
+  }, [isLoggingOut]);
 
   const updateUser = useCallback((updatedUser: User) => {
     setUser(updatedUser);
@@ -454,8 +454,11 @@ export default function SuperAdminLayout({
                 </div>
                 <button
                   onClick={handleLogoutCancel}
+                  disabled={isLoggingOut}
                   className={`p-1 rounded-md transition-colors ${
-                    isDarkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-100'
+                    isLoggingOut
+                      ? isDarkMode ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 cursor-not-allowed'
+                      : isDarkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-100'
                   }`}
                 >
                   <XMarkIcon className="h-5 w-5" />
@@ -488,10 +491,15 @@ export default function SuperAdminLayout({
             <div className={`px-6 py-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} flex justify-end space-x-3`}>
               <button
                 onClick={handleLogoutCancel}
+                disabled={isLoggingOut}
                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  isDarkMode 
-                    ? 'text-gray-300 hover:bg-gray-700' 
-                    : 'text-gray-700 hover:bg-gray-100'
+                  isLoggingOut
+                    ? isDarkMode 
+                      ? 'text-gray-600 cursor-not-allowed' 
+                      : 'text-gray-400 cursor-not-allowed'
+                    : isDarkMode 
+                      ? 'text-gray-300 hover:bg-gray-700' 
+                      : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 Cancel

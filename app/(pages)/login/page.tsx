@@ -90,6 +90,26 @@ function LoginForm() {
     }
   }, [mounted]);
 
+  // Aggressive preloading for super fast navigation
+  useEffect(() => {
+    const preloadEverything = () => {
+      // Preload all critical routes in parallel
+      Promise.all([
+        router.prefetch('/dashboard'),
+        router.prefetch('/orders'),
+        router.prefetch('/users'),
+        router.prefetch('/fabrics'),
+        // Preload API endpoints too
+        fetch('/api/orders?limit=10').catch(() => {}),
+        fetch('/api/users?limit=10').catch(() => {})
+      ]).catch(() => {}); // Silent fail
+    };
+    
+    // Start preloading immediately
+    const timer = setTimeout(preloadEverything, 300);
+    return () => clearTimeout(timer);
+  }, [router]);
+
   // Auto-login check for active session
   useEffect(() => {
     const checkActiveSession = async () => {
@@ -174,36 +194,54 @@ function LoginForm() {
     setErrors({});
     
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: formData.username,
-          password: formData.password,
-          rememberMe: formData.rememberMe
+      // Optimized timeout - 8 seconds for reliability
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      
+      // Start login API call and dashboard prefetch in parallel
+      const [response] = await Promise.all([
+        fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username: formData.username,
+            password: formData.password,
+            rememberMe: formData.rememberMe
+          }),
+          signal: controller.signal
         }),
-      });
+        // Prefetch dashboard in parallel with login
+        router.prefetch('/dashboard')
+      ]);
+      
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
       if (response.ok) {
-        // Store token and user data
+        // Store token and user data immediately
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         
-        // Redirect based on role
-        if (data.user.role === 'superadmin') {
-          router.push('/dashboard');
-        } else {
-          router.push('/dashboard');
-        }
+        // Show success message and redirect in parallel
+        setShowSuccessMessage(true);
+        
+        // Redirect immediately - no delay
+        router.push('/dashboard');
+        
+        // Don't set loading to false - let the redirect handle it
+        return;
       } else {
         setErrors({ general: data.message || `Login failed (${response.status})` });
       }
     } catch (error) {
-      setErrors({ general: 'Network error. Please try again.' });
+      if (error instanceof Error && error.name === 'AbortError') {
+        setErrors({ general: 'Login is taking longer than expected. Please try again.' });
+      } else {
+        setErrors({ general: 'Network error. Please check your connection and try again.' });
+      }
     } finally {
       setIsLoading(false);
     }
