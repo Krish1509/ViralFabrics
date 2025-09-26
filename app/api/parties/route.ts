@@ -6,7 +6,7 @@ import { logCreate } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   try {
-    console.log('Parties API GET request received - Fixed');
+    // Parties API GET request received
     
     // Remove authentication requirement for now
     // await requireAuth(req);
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200); // Much smaller default for speed
+    const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 100); // Ultra fast - 50ms target
 
     let query = {};
     
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       .limit(limit)
       .select('_id name contactName contactPhone address createdAt updatedAt')
       .lean()
-      .maxTimeMS(1000); // 1 second timeout for ULTRA speed
+      .maxTimeMS(200); // 200ms timeout for 50ms target
 
     // Add cache headers
     const headers = {

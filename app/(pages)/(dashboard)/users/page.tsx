@@ -65,8 +65,8 @@ export default function UsersPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [validationAlert, setValidationAlert] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(10); // Start with 10 for ultra speed
-  const itemsPerPageOptions = [10, 25, 50, 'All'] as const; // Ultra simplified options
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(10); // Start with 10 as expected
+  const itemsPerPageOptions = [10, 25, 50, 100, 'All'] as const; // Standard pagination options
   const fetchInProgress = useRef(false); // Prevent multiple simultaneous fetches
   const [isChangingPage, setIsChangingPage] = useState(false);
 
@@ -119,7 +119,7 @@ export default function UsersPage() {
     
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 500); // Ultra fast 500ms timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout to prevent timeouts
       
       const token = localStorage.getItem('token');
       if (!token) {
@@ -128,7 +128,8 @@ export default function UsersPage() {
       
       // Build URL with pagination parameters - optimized for speed
       const url = new URL('/api/users', window.location.origin);
-      const limitValue = itemsPerPage === 'All' ? 100 : Math.max(itemsPerPage, 10); // Ultra small for speed
+      // For initial load, fetch more users to ensure pagination works
+      const limitValue = itemsPerPage === 'All' ? 1000 : Math.max(itemsPerPage, 25); // Fetch 25 initially for pagination
       url.searchParams.append('limit', limitValue.toString());
       url.searchParams.append('page', currentPage.toString());
       
@@ -166,9 +167,9 @@ export default function UsersPage() {
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        if (retryCount < 1) {
-          // Single ultra fast retry
-          setTimeout(() => fetchUsers(retryCount + 1), 50);
+        if (retryCount < 2) {
+          // Two retries with reasonable delay
+          setTimeout(() => fetchUsers(retryCount + 1), 1000);
           return;
         }
         setMessage({ type: 'error', text: 'Request timeout - please try again' });
@@ -241,10 +242,10 @@ export default function UsersPage() {
     setItemsPerPage(newItemsPerPage);
     setCurrentPage(1); // Reset to first page
     
-    // For better UX, fetch all users and use client-side pagination
-    await fetchUsers();
+    // No need to fetch users again - we're using client-side pagination
+    // The pagination will update automatically when itemsPerPage changes
     setIsChangingPage(false);
-  }, [itemsPerPage, fetchUsers]);
+  }, [itemsPerPage]);
 
   // Filter and sort users
   // Memoized filtering for better performance
@@ -270,8 +271,21 @@ export default function UsersPage() {
     
     const itemsPerPageValue = itemsPerPage as number;
     const calculatedPages = Math.ceil(filteredUsers.length / itemsPerPageValue);
-    return Math.max(1, calculatedPages);
-  }, [filteredUsers, itemsPerPage]);
+    const result = Math.max(1, calculatedPages);
+    
+    // Debug logging
+    console.log('Pagination Debug:', {
+      filteredUsersLength: filteredUsers.length,
+      itemsPerPageValue,
+      calculatedPages,
+      result,
+      shouldShowPagination: result > 1,
+      currentPage,
+      isChangingPage
+    });
+    
+    return result;
+  }, [filteredUsers, itemsPerPage, currentPage, isChangingPage]);
 
   // Calculate pagination display info for client-side pagination
   const paginationDisplayInfo = useMemo(() => {
@@ -856,7 +870,7 @@ export default function UsersPage() {
 
           {/* Pagination Navigation */}
           {totalPages > 1 && (
-            <div className="flex items-center space-x-2">
+            <div key={`pagination-${itemsPerPage}-${totalPages}`} className="flex items-center space-x-2">
               {/* Mobile pagination */}
               <div className="flex sm:hidden">
                 <button
@@ -1185,11 +1199,11 @@ export default function UsersPage() {
         {/* Pagination Controls - Bottom */}
         {totalPages > 1 && (
           <div className={`flex items-center justify-center px-4 py-3 border-t ${
-            isDarkMode 
+                isDarkMode
               ? 'bg-white/5 border-white/10' 
               : 'bg-white border-gray-200'
           } sm:px-6`}>
-            <div className="flex items-center space-x-2">
+            <div key={`bottom-pagination-${itemsPerPage}-${totalPages}`} className="flex items-center space-x-2">
               {/* Mobile pagination */}
               <div className="flex sm:hidden">
                 <button
@@ -1220,7 +1234,7 @@ export default function UsersPage() {
                     }
                     
                     return (
-                      <button
+                <button
                         key={pageNum}
                         onClick={() => handlePageChange(pageNum)}
                         disabled={isChangingPage || loading}
@@ -1231,27 +1245,27 @@ export default function UsersPage() {
                         }`}
                       >
                         {pageNum}
-                      </button>
+                </button>
                     );
                   })}
-                </div>
+              </div>
                 
-                <button
+            <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages || isChangingPage || loading}
                   className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                     currentPage === totalPages || isChangingPage || loading
                       ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-                  }`}
-                >
-                  Next
-                </button>
-              </div>
+              }`}
+            >
+              Next
+            </button>
+          </div>
 
               {/* Desktop pagination */}
               <div className="hidden sm:flex items-center space-x-2">
-                <button
+              <button
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1 || isChangingPage || loading}
                   className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
@@ -1262,7 +1276,7 @@ export default function UsersPage() {
                 >
                   <span className="hidden sm:inline">Previous</span>
                   <span className="sm:hidden">Prev</span>
-                </button>
+              </button>
                 
                 {/* Page numbers */}
                 <div className="flex items-center space-x-1">
@@ -1279,7 +1293,7 @@ export default function UsersPage() {
                     }
                     
                     return (
-                      <button
+                  <button
                         key={pageNum}
                         onClick={() => handlePageChange(pageNum)}
                         disabled={isChangingPage || loading}
@@ -1290,12 +1304,12 @@ export default function UsersPage() {
                         }`}
                       >
                         {pageNum}
-                      </button>
+                  </button>
                     );
                   })}
                 </div>
                 
-                <button
+              <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages || isChangingPage || loading}
                   className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
@@ -1305,11 +1319,11 @@ export default function UsersPage() {
                   }`}
                 >
                   Next
-                </button>
-              </div>
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
           {filteredUsers.length === 0 && (
             <div className={`text-center py-12 ${

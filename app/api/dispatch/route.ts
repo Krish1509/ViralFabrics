@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const orderId = searchParams.get('orderId');
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500); // Much smaller default for speed
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100); // Ultra fast - 50ms target
     const skip = (page - 1) * limit;
 
     let query: any = {};
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
         .skip(skip)
         .limit(limit)
         .lean()
-        .maxTimeMS(1000)
+        .maxTimeMS(200)
         .catch(error => {
           return Dispatch.find(query)
             .sort({ dispatchDate: -1 })

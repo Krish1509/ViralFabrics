@@ -2,26 +2,18 @@ const CACHE_NAME = 'crm-admin-v1.0.0';
 const STATIC_CACHE = 'crm-static-v1.0.0';
 const DYNAMIC_CACHE = 'crm-dynamic-v1.0.0';
 
-// Files to cache immediately
+// Files to cache immediately - ONLY essential pages
 const STATIC_FILES = [
   '/',
   '/dashboard',
   '/orders',
-  '/parties',
-  '/users',
-  '/fabrics',
-  '/mills',
   '/manifest.json',
   '/favicon.ico'
 ];
 
-// API endpoints to cache
+// API endpoints to cache - ONLY essential APIs
 const API_CACHE = [
-  '/api/orders',
-  '/api/parties',
-  '/api/users',
-  '/api/fabrics',
-  '/api/mills'
+  '/api/orders'
 ];
 
 // Install event - cache static files

@@ -301,11 +301,11 @@ export default function OrdersPage() {
     return processDataByQuality[key] || [];
   }, [processDataByQuality]);
 
-  // Optimized fetch functions with retry logic and better timeout handling
+  // ULTRA FAST fetch functions - 50ms target
   const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage) => {
-    const maxRetries = 2; // Increased retries for better reliability
-    const baseTimeout = 10000; // 10 seconds base timeout (increased for stability)
-    const timeoutIncrement = 5000; // Add 5 seconds per retry
+    const maxRetries = 1; // Single retry for speed
+    const baseTimeout = 500; // 500ms timeout for 50ms target
+    const timeoutIncrement = 200; // Add 200ms per retry
     
     try {
       const controller = new AbortController();
@@ -607,7 +607,7 @@ export default function OrdersPage() {
 
       // Process mill inputs
       const millInputsData = await millInputsResponse.json();
-      console.log('Mill inputs API response:', millInputsData);
+      // Mill inputs API response processed
       if (millInputsData.success && millInputsData.data?.millInputs) {
         const groupedInputs: {[key: string]: any[]} = {};
         millInputsData.data.millInputs.forEach((input: any) => {
@@ -616,21 +616,21 @@ export default function OrdersPage() {
           }
           groupedInputs[input.orderId].push(input);
         });
-        console.log('Grouped mill inputs:', groupedInputs);
+        // Grouped mill inputs processed
         setOrderMillInputs(groupedInputs);
         
         // Process mill input data by quality
         const processedData = processMillInputDataByQuality(millInputsData.data.millInputs);
         setProcessDataByQuality(processedData);
       } else {
-        console.log('No mill inputs data found');
+        // No mill inputs data found
         setOrderMillInputs({});
         setProcessDataByQuality({});
       }
 
       // Process mill outputs
       const millOutputsData = await millOutputsResponse.json();
-      console.log('Mill outputs API response:', millOutputsData);
+      // Mill outputs API response processed
       if (millOutputsData.success && millOutputsData.data && Array.isArray(millOutputsData.data)) {
         const groupedOutputs: {[key: string]: any[]} = {};
         millOutputsData.data.forEach((output: any) => {
@@ -639,10 +639,10 @@ export default function OrdersPage() {
           }
           groupedOutputs[output.orderId].push(output);
         });
-        console.log('Grouped mill outputs:', groupedOutputs);
+        // Grouped mill outputs processed
         setOrderMillOutputs(groupedOutputs);
       } else {
-        console.log('No mill outputs data found');
+        // No mill outputs data found
         setOrderMillOutputs({});
       }
 
@@ -839,22 +839,13 @@ export default function OrdersPage() {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      // Prefetch APIs with MUCH smaller limits for speed
-      Promise.allSettled([
-        fetch('/api/orders?limit=50&page=1', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/parties?limit=50', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/qualities?limit=50', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/mills?limit=50', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/mill-inputs?limit=100', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/mill-outputs?limit=100', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/dispatch?limit=100', { headers: { 'Authorization': `Bearer ${token}` } })
-      ]).catch(() => {}); // Silent prefetch
+      // No prefetch - load only when needed for super fast initial load
     };
 
     prefetchAll();
   }, []);
 
-  // EXTREME SPEED initialization - NO COMPROMISES
+  // SUPER FAST initialization - ONE TIME ONLY
   useEffect(() => {
     if (isInitialized) return;
     
@@ -869,209 +860,50 @@ export default function OrdersPage() {
           return;
         }
 
-        // AGGRESSIVE timeout - 5 seconds max
+        // SUPER FAST: Load orders data with proper timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 seconds for reliable loading
 
-        // Fetch ALL data in parallel with MAXIMUM performance
-        const [
-          ordersResult,
-          partiesResult,
-          qualitiesResult,
-          millsResult,
-          millInputsResult,
-          millOutputsResult,
-          dispatchesResult
-        ] = await Promise.allSettled([
-          // Orders - SMALL limit for speed
-          fetch('/api/orders?limit=100&page=1', {
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'Accept': 'application/json'
-            },
-            signal: controller.signal
-          }),
-          // Parties - SMALL limit for speed
-          fetch('/api/parties?limit=50', {
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'Accept': 'application/json'
-            },
-            signal: controller.signal
-          }),
-          // Qualities - SMALL limit for speed
-          fetch('/api/qualities?limit=50', {
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'Accept': 'application/json'
-            },
-            signal: controller.signal
-          }),
-          // Mills - SMALL limit for speed
-          fetch('/api/mills?limit=50', {
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'Accept': 'application/json'
-            },
-            signal: controller.signal
-          }),
-          // Mill inputs - SMALL limit for speed
-          fetch('/api/mill-inputs?limit=100', {
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'Accept': 'application/json'
-            },
-            signal: controller.signal
-          }),
-          // Mill outputs - SMALL limit for speed
-          fetch('/api/mill-outputs?limit=100', {
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'Accept': 'application/json'
-            },
-            signal: controller.signal
-          }),
-          // Dispatches - SMALL limit for speed
-          fetch('/api/dispatch?limit=100', {
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'Accept': 'application/json'
-            },
-            signal: controller.signal
-          })
-        ]);
+        // Load orders data
+        const ordersResponse = await fetch('/api/orders?limit=50&page=1', {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          },
+          signal: controller.signal
+        });
 
         clearTimeout(timeoutId);
 
-        // Process ALL results in parallel - NO WAITING
-        const processPromises = [];
-
-        // Process orders
-        if (ordersResult.status === 'fulfilled') {
-          processPromises.push(
-            ordersResult.value.json().then(data => {
-              if (data.success && data.data) {
-                console.log('Orders loaded:', data.data.orders?.length || 0);
-                setOrders(data.data.orders || []);
-                setPaginationInfo(data.pagination || {
-                  totalCount: 0,
-                  totalPages: 0,
-                  currentPage: 1,
-                  hasNextPage: false,
-                  hasPrevPage: false
-                });
-                setOrdersLoaded(true); // Only set when orders are actually loaded
-              }
-            })
-          );
+        // Process orders data
+        if (ordersResponse.ok) {
+          const data = await ordersResponse.json();
+          if (data.success && data.data) {
+            setOrders(data.data || []); // data.data contains the orders array directly
+            setPaginationInfo(data.pagination || {
+              totalCount: 0,
+              totalPages: 0,
+              currentPage: 1,
+              hasNextPage: false,
+              hasPrevPage: false
+            });
+          setOrdersLoaded(true);
+        } else {
+            // No orders found - this is normal
+            setOrders([]);
+            setOrdersLoaded(true);
+          }
+        } else {
+          showMessage('error', 'Failed to load orders', { autoDismiss: true, dismissTime: 3000 });
+          setOrdersLoaded(true); // Still mark as loaded to show "No orders yet"
         }
 
-        // Process parties
-        if (partiesResult.status === 'fulfilled') {
-          processPromises.push(
-            partiesResult.value.json().then(data => {
-              if (data.success && data.data) {
-                setParties(data.data || []);
-              }
-            })
-          );
-        }
-
-        // Process qualities
-        if (qualitiesResult.status === 'fulfilled') {
-          processPromises.push(
-            qualitiesResult.value.json().then(data => {
-              if (data.success && data.data) {
-                setQualities(data.data || []);
-              }
-            })
-          );
-        }
-
-        // Process mills
-        if (millsResult.status === 'fulfilled') {
-          processPromises.push(
-            millsResult.value.json().then(data => {
-              if (data.success && data.data) {
-                setMills(data.data || []);
-              }
-            })
-          );
-        }
-
-        // Process mill inputs
-        if (millInputsResult.status === 'fulfilled') {
-          processPromises.push(
-            millInputsResult.value.json().then(data => {
-              if (data.success && data.data?.millInputs) {
-                console.log('Mill inputs loaded:', data.data.millInputs.length);
-                const groupedInputs: {[key: string]: any[]} = {};
-                data.data.millInputs.forEach((input: any) => {
-                  if (!groupedInputs[input.orderId]) {
-                    groupedInputs[input.orderId] = [];
-                  }
-                  groupedInputs[input.orderId].push(input);
-                });
-                setOrderMillInputs(groupedInputs);
-                
-                // Process mill input data by quality
-                const processedData = processMillInputDataByQuality(data.data.millInputs);
-                setProcessDataByQuality(processedData);
-              }
-            })
-          );
-        }
-
-        // Process mill outputs
-        if (millOutputsResult.status === 'fulfilled') {
-          processPromises.push(
-            millOutputsResult.value.json().then(data => {
-              if (data.success && data.data?.millOutputs) {
-                const groupedOutputs: {[key: string]: any[]} = {};
-                data.data.millOutputs.forEach((output: any) => {
-                  if (!groupedOutputs[output.orderId]) {
-                    groupedOutputs[output.orderId] = [];
-                  }
-                  groupedOutputs[output.orderId].push(output);
-                });
-                setOrderMillOutputs(groupedOutputs);
-              }
-            })
-          );
-        }
-
-        // Process dispatches
-        if (dispatchesResult.status === 'fulfilled') {
-          processPromises.push(
-            dispatchesResult.value.json().then(data => {
-              if (data.success && data.data?.dispatches) {
-                const groupedDispatches: {[key: string]: any[]} = {};
-                data.data.dispatches.forEach((dispatch: any) => {
-                  if (!groupedDispatches[dispatch.orderId]) {
-                    groupedDispatches[dispatch.orderId] = [];
-                  }
-                  groupedDispatches[dispatch.orderId].push(dispatch);
-                });
-                setOrderDispatches(groupedDispatches);
-              }
-            })
-          );
-        }
-
-        // Wait for all processing to complete
-        await Promise.allSettled(processPromises);
-
-        // Set loading to false after all data is processed
         setLoading(false);
-        
-        // Force re-render to ensure buttons appear
-        setTimeout(() => {
-          setLoading(false);
-        }, 100);
         
       } catch (error) {
         console.error('Error during data initialization:', error);
         setLoading(false);
+        setOrdersLoaded(true); // Mark as loaded even on error to show "No orders yet"
       } finally {
         setIsInitialized(true);
       }
@@ -1079,19 +911,159 @@ export default function OrdersPage() {
     
     initializeAllData();
     
-    // AGGRESSIVE timeout - 3 seconds max
+    // ONE TIME timeout - 5 seconds max for reliable loading
     const timeoutId = setTimeout(() => {
       if (!isInitialized) {
         setLoading(false);
+        setOrdersLoaded(true); // Mark as loaded even on timeout
         setIsInitialized(true);
       }
-    }, 3000);
+    }, 5000);
     
     return () => clearTimeout(timeoutId);
   }, [showMessage, isInitialized]);
 
-  // This useEffect is removed to prevent duplicate data loading
-  // fetchAllOrderData is already called in initializeAllData, so no need for separate call
+  // Load additional data only when needed (lazy loading)
+  const loadPartiesData = useCallback(async () => {
+    if (parties.length > 0) return; // Already loaded
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const response = await fetch('/api/parties?limit=50', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setParties(data.data || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading parties:', error);
+    }
+  }, [parties.length]);
+
+  const loadQualitiesData = useCallback(async () => {
+    if (qualities.length > 0) return; // Already loaded
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const response = await fetch('/api/qualities?limit=50', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setQualities(data.data || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading qualities:', error);
+    }
+  }, [qualities.length]);
+
+  const loadMillsData = useCallback(async () => {
+    if (mills.length > 0) return; // Already loaded
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const response = await fetch('/api/mills?limit=50', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setMills(data.data || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading mills:', error);
+    }
+  }, [mills.length]);
+
+  const loadMillInputsData = useCallback(async (orderId: string) => {
+    if (orderMillInputs[orderId]) return; // Already loaded for this order
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const response = await fetch(`/api/mill-inputs?orderId=${orderId}&limit=100`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data?.millInputs) {
+          setOrderMillInputs(prev => ({
+            ...prev,
+            [orderId]: data.data.millInputs
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading mill inputs:', error);
+    }
+  }, [orderMillInputs]);
+
+  const loadMillOutputsData = useCallback(async (orderId: string) => {
+    if (orderMillOutputs[orderId]) return; // Already loaded for this order
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const response = await fetch(`/api/mill-outputs?orderId=${orderId}&limit=100`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data?.millOutputs) {
+          setOrderMillOutputs(prev => ({
+            ...prev,
+            [orderId]: data.data.millOutputs
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading mill outputs:', error);
+    }
+  }, [orderMillOutputs]);
+
+  const loadDispatchesData = useCallback(async (orderId: string) => {
+    if (orderDispatches[orderId]) return; // Already loaded for this order
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const response = await fetch(`/api/dispatch?orderId=${orderId}&limit=100`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data?.dispatches) {
+          setOrderDispatches(prev => ({
+            ...prev,
+            [orderId]: data.data.dispatches
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading dispatches:', error);
+    }
+  }, [orderDispatches]);
 
 
   // Keyboard navigation for image preview
@@ -1102,106 +1074,33 @@ export default function OrdersPage() {
     }
   }, [showImagePreview, currentImageIndex]);
 
-  // Listen for real-time order updates
-  useEffect(() => {
-    const handleOrderUpdate = (event: CustomEvent) => {
-      // OrdersPage: Received orderUpdated event
-      
-      // Refresh orders for any order-related action
-      if (event.detail?.action === 'order_create' || 
-          event.detail?.action === 'order_update' || 
-          event.detail?.action === 'order_delete' ||
-          event.detail?.action === 'order_delete_all' ||
-          event.detail?.action === 'lab_add') {
-        // OrdersPage: Refreshing orders due to action
-        
-        // Silent refresh - no notifications to avoid duplicate messages
-        Promise.allSettled([fetchOrders(), fetchAllOrderData()]).catch(error => {
-          // Silent error handling for better UX
-        });
-      } else if (event.detail?.action === 'order_status_change') {
-        // For status changes, only refresh orders (not mill data) since we already have optimistic updates
-        fetchOrders().then(() => {
-          // OrdersPage: Successfully refreshed orders after status change
-        }).catch(error => {
-          // Silent error handling for better UX
-        });
-      }
-    };
-
-    // Add event listener
-    window.addEventListener('orderUpdated', handleOrderUpdate as EventListener);
-    
-    // Cleanup event listener
-    return () => {
-      window.removeEventListener('orderUpdated', handleOrderUpdate as EventListener);
-    };
-  }, [fetchOrders, showMessage]);
+  // NO MORE EVENT LISTENERS - No multiple refreshes
 
   // Optimized refresh function with Promise.all for maximum performance
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     
     try {
-      // Refresh all data in parallel using Promise.all for maximum performance
-      const [
-        ordersResult,
-        partiesResult,
-        qualitiesResult,
-        millsResult,
-        millInputsResult,
-        millOutputsResult,
-        dispatchesResult
-      ] = await Promise.allSettled([
-        fetchOrders(),
-        fetchParties(),
-        fetchQualities(),
-        fetchMills(),
-        fetchAllOrderMillInputs(),
-        fetchAllOrderMillOutputs(),
-        fetchAllOrderDispatches()
-      ]);
-
-      // Count successful results
-      const results = [ordersResult, partiesResult, qualitiesResult, millsResult, millInputsResult, millOutputsResult, dispatchesResult];
-      const successCount = results.filter(result => result.status === 'fulfilled').length;
-      const totalCount = results.length;
-      
-      // Silent refresh - no success messages to avoid duplicates
-      if (successCount === totalCount) {
-        // Data refreshed successfully - no notification needed
-      } else if (successCount > 0) {
-        // Silent partial success - no notification to avoid spam
-      } else {
-        showMessage('error', 'Failed to refresh data', { 
-          autoDismiss: true, 
-          dismissTime: 4000 
-        });
-      }
-      
+      // Only refresh orders - super simple
+      await fetchOrders();
+      showMessage('success', 'Orders refreshed successfully', { 
+        autoDismiss: true, 
+        dismissTime: 2000 
+      });
     } catch (error: any) {
       console.error('Error during refresh:', error);
-      showMessage('error', 'Failed to refresh data', { 
+      showMessage('error', 'Failed to refresh orders', { 
         autoDismiss: true, 
-        dismissTime: 4000 
+        dismissTime: 2000 
       });
     } finally {
       setRefreshing(false);
     }
-  }, [fetchOrders, fetchParties, fetchQualities, fetchMills, fetchAllOrderMillInputs, fetchAllOrderMillOutputs, fetchAllOrderDispatches, showMessage]);
+  }, [fetchOrders, showMessage]);
 
   // PDF Download function for individual items
   const handleDownloadItemPDF = useCallback((order: any, item: any, itemIndex: number) => {
     try {
-      // Debug: Log the order data being passed to PDF generator
-      console.log('PDF Download - Original Order Data:', {
-        orderId: order.orderId,
-        styleNo: order.styleNo,
-        styleNoType: typeof order.styleNo,
-        poNumber: order.poNumber,
-        party: order.party
-      });
-      
       // Create a modified order object with only the specific item
       const itemOrder = {
         ...order,
@@ -1214,19 +1113,6 @@ export default function OrdersPage() {
         millOutputs: orderMillOutputs[order.orderId] || [],
         dispatches: orderDispatches[order.orderId] || []
       };
-      
-      // Debug: Log the final order data being passed to PDF generator
-      console.log('PDF Download - Final Order Data:', {
-        orderId: itemOrder.orderId,
-        styleNo: itemOrder.styleNo,
-        styleNoType: typeof itemOrder.styleNo,
-        poNumber: itemOrder.poNumber,
-        party: itemOrder.party,
-        millInputs: itemOrder.millInputs,
-        millInputsLength: itemOrder.millInputs?.length,
-        millOutputs: itemOrder.millOutputs,
-        dispatches: itemOrder.dispatches
-      });
       
       generateOrderPDF(itemOrder);
       showMessage('success', `PDF downloaded for ${item.quality && typeof item.quality === 'object' ? item.quality.name || 'Item' : 'Item'}`, { 
@@ -1615,51 +1501,44 @@ export default function OrdersPage() {
   };
 
   const handleMillInput = async (order: Order) => {
-    console.log('handleMillInput called for order:', order.orderId);
-    // Clear cache before opening form
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem('millInputFormCache');
-      window.localStorage.removeItem('millInputFormData');
-      window.localStorage.removeItem('millInputFormState');
-      window.localStorage.setItem('millInputFormVersion', '2.0');
-      window.localStorage.setItem('millInputFormForceNew', 'true');
-    }
+    // handleMillInput called for order
+    
+    // Load data only when button is clicked
+    await Promise.all([
+      loadMillsData(),
+      loadQualitiesData(),
+      loadMillInputsData(order.orderId)
+    ]);
+    
     // Check if there's existing mill input data for this order
     const existingData = orderMillInputs[order.orderId] || [];
     const hasExistingData = existingData.length > 0;
     
-    console.log('Mill input data check:', { 
-      orderId: order.orderId, 
-      existingData, 
-      hasExistingData,
-      orderMillInputs: orderMillInputs 
-    });
+    // Mill input data check completed
     
     // Set editing state and existing data
     setIsEditingMillInput(hasExistingData);
     setExistingMillInputs(existingData);
     setSelectedOrderForMillInputForm(order);
     
-    // Ensure mills are loaded before opening the form - fetch in background
-    if (mills.length === 0) {
-      fetchMills().catch(() => {});
-    }
-    
     setShowMillInputForm(true);
   };
 
   const handleMillOutput = async (order: Order) => {
-    console.log('handleMillOutput called for order:', order.orderId);
+    // handleMillOutput called for order
+    
+    // Load data only when button is clicked
+    await Promise.all([
+      loadMillsData(),
+      loadQualitiesData(),
+      loadMillOutputsData(order.orderId)
+    ]);
+    
     // Check if there's existing mill output data for this order
     const existingData = orderMillOutputs[order.orderId] || [];
     const hasExistingData = existingData.length > 0;
     
-    console.log('Mill output data check:', { 
-      orderId: order.orderId, 
-      existingData, 
-      hasExistingData,
-      orderMillOutputs: orderMillOutputs 
-    });
+    // Mill output data check completed
     
     // Set editing state and existing data
     setIsEditingMillOutput(hasExistingData);
@@ -1670,6 +1549,12 @@ export default function OrdersPage() {
   };
 
   const handleDispatch = async (order: Order) => {
+    // Load data only when button is clicked
+    await Promise.all([
+      loadPartiesData(),
+      loadDispatchesData(order.orderId)
+    ]);
+    
     // Check if there's existing dispatch data for this order
     const existingData = orderDispatches[order.orderId] || [];
     const hasExistingData = existingData.length > 0;
@@ -1747,17 +1632,15 @@ export default function OrdersPage() {
   
   // Pagination debug info removed for production
 
-  // Reset to page 1 and fetch new data when filters change
+  // Reset to page 1 when filters change - NO API CALLS
     useEffect(() => {
       setCurrentPage(1);
-      fetchOrders(0, 1, itemsPerPage);
     }, [filters, itemsPerPage]);
 
-  // Auto-correct current page if it exceeds total pages
+  // Auto-correct current page if it exceeds total pages - NO API CALLS
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(totalPages);
-      fetchOrders(0, totalPages, itemsPerPage);
     }
   }, [totalPages, currentPage, itemsPerPage]);
 

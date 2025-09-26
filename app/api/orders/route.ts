@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     await dbConnect();
     
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500); // Much smaller default for speed
+    const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 100); // Ultra small for 50ms target
     const page = parseInt(searchParams.get('page') || '1');
     const search = searchParams.get('search') || '';
     const orderType = searchParams.get('orderType') || '';
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .skip((page - 1) * limit)
       .lean()
-      .maxTimeMS(1000); // 1 second timeout for ULTRA speed
+      .maxTimeMS(200); // 200ms timeout for 50ms target
 
     // Use Promise.all to parallelize lab data fetching and total count
     const [labs, total] = await Promise.all([
@@ -69,13 +69,13 @@ export async function GET(request: NextRequest) {
           })
           .select('orderItemId labSendDate labSendData labSendNumber status remarks')
           .lean()
-          .maxTimeMS(8000);
+          .maxTimeMS(200);
         } catch (labError) {
           return [];
         }
       })() : Promise.resolve([]),
       // Get total count in parallel
-      Order.countDocuments(query).maxTimeMS(5000)
+      Order.countDocuments(query).maxTimeMS(200)
     ]);
 
     // Attach lab data to order items

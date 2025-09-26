@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
     const orderId = searchParams.get('orderId');
     const q = searchParams.get('q');
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 100); // Ultra fast - 50ms target
     const status = searchParams.get('status');
     const includeDeleted = searchParams.get('includeDeleted') === 'true';
     
@@ -134,10 +134,10 @@ export async function GET(request: NextRequest) {
         .skip(skip)
         .limit(limit)
         .lean()
-        .maxTimeMS(8000), // 8 second timeout
+        .maxTimeMS(200), // 200ms timeout for 50ms target
       
       Lab.countDocuments(filter)
-        .maxTimeMS(3000) // 3 second timeout
+        .maxTimeMS(200) // 200ms timeout for 50ms target
     ]);
     
     return NextResponse.json(successResponse({

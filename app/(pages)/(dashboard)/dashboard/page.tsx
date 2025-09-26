@@ -243,7 +243,7 @@ export default function DashboardPage() {
         )}
 
         {/* Simple Status Overview */}
-        {stats && (
+            {stats && (
           <div className="mb-6 sm:mb-8">
             <div className={`rounded-lg border p-6 ${
               isDarkMode 

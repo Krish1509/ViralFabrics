@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const millId = searchParams.get('millId');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500); // Much smaller default for speed
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100); // Ultra fast - 50ms target
     const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get total count for pagination
-    const totalCount = await MillInput.countDocuments(query).maxTimeMS(1000);
+    const totalCount = await MillInput.countDocuments(query).maxTimeMS(200);
     
     // Get mill inputs with pagination and populate references
     let millInputs;
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
       const queryBuilder = MillInput.find(query)
         .populate('mill', 'name contactPerson contactPhone')
         .populate('order', 'orderId orderType party')
-        .maxTimeMS(1000);
+        .maxTimeMS(200);
       
       // Try to populate quality fields safely
       try {

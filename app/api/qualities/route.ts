@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     
     // Parse query parameters
     const url = new URL(request.url);
-    const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 200); // Much smaller default for speed
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '25'), 100); // Ultra fast - 50ms target
     const search = url.searchParams.get('search') || '';
     
     // Build query
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       .sort({ name: 1 })
       .limit(limit)
       .lean()
-      .maxTimeMS(1000); // 1 second timeout for ULTRA speed
+      .maxTimeMS(200); // 200ms timeout for 50ms target
 
     // Add cache headers
     const headers = {

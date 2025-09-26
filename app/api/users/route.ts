@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     
     // Get query parameters
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get('limit') || '10'); // Ultra small default for speed
+    const limit = parseInt(searchParams.get('limit') || '25'); // Fetch 25 initially for pagination
     const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
     
@@ -33,10 +33,10 @@ export async function GET(req: NextRequest) {
     .skip(skip)
     .limit(limit)
     .lean()
-    .maxTimeMS(300); // Ultra fast 300ms timeout
+    .maxTimeMS(3000); // 3 second timeout to prevent timeouts
     
     // Simple count - no parallel needed
-    const totalCount = await User.countDocuments().maxTimeMS(300);
+    const totalCount = await User.countDocuments().maxTimeMS(3000);
 
     // No need to map since we're already selecting only needed fields
 

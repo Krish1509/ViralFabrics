@@ -74,18 +74,6 @@
       ]
     },
     {
-      "name": "Parties",
-      "short_name": "Parties",
-      "description": "Manage parties and customers",
-      "url": "/parties",
-      "icons": [
-        {
-          "src": "/icons/parties-icon.svg",
-          "sizes": "96x96"
-        }
-      ]
-    },
-    {
       "name": "Dashboard",
       "short_name": "Dashboard",
       "description": "View dashboard and analytics",

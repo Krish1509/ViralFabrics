@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
             count: { $sum: 1 }
           }
         }
-      ]).maxTimeMS(1000),
+      ]),
       
       // Type aggregation
       Order.aggregate([
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
             count: { $sum: 1 }
           }
         }
-      ]).maxTimeMS(1000)
+      ])
     ]);
 
     // Process status stats
