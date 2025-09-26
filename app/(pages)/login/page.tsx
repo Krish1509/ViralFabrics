@@ -99,9 +99,8 @@ function LoginForm() {
         router.prefetch('/orders'),
         router.prefetch('/users'),
         router.prefetch('/fabrics'),
-        // Preload API endpoints too
-        fetch('/api/orders?limit=10').catch(() => {}),
-        fetch('/api/users?limit=10').catch(() => {})
+        // Preload API endpoints too (removed users API call to prevent conflicts)
+        fetch('/api/orders?limit=10').catch(() => {})
       ]).catch(() => {}); // Silent fail
     };
     

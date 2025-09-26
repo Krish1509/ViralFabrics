@@ -15,11 +15,17 @@ export async function GET(req: NextRequest) {
     // Get query parameters
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get('limit') || '50'); // Default limit for performance
+    const page = parseInt(searchParams.get('page') || '1'); // Default page 1
+    const skip = (page - 1) * limit;
     
-    // Super fast optimized query
+    // Get total count for pagination
+    const totalCount = await User.countDocuments();
+    
+    // Super fast optimized query with pagination
     const users = await User.find() // Get all users (including inactive)
       .select("-password") // exclude password field directly
       .sort({ createdAt: -1 })
+      .skip(skip)
       .limit(limit)
       .lean()
       .maxTimeMS(3000); // 3 second timeout for faster response
@@ -43,9 +49,20 @@ export async function GET(req: NextRequest) {
       'Cache-Control': 'public, max-age=30, stale-while-revalidate=60',
     };
 
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limit);
+    
     return new Response(JSON.stringify({
       success: true,
-      data: usersSafe
+      data: usersSafe,
+      pagination: {
+        currentPage: page,
+        totalPages: totalPages,
+        totalCount: totalCount,
+        limit: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
     }), { status: 200, headers });
   } catch (error: unknown) {
     if (error instanceof Error) {

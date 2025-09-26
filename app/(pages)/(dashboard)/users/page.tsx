@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   PlusIcon,
@@ -65,9 +65,12 @@ export default function UsersPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [validationAlert, setValidationAlert] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const usersPerPage = 10; // Increased for better performance
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(10);
+  const itemsPerPageOptions = [10, 25, 50, 100, 'All'] as const;
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table'); // Default to table view
   const [initialLoad, setInitialLoad] = useState(true); // Track initial load
+  const fetchInProgress = useRef(false); // Prevent multiple simultaneous fetches
+  const [isChangingPage, setIsChangingPage] = useState(false);
 
   // Get current user from localStorage and check access
   useEffect(() => {
@@ -106,23 +109,34 @@ export default function UsersPage() {
   const isSmallScreen = screenSize > 500;
   const isTinyScreen = screenSize <= 500;
 
-  // Optimized fetch users with aggressive caching
-  const fetchUsers = async (retryCount = 0) => {
+  // Optimized fetch users with single call and better error handling
+  const fetchUsers = useCallback(async (retryCount = 0) => {
+    // Prevent multiple simultaneous calls
+    if (fetchInProgress.current && retryCount === 0) {
+      return;
+    }
+    
+    fetchInProgress.current = true;
     setLoading(true);
     
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout for super fast response
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
       
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('No authentication token found');
       }
       
-      const response = await fetch('/api/users?limit=50', { // Optimized limit for faster loading
+      // Build URL with pagination parameters
+      const url = new URL('/api/users', window.location.origin);
+      const limitValue = itemsPerPage === 'All' ? 1000 : Math.max(itemsPerPage, 50); // Ensure minimum 50 users for better performance
+      url.searchParams.append('limit', limitValue.toString());
+      url.searchParams.append('page', currentPage.toString());
+      
+      const response = await fetch(url.toString(), {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=60', // Cache for 1 minute for faster subsequent loads
           'Accept': 'application/json'
         },
         signal: controller.signal
@@ -141,16 +155,22 @@ export default function UsersPage() {
       const data = await response.json();
       if (data.success) {
         setUsers(data.data || []);
-        setMessage(null); // Clear any previous error messages
-        setInitialLoad(false); // Mark initial load as complete
+        setMessage(null);
+        setInitialLoad(false);
+        
+        // Update pagination info if available
+        if (data.pagination) {
+          // For client-side pagination, we'll use the total count but handle pagination locally
+          // This allows for better filtering and sorting performance
+        }
       } else {
         throw new Error(data.message || 'Failed to fetch users');
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
         if (retryCount < 1) {
-          // Single fast retry
-          setTimeout(() => fetchUsers(retryCount + 1), 300);
+          // Single retry only
+          setTimeout(() => fetchUsers(retryCount + 1), 500);
           return;
         }
         setMessage({ type: 'error', text: 'Request timeout - please try again' });
@@ -159,38 +179,36 @@ export default function UsersPage() {
       }
     } finally {
       setLoading(false);
+      fetchInProgress.current = false;
     }
-  };
+  }, [router, itemsPerPage, currentPage]);
 
   useEffect(() => {
-    // Start fetching immediately with aggressive prefetching
-    fetchUsers();
+    // Only fetch users once on component mount
+    if (initialLoad) {
+      fetchUsers();
+    }
     
-    // Aggressive prefetching for faster navigation
-    const preloadData = () => {
-      // Preload critical pages immediately
+    // Lightweight prefetching for navigation (no API calls)
+    const preloadPages = () => {
       router.prefetch('/dashboard');
       router.prefetch('/orders');
       router.prefetch('/fabrics');
-      
-      // Prefetch API endpoints for faster subsequent loads
-      const token = localStorage.getItem('token');
-      if (token) {
-        fetch('/api/users?limit=10', { 
-          headers: { 'Authorization': `Bearer ${token}` }
-        }).catch(() => {}); // Silent fail
-      }
     };
     
-    // Start preloading immediately for faster subsequent loads
-    const timer = setTimeout(preloadData, 100);
+    // Start preloading pages after a short delay
+    const timer = setTimeout(preloadPages, 500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [initialLoad]);
 
-  // Handle refresh
-  const handleRefresh = async () => {
+  // Handle refresh - optimized to prevent multiple calls
+  const handleRefresh = useCallback(async () => {
+    if (fetchInProgress.current || refreshing) {
+      return; // Prevent multiple refresh calls
+    }
+    
     setRefreshing(true);
-    setMessage(null); // Clear any previous messages
+    setMessage(null);
     try {
       await fetchUsers();
       setMessage({ type: 'success', text: 'Users refreshed successfully' });
@@ -199,13 +217,38 @@ export default function UsersPage() {
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [fetchUsers, refreshing]);
 
-  // Retry function for failed requests
-  const handleRetry = () => {
+  // Retry function for failed requests - optimized
+  const handleRetry = useCallback(() => {
+    if (fetchInProgress.current) {
+      return; // Prevent multiple retry calls
+    }
     setMessage(null);
     fetchUsers();
-  };
+  }, [fetchUsers]);
+
+  // Pagination handlers
+  const handlePageChange = useCallback(async (newPage: number) => {
+    if (newPage === currentPage || isChangingPage || loading) return;
+    
+    setIsChangingPage(true);
+    setCurrentPage(newPage);
+    // No need to fetch from server - client-side pagination handles this
+    setIsChangingPage(false);
+  }, [currentPage, isChangingPage, loading]);
+
+  const handleItemsPerPageChange = useCallback(async (newItemsPerPage: number | 'All') => {
+    if (newItemsPerPage === itemsPerPage) return;
+    
+    setIsChangingPage(true);
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Reset to first page
+    
+    // For better UX, fetch all users and use client-side pagination
+    await fetchUsers();
+    setIsChangingPage(false);
+  }, [itemsPerPage, fetchUsers]);
 
   // Filter and sort users
   // Memoized filtering for better performance
@@ -224,39 +267,60 @@ export default function UsersPage() {
       });
   }, [users, searchTerm, roleFilter, dateSort]);
 
-  // Memoized pagination logic
-  const paginationData = useMemo(() => {
-    const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
-    const indexOfLastUser = currentPage * usersPerPage;
-    const indexOfFirstUser = indexOfLastUser - usersPerPage;
-    const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+  // Calculate total pages based on filtered users (client-side pagination)
+  const totalPages = useMemo(() => {
+    // If "All" selected, show all on one page
+    if (itemsPerPage === 'All') return 1;
     
-    return { totalPages, currentUsers };
-  }, [filteredUsers, currentPage, usersPerPage]);
+    const itemsPerPageValue = itemsPerPage as number;
+    const calculatedPages = Math.ceil(filteredUsers.length / itemsPerPageValue);
+    return Math.max(1, calculatedPages);
+  }, [filteredUsers, itemsPerPage]);
 
-  const { totalPages, currentUsers } = paginationData;
+  // Calculate pagination display info for client-side pagination
+  const paginationDisplayInfo = useMemo(() => {
+    // If "All" selected, show all on one page
+    if (itemsPerPage === 'All') {
+      return {
+        showing: filteredUsers.length,
+        total: filteredUsers.length,
+        start: filteredUsers.length > 0 ? 1 : 0,
+        end: filteredUsers.length
+      };
+    } else {
+      const start = filteredUsers.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+      const end = Math.min(currentPage * itemsPerPage, filteredUsers.length);
+      return {
+        showing: end - start + 1,
+        total: filteredUsers.length,
+        start: start,
+        end: end
+      };
+    }
+  }, [filteredUsers, itemsPerPage, currentPage]);
+
+  // Apply client-side pagination
+  const currentUsers = useMemo(() => {
+    if (itemsPerPage === 'All') {
+      return filteredUsers; // Show all users only when "All" is selected
+    } else {
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      return filteredUsers.slice(startIndex, endIndex);
+    }
+  }, [filteredUsers, itemsPerPage, currentPage]);
 
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, roleFilter, dateSort]);
 
-  // Optimized page navigation functions
-  const goToPage = useCallback((pageNumber: number) => {
-    setCurrentPage(pageNumber);
-  }, []);
-
-  const goToNextPage = useCallback(() => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
+  // Auto-correct current page if it exceeds total pages
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
     }
-  }, [currentPage, totalPages]);
-
-  const goToPreviousPage = useCallback(() => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  }, [currentPage]);
+  }, [totalPages, currentPage]);
 
   // Show message
   const showMessage = (type: 'success' | 'error', text: string) => {
@@ -790,6 +854,164 @@ export default function UsersPage() {
           ? 'bg-white/5 border-white/10'
           : 'bg-white border-gray-200'
       }`}>
+        {/* Pagination Controls - Top */}
+        <div className={`flex items-center justify-between px-4 py-3 border-b ${
+          isDarkMode 
+            ? 'bg-white/5 border-white/10' 
+            : 'bg-white border-gray-200'
+        } sm:px-6`}>
+          <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:space-x-3 lg:space-x-4">
+            <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              <span className="hidden sm:inline">Showing {paginationDisplayInfo.start} to {paginationDisplayInfo.end} of {paginationDisplayInfo.total} users</span>
+              <span className="sm:hidden">{paginationDisplayInfo.start}-{paginationDisplayInfo.end} of {paginationDisplayInfo.total}</span>
+            </span>
+            
+            {/* Items per page dropdown */}
+            <div className="flex items-center space-x-2">
+              <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Show:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  const value = e.target.value === 'All' ? 'All' : parseInt(e.target.value);
+                  handleItemsPerPageChange(value);
+                }}
+                className={`text-xs sm:text-sm px-2 py-1 rounded border transition-colors ${
+                  isDarkMode 
+                    ? 'bg-gray-800 border-gray-600 text-white' 
+                    : 'bg-white border-gray-300 text-gray-900'
+                } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {itemsPerPageOptions.map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Pagination Navigation */}
+          {totalPages > 1 && (
+            <div className="flex items-center space-x-2">
+              {/* Mobile pagination */}
+              <div className="flex sm:hidden">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1 || isChangingPage || loading}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === 1 || isChangingPage || loading
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  }`}
+                >
+                  <span className="hidden sm:inline">Previous</span>
+                  <span className="sm:hidden">Prev</span>
+                </button>
+                
+                {/* Page numbers */}
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        disabled={isChangingPage || loading}
+                        className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                          currentPage === pageNum
+                            ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white'
+                            : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages || isChangingPage || loading}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === totalPages || isChangingPage || loading
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+
+              {/* Desktop pagination */}
+              <div className="hidden sm:flex items-center space-x-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1 || isChangingPage || loading}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === 1 || isChangingPage || loading
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  }`}
+                >
+                  <span className="hidden sm:inline">Previous</span>
+                  <span className="sm:hidden">Prev</span>
+                </button>
+                
+                {/* Page numbers */}
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 7) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 4) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 3) {
+                      pageNum = totalPages - 6 + i;
+                    } else {
+                      pageNum = currentPage - 3 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        disabled={isChangingPage || loading}
+                        className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                          currentPage === pageNum
+                            ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white'
+                            : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages || isChangingPage || loading}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === totalPages || isChangingPage || loading
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className={`${
@@ -994,6 +1216,135 @@ export default function UsersPage() {
           </table>
         </div>
 
+        {/* Pagination Controls - Bottom */}
+        {totalPages > 1 && (
+          <div className={`flex items-center justify-center px-4 py-3 border-t ${
+            isDarkMode 
+              ? 'bg-white/5 border-white/10' 
+              : 'bg-white border-gray-200'
+          } sm:px-6`}>
+            <div className="flex items-center space-x-2">
+              {/* Mobile pagination */}
+              <div className="flex sm:hidden">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1 || isChangingPage || loading}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === 1 || isChangingPage || loading
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  }`}
+                >
+                  <span className="hidden sm:inline">Previous</span>
+                  <span className="sm:hidden">Prev</span>
+                </button>
+                
+                {/* Page numbers */}
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        disabled={isChangingPage || loading}
+                        className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                          currentPage === pageNum
+                            ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white'
+                            : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages || isChangingPage || loading}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === totalPages || isChangingPage || loading
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+
+              {/* Desktop pagination */}
+              <div className="hidden sm:flex items-center space-x-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1 || isChangingPage || loading}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === 1 || isChangingPage || loading
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  }`}
+                >
+                  <span className="hidden sm:inline">Previous</span>
+                  <span className="sm:hidden">Prev</span>
+                </button>
+                
+                {/* Page numbers */}
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 7) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 4) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 3) {
+                      pageNum = totalPages - 6 + i;
+                    } else {
+                      pageNum = currentPage - 3 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        disabled={isChangingPage || loading}
+                        className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                          currentPage === pageNum
+                            ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white'
+                            : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages || isChangingPage || loading}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === totalPages || isChangingPage || loading
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
           {filteredUsers.length === 0 && (
             <div className={`text-center py-12 ${
               isDarkMode ? 'text-gray-400' : 'text-gray-500'
@@ -1138,95 +1489,6 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className={`flex items-center justify-between px-4 py-3 border-t ${
-          isDarkMode 
-            ? 'bg-white/5 border-white/10' 
-            : 'bg-white border-gray-200'
-        } sm:px-6`}>
-          <div className="flex-1 flex justify-between sm:hidden">
-            <button
-              onClick={goToPreviousPage}
-              disabled={currentPage === 1}
-              className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium rounded-md transition-all duration-300 ${
-                isDarkMode
-                  ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed'
-                  : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
-              }`}
-            >
-              Previous
-            </button>
-            <button
-              onClick={goToNextPage}
-              disabled={currentPage === totalPages}
-              className={`ml-3 relative inline-flex items-center px-4 py-2 border text-sm font-medium rounded-md transition-all duration-300 ${
-                isDarkMode
-                  ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed'
-                  : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
-              }`}
-            >
-              Next
-            </button>
-          </div>
-          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-            <div className={`flex-1 text-sm text-center ${
-              isDarkMode ? 'text-gray-300' : 'text-gray-700'
-            }`}>
-              Page <span className="font-semibold">{currentPage}</span> of <span className="font-semibold">{totalPages}</span>
-            </div>
-            <div className="flex items-center">
-              <button
-                onClick={goToPreviousPage}
-                disabled={currentPage === 1}
-                className={`relative inline-flex items-center px-2 py-2 rounded-l-md border text-sm font-medium transition-all duration-300 ${
-                  isDarkMode
-                    ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed'
-                    : 'border-gray-300 text-gray-500 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
-                }`}
-              >
-                <span className="sr-only">Previous</span>
-                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => goToPage(page)}
-                    className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium transition-all duration-300 ${
-                      currentPage === page
-                        ? isDarkMode
-                          ? 'z-10 bg-blue-600 border-blue-500 text-white'
-                          : 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                        : isDarkMode
-                          ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20'
-                          : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-              </nav>
-              <button
-                onClick={goToNextPage}
-                disabled={currentPage === totalPages}
-                className={`relative inline-flex items-center px-2 py-2 rounded-r-md border text-sm font-medium transition-all duration-300 ${
-                  isDarkMode
-                    ? 'border-white/20 text-gray-300 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed'
-                    : 'border-gray-300 text-gray-500 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
-                }`}
-              >
-                <span className="sr-only">Next</span>
-                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Create User Modal */}
       {showCreateModal && (
