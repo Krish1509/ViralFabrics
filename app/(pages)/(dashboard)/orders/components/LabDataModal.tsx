@@ -425,6 +425,47 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
+  // Function to fetch existing lab data from API
+  const fetchExistingLabData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/labs/by-order/${order._id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          // Update local items with fresh lab data from API
+          const updatedItems = order.items.map(item => {
+            const labData = data.data.find((lab: any) => lab.orderItemId === item._id);
+            return {
+              ...item,
+              labData: labData ? {
+                labSendDate: labData.labSendDate,
+                approvalDate: labData.labSendData?.approvalDate,
+                sampleNumber: labData.labSendData?.sampleNumber,
+                color: labData.labSendData?.color,
+                shade: labData.labSendData?.shade,
+                notes: labData.labSendData?.notes,
+                imageUrl: labData.labSendData?.imageUrl,
+                labSendNumber: labData.labSendNumber,
+                status: labData.status,
+                remarks: labData.remarks
+              } : item.labData
+            };
+          });
+          setLocalItems(updatedItems);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching lab data:', error);
+    }
+  };
+
   // Initialize local items when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -439,6 +480,9 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       setSuccessMessage('');
       setShowDeleteConfirm(false);
       setItemToDelete(null);
+      
+      // Fetch existing lab data from API
+      fetchExistingLabData();
     }
   }, [isOpen, order.items]);
 
@@ -448,13 +492,16 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
     setError('');
     setSuccessMessage('');
 
+    // Find the item in localItems (which has fresh data from API)
+    const localItem = localItems.find(localItem => localItem._id === item._id);
+    
     // Check if item already has lab data (check for labSendDate instead of sampleNumber)
-    if (item.labData?.labSendDate) {
+    if (localItem?.labData?.labSendDate) {
       // Existing lab data found - load it
       setLabData({
-        labSendDate: item.labData.labSendDate || '',
-        approvalDate: item.labData.approvalDate || '',
-        sampleNumber: item.labData.sampleNumber || ''
+        labSendDate: localItem.labData.labSendDate || '',
+        approvalDate: localItem.labData.approvalDate || '',
+        sampleNumber: localItem.labData.sampleNumber || ''
       });
     } else {
       // New lab data - initialize with empty values
@@ -733,14 +780,14 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                       </div>
                       
                       <div className="flex items-center gap-2">
-                        {item.labData?.labSendDate && (
+                        {localItems.find(li => li._id === item._id)?.labData?.labSendDate && (
                           <div className="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs">
                             <CheckCircle size={12} />
                             Lab Data
                           </div>
                         )}
                         
-                        {item.labData?.labSendDate ? (
+                        {localItems.find(li => li._id === item._id)?.labData?.labSendDate ? (
                           <button
                             onClick={() => handleEditLabData(item)}
                             disabled={isLoading}
@@ -772,7 +819,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                   </div>
 
                   {/* Lab Data Display */}
-                  {item.labData?.labSendDate && (
+                  {localItems.find(li => li._id === item._id)?.labData?.labSendDate && (
                     <div className={`p-4 ${
                       isDarkMode ? 'bg-blue-900/20' : 'bg-blue-50'
                     }`}>
@@ -782,23 +829,23 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                             isDarkMode ? 'text-gray-400' : 'text-gray-600'
                           }`}>Sample:</span>
                           <p className={isDarkMode ? 'text-white' : 'text-gray-800'}>
-                            {item.labData.sampleNumber || 'Not provided'}
+                            {localItems.find(li => li._id === item._id)?.labData?.sampleNumber || 'Not provided'}
                           </p>
                         </div>
-                        {item.labData.labSendDate && (
+                        {localItems.find(li => li._id === item._id)?.labData?.labSendDate && (
                           <div>
                             <span className={`font-medium ${
                               isDarkMode ? 'text-gray-400' : 'text-gray-600'
                             }`}>Send Date:</span>
-                            <p className={isDarkMode ? 'text-white' : 'text-gray-800'}>{new Date(item.labData.labSendDate).toLocaleDateString()}</p>
+                            <p className={isDarkMode ? 'text-white' : 'text-gray-800'}>{new Date(localItems.find(li => li._id === item._id)?.labData?.labSendDate || '').toLocaleDateString()}</p>
                           </div>
                         )}
-                        {item.labData.approvalDate && (
+                        {localItems.find(li => li._id === item._id)?.labData?.approvalDate && (
                           <div>
                             <span className={`font-medium ${
                               isDarkMode ? 'text-gray-400' : 'text-gray-600'
                             }`}>Approval:</span>
-                            <p className={isDarkMode ? 'text-white' : 'text-gray-800'}>{new Date(item.labData.approvalDate).toLocaleDateString()}</p>
+                            <p className={isDarkMode ? 'text-white' : 'text-gray-800'}>{new Date(localItems.find(li => li._id === item._id)?.labData?.approvalDate || '').toLocaleDateString()}</p>
                           </div>
                         )}
                         <div className="flex items-center gap-2">
@@ -827,7 +874,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                           <h5 className={`text-lg font-semibold ${
                             isDarkMode ? 'text-white' : 'text-gray-800'
                           }`}>
-                            {item.labData?.labSendDate ? 'Edit Lab Data' : 'Add Lab Data'}
+                            {localItems.find(li => li._id === item._id)?.labData?.labSendDate ? 'Edit Lab Data' : 'Add Lab Data'}
                           </h5>
                           <button
                             onClick={handleCancelEdit}
@@ -948,7 +995,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                             ) : (
                               <>
                                 <CheckCircle size={16} />
-                                {item.labData?.labSendDate ? 'Update Lab Data' : 'Save Lab Data'}
+                                {localItems.find(li => li._id === item._id)?.labData?.labSendDate ? 'Update Lab Data' : 'Save Lab Data'}
                               </>
                             )}
                           </button>

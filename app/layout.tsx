@@ -37,15 +37,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Hydration-safe dark mode script - Enhanced to prevent white flash */}
+        {/* Hydration-safe dark mode script */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
-                  // Set initial background to prevent white flash
-                  document.documentElement.style.backgroundColor = 'rgb(30 41 59)'; // slate-800
-                  
                   // Check localStorage for saved preference
                   var savedTheme = localStorage.getItem('darkMode');
                   var systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -53,24 +50,18 @@ export default function RootLayout({
                   // Determine initial theme
                   var isDark = savedTheme !== null ? savedTheme === 'true' : systemPrefersDark;
                   
-                  // Apply theme immediately to prevent flash
+                  // Apply theme class only (no inline styles to prevent hydration issues)
                   if (isDark) {
                     document.documentElement.classList.add('dark');
-                    document.documentElement.style.backgroundColor = 'rgb(30 41 59)'; // slate-800
                   } else {
                     document.documentElement.classList.remove('dark');
-                    document.documentElement.style.backgroundColor = 'rgb(248 250 252)'; // slate-50
                   }
                   
-                  // Store initial theme state
+                  // Store initial theme state for React components
                   window.__INITIAL_THEME__ = isDark;
-                  
-                  // Remove inline style after a short delay to let CSS take over
-                  setTimeout(function() {
-                    document.documentElement.style.backgroundColor = '';
-                  }, 100);
                 } catch (e) {
                   // Silent fallback - let CSS handle default
+                  window.__INITIAL_THEME__ = false;
                 }
               })();
             `,

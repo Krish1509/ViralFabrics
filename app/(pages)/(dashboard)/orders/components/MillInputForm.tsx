@@ -508,7 +508,7 @@ function EnhancedDropdown({
   }, [showDropdown, onToggleDropdown]);
 
   // Get selected item name for display
-  const selectedItem = options.find(option => (option._id || (option as any).id) === value);
+  const selectedItem = Array.isArray(options) ? options.find(option => (option._id || (option as any).id) === value) : null;      
   
   // Debug: Log quality selection details
   if (placeholder?.includes('quality')) {
@@ -581,7 +581,7 @@ function EnhancedDropdown({
         <div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-xl max-h-60 overflow-y-auto ${
           isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
         }`}>
-          {options.length > 0 ? (
+          {Array.isArray(options) && options.length > 0 ? (
             [...options].sort((a, b) => {
               const aIsRecent = recentlyAddedId === (a._id || (a as any).id);
               const bIsRecent = recentlyAddedId === (b._id || (b as any).id);
@@ -728,6 +728,14 @@ export default function MillInputForm({
   });
   const [loadingExistingData, setLoadingExistingData] = useState(false);
   const [addingMill, setAddingMill] = useState(false);
+  const [millsLoading, setMillsLoading] = useState(false);
+  
+  // LabDataModal pattern states
+  const [hasExistingData, setHasExistingData] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [localMillInputs, setLocalMillInputs] = useState<any[]>([]);
   
   // Mill-related state
   const [millSearch, setMillSearch] = useState('');
@@ -745,19 +753,155 @@ export default function MillInputForm({
   const [processSearchStates, setProcessSearchStates] = useState<{ [key: string]: string }>({});
   const [currentProcessSearch, setCurrentProcessSearch] = useState('');
 
-  // Load existing mill inputs when editing
+  // Load mills data when component mounts
   useEffect(() => {
-    console.log('MillInputForm useEffect triggered:', { isEditing, existingMillInputsLength: existingMillInputs.length });
+    console.log('MillInputForm mounted, refreshing mills data...');
+    console.log('Current mills prop:', mills);
+    setMillsLoading(true);
+    onRefreshMills();
+  }, [onRefreshMills]);
+
+  // Also fetch mills directly if not available
+  useEffect(() => {
+    if (order?.orderId && (!mills || mills.length === 0)) {
+      console.log('Mills not available, fetching directly...');
+      fetchMillsDirectly();
+    }
+  }, [order?.orderId, mills]);
+
+
+  // Fetch existing mill input data from API when form opens (LabDataModal pattern)
+  useEffect(() => {
+    console.log('MillInputForm useEffect triggered:', { orderId: order?.orderId });
+    
+    // Always fetch existing data when form opens, just like LabDataModal
+    if (order?.orderId) {
+      console.log('Form opened, fetching existing mill input data...');
+      fetchExistingMillInputData();
+    }
+  }, [order?.orderId]);
+
+  // Function to fetch mills directly from API
+  const fetchMillsDirectly = async () => {
+    setMillsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No authentication token found');
+        setMillsLoading(false);
+        return;
+      }
+
+      const response = await fetch('/api/mills', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data && data.data.length > 0) {
+          console.log('Fetched mills directly from API:', data.data);
+          // Note: We can't directly set mills here as it's a prop, but we can trigger onRefreshMills
+          onRefreshMills();
+        } else {
+          console.log('No mills found in API response');
+        }
+      } else {
+        console.log('Failed to fetch mills from API, status:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching mills from API:', error);
+    } finally {
+      setMillsLoading(false);
+    }
+  };
+
+  // Function to fetch existing mill input data from API
+  const fetchExistingMillInputData = async () => {
+    if (!order?.orderId) {
+      console.log('No order ID available for fetching mill inputs');
+      setHasExistingData(false);
+      return;
+    }
+
+    setLoadingExistingData(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No authentication token available');
+        setHasExistingData(false);
+        return;
+      }
+
+      console.log('Fetching mill inputs for order:', order.orderId);
+      const response = await fetch(`/api/mill-inputs?orderId=${order.orderId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('API response:', data);
+        
+        if (data.success && data.data && data.data.millInputs && data.data.millInputs.length > 0) {
+          console.log('Fetched existing mill inputs from API:', data.data.millInputs);
+          setLocalMillInputs(data.data.millInputs);
+          setHasExistingData(true);
+          loadExistingMillInputsFromData(data.data.millInputs);
+        } else {
+          console.log('No existing mill inputs found in API');
+          setLocalMillInputs([]);
+          setHasExistingData(false);
+        }
+      } else {
+        console.log('Failed to fetch mill inputs from API, status:', response.status);
+        setHasExistingData(false);
+      }
+    } catch (error) {
+      console.error('Error fetching mill inputs from API:', error);
+      setHasExistingData(false);
+    } finally {
+      setLoadingExistingData(false);
+    }
+  };
+
+  // Load existing mill inputs when editing (LabDataModal pattern)
+  useEffect(() => {
+    console.log('MillInputForm useEffect triggered for existing data:', { isEditing, existingMillInputsLength: existingMillInputs.length });
     if (isEditing && existingMillInputs.length > 0) {
-      console.log('Loading existing mill inputs...');
+      console.log('Loading existing mill inputs from props...');
+      setHasExistingData(true);
       loadExistingMillInputs();
+    } else if (isEditing && existingMillInputs.length === 0) {
+      setHasExistingData(false);
     }
   }, [isEditing, existingMillInputs]);
 
-  // Monitor mills array changes
+  // Monitor mills array changes and clear loading state
   useEffect(() => {
-    mills.forEach(mill => {
-      });
+    console.log('Mills array changed:', mills);
+    if (mills.length > 0) {
+      console.log('Mills loaded successfully, clearing loading state');
+      setMillsLoading(false);
+    } else {
+      console.log('No mills found, setting timeout to clear loading state');
+      // Clear loading state after a timeout even if no mills are found
+      const timeout = setTimeout(() => {
+        console.log('Timeout reached, clearing loading state');
+        setMillsLoading(false);
+        // If still no mills after timeout, try to fetch directly
+        if (mills.length === 0) {
+          console.log('Still no mills after timeout, trying direct fetch...');
+          fetchMillsDirectly();
+        }
+      }, 3000); // 3 second timeout
+      
+      return () => clearTimeout(timeout);
+    }
   }, [mills]);
 
   // Reset form when order changes (but not when editing)
@@ -790,20 +934,20 @@ export default function MillInputForm({
     }
   }, [order?.orderId, isEditing]);
 
-  // Function to load existing mill inputs
-  const loadExistingMillInputs = async () => {
-    console.log('Loading existing mill inputs:', { order: order?.orderId, existingMillInputs });
+  // Function to load existing mill inputs from API data (LabDataModal pattern)
+  const loadExistingMillInputsFromData = async (millInputsData: any[]) => {
+    console.log('Loading existing mill inputs from API data:', { order: order?.orderId, millInputsData });
     
-    if (!order || existingMillInputs.length === 0) {
+    if (!order || millInputsData.length === 0) {
       console.log('No order or existing mill inputs found');
+      setHasExistingData(false);
       return;
     }
     
-    setLoadingExistingData(true);
     try {
       // Group mill inputs by mill and chalan number
-      const groupedInputs = groupMillInputsByMillAndChalan(existingMillInputs);
-      console.log('Grouped inputs:', groupedInputs);
+      const groupedInputs = groupMillInputsByMillAndChalan(millInputsData);
+      console.log('Grouped inputs from API:', groupedInputs);
       
       if (groupedInputs.length > 0) {
         const firstGroup = groupedInputs[0];
@@ -833,13 +977,73 @@ export default function MillInputForm({
           })
         };
         
-        console.log('Setting form data:', newFormData);
+        console.log('Setting form data from API:', newFormData);
         setFormData(newFormData);
+        setHasExistingData(true);
       } else {
-        console.log('No grouped inputs found');
+        console.log('No grouped inputs found from API');
+        setHasExistingData(false);
       }
     } catch (error) {
-      console.error('Error loading existing mill inputs:', error);
+      console.error('Error loading existing mill inputs from API:', error);
+      setHasExistingData(false);
+    }
+  };
+
+  // Function to load existing mill inputs from props (LabDataModal pattern)
+  const loadExistingMillInputs = async () => {
+    console.log('Loading existing mill inputs from props:', { order: order?.orderId, existingMillInputs });
+    
+    if (!order || existingMillInputs.length === 0) {
+      console.log('No order or existing mill inputs found');
+      setHasExistingData(false);
+      return;
+    }
+    
+    setLoadingExistingData(true);
+    try {
+      // Group mill inputs by mill and chalan number
+      const groupedInputs = groupMillInputsByMillAndChalan(existingMillInputs);
+      console.log('Grouped inputs from props:', groupedInputs);
+      
+      if (groupedInputs.length > 0) {
+        const firstGroup = groupedInputs[0];
+        const newFormData = {
+          orderId: order.orderId,
+          mill: firstGroup.millId,
+          millItems: groupedInputs.map((group, index) => {
+            const mappedItem = {
+              id: (index + 1).toString(),
+              millDate: group.millDate,
+              chalanNo: group.chalanNo,
+              greighMtr: group.mainInput.greighMtr.toString(),
+              pcs: group.mainInput.pcs.toString(),
+              quality: group.mainInput.quality?._id || group.mainInput.quality || '', // Extract quality ID
+              process: group.mainInput.processName || '', // Extract process name
+              additionalMeters: group.additionalInputs.map((input: any) => {
+                return {
+                  meters: input.greighMtr.toString(),
+                  pieces: input.pcs.toString(),
+                  quality: input.quality?._id || input.quality || '', // Extract quality ID
+                  process: input.processName || '' // Extract process name
+                };
+              })
+            };
+            
+            return mappedItem;
+          })
+        };
+        
+        console.log('Setting form data from props:', newFormData);
+        setFormData(newFormData);
+        setHasExistingData(true);
+      } else {
+        console.log('No grouped inputs found from props');
+        setHasExistingData(false);
+      }
+    } catch (error) {
+      console.error('Error loading existing mill inputs from props:', error);
+      setHasExistingData(false);
     } finally {
       setLoadingExistingData(false);
     }
@@ -919,6 +1123,85 @@ export default function MillInputForm({
         }
     } catch (error) {
       }
+  };
+
+  // Delete mill input data (LabDataModal pattern)
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDelete = async () => {
+    setSaving(true);
+    setErrors({});
+    setSuccessMessage('');
+    setShowDeleteConfirm(false);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No authentication token');
+
+      // Fetch all mill inputs for this order first
+      const response = await fetch(`/api/mill-inputs?orderId=${order?.orderId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data && data.data.millInputs && data.data.millInputs.length > 0) {
+          // Delete all existing mill inputs for this order
+          const deletePromises = data.data.millInputs.map((input: any) =>
+            fetch(`/api/mill-inputs/${input._id}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            })
+          );
+
+          await Promise.all(deletePromises);
+          
+      setSuccessMessage('Mill input data deleted successfully!');
+      setHasExistingData(false);
+      
+      // Reset form to initial state
+      setFormData({
+        orderId: order?.orderId || '',
+        mill: '',
+        millItems: [{
+          id: '1',
+          millDate: '',
+          chalanNo: '',
+          greighMtr: '',
+          pcs: '',
+          quality: '',
+          process: '',
+          additionalMeters: []
+        }],
+      });
+      
+      // Close after delay
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1500);
+        } else {
+          setErrors({ submit: 'No mill input data found to delete' });
+        }
+      } else {
+        setErrors({ submit: 'Failed to fetch mill input data for deletion' });
+      }
+    } catch (error) {
+      setErrors({ submit: 'Failed to delete mill input data' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
   };
 
   // Simple delete mill function - no confirmations or alerts
@@ -1197,10 +1480,13 @@ export default function MillInputForm({
 
     setSaving(true);
     setSavingProgress('Preparing data...');
+    setSuccessMessage('');
+    setErrors({});
+    
     try {
       const token = localStorage.getItem('token');
       
-      if (isEditing && existingMillInputs.length > 0) {
+      if (hasExistingData) {
         setSavingProgress('Updating existing mill inputs...');
         // Update existing mill inputs
         await updateExistingMillInputs(token);
@@ -1211,8 +1497,19 @@ export default function MillInputForm({
       }
       
       setSavingProgress('Saving completed successfully!');
-      onSuccess();
-      onClose();
+      setSuccessMessage('Mill input data saved successfully!');
+      
+      // Immediately update local state for better UX (LabDataModal pattern)
+      setHasExistingData(true);
+      
+      // Refresh the local data to show updated state
+      await fetchExistingMillInputData();
+      
+      // Show success message and then close after delay
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1500);
     } catch (error) {
       setErrors({ submit: error instanceof Error ? error.message : 'Failed to handle mill input' });
     } finally {
@@ -1299,17 +1596,30 @@ export default function MillInputForm({
   const updateExistingMillInputs = async (token: string | null) => {
     if (!token) throw new Error('No authentication token');
     
-    // First delete existing mill inputs for this order
-    const deletePromises = existingMillInputs.map((input: any) =>
-      fetch(`/api/mill-inputs/${input._id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-    );
+    // First fetch all existing mill inputs for this order
+    const response = await fetch(`/api/mill-inputs?orderId=${order?.orderId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
 
-    await Promise.all(deletePromises);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success && data.data && data.data.millInputs && data.data.millInputs.length > 0) {
+        // Delete all existing mill inputs for this order
+        const deletePromises = data.data.millInputs.map((input: any) =>
+          fetch(`/api/mill-inputs/${input._id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          })
+        );
+
+        await Promise.all(deletePromises);
+      }
+    }
 
     // Then create new ones with updated data
     await createNewMillInputs(token);
@@ -1446,7 +1756,7 @@ export default function MillInputForm({
            <div className="flex items-center space-x-3">
                 <BuildingOfficeIcon className="h-8 w-8 text-blue-500" />
                 <h2 className="text-2xl font-bold">
-                  {isEditing ? 'Edit Mill Input' : 'Add Mill Input'}
+                  Mill Input
                 </h2>
              </div>
               <div className="flex items-center space-x-2">
@@ -1476,6 +1786,20 @@ export default function MillInputForm({
               : 'scrollbar-thin scrollbar-thumb-blue-400 scrollbar-track-gray-100'
           }`}>
             <div className="p-6 space-y-8 pb-24">
+             {/* Success Message */}
+             {successMessage && (
+               <div className={`p-4 rounded-lg border ${
+                 isDarkMode 
+                   ? 'bg-green-900/20 border-green-500/30 text-green-400'
+                   : 'bg-green-50 border-green-200 text-green-800'
+               }`}>
+                 <div className="flex items-center">
+                   <CheckIcon className="h-5 w-5 mr-2" />
+                   {successMessage}
+                 </div>
+               </div>
+             )}
+             
              {/* Error Display */}
              {errors.submit && (
                <div className={`p-4 rounded-lg border ${
@@ -1498,24 +1822,47 @@ export default function MillInputForm({
                 }`}>
                     Mill Name <span className="text-red-500">*</span>
                 </label>
+                
 
-                {mills.length === 0 ? (
+                {millsLoading ? (
+                  <div className={`p-4 text-center rounded-lg border ${
+                    isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-300 text-gray-600'
+                  }`}>
+                    <div className="flex flex-col items-center space-y-3">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                      <p className="text-sm">Loading mills...</p>
+                    </div>
+                  </div>
+                ) : mills.length === 0 ? (
                   <div className={`p-4 text-center rounded-lg border ${
                     isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-300 text-gray-600'
                   }`}>
                     <div className="flex flex-col items-center space-y-3">
                       <p className="text-sm">No mills available</p>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddMillModal(true)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        isDarkMode
-                            ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                            : 'bg-blue-500 hover:bg-blue-600 text-white'
-                      }`}
-                    >
-                        Add New Mill
-                    </button>
+                      <div className="flex space-x-2">
+                        <button
+                          type="button"
+                          onClick={fetchMillsDirectly}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isDarkMode
+                              ? 'bg-gray-600 hover:bg-gray-700 text-white' 
+                              : 'bg-gray-500 hover:bg-gray-600 text-white'
+                          }`}
+                        >
+                          Refresh Mills
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddMillModal(true)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isDarkMode
+                                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                                : 'bg-blue-500 hover:bg-blue-600 text-white'
+                          }`}
+                        >
+                            Add New Mill
+                        </button>
+                      </div>
                 </div>
                   </div>
                 ) : (
@@ -2109,8 +2456,27 @@ export default function MillInputForm({
                       : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
                 }`}
               >
-                {saving ? 'Saving...' : isEditing ? 'Update Mill Input' : 'Add Mill Input'}
+                {saving ? 'Saving...' : (hasExistingData ? 'Update Mill Input' : 'Add Mill Input')}
               </button>
+              
+              {/* Delete Button - Show only when has existing data */}
+              {hasExistingData && (
+                <button
+                  type="button"
+                  onClick={handleDeleteClick}
+                  disabled={saving}
+                  className={`px-6 py-3 rounded-lg border-2 transition-all duration-200 hover:scale-105 ${
+                    saving
+                      ? 'border-gray-400 text-gray-400 cursor-not-allowed' 
+                      : isDarkMode
+                        ? 'border-red-500 text-red-400 hover:bg-red-500 hover:text-white' 
+                        : 'border-red-300 text-red-600 hover:bg-red-500 hover:text-white'
+                  }`}
+                >
+                  <TrashIcon className="h-5 w-5 inline mr-2" />
+                  Delete
+                </button>
+              )}
             </div>
         </div>
 
@@ -2201,6 +2567,107 @@ export default function MillInputForm({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className={`relative w-full max-w-md rounded-xl shadow-2xl ${
+              isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
+            }`}>
+              {/* Header */}
+              <div className={`flex items-center justify-between p-6 border-b ${
+                isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+              }`}>
+                <div className="flex items-center space-x-3">
+                  <div className={`p-3 rounded-lg border ${
+                    isDarkMode
+                      ? 'bg-red-600/20 border-red-500/30'
+                      : 'bg-red-50 border-red-200'
+                  }`}>
+                    <TrashIcon className={`h-6 w-6 ${
+                      isDarkMode ? 'text-red-400' : 'text-red-600'
+                    }`} />
+                  </div>
+                  <h3 className="text-lg font-semibold">Delete Mill Input Data</h3>
+                </div>
+                <button
+                  onClick={handleCancelDelete}
+                  className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+                    isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+                  }`}
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                <div className="space-y-4">
+                  <p className={`text-sm ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}>
+                    Are you sure you want to delete all mill input data for this order? This action cannot be undone.
+                  </p>
+                  
+                  <div className={`p-4 rounded-lg border ${
+                    isDarkMode 
+                      ? 'bg-red-900/20 border-red-500/30' 
+                      : 'bg-red-50 border-red-200'
+                  }`}>
+                    <div className="flex items-center">
+                      <ExclamationTriangleIcon className={`h-5 w-5 mr-2 ${
+                        isDarkMode ? 'text-red-400' : 'text-red-600'
+                      }`} />
+                      <span className={`text-sm font-medium ${
+                        isDarkMode ? 'text-red-400' : 'text-red-800'
+                      }`}>
+                        This will permanently remove all mill input data for this order.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-6">
+                  <button
+                    onClick={handleDelete}
+                    disabled={saving}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      saving
+                        ? 'bg-gray-400 cursor-not-allowed' 
+                        : isDarkMode
+                          ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg' 
+                          : 'bg-red-500 hover:bg-red-600 text-white shadow-lg'
+                    }`}
+                  >
+                    {saving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <TrashIcon className="h-4 w-4" />
+                        Delete Mill Input Data
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleCancelDelete}
+                    disabled={saving}
+                    className={`px-6 py-3 border rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
+                      isDarkMode
+                        ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

@@ -65,6 +65,8 @@ export default function OrdersPage() {
   const [processDataByQuality, setProcessDataByQuality] = useState<{[key: string]: string[]}>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [formParties, setFormParties] = useState<any[]>([]);
+  const [formQualities, setFormQualities] = useState<any[]>([]);
   const [showPartyModal, setShowPartyModal] = useState(false);
   const [showQualityModal, setShowQualityModal] = useState(false);
   const [showLabAddModal, setShowLabAddModal] = useState(false);
@@ -134,6 +136,11 @@ export default function OrdersPage() {
   const [isEditingDispatch, setIsEditingDispatch] = useState(false);
   const [orderDispatches, setOrderDispatches] = useState<{[key: string]: any[]}>({});
   const [mills, setMills] = useState<Mill[]>([]);
+  
+  // Debug mills state changes
+  useEffect(() => {
+    console.log('Mills state changed:', mills);
+  }, [mills]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
   const [isValidating, setIsValidating] = useState(false);
@@ -795,33 +802,45 @@ export default function OrdersPage() {
   // Fetch mills with optimized timeout
   const fetchMills = useCallback(async () => {
     try {
+      console.log('fetchMills called');
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 second timeout (increased for stability)
       
       const token = localStorage.getItem('token');
+      console.log('Token available:', !!token);
+      
+      // Make request with or without token
+      const headers: any = {
+        'Cache-Control': 'no-cache, no-store, must-revalidate', // No cache for fresh data
+        'Pragma': 'no-cache',
+        'Accept': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       
       const response = await fetch('/api/mills?limit=100', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'no-cache, no-store, must-revalidate', // No cache for fresh data
-          'Pragma': 'no-cache',
-          'Accept': 'application/json'
-        },
+        headers: headers,
         signal: controller.signal
       });
       
       clearTimeout(timeoutId);
+      console.log('Mills API response status:', response.status);
       
       if (!response.ok) {
-        if (response.status === 401) return; // Skip on auth error
-        throw new Error(`HTTP error! status: ${response.status}`);
+        console.log('Mills API response not ok:', response.status);
+        setMills([]);
+        return;
       }
       
       const data = await response.json();
+      console.log('Mills API response data:', data);
       if (data.success && data.data && data.data.mills) {
         const millsData = data.data.mills;
+        console.log('Setting mills data:', millsData);
         setMills(millsData);
       } else {
+        console.log('No mills data found in response');
         setMills([]);
       }
     } catch (error: any) {
@@ -928,90 +947,146 @@ export default function OrdersPage() {
 
   // Load additional data only when needed (lazy loading)
   const loadPartiesData = useCallback(async () => {
-    if (parties.length > 0) return; // Already loaded
-    
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      
-      const response = await fetch('/api/parties?limit=50', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await fetch('/api/parties?limit=100', {
+        headers: { 
+          'Content-Type': 'application/json'
+        }
       });
       
       if (response.ok) {
         const data = await response.json();
-        if (data.success) {
-          setParties(data.data || []);
+        if (data.success && data.data) {
+          setParties(data.data);
+          return data.data;
         }
       }
+      return [];
     } catch (error) {
       console.error('Error loading parties:', error);
+      return [];
     }
-  }, [parties.length]);
+  }, []);
 
   const loadQualitiesData = useCallback(async () => {
-    if (qualities.length > 0) return; // Already loaded
-    
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      
-      const response = await fetch('/api/qualities?limit=50', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await fetch('/api/qualities?limit=100', {
+        headers: { 
+          'Content-Type': 'application/json'
+        }
       });
       
       if (response.ok) {
         const data = await response.json();
-        if (data.success) {
-          setQualities(data.data || []);
+        if (data.success && data.data) {
+          setQualities(data.data);
+          return data.data;
         }
       }
+      return [];
     } catch (error) {
       console.error('Error loading qualities:', error);
+      return [];
     }
-  }, [qualities.length]);
+  }, []);
+
+  // Function to open form with data loading
+  const openFormWithData = useCallback(async (order?: Order) => {
+    setEditingOrder(order || null);
+    
+    // Show form immediately
+    setShowForm(true);
+    
+    // Load data in background
+    try {
+      const [partiesData, qualitiesData] = await Promise.all([
+        loadPartiesData(),
+        loadQualitiesData()
+      ]);
+      
+      // Set form data when loaded
+      setFormParties(partiesData || []);
+      setFormQualities(qualitiesData || []);
+    } catch (error) {
+      console.error('Error loading form data:', error);
+      // Form is already shown, just set empty data
+      setFormParties([]);
+      setFormQualities([]);
+    }
+  }, [loadPartiesData, loadQualitiesData]);
 
   const loadMillsData = useCallback(async () => {
-    if (mills.length > 0) return; // Already loaded
-    
     try {
+      console.log('loadMillsData called');
       const token = localStorage.getItem('token');
-      if (!token) return;
+      
+      // Make request with or without token
+      const headers: any = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       
       const response = await fetch('/api/mills?limit=50', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: headers
       });
+      
+      console.log('loadMillsData response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
-        if (data.success) {
-          setMills(data.data || []);
+        console.log('loadMillsData response data:', data);
+        if (data.success && data.data && data.data.mills) {
+          console.log('Setting mills from loadMillsData:', data.data.mills);
+          setMills(data.data.mills);
+        } else {
+          console.log('No mills data in loadMillsData response');
+          setMills([]);
         }
+      } else {
+        console.log('loadMillsData response not ok:', response.status);
+        setMills([]);
       }
     } catch (error) {
       console.error('Error loading mills:', error);
     }
-  }, [mills.length]);
+  }, []);
 
   const loadMillInputsData = useCallback(async (orderId: string) => {
-    if (orderMillInputs[orderId]) return; // Already loaded for this order
+    if (orderMillInputs[orderId]) {
+      console.log('Mill inputs already loaded for order:', orderId);
+      return; // Already loaded for this order
+    }
     
     try {
+      console.log('Loading mill inputs for order:', orderId);
       const token = localStorage.getItem('token');
-      if (!token) return;
+      
+      // Make request with or without token
+      const headers: any = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       
       const response = await fetch(`/api/mill-inputs?orderId=${orderId}&limit=100`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: headers
       });
+      
+      console.log('Mill inputs API response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
+        console.log('Mill inputs API response data:', data);
         if (data.success && data.data?.millInputs) {
+          console.log('Setting mill inputs data:', data.data.millInputs);
           setOrderMillInputs(prev => ({
             ...prev,
             [orderId]: data.data.millInputs
           }));
+        } else {
+          console.log('No mill inputs data found in response');
         }
+      } else {
+        console.log('Mill inputs API response not ok:', response.status);
       }
     } catch (error) {
       console.error('Error loading mill inputs:', error);
@@ -1480,8 +1555,7 @@ export default function OrdersPage() {
   }, []);
 
   const handleEdit = (order: Order) => {
-    setEditingOrder(order);
-    setShowForm(true);
+    openFormWithData(order);
   };
 
   const handleView = (order: Order) => {
@@ -1508,7 +1582,6 @@ export default function OrdersPage() {
     
     // Load data only when button is clicked
     await Promise.all([
-      loadMillsData(),
       loadQualitiesData(),
       loadMillInputsData(order.orderId)
     ]);
@@ -1532,7 +1605,6 @@ export default function OrdersPage() {
     
     // Load data only when button is clicked
     await Promise.all([
-      loadMillsData(),
       loadQualitiesData(),
       loadMillOutputsData(order.orderId)
     ]);
@@ -2111,7 +2183,7 @@ export default function OrdersPage() {
             {/* Left Side - Create Order Button */}
             <div className="flex items-center order-1 md:order-1">
               <button
-                onClick={() => setShowForm(true)}
+                onClick={() => openFormWithData()}
                 className={`inline-flex items-center px-3 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
                   isDarkMode
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg'
@@ -2969,6 +3041,9 @@ export default function OrdersPage() {
 
                            <button
                              onClick={async () => {
+                               // Load mill input data for this order first
+                               await loadMillInputsData(order.orderId);
+                               
                                const existingInputs = orderMillInputs[order.orderId] || [];
                                if (existingInputs.length > 0) {
                                  setIsEditingMillInput(true);
@@ -3181,7 +3256,7 @@ export default function OrdersPage() {
                   <p className="mt-2">Get started by creating your first order</p>
                 </div>
                 <button
-                  onClick={() => setShowForm(true)}
+                  onClick={() => openFormWithData()}
                   className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-colors ${
                     isDarkMode
                       ? 'bg-blue-600 hover:bg-blue-700 text-white'
@@ -3584,8 +3659,10 @@ export default function OrdersPage() {
                     </button>
 
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setSelectedOrderForMillInputForm(order);
+                        // Load mill input data for this order
+                        await loadMillInputsData(order.orderId);
                         setShowMillInputForm(true);
                       }}
                       className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 ${
@@ -3754,12 +3831,21 @@ export default function OrdersPage() {
         </div>
       )}
 
+
       {/* Modals */}
       {showForm && (
         <OrderForm
           order={editingOrder}
-          parties={parties}
-          qualities={qualities}
+          parties={formParties}
+          qualities={formQualities}
+          onFormOpen={() => {
+            // Data is already loaded by openFormWithData
+            // But refresh if needed
+            if (formParties.length === 0 || formQualities.length === 0) {
+              loadPartiesData().then(data => setFormParties(data || []));
+              loadQualitiesData().then(data => setFormQualities(data || []));
+            }
+          }}
           onClose={() => {
             setShowForm(false);
             setEditingOrder(null);

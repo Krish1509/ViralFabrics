@@ -108,7 +108,7 @@ const EnhancedDropdown: React.FC<EnhancedDropdownProps> = ({
             ? 'bg-gray-800 border-gray-600' 
             : 'bg-white border-gray-300'
         }`}>
-          {options.length > 0 ? (
+          {Array.isArray(options) && options.length > 0 ? (
             options.map((option) => (
               <div
                 key={option._id || option.id}
@@ -601,17 +601,128 @@ export default function DispatchForm({
   const [saving, setSaving] = useState(false);
   const [loadingExistingData, setLoadingExistingData] = useState(false);
   
+  // LabDataModal pattern states
+  const [hasExistingData, setHasExistingData] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  
   // Quality dropdown state
   const [activeQualityDropdown, setActiveQualityDropdown] = useState<{ itemId: string } | null>(null);
   const [qualitySearchStates, setQualitySearchStates] = useState<{ [key: string]: string }>({});
   const [currentQualitySearch, setCurrentQualitySearch] = useState('');
   const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
 
-  // Load existing dispatches when editing
+  // Fetch existing dispatch data from API when form opens (LabDataModal pattern)
+  useEffect(() => {
+    console.log('DispatchForm useEffect triggered:', { orderId: order?.orderId });
+    
+    // Always fetch existing data when form opens, just like LabDataModal
+    if (order?.orderId) {
+      console.log('Form opened, fetching existing dispatch data...');
+      fetchExistingDispatchData();
+    }
+  }, [order?.orderId]);
+
+  // Function to fetch qualities directly from API
+  const fetchQualitiesDirectly = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No authentication token found');
+        return;
+      }
+
+      const response = await fetch('/api/qualities', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data && data.data.length > 0) {
+          console.log('Fetched qualities directly from API:', data.data);
+          // Note: We can't directly set qualities here as it's a prop, but we can trigger parent refresh
+          // This will be handled by the parent component's onRefreshMills function
+        } else {
+          console.log('No qualities found in API response');
+        }
+      } else {
+        console.log('Failed to fetch qualities from API, status:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching qualities from API:', error);
+    }
+  };
+
+  // Function to fetch existing dispatch data from API
+  const fetchExistingDispatchData = async () => {
+    if (!order?.orderId) {
+      console.log('No order ID available for fetching dispatches');
+      setHasExistingData(false);
+      return;
+    }
+
+    setLoadingExistingData(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No authentication token available');
+        setHasExistingData(false);
+        return;
+      }
+
+      console.log('Fetching dispatches for order:', order.orderId);
+      const response = await fetch(`/api/dispatch?orderId=${order.orderId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('API response:', data);
+        
+        if (data.success && data.data && data.data.dispatches && data.data.dispatches.length > 0) {
+          console.log('Fetched existing dispatches from API:', data.data.dispatches);
+          setHasExistingData(true);
+          loadExistingDispatchesFromData(data.data.dispatches);
+        } else {
+          console.log('No existing dispatches found in API');
+          setHasExistingData(false);
+        }
+      } else {
+        console.log('Failed to fetch dispatches from API, status:', response.status);
+        setHasExistingData(false);
+      }
+    } catch (error) {
+      console.error('Error fetching dispatches from API:', error);
+      setHasExistingData(false);
+    } finally {
+      setLoadingExistingData(false);
+    }
+  };
+
+  // Also fetch qualities directly if not available
+  useEffect(() => {
+    if (order?.orderId && (!qualities || qualities.length === 0)) {
+      console.log('Qualities not available, fetching directly...');
+      fetchQualitiesDirectly();
+    }
+  }, [order?.orderId, qualities]);
+
+  // Load existing dispatches when editing (LabDataModal pattern)
   useEffect(() => {
     if (isEditing && existingDispatches.length > 0) {
+      setHasExistingData(true);
       loadExistingDispatches();
+    } else if (isEditing && existingDispatches.length === 0) {
+      setHasExistingData(false);
     }
+    // Note: Don't reset hasExistingData here if not editing, as it might be set by API fetch
   }, [isEditing, existingDispatches]);
 
   // Reset form when order changes (but not when editing)
@@ -636,9 +747,62 @@ export default function DispatchForm({
     }
   }, [order?.orderId, isEditing]);
 
-  // Function to load existing dispatches
+  // Function to load existing dispatches from API data (LabDataModal pattern)
+  const loadExistingDispatchesFromData = async (dispatchesData: any[]) => {
+    console.log('Loading existing dispatches from API data:', { order: order?.orderId, dispatchesData });
+    
+    if (!order || dispatchesData.length === 0) {
+      setHasExistingData(false);
+      return;
+    }
+    
+    try {
+      // Group dispatches by dispatchDate and billNo
+      const groupedDispatches = dispatchesData.reduce((groups: any, dispatch: any) => {
+        const key = `${dispatch.dispatchDate}_${dispatch.billNo}`;
+        if (!groups[key]) {
+          groups[key] = {
+            dispatchDate: dispatch.dispatchDate,
+            billNo: dispatch.billNo,
+            subItems: []
+          };
+        }
+        groups[key].subItems.push({
+          id: `${groups[key].subItems.length + 1}_${groups[key].subItems.length + 1}`,
+          finishMtr: dispatch.finishMtr.toString(),
+          quality: dispatch.quality?._id || dispatch.quality || ''
+        });
+        return groups;
+      }, {});
+
+      // Convert grouped data to individual dispatch items
+      const newFormData = {
+        orderId: order.orderId,
+        dispatchItems: Object.values(groupedDispatches).map((group: any, index: number) => ({
+          id: (index + 1).toString(),
+          dispatchDate: group.dispatchDate,
+          billNo: group.billNo,
+          finishMtr: '',
+          quality: '',
+          subItems: group.subItems
+        }))
+      };
+      
+      console.log('Setting form data from API:', newFormData);
+      setFormData(newFormData);
+      setHasExistingData(true);
+    } catch (error) {
+      console.error('Error loading existing dispatches from API:', error);
+      setHasExistingData(false);
+    }
+  };
+
+  // Function to load existing dispatches from props (LabDataModal pattern)
   const loadExistingDispatches = async () => {
+    console.log('Loading existing dispatches from props:', { order: order?.orderId, existingDispatches });
+    
     if (!order || existingDispatches.length === 0) {
+      setHasExistingData(false);
       return;
     }
     
@@ -675,9 +839,13 @@ export default function DispatchForm({
         }))
       };
       
+      console.log('Setting form data from props:', newFormData);
       setFormData(newFormData);
-      } catch (error) {
-      } finally {
+      setHasExistingData(true);
+    } catch (error) {
+      console.error('Error loading existing dispatches from props:', error);
+      setHasExistingData(false);
+    } finally {
       setLoadingExistingData(false);
     }
   };
@@ -878,7 +1046,7 @@ export default function DispatchForm({
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle form submission
+  // Handle form submission (LabDataModal pattern)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -887,6 +1055,8 @@ export default function DispatchForm({
     }
 
     setSaving(true);
+    setSuccessMessage('');
+    setErrors({});
 
     try {
       if (isEditing && existingDispatches.length > 0) {
@@ -897,8 +1067,13 @@ export default function DispatchForm({
         await createNewDispatches();
       }
       
-      onSuccess();
-      onClose();
+      setSuccessMessage('Dispatch data saved successfully!');
+      
+      // Show success message and then close after delay
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1500);
     } catch (error) {
       setErrors({ submit: 'Failed to handle dispatch' });
     } finally {
@@ -948,6 +1123,71 @@ export default function DispatchForm({
         .join(', ');
       throw new Error(`Failed to create some dispatches: ${errorMessages}`);
     }
+  };
+
+  // Delete dispatch data (LabDataModal pattern)
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDelete = async () => {
+    if (!existingDispatches || existingDispatches.length === 0) return;
+
+    setSaving(true);
+    setErrors({});
+    setSuccessMessage('');
+    setShowDeleteConfirm(false);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No authentication token found');
+
+      // Delete all existing dispatches for this order
+      const deletePromises = existingDispatches.map((dispatch: any) =>
+        fetch(`/api/dispatch/${dispatch._id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+      );
+
+      await Promise.all(deletePromises);
+      
+      setSuccessMessage('Dispatch data deleted successfully!');
+      setHasExistingData(false);
+      
+      // Reset form to initial state
+      setFormData({
+        orderId: order?.orderId || '',
+        dispatchItems: [{
+          id: '1',
+          dispatchDate: '',
+          billNo: '',
+          finishMtr: '',
+          quality: '',
+          subItems: [{
+            id: '1_1',
+            finishMtr: '',
+            quality: ''
+          }]
+        }]
+      });
+      
+      // Close after delay
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1500);
+    } catch (error) {
+      setErrors({ submit: 'Failed to delete dispatch data' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
   };
 
   // Function to update existing dispatches
@@ -1041,7 +1281,7 @@ export default function DispatchForm({
               <div className="flex items-center space-x-3">
                 <DocumentTextIcon className="h-8 w-8 text-blue-500" />
                 <h2 className="text-2xl font-bold">
-                  {isEditing ? 'Edit Dispatch' : 'Add Dispatch'}
+                  Dispatch
                 </h2>
               </div>
               <div className="flex items-center space-x-2">
@@ -1071,6 +1311,20 @@ export default function DispatchForm({
               : 'scrollbar-thin scrollbar-thumb-blue-400 scrollbar-track-gray-100'
           }`}>
             <div className="p-6 space-y-8 pb-24">
+              {/* Success Message */}
+              {successMessage && (
+                <div className={`p-4 rounded-lg border ${
+                  isDarkMode 
+                    ? 'bg-green-900/20 border-green-500/30 text-green-400'
+                    : 'bg-green-50 border-green-200 text-green-800'
+                }`}>
+                  <div className="flex items-center">
+                    <CheckIcon className="h-5 w-5 mr-2" />
+                    {successMessage}
+                  </div>
+                </div>
+              )}
+              
               {/* Error Display */}
               {errors.submit && (
                 <div className={`p-4 rounded-lg border ${
@@ -1366,11 +1620,131 @@ export default function DispatchForm({
                       : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
                 }`}
               >
-                {saving ? 'Saving...' : isEditing ? 'Update Dispatch' : 'Add Dispatch'}
+                {saving ? 'Saving...' : 'Save Dispatch'}
               </button>
+              
+              {/* Delete Button - Show only when has existing data */}
+              {hasExistingData && (
+                <button
+                  type="button"
+                  onClick={handleDeleteClick}
+                  disabled={saving}
+                  className={`px-6 py-3 rounded-lg border-2 transition-all duration-200 hover:scale-105 ${
+                    saving
+                      ? 'border-gray-400 text-gray-400 cursor-not-allowed' 
+                      : isDarkMode
+                        ? 'border-red-500 text-red-400 hover:bg-red-500 hover:text-white' 
+                        : 'border-red-300 text-red-600 hover:bg-red-500 hover:text-white'
+                  }`}
+                >
+                  <TrashIcon className="h-5 w-5 inline mr-2" />
+                  Delete
+                </button>
+              )}
             </div>
             </div>
         </div>
+        
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className={`relative w-full max-w-md rounded-xl shadow-2xl ${
+              isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
+            }`}>
+              {/* Header */}
+              <div className={`flex items-center justify-between p-6 border-b ${
+                isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+              }`}>
+                <div className="flex items-center space-x-3">
+                  <div className={`p-3 rounded-lg border ${
+                    isDarkMode
+                      ? 'bg-red-600/20 border-red-500/30'
+                      : 'bg-red-50 border-red-200'
+                  }`}>
+                    <TrashIcon className={`h-6 w-6 ${
+                      isDarkMode ? 'text-red-400' : 'text-red-600'
+                    }`} />
+                  </div>
+                  <h3 className="text-lg font-semibold">Delete Dispatch Data</h3>
+                </div>
+                <button
+                  onClick={handleCancelDelete}
+                  className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+                    isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+                  }`}
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                <div className="space-y-4">
+                  <p className={`text-sm ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}>
+                    Are you sure you want to delete all dispatch data for this order? This action cannot be undone.
+                  </p>
+                  
+                  <div className={`p-4 rounded-lg border ${
+                    isDarkMode 
+                      ? 'bg-red-900/20 border-red-500/30' 
+                      : 'bg-red-50 border-red-200'
+                  }`}>
+                    <div className="flex items-center">
+                      <ExclamationTriangleIcon className={`h-5 w-5 mr-2 ${
+                        isDarkMode ? 'text-red-400' : 'text-red-600'
+                      }`} />
+                      <span className={`text-sm font-medium ${
+                        isDarkMode ? 'text-red-400' : 'text-red-800'
+                      }`}>
+                        This will permanently remove all dispatch data for this order.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-6">
+                  <button
+                    onClick={handleDelete}
+                    disabled={saving}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      saving
+                        ? 'bg-gray-400 cursor-not-allowed' 
+                        : isDarkMode
+                          ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg' 
+                          : 'bg-red-500 hover:bg-red-600 text-white shadow-lg'
+                    }`}
+                  >
+                    {saving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <TrashIcon className="h-4 w-4" />
+                        Delete Dispatch Data
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleCancelDelete}
+                    disabled={saving}
+                    className={`px-6 py-3 border rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
+                      isDarkMode
+                        ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
     </>
   );

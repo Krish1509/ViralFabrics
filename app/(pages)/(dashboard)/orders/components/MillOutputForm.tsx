@@ -473,7 +473,7 @@ function EnhancedDropdown({
   }, [showDropdown, onToggleDropdown]);
 
   // Get selected item name for display
-  const selectedItem = options.find(option => (option._id || (option as any).id) === value);
+  const selectedItem = Array.isArray(options) ? options.find(option => (option._id || (option as any).id) === value) : null;
   const displayValue = selectedItem ? selectedItem.name : searchValue;
 
   return (
@@ -526,7 +526,7 @@ function EnhancedDropdown({
         <div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-xl max-h-60 overflow-y-auto ${
           isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
         }`}>
-          {options.length > 0 ? (
+          {Array.isArray(options) && options.length > 0 ? (
             [...options].sort((a, b) => {
               const aIsRecent = recentlyAddedId === (a._id || (a as any).id);
               const bIsRecent = recentlyAddedId === (b._id || (b as any).id);
@@ -617,19 +617,130 @@ export default function MillOutputForm({
   const [saving, setSaving] = useState(false);
   const [loadingExistingData, setLoadingExistingData] = useState(false);
   
+  // LabDataModal pattern states
+  const [hasExistingData, setHasExistingData] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  
   // Quality-related state
   const [activeQualityDropdown, setActiveQualityDropdown] = useState<{ itemId: string; type: 'main' | 'additional'; index?: number } | null>(null);
   const [qualitySearchStates, setQualitySearchStates] = useState<{ [key: string]: string }>({});
   const [currentQualitySearch, setCurrentQualitySearch] = useState('');
   const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
 
-  // Load existing mill outputs when editing
+  // Fetch existing mill output data from API when form opens (LabDataModal pattern)
   useEffect(() => {
-    console.log('useEffect triggered:', { isEditing, existingMillOutputsLength: existingMillOutputs.length });
-    if (isEditing && existingMillOutputs.length > 0) {
-      console.log('Loading existing mill outputs...');
-      loadExistingMillOutputs();
+    console.log('MillOutputForm useEffect triggered:', { orderId: order?.orderId });
+    
+    // Always fetch existing data when form opens, just like LabDataModal
+    if (order?.orderId) {
+      console.log('Form opened, fetching existing mill output data...');
+      fetchExistingMillOutputData();
     }
+  }, [order?.orderId]);
+
+  // Function to fetch qualities directly from API
+  const fetchQualitiesDirectly = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No authentication token found');
+        return;
+      }
+
+      const response = await fetch('/api/qualities', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data && data.data.length > 0) {
+          console.log('Fetched qualities directly from API:', data.data);
+          // Note: We can't directly set qualities here as it's a prop, but we can trigger parent refresh
+          // This will be handled by the parent component's onRefreshMills function
+        } else {
+          console.log('No qualities found in API response');
+        }
+      } else {
+        console.log('Failed to fetch qualities from API, status:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching qualities from API:', error);
+    }
+  };
+
+  // Function to fetch existing mill output data from API (LabDataModal pattern)
+  const fetchExistingMillOutputData = async () => {
+    if (!order?.orderId) {
+      console.log('No order ID available for fetching mill outputs');
+      setHasExistingData(false);
+      return;
+    }
+
+    setLoadingExistingData(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No authentication token available');
+        setHasExistingData(false);
+        return;
+      }
+
+      console.log('Fetching mill outputs for order:', order.orderId);
+      const response = await fetch(`/api/mill-outputs?orderId=${order.orderId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('API response:', data);
+        
+        if (data.success && data.data && data.data.millOutputs && data.data.millOutputs.length > 0) {
+          console.log('Fetched existing mill outputs from API:', data.data.millOutputs);
+          setHasExistingData(true);
+          loadExistingMillOutputsFromData(data.data.millOutputs);
+        } else {
+          console.log('No existing mill outputs found in API');
+          setHasExistingData(false);
+        }
+      } else {
+        console.log('Failed to fetch mill outputs from API, status:', response.status);
+        setHasExistingData(false);
+      }
+    } catch (error) {
+      console.error('Error fetching mill outputs from API:', error);
+      setHasExistingData(false);
+    } finally {
+      setLoadingExistingData(false);
+    }
+  };
+
+  // Also fetch qualities directly if not available
+  useEffect(() => {
+    if (order?.orderId && (!qualities || qualities.length === 0)) {
+      console.log('Qualities not available, fetching directly...');
+      fetchQualitiesDirectly();
+    }
+  }, [order?.orderId, qualities]);
+
+  // Load existing mill outputs when editing (LabDataModal pattern)
+  useEffect(() => {
+    console.log('useEffect triggered for existing data:', { isEditing, existingMillOutputsLength: existingMillOutputs.length });
+    if (isEditing && existingMillOutputs.length > 0) {
+      console.log('Loading existing mill outputs from props...');
+      setHasExistingData(true);
+      loadExistingMillOutputs();
+    } else if (isEditing && existingMillOutputs.length === 0) {
+      setHasExistingData(false);
+    }
+    // Note: Don't reset hasExistingData here if not editing, as it might be set by API fetch
   }, [isEditing, existingMillOutputs]);
 
   // Reset form when order changes (but not when editing)
@@ -650,20 +761,20 @@ export default function MillOutputForm({
     }
   }, [order?.orderId, isEditing]);
 
-  // Function to load existing mill outputs
-  const loadExistingMillOutputs = async () => {
-    console.log('Loading existing mill outputs:', { order: order?.orderId, existingMillOutputs });
+  // Function to load existing mill outputs from API data (LabDataModal pattern)
+  const loadExistingMillOutputsFromData = async (millOutputsData: any[]) => {
+    console.log('Loading existing mill outputs from API data:', { order: order?.orderId, millOutputsData });
     
-    if (!order || existingMillOutputs.length === 0) {
+    if (!order || millOutputsData.length === 0) {
       console.log('No order or existing mill outputs found');
+      setHasExistingData(false);
       return;
     }
     
-    setLoadingExistingData(true);
     try {
       // Group mill outputs by bill number and date
-      const groupedOutputs = groupMillOutputsByBillAndDate(existingMillOutputs);
-      console.log('Grouped outputs:', groupedOutputs);
+      const groupedOutputs = groupMillOutputsByBillAndDate(millOutputsData);
+      console.log('Grouped outputs from API:', groupedOutputs);
       
       if (groupedOutputs.length > 0) {
         const newFormData = {
@@ -681,13 +792,61 @@ export default function MillOutputForm({
           }))
         };
         
-        console.log('Setting form data:', newFormData);
+        console.log('Setting form data from API:', newFormData);
         setFormData(newFormData);
+        setHasExistingData(true);
       } else {
-        console.log('No grouped outputs found');
+        console.log('No grouped outputs found from API');
+        setHasExistingData(false);
       }
     } catch (error) {
-      console.error('Error loading existing mill outputs:', error);
+      console.error('Error loading existing mill outputs from API:', error);
+      setHasExistingData(false);
+    }
+  };
+
+  // Function to load existing mill outputs from props (LabDataModal pattern)
+  const loadExistingMillOutputs = async () => {
+    console.log('Loading existing mill outputs from props:', { order: order?.orderId, existingMillOutputs });
+    
+    if (!order || existingMillOutputs.length === 0) {
+      console.log('No order or existing mill outputs found');
+      setHasExistingData(false);
+      return;
+    }
+    
+    setLoadingExistingData(true);
+    try {
+      // Group mill outputs by bill number and date
+      const groupedOutputs = groupMillOutputsByBillAndDate(existingMillOutputs);
+      console.log('Grouped outputs from props:', groupedOutputs);
+      
+      if (groupedOutputs.length > 0) {
+        const newFormData = {
+          orderId: order.orderId,
+          millOutputItems: groupedOutputs.map((group, index) => ({
+            id: (index + 1).toString(),
+            recdDate: group.recdDate,
+            millBillNo: group.millBillNo,
+            finishedMtr: group.mainOutput.finishedMtr.toString(),
+            quality: group.mainOutput.quality?._id || group.mainOutput.quality || '', // Extract quality ID
+            additionalFinishedMtr: group.additionalOutputs.map((output: any) => ({
+              meters: output.finishedMtr.toString(),
+              quality: output.quality?._id || output.quality || '' // Extract quality ID
+            }))
+          }))
+        };
+        
+        console.log('Setting form data from props:', newFormData);
+        setFormData(newFormData);
+        setHasExistingData(true);
+      } else {
+        console.log('No grouped outputs found from props');
+        setHasExistingData(false);
+      }
+    } catch (error) {
+      console.error('Error loading existing mill outputs from props:', error);
+      setHasExistingData(false);
     } finally {
       setLoadingExistingData(false);
     }
@@ -912,7 +1071,7 @@ export default function MillOutputForm({
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle form submission
+  // Handle form submission (LabDataModal pattern)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -921,6 +1080,8 @@ export default function MillOutputForm({
     }
 
     setSaving(true);
+    setSuccessMessage('');
+    setErrors({});
 
     try {
       if (isEditing && existingMillOutputs.length > 0) {
@@ -931,8 +1092,19 @@ export default function MillOutputForm({
         await createNewMillOutputs();
       }
       
-      onSuccess();
-      onClose();
+      setSuccessMessage('Mill output data saved successfully!');
+      
+      // Immediately update local state for better UX (LabDataModal pattern)
+      setHasExistingData(true);
+      
+      // Refresh the local data to show updated state
+      await fetchExistingMillOutputData();
+      
+      // Show success message and then close after delay
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1500);
     } catch (error) {
       setErrors({ submit: 'Failed to handle mill output' });
     } finally {
@@ -1007,6 +1179,67 @@ export default function MillOutputForm({
         .join(', ');
       throw new Error(`Failed to create some mill outputs: ${errorMessages}`);
     }
+  };
+
+  // Delete mill output data (LabDataModal pattern)
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDelete = async () => {
+    if (!existingMillOutputs || existingMillOutputs.length === 0) return;
+
+    setSaving(true);
+    setErrors({});
+    setSuccessMessage('');
+    setShowDeleteConfirm(false);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No authentication token found');
+
+      // Delete all existing mill outputs for this order
+      const deletePromises = existingMillOutputs.map((output: any) =>
+        fetch(`/api/mill-outputs/${output._id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+      );
+
+      await Promise.all(deletePromises);
+      
+      setSuccessMessage('Mill output data deleted successfully!');
+      setHasExistingData(false);
+      
+      // Reset form to initial state
+      setFormData({
+        orderId: order?.orderId || '',
+        millOutputItems: [{
+          id: '1',
+          recdDate: '',
+          millBillNo: '',
+          finishedMtr: '',
+          quality: '',
+          additionalFinishedMtr: []
+        }]
+      });
+      
+      // Close after delay
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1500);
+    } catch (error) {
+      setErrors({ submit: 'Failed to delete mill output data' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
   };
 
   // Function to update existing mill outputs
@@ -1112,7 +1345,7 @@ export default function MillOutputForm({
               <div className="flex items-center space-x-3">
                 <DocumentTextIcon className="h-8 w-8 text-blue-500" />
                 <h2 className="text-2xl font-bold">
-                  {isEditing ? 'Edit Mill Output' : 'Add Mill Output'}
+                  Mill Output
                 </h2>
               </div>
               <div className="flex items-center space-x-2">
@@ -1142,6 +1375,20 @@ export default function MillOutputForm({
               : 'scrollbar-thin scrollbar-thumb-blue-400 scrollbar-track-gray-100'
           }`}>
             <div className="p-6 space-y-8 pb-24">
+              {/* Success Message */}
+              {successMessage && (
+                <div className={`p-4 rounded-lg border ${
+                  isDarkMode 
+                    ? 'bg-green-900/20 border-green-500/30 text-green-400'
+                    : 'bg-green-50 border-green-200 text-green-800'
+                }`}>
+                  <div className="flex items-center">
+                    <CheckIcon className="h-5 w-5 mr-2" />
+                    {successMessage}
+                  </div>
+                </div>
+              )}
+              
               {/* Error Display */}
               {errors.submit && (
                 <div className={`p-4 rounded-lg border ${
@@ -1483,11 +1730,131 @@ export default function MillOutputForm({
                       : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
                 }`}
               >
-                {saving ? 'Saving...' : isEditing ? 'Update Mill Output' : 'Add Mill Output'}
+                {saving ? 'Saving...' : (hasExistingData ? 'Update Mill Output' : 'Add Mill Output')}
             </button>
+            
+            {/* Delete Button - Show only when has existing data */}
+            {hasExistingData && (
+              <button
+                type="button"
+                onClick={handleDeleteClick}
+                disabled={saving}
+                className={`px-6 py-3 rounded-lg border-2 transition-all duration-200 hover:scale-105 ${
+                  saving
+                    ? 'border-gray-400 text-gray-400 cursor-not-allowed' 
+                    : isDarkMode
+                      ? 'border-red-500 text-red-400 hover:bg-red-500 hover:text-white' 
+                      : 'border-red-300 text-red-600 hover:bg-red-500 hover:text-white'
+                }`}
+              >
+                <TrashIcon className="h-5 w-5 inline mr-2" />
+                Delete
+              </button>
+            )}
           </div>
           </div>
       </div>
+      
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className={`relative w-full max-w-md rounded-xl shadow-2xl ${
+            isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
+          }`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between p-6 border-b ${
+              isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+            }`}>
+              <div className="flex items-center space-x-3">
+                <div className={`p-3 rounded-lg border ${
+                  isDarkMode
+                    ? 'bg-red-600/20 border-red-500/30'
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  <TrashIcon className={`h-6 w-6 ${
+                    isDarkMode ? 'text-red-400' : 'text-red-600'
+                  }`} />
+                </div>
+                <h3 className="text-lg font-semibold">Delete Mill Output Data</h3>
+              </div>
+              <button
+                onClick={handleCancelDelete}
+                className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
+                  isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+                }`}
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="space-y-4">
+                <p className={`text-sm ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>
+                  Are you sure you want to delete all mill output data for this order? This action cannot be undone.
+                </p>
+                
+                <div className={`p-4 rounded-lg border ${
+                  isDarkMode 
+                    ? 'bg-red-900/20 border-red-500/30' 
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center">
+                    <ExclamationTriangleIcon className={`h-5 w-5 mr-2 ${
+                      isDarkMode ? 'text-red-400' : 'text-red-600'
+                    }`} />
+                    <span className={`text-sm font-medium ${
+                      isDarkMode ? 'text-red-400' : 'text-red-800'
+                    }`}>
+                      This will permanently remove all mill output data for this order.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-6">
+                <button
+                  onClick={handleDelete}
+                  disabled={saving}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    saving
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : isDarkMode
+                        ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg' 
+                        : 'bg-red-500 hover:bg-red-600 text-white shadow-lg'
+                  }`}
+                >
+                  {saving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <TrashIcon className="h-4 w-4" />
+                      Delete Mill Output Data
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleCancelDelete}
+                  disabled={saving}
+                  className={`px-6 py-3 border rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
+                    isDarkMode
+                      ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </>
   );

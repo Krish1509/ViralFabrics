@@ -29,6 +29,7 @@ interface OrderFormProps {
   onSuccess: () => void;
   onError?: () => void;
   onStart?: () => void;
+  onFormOpen?: () => void;
   onAddParty: () => void;
   onRefreshParties: () => void;
   onAddQuality: (newQualityData?: any) => void;
@@ -466,7 +467,8 @@ function EnhancedDropdown({
   onAddNew,
   onDelete,
   itemIndex,
-  recentlyAddedId
+  recentlyAddedId,
+  isLoading
 }: {
   options: any[];
   value: string;
@@ -483,6 +485,7 @@ function EnhancedDropdown({
   onDelete?: (item: any) => void;
   itemIndex?: number;
   recentlyAddedId?: string | null;
+  isLoading?: boolean;
 }) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -519,6 +522,7 @@ function EnhancedDropdown({
             type="text"
             placeholder={placeholder}
             value={displayValue}
+            disabled={false}
             onChange={(e) => {
               const newValue = e.target.value;
               onSearchChange(newValue);
@@ -527,7 +531,10 @@ function EnhancedDropdown({
                 onChange('');
               }
             }}
-            onFocus={() => onToggleDropdown()}
+            onFocus={() => {
+              // Always allow dropdown to open, even if loading
+              onToggleDropdown();
+            }}
             className={`w-full p-3 rounded-lg border ${
               isDarkMode 
                 ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' 
@@ -577,7 +584,18 @@ function EnhancedDropdown({
         <div className={`absolute z-50 w-full mt-1 rounded-lg border shadow-xl max-h-60 overflow-y-auto ${
           isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
         }`}>
-          {options.length > 0 ? (
+          {isLoading && options.length === 0 ? (
+            <div className={`p-4 text-center ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-500'
+            }`}>
+              <div className="flex items-center justify-center space-x-2">
+                <div className={`animate-spin rounded-full h-4 w-4 border-b-2 ${
+                  isDarkMode ? 'border-blue-400' : 'border-blue-600'
+                }`}></div>
+                <span>Loading...</span>
+              </div>
+            </div>
+          ) : options.length > 0 ? (
             // Sort options: recently added items last (at bottom), then alphabetically
             [...options].sort((a, b) => {
               const aIsRecent = recentlyAddedId === (a._id || (a as any).id);
@@ -1221,7 +1239,7 @@ function ImageUploadSection({
   );
 }
 
-export default function OrderForm({ order, parties, qualities, onClose, onSuccess, onError, onStart, onAddParty, onRefreshParties, onAddQuality }: OrderFormProps) {
+export default function OrderForm({ order, parties, qualities, onClose, onSuccess, onError, onStart, onFormOpen, onAddParty, onRefreshParties, onAddQuality }: OrderFormProps) {
   const { isDarkMode, mounted } = useDarkMode();
   const [formData, setFormData] = useState<OrderFormData>({
     orderType: undefined,
@@ -1247,6 +1265,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   });
 
   const [loading, setLoading] = useState(false);
+  const [partiesLoading, setPartiesLoading] = useState(false);
+  const [qualitiesLoading, setQualitiesLoading] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [partySearch, setPartySearch] = useState('');
@@ -1268,6 +1288,52 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [currentQualitySearch, setCurrentQualitySearch] = useState('');
   const formRef = useRef<HTMLFormElement>(null);
+
+  // Load parties and qualities when form opens
+  useEffect(() => {
+    // Always clear loading states when data is available
+    if (parties.length > 0) {
+      setPartiesLoading(false);
+    } else {
+      setPartiesLoading(true);
+    }
+    
+    if (qualities.length > 0) {
+      setQualitiesLoading(false);
+    } else {
+      setQualitiesLoading(true);
+    }
+    
+    onFormOpen?.();
+  }, [onFormOpen, parties.length, qualities.length]);
+
+  // Clear loading state when parties are loaded or after timeout
+  useEffect(() => {
+    if (parties.length > 0) {
+      setPartiesLoading(false);
+    } else {
+      // Set a timeout to clear loading state even if no data is loaded
+      const timeout = setTimeout(() => {
+        setPartiesLoading(false);
+      }, 200); // 0.2 second timeout - very fast response
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [parties.length]);
+
+  // Clear loading state when qualities are loaded or after timeout
+  useEffect(() => {
+    if (qualities.length > 0) {
+      setQualitiesLoading(false);
+    } else {
+      // Set a timeout to clear loading state even if no data is loaded
+      const timeout = setTimeout(() => {
+        setQualitiesLoading(false);
+      }, 200); // 0.2 second timeout - very fast response
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [qualities.length]);
 
   // Helper function to get quality ID (handles both _id and id from API)
   const getQualityId = (quality: any) => {
@@ -1824,29 +1890,43 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   };
 
   // Filtered parties and qualities with safe filtering
-  const filteredParties = parties.filter(party =>
-    party?.name?.toLowerCase().includes(partySearch.toLowerCase())
-  ).sort((a, b) => {
+  const filteredParties = parties.filter(party => {
+    if (!party?.name) return false;
+    if (!partySearch || partySearch.trim() === '') return true; // Show all if no search
+    return party.name.toLowerCase().includes(partySearch.toLowerCase());
+  }).sort((a, b) => {
     // Sort by createdAt in descending order (newest first)
     const dateA = new Date(a.createdAt || 0);
     const dateB = new Date(b.createdAt || 0);
     return dateB.getTime() - dateA.getTime(); // Newest first
   });
 
+
+
+
+
+
+
+
   const getFilteredQualities = (itemIndex: number) => {
     // Use the current quality search for the active dropdown, otherwise use the stored search state
     const searchTerm = activeQualityDropdown === itemIndex ? currentQualitySearch : (qualitySearchStates[itemIndex] || '');
     
-    const filtered = qualities.filter(quality =>
-      quality?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filtered = qualities.filter(quality => {
+      if (!quality?.name) return false;
+      if (!searchTerm || searchTerm.trim() === '') return true; // Show all if no search
+      return quality.name.toLowerCase().includes(searchTerm.toLowerCase());
+    });
     
     // Sort by createdAt in ascending order (oldest first)
-    return filtered.sort((a, b) => {
+    const sorted = filtered.sort((a, b) => {
       const dateA = new Date(a.createdAt || 0);
       const dateB = new Date(b.createdAt || 0);
       return dateA.getTime() - dateB.getTime(); // Oldest first
     });
+
+    
+    return sorted;
   };
 
   if (!mounted) return null;
@@ -1887,7 +1967,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         }
       `}</style>
       
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4">
       <div className={`relative w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
         isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
       }`}>
@@ -2013,11 +2093,12 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                   options={filteredParties}
                   value={formData.party || ''}
                   onChange={(value) => handleFieldChange('party', value)}
-                  placeholder="Search parties..."
+                  placeholder={partiesLoading ? "Loading parties..." : "Search parties..."}
                   searchValue={partySearch}
                   onSearchChange={setPartySearch}
                   showDropdown={showPartyDropdown}
                   onToggleDropdown={() => setShowPartyDropdown(!showPartyDropdown)}
+                  isLoading={partiesLoading}
                                      onSelect={(party) => {
                      handleFieldChange('party', party._id || '');
                      setSelectedPartyName(party.name);
@@ -2182,7 +2263,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                           options={getFilteredQualities(index)}
                            value={item.quality as string}
                            onChange={(value) => handleItemChange(index, 'quality', value)}
-                           placeholder="Search quality..."
+                           placeholder={qualitiesLoading ? "Loading qualities..." : "Search quality..."}
                           searchValue={activeQualityDropdown === index ? currentQualitySearch : (qualitySearchStates[index] || '')}
                           onSearchChange={(value) => {
                             if (activeQualityDropdown === index) {
@@ -2201,6 +2282,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                               setCurrentQualitySearch(qualitySearchStates[index] || '');
                             }
                           }}
+                          isLoading={qualitiesLoading}
                                                        onSelect={(quality) => {
                             handleItemChange(index, 'quality', getQualityId(quality));
                             setQualitySearchStates(prev => ({ ...prev, [index]: quality.name }));
