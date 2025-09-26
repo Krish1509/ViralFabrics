@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     await dbConnect();
     
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '1000'), 2000); // Max 2000 for EXTREME performance
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500); // Much smaller default for speed
     const page = parseInt(searchParams.get('page') || '1');
     const search = searchParams.get('search') || '';
     const orderType = searchParams.get('orderType') || '';

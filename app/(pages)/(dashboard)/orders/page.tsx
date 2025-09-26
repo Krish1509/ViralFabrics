@@ -320,7 +320,7 @@ export default function OrdersPage() {
       
       // Build URL with pagination and filter parameters
       const url = new URL('/api/orders', window.location.origin);
-      const limitValue = limit === 'All' ? 1000 : Math.max(limit, 100); // Ensure minimum 100 orders for search
+      const limitValue = limit === 'All' ? 200 : Math.max(limit, 50); // Much smaller limits for speed
       url.searchParams.append('limit', limitValue.toString());
       url.searchParams.append('page', page.toString());
       
@@ -839,15 +839,15 @@ export default function OrdersPage() {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      // Prefetch all APIs in background - NO WAITING
+      // Prefetch APIs with MUCH smaller limits for speed
       Promise.allSettled([
-        fetch('/api/orders?limit=1000&page=1', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/parties?limit=500', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/qualities?limit=500', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/mills?limit=500', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/mill-inputs?limit=2000', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/mill-outputs?limit=2000', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/dispatch?limit=2000', { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch('/api/orders?limit=50&page=1', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/parties?limit=50', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/qualities?limit=50', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/mills?limit=50', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/mill-inputs?limit=100', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/mill-outputs?limit=100', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/dispatch?limit=100', { headers: { 'Authorization': `Bearer ${token}` } })
       ]).catch(() => {}); // Silent prefetch
     };
 
@@ -883,56 +883,56 @@ export default function OrdersPage() {
           millOutputsResult,
           dispatchesResult
         ] = await Promise.allSettled([
-          // Orders - MAXIMUM limit for speed
-          fetch('/api/orders?limit=1000&page=1', {
+          // Orders - SMALL limit for speed
+          fetch('/api/orders?limit=100&page=1', {
             headers: { 
               'Authorization': `Bearer ${token}`,
               'Accept': 'application/json'
             },
             signal: controller.signal
           }),
-          // Parties - MAXIMUM limit
-          fetch('/api/parties?limit=500', {
+          // Parties - SMALL limit for speed
+          fetch('/api/parties?limit=50', {
             headers: { 
               'Authorization': `Bearer ${token}`,
               'Accept': 'application/json'
             },
             signal: controller.signal
           }),
-          // Qualities - MAXIMUM limit
-          fetch('/api/qualities?limit=500', {
+          // Qualities - SMALL limit for speed
+          fetch('/api/qualities?limit=50', {
             headers: { 
               'Authorization': `Bearer ${token}`,
               'Accept': 'application/json'
             },
             signal: controller.signal
           }),
-          // Mills - MAXIMUM limit
-          fetch('/api/mills?limit=500', {
+          // Mills - SMALL limit for speed
+          fetch('/api/mills?limit=50', {
             headers: { 
               'Authorization': `Bearer ${token}`,
               'Accept': 'application/json'
             },
             signal: controller.signal
           }),
-          // Mill inputs - MAXIMUM limit
-          fetch('/api/mill-inputs?limit=2000', {
+          // Mill inputs - SMALL limit for speed
+          fetch('/api/mill-inputs?limit=100', {
             headers: { 
               'Authorization': `Bearer ${token}`,
               'Accept': 'application/json'
             },
             signal: controller.signal
           }),
-          // Mill outputs - MAXIMUM limit
-          fetch('/api/mill-outputs?limit=2000', {
+          // Mill outputs - SMALL limit for speed
+          fetch('/api/mill-outputs?limit=100', {
             headers: { 
               'Authorization': `Bearer ${token}`,
               'Accept': 'application/json'
             },
             signal: controller.signal
           }),
-          // Dispatches - MAXIMUM limit
-          fetch('/api/dispatch?limit=2000', {
+          // Dispatches - SMALL limit for speed
+          fetch('/api/dispatch?limit=100', {
             headers: { 
               'Authorization': `Bearer ${token}`,
               'Accept': 'application/json'

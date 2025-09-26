@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const orderId = searchParams.get('orderId');
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '2000'), 5000); // Max 5000 for EXTREME performance
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500); // Much smaller default for speed
     const skip = (page - 1) * limit;
 
     let query: any = {};

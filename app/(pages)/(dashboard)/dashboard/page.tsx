@@ -15,16 +15,7 @@ import { useDarkMode } from '../hooks/useDarkMode';
 import MetricsCard from './components/MetricsCard';
 import DashboardFilters from './components/DashboardFilters';
 
-// Lazy load heavy components for better performance with aggressive optimization
-const OrderTrendsChart = lazy(() => import('./components/OrderTrendsChart'));
-const OrderTypeChart = lazy(() => import('./components/OrderTypeChart'));
-const StatusChart = lazy(() => import('./components/StatusChart'));
-const RecentActivity = lazy(() => import('./components/RecentActivity'));
-
-// Lazy load even more components to reduce initial bundle size
-const OrdersTable = lazy(() => import('./components/OrdersTable'));
-const UpcomingDeliveriesTable = lazy(() => import('./components/UpcomingDeliveriesTable'));
-const EnhancedProfessionalPieChart = lazy(() => import('./components/EnhancedProfessionalPieChart'));
+// Removed heavy components for super fast loading
 import { Order } from '@/types';
 
 interface DashboardStats {
@@ -70,18 +61,9 @@ export default function DashboardPage() {
   const { isDarkMode, mounted } = useDarkMode();
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
-  const [deliveredOrders, setDeliveredOrders] = useState<Order[]>([]);
-  const [upcomingDeliveryOrders, setUpcomingDeliveryOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [autoRefreshing, setAutoRefreshing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [loadedSections, setLoadedSections] = useState({
-    tables: false,
-    charts: false,
-    activity: false
-  });
   const [filters, setFilters] = useState<DashboardFilters>({
     startDate: '',
     endDate: '',
@@ -100,190 +82,37 @@ export default function DashboardPage() {
         return;
       }
 
-      // Fetch all orders with aggressive optimization
-      const allOrdersParams = new URLSearchParams();
-      allOrdersParams.append('limit', '100'); // Much smaller limit for faster loading
-      if (filters.orderType !== 'all') allOrdersParams.append('orderType', filters.orderType);
-
-      // Add timeout for faster response
+      // Super fast dashboard - only fetch essential stats
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 1500); // Reduced to 1.5 second timeout
 
-      const allOrdersResponse = await fetch(`/api/orders?${allOrdersParams}`, {
+      // Fetch only dashboard stats API (much faster than fetching all orders)
+      const statsResponse = await fetch('/api/dashboard/stats', {
         headers: {
           'Authorization': `Bearer ${token}`,
+          'Cache-Control': 'max-age=30' // Add caching
         },
-        signal: controller.signal
+        signal: controller.signal,
+        cache: 'default'
       });
 
       clearTimeout(timeoutId);
 
-      if (allOrdersResponse.ok) {
-        const allOrdersData = await allOrdersResponse.json();
-        let allOrders = allOrdersData.data || [];
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        const dashboardStats = statsData.data || {};
         
-        // Apply date filtering on client side
-        if (filters.startDate || filters.endDate) {
-          allOrders = allOrders.filter((order: Order) => {
-            const orderDate = new Date(order.createdAt);
-            const startDate = filters.startDate ? new Date(filters.startDate) : null;
-            const endDate = filters.endDate ? new Date(filters.endDate) : null;
-            
-            if (startDate && orderDate < startDate) return false;
-            if (endDate && orderDate > endDate) return false;
-            return true;
-          });
-        }
+        // Set the stats directly from API response
+        setStats(dashboardStats);
         
-        // Calculate statistics from all orders
-        const totalOrders = allOrders.length;
-        
-        const statusStats = {
-          pending: allOrders.filter((order: Order) => order.status === 'pending').length,
-          in_progress: allOrders.filter((order: Order) => order.status === 'in_progress').length,
-          completed: allOrders.filter((order: Order) => order.status === 'completed').length,
-          delivered: allOrders.filter((order: Order) => order.status === 'delivered').length,
-          cancelled: allOrders.filter((order: Order) => order.status === 'cancelled').length,
-          not_set: allOrders.filter((order: Order) => !order.status || order.status === 'Not set' || order.status === 'Not selected').length
-        };
-
-        const typeStats = {
-          Dying: allOrders.filter((order: Order) => order.orderType === 'Dying').length,
-          Printing: allOrders.filter((order: Order) => order.orderType === 'Printing').length,
-          not_set: allOrders.filter((order: Order) => !order.orderType).length
-        };
-
-        // Calculate type breakdown for pending orders
-        const pendingOrdersForStats = allOrders.filter((order: Order) => 
-          order.status === 'pending' || !order.status || order.status === 'Not set' || order.status === 'Not selected'
-        );
-        const pendingTypeStats = {
-          Dying: pendingOrdersForStats.filter((order: Order) => order.orderType === 'Dying').length,
-          Printing: pendingOrdersForStats.filter((order: Order) => order.orderType === 'Printing').length,
-          not_set: pendingOrdersForStats.filter((order: Order) => !order.orderType).length
-        };
-
-        // Calculate type breakdown for delivered orders
-        const deliveredOrdersForStats = allOrders.filter((order: Order) => 
-          order.status === 'delivered' || order.status === 'completed'
-        );
-        const deliveredTypeStats = {
-          Dying: deliveredOrdersForStats.filter((order: Order) => order.orderType === 'Dying').length,
-          Printing: deliveredOrdersForStats.filter((order: Order) => order.orderType === 'Printing').length,
-          not_set: deliveredOrdersForStats.filter((order: Order) => !order.orderType).length
-        };
-
-        // Calculate monthly trends (last 12 months)
-        const monthlyTrends = [];
-        const now = new Date();
-        for (let i = 11; i >= 0; i--) {
-          const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          const count = allOrders.filter((order: Order) => {
-            const orderDate = new Date(order.createdAt);
-            return orderDate.getFullYear() === date.getFullYear() && 
-                   orderDate.getMonth() === date.getMonth();
-          }).length;
-          monthlyTrends.push({ month: monthStr, count });
-        }
-
-        setStats({
-          totalOrders,
-          statusStats,
-          typeStats,
-          pendingTypeStats,
-          deliveredTypeStats,
-          monthlyTrends,
-          recentOrders: allOrders.slice(0, 5)
-        });
-
-        // Filter orders for tables with better logic
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        // Pending orders: orders that are pending, in progress, or not set
-        const pendingOrders = allOrders.filter((order: Order) => {
-          const status = order.status;
-          const isPendingStatus = status === 'pending' || 
-                                 status === 'in_progress' || 
-                                 !status || 
-                                 status === 'Not set' || 
-                                 status === 'Not selected';
-          
-          // Apply order type filter if specified
-          if (filters.orderType !== 'all' && order.orderType !== filters.orderType) {
-            return false;
-          }
-          
-          return isPendingStatus;
-        }).map((order: Order) => ({
-          ...order,
-          // Normalize status display for pending orders
-          status: (!order.status || order.status === 'Not set' || order.status === 'Not selected') 
-            ? 'pending' 
-            : order.status
-        })).sort((a: Order, b: Order) => {
-          // Sort by creation date (newest first)
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        }).slice(0, 5);
-        
-        // Remove unassigned orders - they're now included in pending
-
-        // Delivered orders: orders that are completed or delivered
-        const deliveredOrders = allOrders.filter((order: Order) => {
-          const status = order.status;
-          const isDeliveredStatus = status === 'delivered' || status === 'completed';
-          
-          // Apply order type filter if specified
-          if (filters.orderType !== 'all' && order.orderType !== filters.orderType) {
-            return false;
-          }
-          
-          return isDeliveredStatus;
-        }).sort((a: Order, b: Order) => {
-          // Sort by delivery date (most recent first), then by creation date
-          if (a.deliveryDate && b.deliveryDate) {
-            return new Date(b.deliveryDate).getTime() - new Date(a.deliveryDate).getTime();
-          }
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        }).slice(0, 5);
-
-        // Filter orders for upcoming deliveries (all future deliveries)
-
-        const upcomingDeliveryOrders = allOrders.filter((order: Order) => {
-          if (!order.deliveryDate) return false;
-          
-          const deliveryDate = new Date(order.deliveryDate);
-          deliveryDate.setHours(0, 0, 0, 0);
-          
-          // Include orders with future delivery dates that are not yet delivered
-          const status = order.status;
-          const isNotDelivered = status !== 'delivered' && status !== 'completed';
-          const isFutureDelivery = deliveryDate >= today;
-          
-          // Apply order type filter if specified
-          if (filters.orderType !== 'all' && order.orderType !== filters.orderType) {
-            return false;
-          }
-          
-          return isNotDelivered && isFutureDelivery;
-        }).sort((a: Order, b: Order) => {
-          // Sort by delivery date (earliest first)
-          if (a.deliveryDate && b.deliveryDate) {
-            return new Date(a.deliveryDate).getTime() - new Date(b.deliveryDate).getTime();
-          }
-          return 0;
-        });
-
-        setPendingOrders(pendingOrders);
-        setDeliveredOrders(deliveredOrders);
-        setUpcomingDeliveryOrders(upcomingDeliveryOrders);
+        // Dashboard stats loaded successfully
       } else {
-        if (allOrdersResponse.status === 401) {
+        if (statsResponse.status === 401) {
           setError('Authentication failed. Please log in again.');
           return;
         }
-        const errorData = await allOrdersResponse.json();
+        const errorData = await statsResponse.json();
+        setError(errorData.message || 'Failed to load dashboard stats');
         }
 
     } catch (error) {
@@ -297,93 +126,12 @@ export default function DashboardPage() {
     if (mounted) {
       // Start loading immediately
       fetchDashboardData();
-      
-      // Progressive loading - load sections in stages
-      const loadSections = () => {
-        // Load tables first (most important)
-        setTimeout(() => setLoadedSections(prev => ({ ...prev, tables: true })), 500);
-        
-        // Load charts second
-        setTimeout(() => setLoadedSections(prev => ({ ...prev, charts: true })), 1000);
-        
-        // Load activity last
-        setTimeout(() => setLoadedSections(prev => ({ ...prev, activity: true })), 1500);
-      };
-      
-      loadSections();
     }
   }, [mounted, fetchDashboardData]);
-
-  // Lazy load sections on scroll for better performance
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const section = entry.target.getAttribute('data-section');
-            if (section) {
-              setLoadedSections(prev => ({ ...prev, [section]: true }));
-            }
-          }
-        });
-      },
-      { threshold: 0.1 }
-    );
-
-    // Observe sections
-    const tablesSection = document.querySelector('[data-section="tables"]');
-    const chartsSection = document.querySelector('[data-section="charts"]');
-    const activitySection = document.querySelector('[data-section="activity"]');
-
-    if (tablesSection) observer.observe(tablesSection);
-    if (chartsSection) observer.observe(chartsSection);
-    if (activitySection) observer.observe(activitySection);
-
-    return () => observer.disconnect();
-  }, [mounted]);
-
-  // Listen for order updates from other pages
-  useEffect(() => {
-    const handleOrderUpdate = (event: CustomEvent) => {
-      // Show auto-refresh indicator
-      setAutoRefreshing(true);
-      setError(null); // Clear any previous errors
-      // Refresh dashboard data when orders are updated
-      fetchDashboardData().then(() => {
-        setSuccessMessage('Dashboard updated successfully');
-        // Clear success message after 3 seconds
-        setTimeout(() => setSuccessMessage(null), 3000);
-      }).catch((error) => {
-        setError('Failed to refresh dashboard data');
-      }).finally(() => {
-        setAutoRefreshing(false);
-      });
-    };
-
-    // Add event listener for order updates
-    window.addEventListener('orderUpdated', handleOrderUpdate as EventListener);
-
-    // Cleanup event listener on unmount
-    return () => {
-      window.removeEventListener('orderUpdated', handleOrderUpdate as EventListener);
-    };
-  }, [mounted, fetchDashboardData]); // Include fetchDashboardData in dependencies
 
   const handleFiltersChange = useCallback((newFilters: DashboardFilters) => {
     setFilters(newFilters);
   }, []);
-
-  const handleViewOrder = useCallback((order: Order) => {
-    router.push(`/dashboard/orders/orderdetails?id=${order._id}`);
-  }, [router]);
-
-  const handleEditOrder = useCallback((order: Order) => {
-    router.push(`/dashboard/orders?edit=${order._id}`);
-  }, [router]);
-
-  const handleManualRefresh = async () => {
-    await fetchDashboardData();
-  };
 
   if (!mounted) {
     return (
@@ -494,83 +242,96 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Professional Pie Charts Row */}
-        {loadedSections.charts && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8" data-section="charts">
-            {/* Pending Orders Pie Chart */}
-            {stats && (
-              <Suspense fallback={<div className={`h-64 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>}>
-                <EnhancedProfessionalPieChart 
-                  title="Pending Orders"
-                  data={{
-                    pending: stats.statusStats.pending + stats.statusStats.not_set,
-                    in_progress: 0,
-                    completed: 0,
-                    delivered: 0,
-                    cancelled: 0,
-                    not_set: 0
-                  }}
-                  typeBreakdown={stats.pendingTypeStats}
-                  loading={loading}
-                  variant="pending"
-                />
-              </Suspense>
-            )}
-
-            {/* Delivered Orders Pie Chart */}
-            {stats && (
-              <Suspense fallback={<div className={`h-64 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>}>
-                <EnhancedProfessionalPieChart 
-                  title="Delivered Orders"
-                  data={{
-                    pending: 0,
-                    in_progress: 0,
-                    completed: 0,
-                    delivered: stats.statusStats.delivered + stats.statusStats.completed,
-                    cancelled: 0,
-                    not_set: 0
-                  }}
-                  typeBreakdown={stats.deliveredTypeStats}
-                  loading={loading}
-                  variant="delivered"
-                />
-              </Suspense>
-            )}
-          </div>
-        )}
-
-        {/* Upcoming Deliveries Table */}
-        {loadedSections.tables && (
+        {/* Simple Status Overview */}
+        {stats && (
           <div className="mb-6 sm:mb-8">
-            <Suspense fallback={<div className={`h-64 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>}>
-              <UpcomingDeliveriesTable
-                orders={upcomingDeliveryOrders}
-                title="Upcoming Deliveries"
-                loading={loading}
-              />
-            </Suspense>
+            <div className={`rounded-lg border p-6 ${
+              isDarkMode 
+                ? 'bg-white/5 border-white/10' 
+                : 'bg-white border-gray-200'
+            }`}>
+              <h3 className={`text-lg font-semibold mb-4 ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
+                Order Status Overview
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${
+                    isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
+                  }`}>
+                    {stats.statusStats.pending + stats.statusStats.not_set}
+                  </div>
+                  <div className={`text-sm ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}>
+                    Pending
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${
+                    isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                  }`}>
+                    {stats.statusStats.in_progress}
+                  </div>
+                  <div className={`text-sm ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}>
+                    In Progress
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${
+                    isDarkMode ? 'text-green-400' : 'text-green-600'
+                  }`}>
+                    {stats.statusStats.completed}
+                  </div>
+                  <div className={`text-sm ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}>
+                    Completed
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${
+                    isDarkMode ? 'text-green-400' : 'text-green-600'
+                  }`}>
+                    {stats.statusStats.delivered}
+                  </div>
+                  <div className={`text-sm ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}>
+                    Delivered
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${
+                    isDarkMode ? 'text-red-400' : 'text-red-600'
+                  }`}>
+                    {stats.statusStats.cancelled}
+                  </div>
+                  <div className={`text-sm ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}>
+                    Cancelled
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    {stats.statusStats.not_set}
+                  </div>
+                  <div className={`text-sm ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}>
+                    Not Set
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
-
-        {/* Status Overview and Recent Activity */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8" data-section="activity">
-          {/* Status Chart */}
-          {stats && loadedSections.activity && (
-            <Suspense fallback={<div className={`h-64 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>}>
-              <StatusChart 
-                data={stats.statusStats}
-                title="Order Status Overview"
-              />
-            </Suspense>
-          )}
-
-          {/* Recent Activity */}
-          {loadedSections.activity && (
-            <Suspense fallback={<div className={`h-64 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>}>
-              <RecentActivity userRole="superadmin" />
-            </Suspense>
-          )}
-        </div>
 
       </div>
     </div>

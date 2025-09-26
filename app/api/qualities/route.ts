@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     
     // Parse query parameters
     const url = new URL(request.url);
-    const limit = Math.min(parseInt(url.searchParams.get('limit') || '500'), 1000); // Max 1000 for EXTREME performance
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 200); // Much smaller default for speed
     const search = url.searchParams.get('search') || '';
     
     // Build query

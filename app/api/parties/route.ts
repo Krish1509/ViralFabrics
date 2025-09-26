@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '500'), 1000); // Max 1000 for EXTREME performance
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200); // Much smaller default for speed
 
     let query = {};
     

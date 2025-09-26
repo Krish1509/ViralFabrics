@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const millId = searchParams.get('millId');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '2000'), 5000); // Max 5000 for EXTREME performance
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500); // Much smaller default for speed
     const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
 

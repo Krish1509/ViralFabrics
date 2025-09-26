@@ -138,6 +138,11 @@ export default function Sidebar({
         icon: ShoppingBagIcon
       },
       {
+        name: 'Parties',
+        href: '/parties',
+        icon: BuildingOfficeIcon
+      },
+      {
         name: 'Fabrics',
         href: '/fabrics',
         icon: CubeIcon

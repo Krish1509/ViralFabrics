@@ -65,10 +65,8 @@ export default function UsersPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [validationAlert, setValidationAlert] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(10);
-  const itemsPerPageOptions = [10, 25, 50, 100, 'All'] as const;
-  const [viewMode, setViewMode] = useState<'table' | 'card'>('table'); // Default to table view
-  const [initialLoad, setInitialLoad] = useState(true); // Track initial load
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(10); // Start with 10 for ultra speed
+  const itemsPerPageOptions = [10, 25, 50, 'All'] as const; // Ultra simplified options
   const fetchInProgress = useRef(false); // Prevent multiple simultaneous fetches
   const [isChangingPage, setIsChangingPage] = useState(false);
 
@@ -121,16 +119,16 @@ export default function UsersPage() {
     
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 500); // Ultra fast 500ms timeout
       
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('No authentication token found');
       }
       
-      // Build URL with pagination parameters
+      // Build URL with pagination parameters - optimized for speed
       const url = new URL('/api/users', window.location.origin);
-      const limitValue = itemsPerPage === 'All' ? 1000 : Math.max(itemsPerPage, 50); // Ensure minimum 50 users for better performance
+      const limitValue = itemsPerPage === 'All' ? 100 : Math.max(itemsPerPage, 10); // Ultra small for speed
       url.searchParams.append('limit', limitValue.toString());
       url.searchParams.append('page', currentPage.toString());
       
@@ -156,7 +154,7 @@ export default function UsersPage() {
       if (data.success) {
         setUsers(data.data || []);
         setMessage(null);
-        setInitialLoad(false);
+        // Initial load complete
         
         // Update pagination info if available
         if (data.pagination) {
@@ -169,8 +167,8 @@ export default function UsersPage() {
     } catch (error: any) {
       if (error.name === 'AbortError') {
         if (retryCount < 1) {
-          // Single retry only
-          setTimeout(() => fetchUsers(retryCount + 1), 500);
+          // Single ultra fast retry
+          setTimeout(() => fetchUsers(retryCount + 1), 50);
           return;
         }
         setMessage({ type: 'error', text: 'Request timeout - please try again' });
@@ -184,10 +182,8 @@ export default function UsersPage() {
   }, [router, itemsPerPage, currentPage]);
 
   useEffect(() => {
-    // Only fetch users once on component mount
-    if (initialLoad) {
-      fetchUsers();
-    }
+    // Fetch users on component mount
+    fetchUsers();
     
     // Lightweight prefetching for navigation (no API calls)
     const preloadPages = () => {
@@ -199,7 +195,7 @@ export default function UsersPage() {
     // Start preloading pages after a short delay
     const timer = setTimeout(preloadPages, 500);
     return () => clearTimeout(timer);
-  }, [initialLoad]);
+  }, []);
 
   // Handle refresh - optimized to prevent multiple calls
   const handleRefresh = useCallback(async () => {
@@ -513,7 +509,7 @@ export default function UsersPage() {
     );
   }
 
-  if (loading && initialLoad) {
+  if (loading) {
     return (
       <div className="space-y-4 px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
         {/* Header Skeleton - Match actual layout */}
@@ -629,7 +625,7 @@ export default function UsersPage() {
   return (
     <div className="space-y-4 px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
       {/* Loading indicator for non-initial loads */}
-      {loading && !initialLoad && (
+      {loading && (
         <div className="flex items-center justify-center py-4">
           <div className="flex items-center space-x-2">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
@@ -663,38 +659,8 @@ export default function UsersPage() {
         {/* View Toggle - Right Side */}
         <div className="flex items-center space-x-2">
           <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            View:
+            Table View
           </span>
-          <div className={`flex rounded-lg p-1 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-            <button
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'table'
-                  ? isDarkMode
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-blue-600 text-white'
-                  : isDarkMode
-                    ? 'text-gray-300 hover:text-white'
-                    : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Table
-            </button>
-            <button
-              onClick={() => setViewMode('card')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'card'
-                  ? isDarkMode
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-blue-600 text-white'
-                  : isDarkMode
-                    ? 'text-gray-300 hover:text-white'
-                    : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Cards
-            </button>
-          </div>
         </div>
       </div>
 
@@ -846,8 +812,8 @@ export default function UsersPage() {
       </div>
 
 
-      {/* Users Display - Table or Card View */}
-      {viewMode === 'table' ? (
+      {/* Users Display - Table View Only */}
+      {(
         /* Table View */
       <div className={`rounded-lg border overflow-hidden ${
         isDarkMode
@@ -1347,140 +1313,6 @@ export default function UsersPage() {
 
           {filteredUsers.length === 0 && (
             <div className={`text-center py-12 ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-500'
-            }`}>
-              <p>No users found</p>
-            </div>
-          )}
-        </div>
-      ) : (
-        /* Card View */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {currentUsers.map((user) => (
-            <div
-              key={user._id}
-              className={`rounded-lg border p-6 transition-all duration-200 hover:shadow-lg ${
-                isDarkMode
-                  ? 'bg-white/5 border-white/10 hover:bg-white/10'
-                  : 'bg-white border-gray-200 hover:shadow-md'
-              } ${
-                currentUser && user._id === currentUser._id
-                  ? isDarkMode
-                    ? 'ring-2 ring-blue-500 bg-blue-500/5'
-                    : 'ring-2 ring-blue-500 bg-blue-50'
-                  : ''
-              }`}
-            >
-              {/* User Avatar and Name */}
-              <div className="flex items-center space-x-3 mb-4">
-                <div className={`h-12 w-12 rounded-full flex items-center justify-center text-lg font-semibold ${
-                  isDarkMode
-                    ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
-                    : 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white'
-                }`}>
-                  {getUserInitials(user.name)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className={`text-lg font-semibold truncate ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    {user.name}
-                  </h3>
-                  <p className={`text-sm truncate ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                  }`}>
-                    @{user.username}
-                  </p>
-                </div>
-              </div>
-
-              {/* Role Badge */}
-              <div className="mb-4">
-                <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
-                  user.role === 'superadmin'
-                    ? isDarkMode
-                      ? 'bg-purple-500/20 text-purple-300'
-                      : 'bg-purple-100 text-purple-800'
-                    : isDarkMode
-                      ? 'bg-blue-500/20 text-blue-300'
-                      : 'bg-blue-100 text-blue-800'
-                }`}>
-                  {user.role === 'superadmin' ? 'Super Admin' : 'User'}
-                </span>
-              </div>
-
-              {/* Contact Info */}
-              <div className="space-y-2 mb-4">
-                <div className={`text-sm ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                }`}>
-                  <span className="font-medium">Phone:</span> {user.phoneNumber || 'N/A'}
-                </div>
-                <div className={`text-sm ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                }`}>
-                  <span className="font-medium">Address:</span> {user.address || 'No address'}
-                </div>
-                <div className={`text-sm ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                }`}>
-                  <span className="font-medium">Created:</span> {new Date(user.createdAt).toLocaleDateString()}
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-end space-x-2 pt-4 border-t border-gray-200 dark:border-white/10">
-                <button
-                  onClick={() => {
-                    setFormData({
-                      name: user.name,
-                      username: user.username,
-                      password: '',
-                      phoneNumber: user.phoneNumber || '',
-                      address: user.address || '',
-                      role: user.role
-                    });
-                    setShowEditModal(true);
-                    setValidationAlert(null);
-                  }}
-                  className={`p-2 rounded-lg transition-all duration-200 ${
-                    isDarkMode
-                      ? 'text-blue-400 hover:bg-blue-500/20 hover:text-blue-300'
-                      : 'text-blue-600 hover:bg-blue-50 hover:text-blue-700'
-                  }`}
-                >
-                  <PencilIcon className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    if (canDeleteUser(user) && user._id) {
-                      setSelectedUser(user);
-                      setShowDeleteModal(true);
-                      setValidationAlert(null);
-                    } else if (!user._id) {
-                      setValidationAlert({ type: 'error', text: 'Invalid user data' });
-                      setTimeout(() => setValidationAlert(null), 5000);
-                    }
-                  }}
-                  disabled={!canDeleteUser(user) || !user._id}
-                  className={`p-2 rounded-lg transition-all duration-200 ${
-                    isDarkMode
-                      ? 'text-red-400 hover:bg-red-500/20 hover:text-red-300'
-                      : 'text-red-600 hover:bg-red-50 hover:text-red-700'
-                  } ${!canDeleteUser(user) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <TrashIcon className={`h-4 w-4 transition-transform duration-200 ${
-                    !canDeleteUser(user) 
-                      ? 'opacity-60 scale-95' 
-                      : 'hover:scale-110'
-                  }`} />
-                </button>
-              </div>
-            </div>
-          ))}
-
-          {filteredUsers.length === 0 && (
-            <div className={`col-span-full text-center py-12 ${
               isDarkMode ? 'text-gray-400' : 'text-gray-500'
             }`}>
               <p>No users found</p>

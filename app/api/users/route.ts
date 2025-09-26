@@ -14,39 +14,35 @@ export async function GET(req: NextRequest) {
     
     // Get query parameters
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get('limit') || '50'); // Default limit for performance
-    const page = parseInt(searchParams.get('page') || '1'); // Default page 1
+    const limit = parseInt(searchParams.get('limit') || '10'); // Ultra small default for speed
+    const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
     
-    // Get total count for pagination
-    const totalCount = await User.countDocuments();
+    // Super simple and fast query - no complex operations
+    const users = await User.find({}, {
+      _id: 1,
+      name: 1,
+      username: 1,
+      phoneNumber: 1,
+      address: 1,
+      role: 1,
+      isActive: 1,
+      createdAt: 1
+    })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean()
+    .maxTimeMS(300); // Ultra fast 300ms timeout
     
-    // Super fast optimized query with pagination
-    const users = await User.find() // Get all users (including inactive)
-      .select("-password") // exclude password field directly
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean()
-      .maxTimeMS(3000); // 3 second timeout for faster response
+    // Simple count - no parallel needed
+    const totalCount = await User.countDocuments().maxTimeMS(300);
 
-    // Map user fields to send only needed info (use username, not email)
-    const usersSafe = users.map(user => ({
-      _id: user._id,
-      name: user.name,
-      username: user.username,
-      phoneNumber: user.phoneNumber,
-      address: user.address,
-      role: user.role,
-      isActive: user.isActive,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    }));
+    // No need to map since we're already selecting only needed fields
 
-    // Add cache headers
+    // Minimal headers for speed
     const headers = {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=30, stale-while-revalidate=60',
     };
 
     // Calculate pagination info
@@ -54,7 +50,7 @@ export async function GET(req: NextRequest) {
     
     return new Response(JSON.stringify({
       success: true,
-      data: usersSafe,
+      data: users,
       pagination: {
         currentPage: page,
         totalPages: totalPages,
