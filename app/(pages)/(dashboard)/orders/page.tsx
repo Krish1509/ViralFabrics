@@ -60,6 +60,7 @@ export default function OrdersPage() {
   const [qualities, setQualities] = useState<Quality[]>([]);
   const [loading, setLoading] = useState(true);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
+  const [orderCreating, setOrderCreating] = useState(false);
   const [orderMillInputs, setOrderMillInputs] = useState<{[key: string]: any[]}>({});
   const [processDataByQuality, setProcessDataByQuality] = useState<{[key: string]: string[]}>({});
   const [searchTerm, setSearchTerm] = useState('');
@@ -887,14 +888,14 @@ export default function OrdersPage() {
               hasNextPage: false,
               hasPrevPage: false
             });
-          setOrdersLoaded(true);
-        } else {
+          } else {
             // No orders found - this is normal
             setOrders([]);
-            setOrdersLoaded(true);
           }
+          setOrdersLoaded(true);
         } else {
           showMessage('error', 'Failed to load orders', { autoDismiss: true, dismissTime: 3000 });
+          setOrders([]);
           setOrdersLoaded(true); // Still mark as loaded to show "No orders yet"
         }
 
@@ -902,6 +903,7 @@ export default function OrdersPage() {
         
       } catch (error) {
         console.error('Error during data initialization:', error);
+        setOrders([]);
         setLoading(false);
         setOrdersLoaded(true); // Mark as loaded even on error to show "No orders yet"
       } finally {
@@ -914,6 +916,7 @@ export default function OrdersPage() {
     // ONE TIME timeout - 5 seconds max for reliable loading
     const timeoutId = setTimeout(() => {
       if (!isInitialized) {
+        setOrders([]);
         setLoading(false);
         setOrdersLoaded(true); // Mark as loaded even on timeout
         setIsInitialized(true);
@@ -2445,8 +2448,26 @@ export default function OrdersPage() {
             <tbody className={`divide-y ${
               isDarkMode ? 'divide-white/10' : 'divide-gray-200'
             }`}>
+              {/* Loading state inside table */}
+              {((loading && !ordersLoaded) || orderCreating) && (
+                <tr>
+                  <td colSpan={3} className="px-4 py-8 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
+                        isDarkMode ? 'border-blue-400' : 'border-blue-600'
+                      }`}></div>
+                      <p className={`text-sm ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                      }`}>
+                        {orderCreating ? 'Creating order...' : 'Loading orders...'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              
               {/* Rendering table with orders */}
-              {currentOrders.map((order) => (
+              {!loading && !orderCreating && currentOrders.map((order) => (
                   <tr key={order._id} className={`hover:${
                     isDarkMode ? 'bg-white/5' : 'bg-gray-50'
                   } transition-colors duration-200`}>
@@ -3136,7 +3157,7 @@ export default function OrdersPage() {
           </div>
         )}
 
-        {currentOrders.length === 0 && ordersLoaded && (
+        {currentOrders.length === 0 && ordersLoaded && !loading && !orderCreating && (
           <div className={`text-center py-12 ${
             isDarkMode ? 'text-gray-400' : 'text-gray-500'
           }`}>
@@ -3211,7 +3232,7 @@ export default function OrdersPage() {
       ) : (
         /* Enhanced Card Layout - Complete Order Information */
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {!ordersLoaded ? (
+          {(loading && !ordersLoaded) || orderCreating ? (
             // Loading skeleton cards
             Array.from({ length: 6 }).map((_, index) => (
               <div key={index} className={`rounded-xl border shadow-lg animate-pulse ${
@@ -3235,7 +3256,7 @@ export default function OrdersPage() {
               </div>
             ))
           ) : (
-            currentOrders.map((order) => (
+            !orderCreating && currentOrders.map((order) => (
             <div key={order._id} className={`rounded-xl border shadow-lg ${
               isDarkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-white border-gray-200'
             }`}>
@@ -3746,8 +3767,18 @@ export default function OrdersPage() {
           onSuccess={() => {
             setShowForm(false);
             setEditingOrder(null);
+            setOrderCreating(false);
             fetchOrders();
             showMessage('success', editingOrder ? 'Order updated successfully' : 'Order created successfully');
+          }}
+          onError={() => {
+            setOrderCreating(false);
+            // Refresh data in case of partial updates
+            fetchOrders();
+            // Don't close form on error, let user retry
+          }}
+          onStart={() => {
+            setOrderCreating(true);
           }}
           onAddParty={() => {
             setShowPartyModal(true);

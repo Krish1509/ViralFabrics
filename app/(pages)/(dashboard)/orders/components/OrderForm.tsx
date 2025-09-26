@@ -27,6 +27,8 @@ interface OrderFormProps {
   qualities: Quality[];
   onClose: () => void;
   onSuccess: () => void;
+  onError?: () => void;
+  onStart?: () => void;
   onAddParty: () => void;
   onRefreshParties: () => void;
   onAddQuality: (newQualityData?: any) => void;
@@ -1219,7 +1221,7 @@ function ImageUploadSection({
   );
 }
 
-export default function OrderForm({ order, parties, qualities, onClose, onSuccess, onAddParty, onRefreshParties, onAddQuality }: OrderFormProps) {
+export default function OrderForm({ order, parties, qualities, onClose, onSuccess, onError, onStart, onAddParty, onRefreshParties, onAddQuality }: OrderFormProps) {
   const { isDarkMode, mounted } = useDarkMode();
   const [formData, setFormData] = useState<OrderFormData>({
     orderType: undefined,
@@ -1611,6 +1613,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     }
 
     setLoading(true);
+    onStart?.(); // Notify parent that order creation/update has started
     try {
       // Clean and validate dates before submission
       const cleanDate = (dateStr: string | undefined) => {
@@ -1810,9 +1813,11 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         onClose();
       } else {
         setValidationMessage({ type: 'error', text: data.message || 'Operation failed' });
+        onError?.(); // Notify parent that order creation/update failed
       }
     } catch (error) {
       setValidationMessage({ type: 'error', text: 'An error occurred' });
+      onError?.(); // Notify parent that order creation/update failed
     } finally {
       setLoading(false);
     }
