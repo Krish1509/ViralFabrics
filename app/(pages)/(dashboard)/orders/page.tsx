@@ -4428,6 +4428,7 @@ export default function OrdersPage() {
           order={selectedOrderForMillInputForm}
           mills={mills}
           qualities={qualities}
+          isOpen={showMillInputForm}
           onClose={() => {
             setShowMillInputForm(false);
             setSelectedOrderForMillInputForm(null);
@@ -4491,6 +4492,7 @@ export default function OrdersPage() {
         <MillOutputForm
           order={selectedOrderForMillOutput}
           qualities={qualities}
+          isOpen={showMillOutputForm}
           isEditing={isEditingMillOutput}
           existingMillOutputs={existingMillOutputs}
           onClose={() => {
@@ -4516,6 +4518,7 @@ export default function OrdersPage() {
         <DispatchForm
           order={selectedOrderForDispatch}
           qualities={qualities}
+          isOpen={showDispatchForm}
           isEditing={isEditingDispatch}
           existingDispatches={existingDispatches}
           onClose={() => {

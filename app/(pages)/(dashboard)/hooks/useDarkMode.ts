@@ -13,20 +13,8 @@ interface DarkModeReturn {
 }
 
 export function useDarkMode(): DarkModeReturn {
-  // Initialize with the theme from the optimized script in layout.tsx
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    // Prevent white flash by checking localStorage immediately
-    if (typeof window !== 'undefined') {
-      const savedMode = localStorage.getItem('darkMode');
-      if (savedMode !== null) {
-        return savedMode === 'true';
-      }
-      // Fallback to system preference
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    return false;
-  });
-  
+  // Initialize with a safe default to prevent hydration mismatch
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [mounted, setMounted] = useState<boolean>(false);
   const themeSwitchRef = useRef<HTMLButtonElement | null>(null);
 
@@ -52,12 +40,8 @@ export function useDarkMode(): DarkModeReturn {
   }, []);
 
   useEffect(() => {
-    // Apply theme immediately to prevent white flash
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    // Only run on client side to prevent hydration mismatch
+    if (typeof window === 'undefined') return;
     
     setMounted(true);
     
@@ -65,12 +49,24 @@ export function useDarkMode(): DarkModeReturn {
     const initialTheme = (window as any).__INITIAL_THEME__;
     if (initialTheme !== undefined) {
       setIsDarkMode(initialTheme);
+      // Apply theme immediately
+      if (initialTheme) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     } else {
       // Fallback to localStorage and system preference
       const savedMode = localStorage.getItem('darkMode');
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       const expectedMode = savedMode !== null ? savedMode === 'true' : prefersDark;
       setIsDarkMode(expectedMode);
+      // Apply theme immediately
+      if (expectedMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     }
 
     // Optimized event listeners with passive option
@@ -125,6 +121,8 @@ export function useDarkMode(): DarkModeReturn {
   }, []);
 
   const getDarkModeState = useCallback((defaultValue: boolean = false) => {
+    // Always return the defaultValue during SSR to prevent hydration mismatch
+    if (typeof window === 'undefined') return defaultValue;
     return mounted ? isDarkMode : defaultValue;
   }, [mounted, isDarkMode]);
 

@@ -44,6 +44,7 @@ interface MillInputFormProps {
   onSuccess: () => void;
   onAddMill: () => void;
   onRefreshMills: () => void;
+  isOpen?: boolean; // Add isOpen prop like LabDataModal
   isEditing?: boolean;
   existingMillInputs?: any[];
 }
@@ -683,10 +684,11 @@ export default function MillInputForm({
   onSuccess,
   onAddMill,
   onRefreshMills,
+  isOpen = true, // Default to true for backward compatibility
   isEditing = false,
   existingMillInputs = []
 }: MillInputFormProps) {
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   
   console.log('MillInputForm props:', { 
     order: order?.orderId, 
@@ -772,14 +774,20 @@ export default function MillInputForm({
 
   // Fetch existing mill input data from API when form opens (LabDataModal pattern)
   useEffect(() => {
-    console.log('MillInputForm useEffect triggered:', { orderId: order?.orderId });
+    console.log('MillInputForm useEffect triggered:', { isOpen, orderId: order?.orderId });
     
     // Always fetch existing data when form opens, just like LabDataModal
-    if (order?.orderId) {
+    if (isOpen && order?.orderId) {
       console.log('Form opened, fetching existing mill input data...');
+      // Reset form state first
+      setHasExistingData(false);
+      setLocalMillInputs([]);
+      setErrors({});
+      setSuccessMessage('');
+      // Then fetch data
       fetchExistingMillInputData();
     }
-  }, [order?.orderId]);
+  }, [isOpen, order?.orderId]);
 
   // Function to fetch mills directly from API
   const fetchMillsDirectly = async () => {
@@ -843,22 +851,32 @@ export default function MillInputForm({
         }
       });
 
+      console.log('Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log('API response:', data);
+        console.log('Full API response:', JSON.stringify(data, null, 2));
         
         if (data.success && data.data && data.data.millInputs && data.data.millInputs.length > 0) {
-          console.log('Fetched existing mill inputs from API:', data.data.millInputs);
+          console.log('✅ Found existing mill inputs:', data.data.millInputs.length, 'records');
+          console.log('Mill inputs data:', data.data.millInputs);
           setLocalMillInputs(data.data.millInputs);
           setHasExistingData(true);
           loadExistingMillInputsFromData(data.data.millInputs);
         } else {
-          console.log('No existing mill inputs found in API');
+          console.log('❌ No existing mill inputs found in API response');
+          console.log('Response structure:', {
+            success: data.success,
+            hasData: !!data.data,
+            hasMillInputs: !!(data.data && data.data.millInputs),
+            millInputsLength: data.data?.millInputs?.length || 0
+          });
           setLocalMillInputs([]);
           setHasExistingData(false);
         }
       } else {
-        console.log('Failed to fetch mill inputs from API, status:', response.status);
+        console.log('❌ Failed to fetch mill inputs from API, status:', response.status);
+        const errorText = await response.text();
+        console.log('Error response:', errorText);
         setHasExistingData(false);
       }
     } catch (error) {
@@ -869,17 +887,8 @@ export default function MillInputForm({
     }
   };
 
-  // Load existing mill inputs when editing (LabDataModal pattern)
-  useEffect(() => {
-    console.log('MillInputForm useEffect triggered for existing data:', { isEditing, existingMillInputsLength: existingMillInputs.length });
-    if (isEditing && existingMillInputs.length > 0) {
-      console.log('Loading existing mill inputs from props...');
-      setHasExistingData(true);
-      loadExistingMillInputs();
-    } else if (isEditing && existingMillInputs.length === 0) {
-      setHasExistingData(false);
-    }
-  }, [isEditing, existingMillInputs]);
+  // Note: Removed dependency on isEditing and existingMillInputs props
+  // Form now fetches data independently from API like LabDataModal
 
   // Monitor mills array changes and clear loading state
   useEffect(() => {
@@ -1688,6 +1697,20 @@ export default function MillInputForm({
 
   if (!order) return null;
 
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-48 mb-4"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {/* Custom Scrollbar Styles */}
@@ -2456,7 +2479,7 @@ export default function MillInputForm({
                       : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
                 }`}
               >
-                {saving ? 'Saving...' : (hasExistingData ? 'Update Mill Input' : 'Add Mill Input')}
+                {saving ? 'Saving...' : loadingExistingData ? 'Loading...' : (hasExistingData ? 'Update Mill Input' : 'Add Mill Input')}
               </button>
               
               {/* Delete Button - Show only when has existing data */}

@@ -64,12 +64,15 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: dispatches,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
+      data: {
+        dispatches: dispatches,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(total / limit),
+          totalCount: total,
+          hasNextPage: page < Math.ceil(total / limit),
+          hasPrevPage: page > 1
+        }
       }
     });
 

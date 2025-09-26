@@ -50,12 +50,15 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: millOutputsWithQuality,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
+      data: {
+        millOutputs: millOutputsWithQuality,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(total / limit),
+          totalCount: total,
+          hasNextPage: page < Math.ceil(total / limit),
+          hasPrevPage: page > 1
+        }
       }
     }, {
       headers: {

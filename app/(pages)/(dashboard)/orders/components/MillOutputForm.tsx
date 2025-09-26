@@ -36,6 +36,7 @@ interface MillOutputFormProps {
   qualities: any[]; // Add qualities prop
   onClose: () => void;
   onSuccess: () => void;
+  isOpen?: boolean; // Add isOpen prop like LabDataModal
   isEditing?: boolean;
   existingMillOutputs?: any[];
 }
@@ -589,10 +590,11 @@ export default function MillOutputForm({
   qualities,
   onClose, 
   onSuccess,
+  isOpen = true, // Default to true for backward compatibility
   isEditing = false,
   existingMillOutputs = []
 }: MillOutputFormProps) {
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   
   console.log('MillOutputForm props:', { 
     order: order?.orderId, 
@@ -631,14 +633,19 @@ export default function MillOutputForm({
 
   // Fetch existing mill output data from API when form opens (LabDataModal pattern)
   useEffect(() => {
-    console.log('MillOutputForm useEffect triggered:', { orderId: order?.orderId });
+    console.log('MillOutputForm useEffect triggered:', { isOpen, orderId: order?.orderId });
     
     // Always fetch existing data when form opens, just like LabDataModal
-    if (order?.orderId) {
+    if (isOpen && order?.orderId) {
       console.log('Form opened, fetching existing mill output data...');
+      // Reset form state first
+      setHasExistingData(false);
+      setErrors({});
+      setSuccessMessage('');
+      // Then fetch data
       fetchExistingMillOutputData();
     }
-  }, [order?.orderId]);
+  }, [isOpen, order?.orderId]);
 
   // Function to fetch qualities directly from API
   const fetchQualitiesDirectly = async () => {
@@ -698,20 +705,30 @@ export default function MillOutputForm({
         }
       });
 
+      console.log('Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log('API response:', data);
+        console.log('Full API response:', JSON.stringify(data, null, 2));
         
         if (data.success && data.data && data.data.millOutputs && data.data.millOutputs.length > 0) {
-          console.log('Fetched existing mill outputs from API:', data.data.millOutputs);
+          console.log('✅ Found existing mill outputs:', data.data.millOutputs.length, 'records');
+          console.log('Mill outputs data:', data.data.millOutputs);
           setHasExistingData(true);
           loadExistingMillOutputsFromData(data.data.millOutputs);
         } else {
-          console.log('No existing mill outputs found in API');
+          console.log('❌ No existing mill outputs found in API response');
+          console.log('Response structure:', {
+            success: data.success,
+            hasData: !!data.data,
+            hasMillOutputs: !!(data.data && data.data.millOutputs),
+            millOutputsLength: data.data?.millOutputs?.length || 0
+          });
           setHasExistingData(false);
         }
       } else {
-        console.log('Failed to fetch mill outputs from API, status:', response.status);
+        console.log('❌ Failed to fetch mill outputs from API, status:', response.status);
+        const errorText = await response.text();
+        console.log('Error response:', errorText);
         setHasExistingData(false);
       }
     } catch (error) {
@@ -730,18 +747,8 @@ export default function MillOutputForm({
     }
   }, [order?.orderId, qualities]);
 
-  // Load existing mill outputs when editing (LabDataModal pattern)
-  useEffect(() => {
-    console.log('useEffect triggered for existing data:', { isEditing, existingMillOutputsLength: existingMillOutputs.length });
-    if (isEditing && existingMillOutputs.length > 0) {
-      console.log('Loading existing mill outputs from props...');
-      setHasExistingData(true);
-      loadExistingMillOutputs();
-    } else if (isEditing && existingMillOutputs.length === 0) {
-      setHasExistingData(false);
-    }
-    // Note: Don't reset hasExistingData here if not editing, as it might be set by API fetch
-  }, [isEditing, existingMillOutputs]);
+  // Note: Removed dependency on isEditing and existingMillOutputs props
+  // Form now fetches data independently from API like LabDataModal
 
   // Reset form when order changes (but not when editing)
   useEffect(() => {
@@ -1279,6 +1286,20 @@ export default function MillOutputForm({
     return null;
   }
 
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-48 mb-4"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {/* Custom Scrollbar Styles */}
@@ -1730,7 +1751,7 @@ export default function MillOutputForm({
                       : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
                 }`}
               >
-                {saving ? 'Saving...' : (hasExistingData ? 'Update Mill Output' : 'Add Mill Output')}
+                {saving ? 'Saving...' : loadingExistingData ? 'Loading...' : (hasExistingData ? 'Update Mill Output' : 'Add Mill Output')}
             </button>
             
             {/* Delete Button - Show only when has existing data */}

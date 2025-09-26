@@ -80,8 +80,6 @@ export default function RootLayout({
                 transition: background-color 0.2s ease;
                 margin: 0;
                 padding: 0;
-                background-color: rgb(30 41 59) !important; /* Default to dark */
-                color: rgb(255 255 255) !important; /* Default to white text */
               }
               
               /* Optimize font rendering */
@@ -94,25 +92,6 @@ export default function RootLayout({
               /* Reduce layout shift */
               html {
                 scroll-behavior: smooth;
-                background-color: rgb(30 41 59) !important; /* Default to dark */
-                color: rgb(255 255 255) !important; /* Default to white text */
-              }
-              
-              /* Light theme override */
-              html:not(.dark) {
-                background-color: rgb(248 250 252) !important; /* Light mode */
-                color: rgb(15 23 42) !important; /* Dark text */
-              }
-              
-              html:not(.dark) body {
-                background-color: rgb(248 250 252) !important; /* Light mode */
-                color: rgb(15 23 42) !important; /* Dark text */
-              }
-              
-              /* Dark theme */
-              .dark body {
-                background-color: rgb(30 41 59) !important; /* Dark mode */
-                color: rgb(255 255 255) !important; /* White text */
               }
             `,
           }}

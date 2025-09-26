@@ -186,6 +186,7 @@ interface DispatchFormProps {
   order: Order | null;
   onClose: () => void;
   onSuccess: () => void;
+  isOpen?: boolean; // Add isOpen prop like LabDataModal
   isEditing?: boolean;
   existingDispatches?: any[];
   qualities?: any[];
@@ -577,11 +578,12 @@ export default function DispatchForm({
   order, 
   onClose, 
   onSuccess,
+  isOpen = true, // Default to true for backward compatibility
   isEditing = false,
   existingDispatches = [],
   qualities = []
 }: DispatchFormProps) {
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode, mounted } = useDarkMode();
   const [formData, setFormData] = useState<DispatchFormData>({
     orderId: order?.orderId || '',
     dispatchItems: [{
@@ -615,14 +617,19 @@ export default function DispatchForm({
 
   // Fetch existing dispatch data from API when form opens (LabDataModal pattern)
   useEffect(() => {
-    console.log('DispatchForm useEffect triggered:', { orderId: order?.orderId });
+    console.log('DispatchForm useEffect triggered:', { isOpen, orderId: order?.orderId });
     
     // Always fetch existing data when form opens, just like LabDataModal
-    if (order?.orderId) {
+    if (isOpen && order?.orderId) {
       console.log('Form opened, fetching existing dispatch data...');
+      // Reset form state first
+      setHasExistingData(false);
+      setErrors({});
+      setSuccessMessage('');
+      // Then fetch data
       fetchExistingDispatchData();
     }
-  }, [order?.orderId]);
+  }, [isOpen, order?.orderId]);
 
   // Function to fetch qualities directly from API
   const fetchQualitiesDirectly = async () => {
@@ -682,20 +689,30 @@ export default function DispatchForm({
         }
       });
 
+      console.log('Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log('API response:', data);
+        console.log('Full API response:', JSON.stringify(data, null, 2));
         
         if (data.success && data.data && data.data.dispatches && data.data.dispatches.length > 0) {
-          console.log('Fetched existing dispatches from API:', data.data.dispatches);
+          console.log('✅ Found existing dispatches:', data.data.dispatches.length, 'records');
+          console.log('Dispatches data:', data.data.dispatches);
           setHasExistingData(true);
           loadExistingDispatchesFromData(data.data.dispatches);
         } else {
-          console.log('No existing dispatches found in API');
+          console.log('❌ No existing dispatches found in API response');
+          console.log('Response structure:', {
+            success: data.success,
+            hasData: !!data.data,
+            hasDispatches: !!(data.data && data.data.dispatches),
+            dispatchesLength: data.data?.dispatches?.length || 0
+          });
           setHasExistingData(false);
         }
       } else {
-        console.log('Failed to fetch dispatches from API, status:', response.status);
+        console.log('❌ Failed to fetch dispatches from API, status:', response.status);
+        const errorText = await response.text();
+        console.log('Error response:', errorText);
         setHasExistingData(false);
       }
     } catch (error) {
@@ -714,16 +731,8 @@ export default function DispatchForm({
     }
   }, [order?.orderId, qualities]);
 
-  // Load existing dispatches when editing (LabDataModal pattern)
-  useEffect(() => {
-    if (isEditing && existingDispatches.length > 0) {
-      setHasExistingData(true);
-      loadExistingDispatches();
-    } else if (isEditing && existingDispatches.length === 0) {
-      setHasExistingData(false);
-    }
-    // Note: Don't reset hasExistingData here if not editing, as it might be set by API fetch
-  }, [isEditing, existingDispatches]);
+  // Note: Removed dependency on isEditing and existingDispatches props
+  // Form now fetches data independently from API like LabDataModal
 
   // Reset form when order changes (but not when editing)
   useEffect(() => {
@@ -1214,6 +1223,20 @@ export default function DispatchForm({
     return null;
   }
 
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-48 mb-4"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {/* Custom Scrollbar Styles */}
@@ -1620,7 +1643,7 @@ export default function DispatchForm({
                       : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
                 }`}
               >
-                {saving ? 'Saving...' : 'Save Dispatch'}
+                {saving ? 'Saving...' : loadingExistingData ? 'Loading...' : (hasExistingData ? 'Update Dispatch' : 'Add Dispatch')}
               </button>
               
               {/* Delete Button - Show only when has existing data */}
