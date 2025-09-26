@@ -772,22 +772,35 @@ export default function MillInputForm({
   }, [order?.orderId, mills]);
 
 
-  // Fetch existing mill input data from API when form opens (LabDataModal pattern)
+  // Load existing data when form opens or when existingMillInputs prop changes
   useEffect(() => {
-    console.log('MillInputForm useEffect triggered:', { isOpen, orderId: order?.orderId });
+    console.log('MillInputForm useEffect triggered:', { 
+      isOpen, 
+      orderId: order?.orderId, 
+      existingMillInputsCount: existingMillInputs?.length,
+      isEditing 
+    });
     
-    // Always fetch existing data when form opens, just like LabDataModal
     if (isOpen && order?.orderId) {
-      console.log('Form opened, fetching existing mill input data...');
+      console.log('Form opened, processing existing mill input data...');
+      
       // Reset form state first
       setHasExistingData(false);
       setLocalMillInputs([]);
       setErrors({});
       setSuccessMessage('');
-      // Then fetch data
-      fetchExistingMillInputData();
+      
+      // Process existing data from props first
+      if (existingMillInputs && existingMillInputs.length > 0) {
+        console.log('✅ Processing existing mill inputs from props:', existingMillInputs.length);
+        processExistingMillInputs(existingMillInputs);
+      } else {
+        console.log('No existing mill inputs from props, fetching from API...');
+        // Fallback: fetch from API if not provided via props
+        fetchExistingMillInputData();
+      }
     }
-  }, [isOpen, order?.orderId]);
+  }, [isOpen, order?.orderId, existingMillInputs, isEditing]);
 
   // Function to fetch mills directly from API
   const fetchMillsDirectly = async () => {
@@ -826,6 +839,47 @@ export default function MillInputForm({
     }
   };
 
+  // Function to process existing mill inputs from props
+  const processExistingMillInputs = (millInputs: any[]) => {
+    console.log('Processing existing mill inputs:', millInputs);
+    
+    if (millInputs.length === 0) {
+      setHasExistingData(false);
+      setLocalMillInputs([]);
+      return;
+    }
+    
+    // Convert API data to form format
+    const processedItems = millInputs.map((input, index) => ({
+      id: input._id || `existing-${index}`,
+      millDate: input.millDate ? new Date(input.millDate).toISOString().split('T')[0] : '',
+      chalanNo: input.chalanNo || '',
+      greighMtr: input.greighMtr?.toString() || '',
+      pcs: input.pcs?.toString() || '',
+      quality: input.quality?._id || input.quality || '',
+      process: input.processName || '',
+      additionalMeters: (input.additionalMeters || []).map((additional: any, addIndex: number) => ({
+        meters: additional.greighMtr?.toString() || '',
+        pieces: additional.pcs?.toString() || '',
+        quality: additional.quality?._id || additional.quality || '',
+        process: additional.processName || ''
+      }))
+    }));
+    
+    console.log('Processed mill input items:', processedItems);
+    
+    // Update form data with existing data
+    setFormData(prev => ({
+      ...prev,
+      mill: millInputs[0]?.mill?._id || millInputs[0]?.mill || '',
+      millItems: processedItems
+    }));
+    
+    setLocalMillInputs(millInputs);
+    setHasExistingData(true);
+    setLoadingExistingData(false);
+  };
+
   // Function to fetch existing mill input data from API
   const fetchExistingMillInputData = async () => {
     if (!order?.orderId) {
@@ -857,11 +911,10 @@ export default function MillInputForm({
         console.log('Full API response:', JSON.stringify(data, null, 2));
         
         if (data.success && data.data && data.data.millInputs && data.data.millInputs.length > 0) {
-          console.log('✅ Found existing mill inputs:', data.data.millInputs.length, 'records');
+          console.log('✅ Found existing mill inputs from API:', data.data.millInputs.length, 'records');
           console.log('Mill inputs data:', data.data.millInputs);
-          setLocalMillInputs(data.data.millInputs);
-          setHasExistingData(true);
-          loadExistingMillInputsFromData(data.data.millInputs);
+          // Use the same processing function
+          processExistingMillInputs(data.data.millInputs);
         } else {
           console.log('❌ No existing mill inputs found in API response');
           console.log('Response structure:', {

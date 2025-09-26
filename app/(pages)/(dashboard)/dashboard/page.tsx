@@ -1,15 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, memo } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   ShoppingBagIcon, 
   ClockIcon, 
   CheckCircleIcon, 
-  TruckIcon,
-  ExclamationTriangleIcon,
-  XCircleIcon,
-  ArrowPathIcon
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
 import MetricsCard from './components/MetricsCard';
@@ -59,7 +55,6 @@ interface DashboardFilters {
 
 export default function DashboardPage() {
   const { isDarkMode, mounted } = useDarkMode();
-  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

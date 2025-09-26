@@ -1051,23 +1051,27 @@ export default function OrdersPage() {
     }
   }, []);
 
-  const loadMillInputsData = useCallback(async (orderId: string) => {
-    if (orderMillInputs[orderId]) {
+  const loadMillInputsData = useCallback(async (orderId: string, forceRefresh = false) => {
+    // Always load fresh data when forceRefresh is true
+    if (!forceRefresh && orderMillInputs[orderId]) {
       console.log('Mill inputs already loaded for order:', orderId);
       return; // Already loaded for this order
     }
     
     try {
-      console.log('Loading mill inputs for order:', orderId);
+      console.log('Loading mill inputs for order:', orderId, forceRefresh ? '(forced refresh)' : '');
       const token = localStorage.getItem('token');
       
       // Make request with or without token
-      const headers: any = {};
+      const headers: any = {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      };
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch(`/api/mill-inputs?orderId=${orderId}&limit=100`, {
+      const response = await fetch(`/api/mill-inputs?orderId=${orderId}&limit=100&t=${Date.now()}`, {
         headers: headers
       });
       
@@ -1578,19 +1582,24 @@ export default function OrdersPage() {
   };
 
   const handleMillInput = async (order: Order) => {
-    // handleMillInput called for order
+    console.log('handleMillInput called for order:', order.orderId);
     
-    // Load data only when button is clicked
+    // Always force refresh data when opening the form
     await Promise.all([
       loadQualitiesData(),
-      loadMillInputsData(order.orderId)
+      loadMillInputsData(order.orderId, true) // Force refresh
     ]);
     
     // Check if there's existing mill input data for this order
     const existingData = orderMillInputs[order.orderId] || [];
     const hasExistingData = existingData.length > 0;
     
-    // Mill input data check completed
+    console.log('Mill input data loaded:', {
+      orderId: order.orderId,
+      existingDataCount: existingData.length,
+      hasExistingData,
+      existingData: existingData
+    });
     
     // Set editing state and existing data
     setIsEditingMillInput(hasExistingData);
@@ -3041,10 +3050,12 @@ export default function OrdersPage() {
 
                            <button
                              onClick={async () => {
-                               // Load mill input data for this order first
-                               await loadMillInputsData(order.orderId);
+                               // Load mill input data for this order first with force refresh
+                               await loadMillInputsData(order.orderId, true);
                                
                                const existingInputs = orderMillInputs[order.orderId] || [];
+                               console.log('Button click - existing inputs:', existingInputs.length);
+                               
                                if (existingInputs.length > 0) {
                                  setIsEditingMillInput(true);
                                  setExistingMillInputs(existingInputs);
@@ -3052,6 +3063,8 @@ export default function OrdersPage() {
                                  setIsEditingMillInput(false);
                                  setExistingMillInputs([]);
                                }
+                               
+                               // Clear any cached data
                                if (typeof window !== 'undefined') {
                                  window.localStorage.removeItem('millInputFormCache');
                                  window.localStorage.removeItem('millInputFormData');
@@ -3059,6 +3072,7 @@ export default function OrdersPage() {
                                  window.localStorage.setItem('millInputFormVersion', '2.0');
                                  window.localStorage.setItem('millInputFormForceNew', 'true');
                                }
+                               
                                setSelectedOrderForMillInputForm(order);
                                setShowMillInputForm(true);
                              }}
@@ -3661,8 +3675,8 @@ export default function OrdersPage() {
                     <button
                       onClick={async () => {
                         setSelectedOrderForMillInputForm(order);
-                        // Load mill input data for this order
-                        await loadMillInputsData(order.orderId);
+                        // Load mill input data for this order with force refresh
+                        await loadMillInputsData(order.orderId, true);
                         setShowMillInputForm(true);
                       }}
                       className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 ${
