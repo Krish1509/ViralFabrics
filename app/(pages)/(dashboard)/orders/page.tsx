@@ -1224,20 +1224,36 @@ export default function OrdersPage() {
     }
   }, [fetchOrders, showMessage]);
 
-  // PDF Download function for individual items
-  const handleDownloadItemPDF = useCallback((order: any, item: any, itemIndex: number) => {
+  // PDF Download function for individual items - fetches fresh data
+  const handleDownloadItemPDF = useCallback(async (order: any, item: any, itemIndex: number) => {
     try {
+      showMessage('info', 'Fetching latest data for PDF...', { 
+        autoDismiss: true, 
+        dismissTime: 2000 
+      });
+
+      // Fetch fresh order data with all related data
+      const response = await fetch(`/api/orders/${order._id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch order data');
+      }
+      
+      const orderData = await response.json();
+      if (!orderData.success) {
+        throw new Error('Failed to get order data');
+      }
+
       // Create a modified order object with only the specific item
       const itemOrder = {
-        ...order,
+        ...orderData.data,
         items: [item], // Only include the specific item
         // Add item-specific information to the order
         itemIndex: itemIndex + 1,
         qualityName: item.quality && typeof item.quality === 'object' ? item.quality.name || 'Not selected' : 'Not selected',
-        // Ensure mill inputs are included
-        millInputs: orderMillInputs[order.orderId] || [],
-        millOutputs: orderMillOutputs[order.orderId] || [],
-        dispatches: orderDispatches[order.orderId] || []
+        totalAmount: item.totalPrice || 0,
+        finalAmount: item.totalPrice || 0
+        // The orderData.data already includes fresh millInputs, millOutputs, and dispatches
+        // from the API, so we don't need to add them separately
       };
       
       generateOrderPDF(itemOrder);
@@ -1246,7 +1262,8 @@ export default function OrdersPage() {
         dismissTime: 3000 
       });
     } catch (error) {
-      showMessage('error', 'Failed to generate PDF', { 
+      console.error('PDF generation error:', error);
+      showMessage('error', 'Failed to generate PDF. Please try again.', { 
         autoDismiss: true,
         dismissTime: 4000
       });
@@ -3680,9 +3697,7 @@ export default function OrdersPage() {
                               {/* Action Buttons */}
                               <div className="flex gap-2 pt-2">
                                 <button
-                                  onClick={() => {
-                                    // Generate PDF for this specific item
-                                    }}
+                                  onClick={() => handleDownloadItemPDF(order, item, itemIndex)}
                                   className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
                                     isDarkMode
                                       ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-600/30'
@@ -4510,6 +4525,7 @@ export default function OrdersPage() {
           mills={mills}
           qualities={qualities}
           isOpen={showMillInputForm}
+          onRefreshQualities={fetchQualities}
           onClose={() => {
             setShowMillInputForm(false);
             setSelectedOrderForMillInputForm(null);

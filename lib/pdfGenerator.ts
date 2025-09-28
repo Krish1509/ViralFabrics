@@ -32,6 +32,8 @@ interface OrderData {
     description?: string;
     weaverSupplierName?: string;
     purchaseRate?: number;
+    millRate?: number;
+    salesRate?: number;
     imageUrls?: string[];
   }>;
   status: string;
@@ -87,6 +89,40 @@ export const generateOrderPDF = (order: OrderData): void => {
     console.log('PDF Generator - Complete Order Object:', order);
     console.log('PDF Generator - Mill Inputs:', order.millInputs);
     console.log('PDF Generator - Mill Inputs Length:', order.millInputs?.length);
+    console.log('PDF Generator - Mill Inputs Type:', typeof order.millInputs);
+    console.log('PDF Generator - Mill Inputs Array Check:', Array.isArray(order.millInputs));
+    
+    // Log each mill input individually
+    if (order.millInputs && Array.isArray(order.millInputs)) {
+      order.millInputs.forEach((input, index) => {
+        console.log(`PDF Generator - Mill Input ${index}:`, input);
+        console.log(`PDF Generator - Mill Input ${index} keys:`, Object.keys(input || {}));
+      });
+    }
+    
+    // Validate order data
+    if (!order) {
+      throw new Error('Order data is required');
+    }
+    
+    if (!order.orderId) {
+      throw new Error('Order ID is required');
+    }
+    
+    // Ensure millInputs is an array
+    if (!Array.isArray(order.millInputs)) {
+      order.millInputs = [];
+    }
+    
+    // Ensure millOutputs is an array
+    if (!Array.isArray(order.millOutputs)) {
+      order.millOutputs = [];
+    }
+    
+    // Ensure dispatches is an array
+    if (!Array.isArray(order.dispatches)) {
+      order.dispatches = [];
+    }
   
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -394,34 +430,75 @@ export const generateOrderPDF = (order: OrderData): void => {
     const allMeterEntries: any[] = [];
     
     // Add main mill input entries
-    order.millInputs?.forEach(millInput => {
-      // Add main entry
-      allMeterEntries.push({
-        date: millInput.millDate,
-        chalanNo: millInput.chalanNo,
-        greighMtr: millInput.greighMtr,
+    order.millInputs?.forEach((millInput, index) => {
+      console.log(`PDF Generator - Processing mill input ${index}:`, millInput);
+      
+      // Validate mill input data
+      if (!millInput) {
+        console.log(`PDF Generator - Mill input ${index} is null/undefined`);
+        return;
+      }
+      
+      // Add main entry with safe defaults
+      const mainEntry = {
+        date: millInput.millDate || new Date(),
+        chalanNo: millInput.chalanNo || '',
+        greighMtr: Number(millInput.greighMtr) || 0,
+        pcs: Number(millInput.pcs) || 0,
         type: 'main'
-      });
+      };
+      
+      console.log(`PDF Generator - Adding main entry:`, mainEntry);
+      allMeterEntries.push(mainEntry);
       
       // Add additional meter entries
       if (millInput.additionalMeters && Array.isArray(millInput.additionalMeters)) {
-        millInput.additionalMeters.forEach(additional => {
-          allMeterEntries.push({
-            date: millInput.millDate, // Use same date as main entry
-            chalanNo: millInput.chalanNo, // Use same chalan as main entry
-            greighMtr: additional.greighMtr,
+        console.log(`PDF Generator - Processing ${millInput.additionalMeters.length} additional meters`);
+        millInput.additionalMeters.forEach((additional, addIndex) => {
+          if (!additional) {
+            console.log(`PDF Generator - Additional meter ${addIndex} is null/undefined`);
+            return;
+          }
+          
+          const additionalEntry = {
+            date: millInput.millDate || new Date(), // Use same date as main entry
+            chalanNo: millInput.chalanNo || '', // Use same chalan as main entry
+            greighMtr: Number(additional.greighMtr) || 0,
+            pcs: Number(additional.pcs) || 0,
             type: 'additional'
-          });
+          };
+          
+          console.log(`PDF Generator - Adding additional entry:`, additionalEntry);
+          allMeterEntries.push(additionalEntry);
         });
+      } else {
+        console.log(`PDF Generator - No additional meters found for mill input ${index}`);
       }
     });
     
     // Show up to 4 entries total
-    const entriesToShow = allMeterEntries.slice(0, 4);
+    let entriesToShow = allMeterEntries.slice(0, 4);
+    
+    // If no mill input entries, create fallback entries from order data
+    if (entriesToShow.length === 0) {
+      console.log('PDF Generator - No mill input entries found, creating fallback entries');
+      // Create fallback entries from order data
+      entriesToShow = [{
+        date: order.poDate || new Date(),
+        chalanNo: order.poNumber || 'N/A',
+        greighMtr: 0,
+        pcs: 0,
+        type: 'fallback'
+      }];
+    }
     
     // Debug: Log all meter entries
     console.log('PDF Generator - All Meter Entries:', entriesToShow);
+    console.log('PDF Generator - All Meter Entries Length:', allMeterEntries.length);
+    console.log('PDF Generator - Entries to Show:', entriesToShow.length);
     console.log('PDF Generator - First Item:', firstItem);
+    console.log('PDF Generator - Order Mill Inputs:', order.millInputs);
+    console.log('PDF Generator - Order Mill Inputs Length:', order.millInputs?.length);
     
     for (let i = 0; i < 4; i++) {
       doc.setDrawColor(0, 0, 0);
@@ -439,18 +516,29 @@ export const generateOrderPDF = (order: OrderData): void => {
           type: entry.type
         });
         
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(0, 43, 89); // #002b59 color
+        doc.setFont('helvetica', 'normal'); // Use normal font like other data
+        doc.setFontSize(8); // Standard font size
+        doc.setTextColor(0, 43, 89); // Use blue color like other data (#002b59)
         
         // DATE - Mill Date
-        doc.text(formatDate(entry.date).toUpperCase(), rightCol + 2, tableY + 5);
+        const dateText = formatDate(entry.date).toUpperCase();
+        console.log(`PDF Generator - Entry ${i} DATE:`, dateText);
+        doc.text(dateText, rightCol + 2, tableY + 5);
+        
         // CH NO - Chalan Number
-        doc.text((entry.chalanNo || '').toUpperCase(), rightCol + colWidth + 2, tableY + 5);
-        // TAKA - Greigh Meters M1 (actual meters value)
-        doc.text((entry.greighMtr?.toString() || '').toUpperCase(), rightCol + (colWidth * 2) + 2, tableY + 5);
-        // MTR - Greigh Meters (same as TAKA)
-        doc.text((entry.greighMtr?.toString() || '').toUpperCase(), rightCol + (colWidth * 3) + 2, tableY + 5);
+        const chalanText = (entry.chalanNo || '').toUpperCase();
+        console.log(`PDF Generator - Entry ${i} CHALAN:`, chalanText);
+        doc.text(chalanText, rightCol + colWidth + 2, tableY + 5);
+        
+        // TAKA - Number of Pieces (from pcs field)
+        const piecesText = (entry.pcs?.toString() || '0').toUpperCase();
+        console.log(`PDF Generator - Entry ${i} PIECES:`, piecesText);
+        doc.text(piecesText, rightCol + (colWidth * 2) + 2, tableY + 5);
+        
+        // MTR - Greigh Meters (actual meters value)
+        const metersText = (entry.greighMtr?.toString() || '0').toUpperCase();
+        console.log(`PDF Generator - Entry ${i} METERS:`, metersText);
+        doc.text(metersText, rightCol + (colWidth * 3) + 2, tableY + 5);
         
         doc.setTextColor(0, 0, 0); // Reset to black
       } else {
@@ -483,15 +571,19 @@ export const generateOrderPDF = (order: OrderData): void => {
     doc.text('TOTAL:', rightCol + 2, tableY + 5);
     doc.setTextColor(0, 43, 89); // #002b59 color
     
-    // Calculate total greigh meters from all entries (main + additional)
+    // Calculate total greigh meters and total pieces from all entries (main + additional)
     const totalGreighMeters = allMeterEntries.reduce((total, entry) => {
       return total + (entry.greighMtr || 0);
     }, 0);
     
+    const totalPieces = allMeterEntries.reduce((total, entry) => {
+      return total + (entry.pcs || 0);
+    }, 0);
+    
     // CH NO column - empty in total row
     doc.text('', rightCol + colWidth + 2, tableY + 5);
-    // TAKA column - total greigh meters from all entries
-    doc.text(totalGreighMeters.toString().toUpperCase(), rightCol + (colWidth * 2) + 2, tableY + 5);
+    // TAKA column - total pieces from all entries
+    doc.text(totalPieces.toString().toUpperCase(), rightCol + (colWidth * 2) + 2, tableY + 5);
     // MTR column - total greigh meters from all entries
     doc.text(totalGreighMeters.toString().toUpperCase(), rightCol + (colWidth * 3) + 2, tableY + 5);
     doc.setTextColor(0, 0, 0); // Reset to black
@@ -541,11 +633,37 @@ export const generateOrderPDF = (order: OrderData): void => {
     // ISSUE TO MILL header - centered
     doc.text('ISSUE TO MILL', 5 + section1Width/2, professionalTableStartY + 5, { align: 'center' });
     
-    // REC FROM MILL header - centered
-    doc.text('REC FROM MILL', 5 + section1Width + section2Width/2, professionalTableStartY + 5, { align: 'center' });
+    // REC FROM MILL header with Mill Rate
+    doc.text('REC FROM MILL:', 5 + section1Width + 5, professionalTableStartY + 5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 43, 89); // #002b59 color
+    // Show mill rate from order items (millRate field) - the actual field from order form
+    const millRate = order.items?.[0]?.millRate || 0;
+    console.log('PDF Generator - Mill Rate Debug:', {
+      orderItems: order.items,
+      firstItem: order.items?.[0],
+      millRateFromItem: order.items?.[0]?.millRate,
+      finalMillRate: millRate
+    });
+    doc.text(`${millRate}`, 5 + section1Width + 35, professionalTableStartY + 5);
+    doc.setTextColor(0, 0, 0); // Reset to black
+    doc.setFont('helvetica', 'bold');
     
-    // SALES header - centered
-    doc.text('SALES', 5 + section1Width + section2Width + section3Width/2, professionalTableStartY + 5, { align: 'center' });
+    // SALES header with Sales Rate
+    doc.text('SALES:', 5 + section1Width + section2Width + 5, professionalTableStartY + 5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 43, 89); // #002b59 color
+    // Show sales rate from order items (salesRate field) - the actual field from order form
+    const salesRate = order.items?.[0]?.salesRate || 0;
+    console.log('PDF Generator - Sales Rate Debug:', {
+      orderItems: order.items,
+      firstItem: order.items?.[0],
+      salesRateFromItem: order.items?.[0]?.salesRate,
+      finalSalesRate: salesRate
+    });
+    doc.text(`${salesRate}`, 5 + section1Width + section2Width + 25, professionalTableStartY + 5);
+    doc.setTextColor(0, 0, 0); // Reset to black
+    doc.setFont('helvetica', 'bold');
     
     tableY = professionalTableStartY + headerRowHeight + 0;
     
@@ -655,49 +773,57 @@ export const generateOrderPDF = (order: OrderData): void => {
       doc.setFontSize(7);
       doc.setTextColor(0, 43, 89); // #002b59 color
       
-      // ISSUE TO MILL section data - show real mill input data
-      if (i < (order.millInputs?.length || 0)) {
-        const millInput = order.millInputs![i];
-        const dataRowY = headerY + 15 + (i * 8); // Each data row is 8 units below the previous
-        
-        // DATE - Mill Date
-        doc.text(formatDate(millInput.millDate).toUpperCase(), 8, dataRowY);
-        // C.NO - Chalan Number
-        doc.text((millInput.chalanNo || '').toUpperCase(), 8 + issueDateWidth, dataRowY);
-        // TAKA - Greigh Meters (actual meters value)
-        doc.text((millInput.greighMtr?.toString() || '').toUpperCase(), 8 + issueDateWidth + issueCnoWidth, dataRowY);
-        // MTR - Number of Pieces (using greighMtr as pieces count)
-        doc.text((millInput.greighMtr?.toString() || '').toUpperCase(), 8 + issueDateWidth + issueCnoWidth + issueTakaWidth, dataRowY);
+      // ISSUE TO MILL section data - show all mill input data (main + additional)
+      if (i < allMeterEntries.length) {
+        const entry = allMeterEntries[i];
+        if (entry) {
+          const dataRowY = headerY + 15 + (i * 8); // Each data row is 8 units below the previous
+          
+          // DATE - Mill Date
+          doc.text(formatDate(entry.date).toUpperCase(), 8, dataRowY);
+          // C.NO - Chalan Number
+          doc.text((entry.chalanNo || '').toUpperCase(), 8 + issueDateWidth, dataRowY);
+          // TAKA - Number of Pieces (from pcs field)
+          doc.text((Number(entry.pcs) || 0).toString().toUpperCase(), 8 + issueDateWidth + issueCnoWidth, dataRowY);
+          // MTR - Greigh Meters (actual meters value)
+          doc.text((Number(entry.greighMtr) || 0).toString().toUpperCase(), 8 + issueDateWidth + issueCnoWidth + issueTakaWidth, dataRowY);
+        }
       }
       
       // REC FROM MILL section data
       if (i < (order.millOutputs?.length || 0)) {
         const millOutput = order.millOutputs![i];
-        // DATE - Received Date
-        doc.text(formatDate(millOutput.recdDate), 8 + section1Width, currentDataRowY - 3);
-        // CH NO - Mill Bill Number
-        doc.text(millOutput.millBillNo || '', 8 + section1Width + dateWidth, currentDataRowY - 3);
-        // L.T NO - Lot Number (empty for now)
-        doc.text('', 8 + section1Width + dateWidth + chNoWidth, currentDataRowY - 3);
-        // G.MT - Greigh Meters (using finished meters as proxy)
-        doc.text(millOutput.finishedMtr?.toString() || '', 8 + section1Width + dateWidth + chNoWidth + ltNoWidth, currentDataRowY - 3);
-        // F.MT - Finished Meters
-        doc.text(millOutput.finishedMtr?.toString() || '', 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth, currentDataRowY - 3);
-        // SHT - Shirt/Piece count (empty for now)
-        doc.text('', 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth + fmtWidth, currentDataRowY - 3);
+        if (millOutput) {
+          // DATE - Received Date (recdDate)
+          doc.text(formatDate(millOutput.recdDate), 8 + section1Width, currentDataRowY - 3);
+          // CH NO - Mill Bill Number (millBillNo)
+          doc.text(millOutput.millBillNo || '', 8 + section1Width + dateWidth, currentDataRowY - 3);
+          // L.T NO - Lot Number (empty for now)
+          doc.text('', 8 + section1Width + dateWidth + chNoWidth, currentDataRowY - 3);
+          // G.MT - Greigh Meters (same as MTR - using greigh meters from mill inputs)
+          const correspondingMillInput = order.millInputs?.[i];
+          const greighMtrValue = correspondingMillInput ? (Number(correspondingMillInput.greighMtr) || 0) : 0;
+          doc.text(greighMtrValue.toString(), 8 + section1Width + dateWidth + chNoWidth + ltNoWidth, currentDataRowY - 3);
+          // F.MT - Finished Meters (finishedMtr)
+          doc.text((Number(millOutput.finishedMtr) || 0).toString(), 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth, currentDataRowY - 3);
+          // SHT - Shirt/Piece count (empty for now)
+          doc.text('', 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth + fmtWidth, currentDataRowY - 3);
+        }
       }
       
       // SALES section data
       if (i < (order.dispatches?.length || 0)) {
         const dispatch = order.dispatches![i];
-        // DATE - Dispatch Date
-        doc.text(formatDate(dispatch.dispatchDate), 8 + section1Width + section2Width, currentDataRowY - 3);
-        // BILL - Bill Number
-        doc.text(dispatch.billNo || '', 8 + section1Width + section2Width + salesDateWidth, currentDataRowY - 3);
-        // PARCEL - Parcel/Consignment number (empty for now)
-        doc.text('', 8 + section1Width + section2Width + salesDateWidth + salesBillWidth, currentDataRowY - 3);
-        // MTR - Dispatch Meters
-        doc.text(dispatch.finishMtr?.toString() || '', 8 + section1Width + section2Width + salesDateWidth + salesBillWidth + salesParcelWidth, currentDataRowY - 3);
+        if (dispatch) {
+          // DATE - Dispatch Date
+          doc.text(formatDate(dispatch.dispatchDate), 8 + section1Width + section2Width, currentDataRowY - 3);
+          // BILL - Bill Number (show actual bill number)
+          doc.text(dispatch.billNo || '0', 8 + section1Width + section2Width + salesDateWidth, currentDataRowY - 3);
+          // PARCEL - Parcel/Consignment number (show clean 0)
+          doc.text('0', 8 + section1Width + section2Width + salesDateWidth + salesBillWidth, currentDataRowY - 3);
+          // MTR - Dispatch Meters
+          doc.text((Number(dispatch.finishMtr) || 0).toString(), 8 + section1Width + section2Width + salesDateWidth + salesBillWidth + salesParcelWidth, currentDataRowY - 3);
+        }
       }
       
       doc.setTextColor(0, 0, 0); // Reset to black
@@ -727,8 +853,8 @@ export const generateOrderPDF = (order: OrderData): void => {
     
     // TOTAL in ISSUE TO MILL section
     doc.text('TOTAL:', 8, currentDataRowY - 3);
-    // TAKA total - total greigh meters (same as MTR now)
-    doc.text(totals.totalGreighMtr.toString().toUpperCase(), 8 + issueDateWidth + issueCnoWidth, currentDataRowY - 3);
+    // TAKA total - total pieces
+    doc.text(totals.totalPieces.toString().toUpperCase(), 8 + issueDateWidth + issueCnoWidth, currentDataRowY - 3);
     // MTR total - total greigh meters
     doc.text(totals.totalGreighMtr.toString().toUpperCase(), 8 + issueDateWidth + issueCnoWidth + issueTakaWidth, currentDataRowY - 3);
     
@@ -738,15 +864,18 @@ export const generateOrderPDF = (order: OrderData): void => {
     
     // TOTAL in REC FROM MILL section
     doc.text('TOTAL:', 8 + section1Width, currentDataRowY - 3);
-    // G.MT total - total greigh meters (using finished meters as proxy)
-    doc.text(`₹${formatCurrency(totals.totalMillCost)}`.toUpperCase(), 8 + section1Width + dateWidth + chNoWidth + ltNoWidth, currentDataRowY - 3);
+    // G.MT total - total greigh meters (same as MTR total)
+    doc.text(totals.totalGreighMtr.toString().toUpperCase(), 8 + section1Width + dateWidth + chNoWidth + ltNoWidth, currentDataRowY - 3);
     // F.MT total - total finished meters
     doc.text(totals.totalFinishedMtr.toString().toUpperCase(), 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth, currentDataRowY - 3);
     
     // TOTAL in SALES section
     doc.text('TOTAL:', 8 + section1Width + section2Width, currentDataRowY - 3);
-    // BILL total - total sales value
-    doc.text(`₹${formatCurrency(totals.totalSalesValue)}`.toUpperCase(), 8 + section1Width + section2Width + salesDateWidth + salesBillWidth, currentDataRowY - 3);
+    // BILL total - show count of bills
+    const billCount = order.dispatches?.length || 0;
+    doc.text(billCount.toString(), 8 + section1Width + section2Width + salesDateWidth, currentDataRowY - 3);
+    // PARCEL total - show clean 0
+    doc.text('0', 8 + section1Width + section2Width + salesDateWidth + salesBillWidth, currentDataRowY - 3);
     // MTR total - total dispatch meters
     doc.text(totals.totalDispatchMtr.toString().toUpperCase(), 8 + section1Width + section2Width + salesDateWidth + salesBillWidth + salesParcelWidth, currentDataRowY - 3);
     
@@ -816,7 +945,32 @@ export const generateOrderPDF = (order: OrderData): void => {
   doc.setFontSize(10);
   doc.text('FINAL REPORT:', finalReportX + 3, reportStartY + 6);
   
-  // Just empty space - no text content
+  // Add calculations to FINAL REPORT
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(0, 43, 89); // #002b59 color
+  
+  // Calculate PUR = MTR Total × Purchase Rate + 5%
+  const mtrTotal = totals.totalGreighMtr;
+  const purchaseRate = order.items?.[0]?.purchaseRate || 0;
+  const purValue = (mtrTotal * purchaseRate) * 1.05; // +5%
+  
+  // Calculate MILL = Total F.MT × Mill Rate + 5%
+  const totalFmt = totals.totalFinishedMtr;
+  const millRate = order.items?.[0]?.millRate || 0;
+  const millValue = (totalFmt * millRate) * 1.05; // +5%
+  
+  // Calculate SALE = Total MTR from SALES table × Sales Rate + 5%
+  const salesMtrTotal = totals.totalDispatchMtr; // Total MTR from SALES table
+  const salesRate = order.items?.[0]?.salesRate || 0;
+  const saleValue = (salesMtrTotal * salesRate) * 1.05; // +5%
+  
+  // Display the calculated values
+  doc.text(`PUR-${Math.round(purValue)}`, finalReportX + 3, reportStartY + 12);
+  doc.text(`MILL-${Math.round(millValue)}`, finalReportX + 3, reportStartY + 18);
+  doc.text(`SALE-${Math.round(saleValue)}`, finalReportX + 3, reportStartY + 24);
+  
+  doc.setTextColor(0, 0, 0); // Reset to black
   
   // Bottom signature section - one row with 3 columns
   const signatureStartY = reportStartY + reportBoxHeight + 10; // Position below report sections

@@ -100,7 +100,8 @@ export async function GET(request: NextRequest) {
           const millInputs = await MillInput.find({ 
             order: { $in: orderIds }
           })
-          .select('order quality processName additionalMeters')
+          .select('order mill millDate chalanNo greighMtr pcs quality processName additionalMeters')
+          .populate('mill', 'name')
           .populate('quality', 'name')
           .populate('additionalMeters.quality', 'name')
           .lean()
@@ -221,6 +222,9 @@ export async function GET(request: NextRequest) {
             }
           });
         }
+        
+        // Add mill inputs to each order for PDF generation
+        order.millInputs = millInputMap.get(order._id.toString()) || [];
       });
     }
 

@@ -44,6 +44,7 @@ interface MillInputFormProps {
   onSuccess: () => void;
   onAddMill: () => void;
   onRefreshMills: () => void;
+  onRefreshQualities?: () => void; // Add quality refresh function
   isOpen?: boolean; // Add isOpen prop like LabDataModal
   isEditing?: boolean;
   existingMillInputs?: any[];
@@ -494,7 +495,7 @@ function EnhancedDropdown({
         }
         // Only close if dropdown is currently open
         if (showDropdown) {
-          onToggleDropdown();
+        onToggleDropdown();
         }
       }
     };
@@ -684,6 +685,7 @@ export default function MillInputForm({
   onSuccess,
   onAddMill,
   onRefreshMills,
+  onRefreshQualities,
   isOpen = true, // Default to true for backward compatibility
   isEditing = false,
   existingMillInputs = []
@@ -697,6 +699,14 @@ export default function MillInputForm({
     isEditing, 
     existingMillInputs: existingMillInputs?.length 
   });
+
+  // Refresh qualities when form is opened
+  useEffect(() => {
+    if (isOpen && onRefreshQualities) {
+      console.log('MillInputForm: Refreshing qualities on form open');
+      onRefreshQualities();
+    }
+  }, [isOpen, onRefreshQualities]);
   
   const [formData, setFormData] = useState<MillInputFormData>({
     orderId: order?.orderId || '',
@@ -1569,8 +1579,8 @@ export default function MillInputForm({
       
       // Show success message and then close after delay
       setTimeout(() => {
-        onSuccess();
-        onClose();
+      onSuccess();
+      onClose();
       }, 1500);
     } catch (error) {
       setErrors({ submit: error instanceof Error ? error.message : 'Failed to handle mill input' });
@@ -1671,15 +1681,15 @@ export default function MillInputForm({
       if (data.success && data.data && data.data.millInputs && data.data.millInputs.length > 0) {
         // Delete all existing mill inputs for this order
         const deletePromises = data.data.millInputs.map((input: any) =>
-          fetch(`/api/mill-inputs/${input._id}`, {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          })
-        );
+      fetch(`/api/mill-inputs/${input._id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+    );
 
-        await Promise.all(deletePromises);
+    await Promise.all(deletePromises);
       }
     }
 
@@ -1898,7 +1908,7 @@ export default function MillInputForm({
                 }`}>
                     Mill Name <span className="text-red-500">*</span>
                 </label>
-                
+
 
                 {millsLoading ? (
                   <div className={`p-4 text-center rounded-lg border ${
@@ -1927,17 +1937,17 @@ export default function MillInputForm({
                         >
                           Refresh Mills
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowAddMillModal(true)}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            isDarkMode
-                                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                                : 'bg-blue-500 hover:bg-blue-600 text-white'
-                          }`}
-                        >
-                            Add New Mill
-                        </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMillModal(true)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isDarkMode
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                            : 'bg-blue-500 hover:bg-blue-600 text-white'
+                      }`}
+                    >
+                        Add New Mill
+                    </button>
                       </div>
                 </div>
                   </div>
@@ -2069,47 +2079,65 @@ export default function MillInputForm({
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                           {/* Quality for M1 */}
                           <div>
-                            <label className={`block text-sm font-medium mb-2 ${
+                            <div className="flex items-center justify-between mb-2">
+                              <label className={`text-sm font-medium ${
                               isDarkMode ? 'text-gray-300' : 'text-gray-700'
                             }`}>
                               Quality M1 <span className="text-red-500">*</span>
                             </label>
+                              {onRefreshQualities && (
+                                <button
+                                  type="button"
+                                  onClick={onRefreshQualities}
+                                  className={`p-1 rounded transition-colors ${
+                                    isDarkMode 
+                                      ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700' 
+                                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                                  }`}
+                                  title="Refresh qualities"
+                                >
+                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
                             <div className="relative">
-                              <EnhancedDropdown
-                                options={getFilteredQualities(item.id, 'main')}
-                                value={item.quality}
-                                onChange={(value) => updateMillItem(item.id, 'quality', value)}
-                                placeholder="Search quality..."
-                                searchValue={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main' 
-                                  ? currentQualitySearch 
-                                  : (qualitySearchStates[`${item.id}_main`] || '')}
-                                onSearchChange={(value) => {
-                                  if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main') {
-                                    setCurrentQualitySearch(value);
-                                  } else {
-                                    setQualitySearchStates(prev => ({ ...prev, [`${item.id}_main`]: value }));
-                                  }
-                                }}
-                                showDropdown={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main'}
-                                onToggleDropdown={() => {
+                            <EnhancedDropdown
+                              options={getFilteredQualities(item.id, 'main')}
+                              value={item.quality}
+                              onChange={(value) => updateMillItem(item.id, 'quality', value)}
+                              placeholder="Search quality..."
+                              searchValue={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main' 
+                                ? currentQualitySearch 
+                                : (qualitySearchStates[`${item.id}_main`] || '')}
+                              onSearchChange={(value) => {
+                                if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main') {
+                                  setCurrentQualitySearch(value);
+                                } else {
+                                  setQualitySearchStates(prev => ({ ...prev, [`${item.id}_main`]: value }));
+                                }
+                              }}
+                              showDropdown={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main'}
+                              onToggleDropdown={() => {
                                   // Close mill and process dropdowns if open
                                   setShowMillDropdown(false);
                                   setActiveProcessDropdown(null);
                                   setCurrentProcessSearch('');
                                   
-                                  if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main') {
-                                    setActiveQualityDropdown(null);
-                                    setCurrentQualitySearch('');
-                                  } else {
-                                    setActiveQualityDropdown({ itemId: item.id, type: 'main' });
-                                    setCurrentQualitySearch(qualitySearchStates[`${item.id}_main`] || '');
-                                  }
-                                }}
-                                onSelect={(quality) => handleQualitySelect(item.id, 'main', quality)}
-                                isDarkMode={isDarkMode}
-                                error={errors[`quality_${item.id}`]}
-                                recentlyAddedId={recentlyAddedQuality}
-                              />
+                                if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'main') {
+                                  setActiveQualityDropdown(null);
+                                  setCurrentQualitySearch('');
+                                } else {
+                                  setActiveQualityDropdown({ itemId: item.id, type: 'main' });
+                                  setCurrentQualitySearch(qualitySearchStates[`${item.id}_main`] || '');
+                                }
+                              }}
+                              onSelect={(quality) => handleQualitySelect(item.id, 'main', quality)}
+                              isDarkMode={isDarkMode}
+                              error={errors[`quality_${item.id}`]}
+                              recentlyAddedId={recentlyAddedQuality}
+                            />
                               {item.quality && (
                                 <button
                                   type="button"
@@ -2137,7 +2165,7 @@ export default function MillInputForm({
                             <div className="relative">
                               <EnhancedDropdown
                                 options={getFilteredProcesses(item.id, 'main').map(process => ({ name: process, _id: process }))}
-                                value={item.process}
+                              value={item.process}
                                 onChange={(value) => updateMillItem(item.id, 'process', value)}
                                 placeholder="Search process..."
                                 searchValue={activeProcessDropdown?.itemId === item.id && activeProcessDropdown?.type === 'main' 
@@ -2250,47 +2278,65 @@ export default function MillInputForm({
                           <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {/* Quality for Additional Meters */}
                             <div>
-                              <label className={`block text-sm font-medium mb-2 ${
+                              <div className="flex items-center justify-between mb-2">
+                                <label className={`text-sm font-medium ${
                                 isDarkMode ? 'text-gray-300' : 'text-gray-700'
                               }`}>
                                 Quality M{index + 2} <span className="text-red-500">*</span>
                               </label>
+                                {onRefreshQualities && (
+                                  <button
+                                    type="button"
+                                    onClick={onRefreshQualities}
+                                    className={`p-1 rounded transition-colors ${
+                                      isDarkMode 
+                                        ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700' 
+                                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                    title="Refresh qualities"
+                                  >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
                               <div className="relative">
-                                <EnhancedDropdown
-                                  options={getFilteredQualities(item.id, 'additional', index)}
-                                  value={additional.quality}
-                                  onChange={(value) => updateAdditionalMeters(item.id, index, 'quality', value)}
-                                  placeholder="Search quality..."
-                                  searchValue={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index
-                                    ? currentQualitySearch 
-                                    : (qualitySearchStates[`${item.id}_additional_${index}`] || '')}
-                                  onSearchChange={(value) => {
-                                    if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index) {
-                                      setCurrentQualitySearch(value);
-                                    } else {
-                                      setQualitySearchStates(prev => ({ ...prev, [`${item.id}_additional_${index}`]: value }));
-                                    }
-                                  }}
-                                  showDropdown={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index}
-                                  onToggleDropdown={() => {
+                              <EnhancedDropdown
+                                options={getFilteredQualities(item.id, 'additional', index)}
+                                value={additional.quality}
+                                onChange={(value) => updateAdditionalMeters(item.id, index, 'quality', value)}
+                                placeholder="Search quality..."
+                                searchValue={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index
+                                  ? currentQualitySearch 
+                                  : (qualitySearchStates[`${item.id}_additional_${index}`] || '')}
+                                onSearchChange={(value) => {
+                                  if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index) {
+                                    setCurrentQualitySearch(value);
+                                  } else {
+                                    setQualitySearchStates(prev => ({ ...prev, [`${item.id}_additional_${index}`]: value }));
+                                  }
+                                }}
+                                showDropdown={activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index}
+                                onToggleDropdown={() => {
                                     // Close mill and process dropdowns if open
                                     setShowMillDropdown(false);
                                     setActiveProcessDropdown(null);
                                     setCurrentProcessSearch('');
                                     
-                                    if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index) {
-                                      setActiveQualityDropdown(null);
-                                      setCurrentQualitySearch('');
-                                    } else {
-                                      setActiveQualityDropdown({ itemId: item.id, type: 'additional', index });
-                                      setCurrentQualitySearch(qualitySearchStates[`${item.id}_additional_${index}`] || '');
-                                    }
-                                  }}
-                                  onSelect={(quality) => handleQualitySelect(item.id, 'additional', quality, index)}
-                                  isDarkMode={isDarkMode}
-                                  error={errors[`additionalQuality_${item.id}_${index}`]}
-                                  recentlyAddedId={recentlyAddedQuality}
-                                />
+                                  if (activeQualityDropdown?.itemId === item.id && activeQualityDropdown?.type === 'additional' && activeQualityDropdown?.index === index) {
+                                    setActiveQualityDropdown(null);
+                                    setCurrentQualitySearch('');
+                                  } else {
+                                    setActiveQualityDropdown({ itemId: item.id, type: 'additional', index });
+                                    setCurrentQualitySearch(qualitySearchStates[`${item.id}_additional_${index}`] || '');
+                                  }
+                                }}
+                                onSelect={(quality) => handleQualitySelect(item.id, 'additional', quality, index)}
+                                isDarkMode={isDarkMode}
+                                error={errors[`additionalQuality_${item.id}_${index}`]}
+                                recentlyAddedId={recentlyAddedQuality}
+                              />
                                 {additional.quality && (
                                   <button
                                     type="button"
@@ -2318,7 +2364,7 @@ export default function MillInputForm({
                               <div className="relative">
                                 <EnhancedDropdown
                                   options={getFilteredProcesses(item.id, 'additional', index).map(process => ({ name: process, _id: process }))}
-                                  value={additional.process}
+                                value={additional.process}
                                   onChange={(value) => updateAdditionalMeters(item.id, index, 'process', value)}
                                   placeholder="Search process..."
                                   searchValue={activeProcessDropdown?.itemId === item.id && activeProcessDropdown?.type === 'additional' && activeProcessDropdown?.index === index
@@ -2666,7 +2712,7 @@ export default function MillInputForm({
                     <TrashIcon className={`h-6 w-6 ${
                       isDarkMode ? 'text-red-400' : 'text-red-600'
                     }`} />
-                  </div>
+      </div>
                   <h3 className="text-lg font-semibold">Delete Mill Input Data</h3>
                 </div>
                 <button

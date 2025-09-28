@@ -34,49 +34,70 @@ export async function GET(
     // Fetch lab data and mill input process data for this order and attach to items
     if (order.items && order.items.length > 0) {
       try {
-        const [Lab, { MillInput }] = await Promise.all([
+        const [Lab, { MillInput }, { MillOutput }, DispatchModule] = await Promise.all([
           import('@/models/Lab'),
-          import('@/models/Mill')
+          import('@/models/Mill'),
+          import('@/models/MillOutput'),
+          import('@/models/Dispatch')
         ]);
         
-        const itemIds = order.items.map((item: any) => item._id);
+        const Dispatch = DispatchModule.default;
         
-        const [labs, millInputs] = await Promise.all([
+      const itemIds = order.items.map((item: any) => item._id);
+      
+        const [labs, millInputs, millOutputs, dispatches] = await Promise.all([
           Lab.default.find({ 
-            order: id,
-            orderItemId: { $in: itemIds },
-            softDeleted: { $ne: true }
-          })
-          .select('orderItemId labSendDate labSendData labSendNumber status remarks')
-          .lean()
+        order: id,
+        orderItemId: { $in: itemIds },
+        softDeleted: { $ne: true }
+        })
+        .select('orderItemId labSendDate labSendData labSendNumber status remarks')
+        .lean()
           .maxTimeMS(3000),
           
           MillInput.find({ 
             order: id
           })
-          .select('quality processName additionalMeters')
+          .select('mill millDate chalanNo greighMtr pcs quality processName additionalMeters')
+          .populate('mill', 'name')
           .populate('quality', 'name')
           .populate('additionalMeters.quality', 'name')
           .lean()
+          .maxTimeMS(3000),
+          
+          MillOutput.find({ 
+            order: id
+          })
+          .select('recdDate millBillNo finishedMtr millRate quality')
+          .populate('quality', 'name')
+          .lean()
+          .maxTimeMS(3000),
+          
+          Dispatch.find({ 
+            order: id
+          })
+          .select('dispatchDate billNo finishMtr saleRate totalValue quality')
+          .populate('quality', 'name')
+          .lean()
           .maxTimeMS(3000)
         ]);
-        
-        // Create a map of orderItemId to lab data
-        const labMap = new Map();
-        labs.forEach(lab => {
-          labMap.set(lab.orderItemId.toString(), lab);
-        });
-        
+      
+      // Create a map of orderItemId to lab data
+      const labMap = new Map();
+      labs.forEach((lab: any) => {
+        labMap.set(lab.orderItemId.toString(), lab);
+      });
+      
         // Attach lab data and process data to order items
-        order.items.forEach((item: any) => {
+      order.items.forEach((item: any) => {
           // Attach lab data
-          const labData = labMap.get(item._id.toString());
+        const labData = labMap.get(item._id.toString());
           if (labData && labData.labSendData) {
-            item.labData = {
+          item.labData = {
               color: labData.labSendData.color || '',
               shade: labData.labSendData.shade || '',
               notes: labData.labSendData.notes || '',
-              labSendDate: labData.labSendDate,
+            labSendDate: labData.labSendDate,
               approvalDate: labData.labSendData.approvalDate,
               sampleNumber: labData.labSendData.sampleNumber || '',
               imageUrl: labData.labSendData.imageUrl || '',
@@ -97,8 +118,8 @@ export async function GET(
               labSendNumber: '',
               status: 'not_sent',
               remarks: ''
-            };
-          }
+          };
+        }
           
           // Attach quality-specific process data from mill inputs
           if (millInputs.length > 0) {
@@ -155,6 +176,12 @@ export async function GET(
             };
           }
         });
+        
+        // Add mill inputs, mill outputs, and dispatches to the order object for PDF generation
+        (order as any).millInputs = millInputs;
+        (order as any).millOutputs = millOutputs;
+        (order as any).dispatches = dispatches;
+        
       } catch (error) {
         // Initialize empty lab data and process data for all items if there's an error
         order.items.forEach((item: any) => {
@@ -175,7 +202,17 @@ export async function GET(
             additionalProcesses: []
           };
         });
+        
+        // Initialize empty mill inputs, mill outputs, and dispatches arrays
+        (order as any).millInputs = [];
+        (order as any).millOutputs = [];
+        (order as any).dispatches = [];
       }
+    } else {
+      // Initialize empty mill inputs, mill outputs, and dispatches arrays if no items
+      (order as any).millInputs = [];
+      (order as any).millOutputs = [];
+      (order as any).dispatches = [];
     }
 
     // Log the order view
