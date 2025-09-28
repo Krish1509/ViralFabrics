@@ -31,36 +31,52 @@ export async function GET(
       );
     }
 
-    // Fetch lab data for this order and attach to items
+    // Fetch lab data and mill input process data for this order and attach to items
     if (order.items && order.items.length > 0) {
       try {
-      const Lab = (await import('@/models/Lab')).default;
-      const itemIds = order.items.map((item: any) => item._id);
-      
-      const labs = await Lab.find({ 
-        order: id,
-        orderItemId: { $in: itemIds },
-        softDeleted: { $ne: true }
-        })
-        .select('orderItemId labSendDate labSendData labSendNumber status remarks')
-        .lean()
-        .maxTimeMS(3000);
-      
-      // Create a map of orderItemId to lab data
-      const labMap = new Map();
-      labs.forEach(lab => {
-        labMap.set(lab.orderItemId.toString(), lab);
-      });
-      
-      // Attach lab data to order items
-      order.items.forEach((item: any) => {
-        const labData = labMap.get(item._id.toString());
+        const [Lab, { MillInput }] = await Promise.all([
+          import('@/models/Lab'),
+          import('@/models/Mill')
+        ]);
+        
+        const itemIds = order.items.map((item: any) => item._id);
+        
+        const [labs, millInputs] = await Promise.all([
+          Lab.default.find({ 
+            order: id,
+            orderItemId: { $in: itemIds },
+            softDeleted: { $ne: true }
+          })
+          .select('orderItemId labSendDate labSendData labSendNumber status remarks')
+          .lean()
+          .maxTimeMS(3000),
+          
+          MillInput.find({ 
+            order: id
+          })
+          .select('quality processName additionalMeters')
+          .populate('quality', 'name')
+          .populate('additionalMeters.quality', 'name')
+          .lean()
+          .maxTimeMS(3000)
+        ]);
+        
+        // Create a map of orderItemId to lab data
+        const labMap = new Map();
+        labs.forEach(lab => {
+          labMap.set(lab.orderItemId.toString(), lab);
+        });
+        
+        // Attach lab data and process data to order items
+        order.items.forEach((item: any) => {
+          // Attach lab data
+          const labData = labMap.get(item._id.toString());
           if (labData && labData.labSendData) {
-          item.labData = {
+            item.labData = {
               color: labData.labSendData.color || '',
               shade: labData.labSendData.shade || '',
               notes: labData.labSendData.notes || '',
-            labSendDate: labData.labSendDate,
+              labSendDate: labData.labSendDate,
               approvalDate: labData.labSendData.approvalDate,
               sampleNumber: labData.labSendData.sampleNumber || '',
               imageUrl: labData.labSendData.imageUrl || '',
@@ -81,11 +97,66 @@ export async function GET(
               labSendNumber: '',
               status: 'not_sent',
               remarks: ''
-          };
-        }
-      });
-      } catch (labError) {
-        // Initialize empty lab data for all items if there's an error
+            };
+          }
+          
+          // Attach quality-specific process data from mill inputs
+          if (millInputs.length > 0) {
+            const itemQualityId = item.quality?._id?.toString() || item.quality?.toString();
+            const itemQualityName = item.quality?.name || item.quality;
+            
+            // Find process data for this specific quality
+            let qualityProcessData = null;
+            
+            // Check all mill inputs for this quality
+            for (const millInputData of millInputs) {
+              // Check main quality
+              if (millInputData.quality?._id?.toString() === itemQualityId || 
+                  millInputData.quality?.name === itemQualityName) {
+                qualityProcessData = {
+                  mainProcess: millInputData.processName || '',
+                  additionalProcesses: []
+                };
+                break;
+              }
+              
+              // Check additional meters for this quality
+              if (millInputData.additionalMeters) {
+                const matchingAdditional = millInputData.additionalMeters.find((additional: any) => 
+                  additional.quality?._id?.toString() === itemQualityId || 
+                  additional.quality?.name === itemQualityName
+                );
+                
+                if (matchingAdditional) {
+                  qualityProcessData = {
+                    mainProcess: matchingAdditional.processName || '',
+                    additionalProcesses: []
+                  };
+                  break;
+                }
+              }
+            }
+            
+            // If no quality-specific data found, use the first mill input's main process data as fallback
+            if (!qualityProcessData) {
+              const firstMillInput = millInputs[0];
+              qualityProcessData = {
+                mainProcess: firstMillInput.processName || '',
+                additionalProcesses: firstMillInput.additionalMeters?.map((additional: any) => additional.processName || '') || []
+              };
+            }
+            
+            item.processData = qualityProcessData;
+          } else {
+            // Initialize empty process data structure
+            item.processData = {
+              mainProcess: '',
+              additionalProcesses: []
+            };
+          }
+        });
+      } catch (error) {
+        // Initialize empty lab data and process data for all items if there's an error
         order.items.forEach((item: any) => {
           item.labData = {
             color: '',
@@ -98,6 +169,10 @@ export async function GET(
             labSendNumber: '',
             status: 'not_sent',
             remarks: ''
+          };
+          item.processData = {
+            mainProcess: '',
+            additionalProcesses: []
           };
         });
       }

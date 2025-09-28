@@ -38,6 +38,10 @@ export interface OrderItem {
     status?: string;
     remarks?: string;
   };
+  processData?: {
+    mainProcess?: string;
+    additionalProcesses?: string[];
+  };
 }
 
 export interface Order {

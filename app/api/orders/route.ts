@@ -71,8 +71,8 @@ export async function GET(request: NextRequest) {
       .lean()
       .maxTimeMS(200); // 200ms timeout for 50ms target
 
-    // Use Promise.all to parallelize lab data fetching and total count
-    const [labs, total] = await Promise.all([
+    // Use Promise.all to parallelize lab data fetching, mill input data, and total count
+    const [labs, millInputs, total] = await Promise.all([
       // Fetch lab data for all orders
       orders.length > 0 ? (async () => {
         try {
@@ -90,22 +90,56 @@ export async function GET(request: NextRequest) {
           return [];
         }
       })() : Promise.resolve([]),
+      
+      // Fetch mill input data for process information
+      orders.length > 0 ? (async () => {
+        try {
+          const { MillInput } = await import('@/models/Mill');
+          const orderIds = orders.map(order => order._id);
+          
+          const millInputs = await MillInput.find({ 
+            order: { $in: orderIds }
+          })
+          .select('order quality processName additionalMeters')
+          .populate('quality', 'name')
+          .populate('additionalMeters.quality', 'name')
+          .lean()
+          .maxTimeMS(200);
+          
+          return millInputs;
+        } catch (millError) {
+          console.error('Mill input fetch error:', millError);
+          return [];
+        }
+      })() : Promise.resolve([]),
+      
       // Get total count in parallel
       Order.countDocuments(query).maxTimeMS(200)
     ]);
 
-    // Attach lab data to order items
-    if (orders.length > 0 && labs.length > 0) {
+    // Attach lab data and mill input process data to order items
+    if (orders.length > 0) {
       // Create a map of orderItemId to lab data
       const labMap = new Map();
-      labs.forEach(lab => {
-        labMap.set(lab.orderItemId.toString(), lab);
-      });
+      if (labs.length > 0) {
+        labs.forEach(lab => {
+          labMap.set(lab.orderItemId.toString(), lab);
+        });
+      }
       
-      // Attach lab data to order items
+      // Create a map of order ObjectId to mill input data
+      const millInputMap = new Map();
+      if (millInputs.length > 0) {
+        millInputs.forEach(millInput => {
+          millInputMap.set(millInput.order.toString(), millInput);
+        });
+      }
+      
+      // Attach lab data and process data to order items
       orders.forEach(order => {
         if (order.items) {
           order.items.forEach((item: any) => {
+            // Attach lab data
             const labData = labMap.get(item._id.toString());
             if (labData && labData.labSendData) {
               item.labData = {
@@ -135,26 +169,56 @@ export async function GET(request: NextRequest) {
                 remarks: ''
               };
             }
-          });
-        }
-      });
-    } else if (orders.length > 0) {
-      // Initialize empty lab data for all items if no lab data found
-      orders.forEach(order => {
-        if (order.items) {
-          order.items.forEach((item: any) => {
-            item.labData = {
-              color: '',
-              shade: '',
-              notes: '',
-              labSendDate: null,
-              approvalDate: null,
-              sampleNumber: '',
-              imageUrl: '',
-              labSendNumber: '',
-              status: 'not_sent',
-              remarks: ''
-            };
+            
+            // Attach quality-specific process data from mill inputs
+            const millInputData = millInputMap.get(order._id.toString());
+            if (millInputData) {
+              const itemQualityId = item.quality?._id?.toString() || item.quality?.toString();
+              const itemQualityName = item.quality?.name || item.quality;
+              
+              // Find process data for this specific quality
+              let qualityProcessData = null;
+              
+              // Check main quality
+              if (millInputData.quality?._id?.toString() === itemQualityId || 
+                  millInputData.quality?.name === itemQualityName) {
+                qualityProcessData = {
+                  mainProcess: millInputData.processName || '',
+                  additionalProcesses: []
+                };
+              }
+              
+              // Check additional meters for this quality
+              if (!qualityProcessData && millInputData.additionalMeters) {
+                const matchingAdditional = millInputData.additionalMeters.find((additional: any) => 
+                  additional.quality?._id?.toString() === itemQualityId || 
+                  additional.quality?.name === itemQualityName
+                );
+                
+                if (matchingAdditional) {
+                  qualityProcessData = {
+                    mainProcess: matchingAdditional.processName || '',
+                    additionalProcesses: []
+                  };
+                }
+              }
+              
+              // If no quality-specific data found, use the main process data as fallback
+              if (!qualityProcessData) {
+                qualityProcessData = {
+                  mainProcess: millInputData.processName || '',
+                  additionalProcesses: millInputData.additionalMeters?.map((additional: any) => additional.processName || '') || []
+                };
+              }
+              
+              item.processData = qualityProcessData;
+            } else {
+              // Initialize empty process data structure
+              item.processData = {
+                mainProcess: '',
+                additionalProcesses: []
+              };
+            }
           });
         }
       });

@@ -51,6 +51,50 @@ interface ValidationMessage {
   dismissTime?: number;
 }
 
+// Helper function to get highest priority process from mill input data
+const getHighestPriorityProcess = (processData: any, qualityName?: string) => {
+  if (!processData) return null;
+  
+  const allProcesses = [
+    processData.mainProcess,
+    ...processData.additionalProcesses
+  ].filter(process => process && process.trim() !== '');
+  
+  if (allProcesses.length === 0) return null;
+  
+  // Define process priority order (highest to lowest priority)
+  const processPriority = [
+    'ready to dispatch',
+    'folding',
+    'Finish',
+    'washing',
+    'loop',
+    'in printing',
+    'jigar',
+    'In Dyeing',
+    'setting',
+    'long jet',
+    'Soflina WR',
+    'Drum',
+    'Charkha',
+    'Lot No Greigh'
+  ];
+  
+  // Find the highest priority process
+  let highestPriorityProcess = allProcesses[0];
+  let highestPriorityIndex = processPriority.length;
+  
+  allProcesses.forEach(process => {
+    const index = processPriority.indexOf(process);
+    if (index !== -1 && index < highestPriorityIndex) {
+      highestPriorityIndex = index;
+      highestPriorityProcess = process;
+    }
+  });
+  
+  return highestPriorityProcess;
+};
+
 export default function OrdersPage() {
   const { isDarkMode, mounted } = useDarkMode();
   const router = useRouter();
@@ -559,8 +603,8 @@ export default function OrdersPage() {
 
   // Handle search params for edit mill input
   useEffect(() => {
-    const editMillInput = searchParams.get('editMillInput');
-    const addMillInput = searchParams.get('addMillInput');
+    const editMillInput = searchParams?.get('editMillInput');
+    const addMillInput = searchParams?.get('addMillInput');
     
     if (editMillInput) {
       // Find the order by ID
@@ -1868,7 +1912,11 @@ export default function OrdersPage() {
   }
 
   return (
-    <div>
+    <div className={`min-h-screen ${
+      isDarkMode 
+        ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900' 
+        : 'bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50'
+    }`}>
       {/* Enhanced Message System Styles */}
       <style jsx>{`
         @keyframes slideInRight {
@@ -2892,6 +2940,25 @@ export default function OrdersPage() {
                                    <td className="px-4 py-4">
                                      <div className="max-w-[150px]">
                                        {(() => {
+                                         const qualityName = typeof item.quality === 'string' ? item.quality : item.quality?.name || 'N/A';
+                                         
+                                         // Use process data from API if available
+                                         const processFromAPI = getHighestPriorityProcess((item as any).processData, qualityName);
+                                         if (processFromAPI) {
+                                           const displayProcess = processFromAPI;
+                                           
+                                           return (
+                                             <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                                               isDarkMode 
+                                                 ? 'bg-orange-600/20 text-orange-300 border border-orange-500/30' 
+                                                 : 'bg-orange-100 text-orange-700 border border-orange-200'
+                                             }`}>
+                                               {displayProcess}
+                                             </div>
+                                           );
+                                         }
+                                         
+                                         // Fallback to old method if no process data from API
                                          const processes = getProcessDataForQuality(item.quality, order.orderId);
                                          if (processes.length === 0) {
                                            return <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>No process data</span>;
@@ -2903,8 +2970,8 @@ export default function OrdersPage() {
                                          return (
                                            <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
                                              isDarkMode 
-                                               ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30' 
-                                               : 'bg-blue-100 text-blue-700 border border-blue-200'
+                                               ? 'bg-orange-600/20 text-orange-300 border border-orange-500/30' 
+                                               : 'bg-orange-100 text-orange-700 border border-orange-200'
                                            }`}>
                                              {highestPriorityProcess}
                                            </div>

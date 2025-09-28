@@ -61,6 +61,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
+  const [isBackgroundRetry, setIsBackgroundRetry] = useState(false);
   const [filters, setFilters] = useState<DashboardFilters>({
     startDate: '',
     endDate: '',
@@ -68,9 +70,12 @@ export default function DashboardPage() {
     financialYear: 'all'
   });
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(async (isRetry = false) => {
     try {
-      setLoading(true);
+      // Only show loading spinner on initial load, not on retries
+      if (!isRetry) {
+        setLoading(true);
+      }
       setError(null);
       
       const token = localStorage.getItem('token');
@@ -99,9 +104,12 @@ export default function DashboardPage() {
         const statsData = await statsResponse.json();
         if (statsData.success && statsData.data) {
           setStats(statsData.data);
-          setSuccessMessage('Dashboard data loaded successfully');
-          // Clear success message after 3 seconds
-          setTimeout(() => setSuccessMessage(null), 3000);
+          setHasAttemptedFetch(true);
+          if (!isRetry) {
+            setSuccessMessage('Dashboard data loaded successfully');
+            // Clear success message after 3 seconds
+            setTimeout(() => setSuccessMessage(null), 3000);
+          }
         } else {
           setError(statsData.message || 'Invalid response format from server');
         }
@@ -153,14 +161,18 @@ export default function DashboardPage() {
           monthlyTrends: [],
           recentOrders: []
         });
+        setHasAttemptedFetch(true);
         setSuccessMessage('Dashboard loaded with basic data. Some features may be limited.');
         setTimeout(() => setSuccessMessage(null), 5000);
         
-        // Silently retry in background after 3 seconds
-        setTimeout(() => {
-          console.log('Retrying dashboard data fetch in background...');
-          fetchDashboardData();
-        }, 3000);
+        // Only retry once in background if we haven't already attempted
+        if (!isBackgroundRetry) {
+          setIsBackgroundRetry(true);
+          setTimeout(() => {
+            console.log('Retrying dashboard data fetch in background...');
+            fetchDashboardData(true);
+          }, 3000);
+        }
       } else if (error.message?.includes('fetch')) {
         setError('Network error. Please check your internet connection.');
       } else {
@@ -170,14 +182,14 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, isBackgroundRetry]);
 
   useEffect(() => {
-    if (mounted) {
-      // Start loading immediately
+    if (mounted && !hasAttemptedFetch) {
+      // Start loading immediately only if we haven't attempted yet
       fetchDashboardData();
     }
-  }, [mounted, fetchDashboardData]);
+  }, [mounted, hasAttemptedFetch, fetchDashboardData]);
 
   const handleFiltersChange = useCallback((newFilters: DashboardFilters) => {
     setFilters(newFilters);
@@ -258,7 +270,7 @@ export default function DashboardPage() {
                 }`}>{error}</p>
               </div>
               <button
-                onClick={fetchDashboardData}
+                onClick={() => fetchDashboardData(false)}
                 disabled={loading}
                 className={`ml-4 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
                   loading
