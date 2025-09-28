@@ -24,7 +24,7 @@ export default function CreateFabricPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Check if we're in edit mode
-  const editId = searchParams.get('edit');
+  const editId = searchParams?.get('edit');
   const isEditMode = !!editId;
   
   const [formData, setFormData] = useState<FabricFormData>({

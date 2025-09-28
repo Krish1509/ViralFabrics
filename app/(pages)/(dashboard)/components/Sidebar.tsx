@@ -203,6 +203,7 @@ export default function Sidebar({
 
   // Memoize active state calculation
   const isActive = useCallback((href: string) => {
+    if (!pathname) return false;
     const result = href === '/dashboard' ? pathname === href : pathname.startsWith(href);
     return result;
   }, [pathname]);

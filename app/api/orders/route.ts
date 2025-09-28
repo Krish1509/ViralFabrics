@@ -224,7 +224,7 @@ export async function GET(request: NextRequest) {
         }
         
         // Add mill inputs to each order for PDF generation
-        order.millInputs = millInputMap.get(order._id.toString()) || [];
+        (order as any).millInputs = millInputMap.get(order._id.toString()) || [];
       });
     }
 

@@ -157,7 +157,7 @@ function LoginForm() {
   }, [router]);
 
   useEffect(() => {
-    if (searchParams.get('registered') === 'true') {
+    if (searchParams?.get('registered') === 'true') {
       setShowSuccessMessage(true);
       const timer = setTimeout(() => setShowSuccessMessage(false), 5000);
       return () => clearTimeout(timer);
