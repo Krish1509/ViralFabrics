@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
     const orderType = searchParams.get('orderType') || '';
     const status = searchParams.get('status') || '';
+    const startDate = searchParams.get('startDate') || '';
+    const endDate = searchParams.get('endDate') || '';
     
     // Build query
     const query: any = {
@@ -42,7 +44,21 @@ export async function GET(request: NextRequest) {
     }
     
     if (status) {
-      query.status = status;
+      // Support multiple status values separated by commas
+      const statusArray = status.split(',').map(s => s.trim());
+      if (statusArray.length === 1) {
+        query.status = statusArray[0];
+      } else {
+        query.status = { $in: statusArray };
+      }
+    }
+    
+    // Add date range filtering
+    if (startDate && endDate) {
+      query.deliveryDate = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
     }
     
     // Super optimized query with limits and proper indexing

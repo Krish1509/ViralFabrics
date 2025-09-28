@@ -14,14 +14,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(unauthorizedResponse('Unauthorized'), { status: 401 });
     }
 
-    // Super fast aggregated stats query
+    // Super fast aggregated stats query with increased timeout
     const [
       totalOrders,
       statusStats,
       typeStats
     ] = await Promise.all([
       // Total orders count
-      Order.countDocuments().maxTimeMS(1000),
+      Order.countDocuments().maxTimeMS(5000),
       
       // Status aggregation
       Order.aggregate([
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       not_set: 0
     };
 
-    statusStats.forEach(stat => {
+    statusStats.forEach((stat: any) => {
       const status = stat._id;
       if (!status || status === 'Not set' || status === 'Not selected') {
         processedStatusStats.not_set += stat.count;
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
       not_set: 0
     };
 
-    typeStats.forEach(stat => {
+    typeStats.forEach((stat: any) => {
       const type = stat._id;
       if (!type) {
         processedTypeStats.not_set += stat.count;
@@ -89,18 +89,75 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Calculate pending and delivered type stats (simplified)
-    const pendingTypeStats = {
-      Dying: Math.floor(processedTypeStats.Dying * 0.3), // Estimate 30% pending
-      Printing: Math.floor(processedTypeStats.Printing * 0.3),
-      not_set: Math.floor(processedTypeStats.not_set * 0.3)
+    // Get actual pending and delivered type stats from database
+    const [pendingTypeStats, deliveredTypeStats] = await Promise.all([
+      // Pending type stats (orders with pending or not_set status)
+      Order.aggregate([
+        {
+          $match: {
+            $or: [
+              { status: { $in: ['pending', 'Not set', 'Not selected', null] } },
+              { status: { $exists: false } }
+            ]
+          }
+        },
+        {
+          $group: {
+            _id: '$orderType',
+            count: { $sum: 1 }
+          }
+        }
+      ]),
+      
+      // Delivered type stats (orders with delivered status)
+      Order.aggregate([
+        {
+          $match: { status: 'delivered' }
+        },
+        {
+          $group: {
+            _id: '$orderType',
+            count: { $sum: 1 }
+          }
+        }
+      ])
+    ]);
+
+    // Process pending type stats
+    const processedPendingTypeStats = {
+      Dying: 0,
+      Printing: 0,
+      not_set: 0
     };
 
-    const deliveredTypeStats = {
-      Dying: Math.floor(processedTypeStats.Dying * 0.4), // Estimate 40% delivered
-      Printing: Math.floor(processedTypeStats.Printing * 0.4),
-      not_set: Math.floor(processedTypeStats.not_set * 0.4)
+    pendingTypeStats.forEach((stat: any) => {
+      const type = stat._id;
+      if (!type) {
+        processedPendingTypeStats.not_set += stat.count;
+      } else if (type === 'Dying') {
+        processedPendingTypeStats.Dying += stat.count;
+      } else if (type === 'Printing') {
+        processedPendingTypeStats.Printing += stat.count;
+      }
+    });
+
+    // Process delivered type stats
+    const processedDeliveredTypeStats = {
+      Dying: 0,
+      Printing: 0,
+      not_set: 0
     };
+
+    deliveredTypeStats.forEach((stat: any) => {
+      const type = stat._id;
+      if (!type) {
+        processedDeliveredTypeStats.not_set += stat.count;
+      } else if (type === 'Dying') {
+        processedDeliveredTypeStats.Dying += stat.count;
+      } else if (type === 'Printing') {
+        processedDeliveredTypeStats.Printing += stat.count;
+      }
+    });
 
     // Simple monthly trends (last 6 months)
     const monthlyTrends = [];
@@ -117,8 +174,8 @@ export async function GET(request: NextRequest) {
       totalOrders,
       statusStats: processedStatusStats,
       typeStats: processedTypeStats,
-      pendingTypeStats,
-      deliveredTypeStats,
+      pendingTypeStats: processedPendingTypeStats,
+      deliveredTypeStats: processedDeliveredTypeStats,
       monthlyTrends,
       recentOrders: [] // Empty for now to keep it fast
     };
@@ -135,6 +192,17 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error: any) {
-    return NextResponse.json(errorResponse('Failed to load dashboard stats'), { status: 500 });
+    console.error('Dashboard stats error:', error);
+    
+    // Handle specific error types
+    if (error.name === 'MongoServerError') {
+      return NextResponse.json(errorResponse('Database connection error. Please try again.'), { status: 500 });
+    } else if (error.name === 'MongoTimeoutError') {
+      return NextResponse.json(errorResponse('Database timeout. Please try again.'), { status: 500 });
+    } else if (error.message?.includes('connect')) {
+      return NextResponse.json(errorResponse('Unable to connect to database. Please try again.'), { status: 500 });
+    }
+    
+    return NextResponse.json(errorResponse('Failed to load dashboard stats. Please try again.'), { status: 500 });
   }
 }

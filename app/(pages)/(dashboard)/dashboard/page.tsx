@@ -10,6 +10,8 @@ import {
 import { useDarkMode } from '../hooks/useDarkMode';
 import MetricsCard from './components/MetricsCard';
 import DashboardFilters from './components/DashboardFilters';
+import PieChart from './components/PieChart';
+import DeliveredSoonTable from './components/DeliveredSoonTable';
 
 // Removed heavy components for super fast loading
 import { Order } from '@/types';
@@ -79,7 +81,7 @@ export default function DashboardPage() {
 
       // Super fast dashboard - only fetch essential stats
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1500); // Reduced to 1.5 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10 second timeout
 
       // Fetch only dashboard stats API (much faster than fetching all orders)
       const statsResponse = await fetch('/api/dashboard/stats', {
@@ -95,23 +97,76 @@ export default function DashboardPage() {
 
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
-        const dashboardStats = statsData.data || {};
-        
-        // Set the stats directly from API response
-        setStats(dashboardStats);
-        
-        // Dashboard stats loaded successfully
+        if (statsData.success && statsData.data) {
+          setStats(statsData.data);
+          setSuccessMessage('Dashboard data loaded successfully');
+          // Clear success message after 3 seconds
+          setTimeout(() => setSuccessMessage(null), 3000);
+        } else {
+          setError(statsData.message || 'Invalid response format from server');
+        }
       } else {
         if (statsResponse.status === 401) {
           setError('Authentication failed. Please log in again.');
+          // Redirect to login after 2 seconds
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 2000);
           return;
+        } else if (statsResponse.status === 500) {
+          setError('Server error. Please try again in a moment.');
+        } else {
+          const errorData = await statsResponse.json().catch(() => ({}));
+          setError(errorData.message || `Server returned status ${statsResponse.status}`);
         }
-        const errorData = await statsResponse.json();
-        setError(errorData.message || 'Failed to load dashboard stats');
-        }
+      }
 
-    } catch (error) {
-      setError('Failed to load dashboard data. Please try again.');
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        // Don't show timeout error immediately, try to load with fallback data
+        console.warn('Dashboard request timed out, loading with fallback data');
+        setStats({
+          totalOrders: 0,
+          statusStats: {
+            pending: 0,
+            in_progress: 0,
+            completed: 0,
+            delivered: 0,
+            cancelled: 0,
+            not_set: 0
+          },
+          typeStats: {
+            Dying: 0,
+            Printing: 0,
+            not_set: 0
+          },
+          pendingTypeStats: {
+            Dying: 0,
+            Printing: 0,
+            not_set: 0
+          },
+          deliveredTypeStats: {
+            Dying: 0,
+            Printing: 0,
+            not_set: 0
+          },
+          monthlyTrends: [],
+          recentOrders: []
+        });
+        setSuccessMessage('Dashboard loaded with basic data. Some features may be limited.');
+        setTimeout(() => setSuccessMessage(null), 5000);
+        
+        // Silently retry in background after 3 seconds
+        setTimeout(() => {
+          console.log('Retrying dashboard data fetch in background...');
+          fetchDashboardData();
+        }, 3000);
+      } else if (error.message?.includes('fetch')) {
+        setError('Network error. Please check your internet connection.');
+      } else {
+        setError('Failed to load dashboard data. Please try again.');
+      }
+      console.error('Dashboard fetch error:', error);
     } finally {
       setLoading(false);
     }
@@ -193,13 +248,28 @@ export default function DashboardPage() {
               ? 'bg-red-900/20 border-red-800/30' 
               : 'bg-red-50 border-red-200'
           }`}>
-            <div className="flex items-center">
-              <ExclamationTriangleIcon className={`w-5 h-5 mr-2 transition-colors duration-300 ${
-                isDarkMode ? 'text-red-400' : 'text-red-600'
-              }`} />
-              <p className={`transition-colors duration-300 ${
-                isDarkMode ? 'text-red-300' : 'text-red-800'
-              }`}>{error}</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <ExclamationTriangleIcon className={`w-5 h-5 mr-2 transition-colors duration-300 ${
+                  isDarkMode ? 'text-red-400' : 'text-red-600'
+                }`} />
+                <p className={`transition-colors duration-300 ${
+                  isDarkMode ? 'text-red-300' : 'text-red-800'
+                }`}>{error}</p>
+              </div>
+              <button
+                onClick={fetchDashboardData}
+                disabled={loading}
+                className={`ml-4 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
+                  loading
+                    ? 'bg-gray-400 cursor-not-allowed text-white'
+                    : isDarkMode
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : 'bg-red-500 hover:bg-red-600 text-white'
+                }`}
+              >
+                {loading ? 'Retrying...' : 'Retry'}
+              </button>
             </div>
           </div>
         )}
@@ -215,21 +285,21 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
             <MetricsCard
               title="Total Orders"
-              value={stats.totalOrders}
+              value={stats.totalOrders || 0}
               icon={ShoppingBagIcon}
               color="blue"
               subtitle="All time orders"
             />
             <MetricsCard
               title="Pending Orders"
-              value={stats.statusStats.pending + stats.statusStats.not_set}
+              value={(stats.statusStats?.pending || 0) + (stats.statusStats?.not_set || 0)}
               icon={ClockIcon}
               color="yellow"
               subtitle="Awaiting processing"
             />
             <MetricsCard
               title="Completed Orders"
-              value={stats.statusStats.completed + stats.statusStats.delivered}
+              value={(stats.statusStats?.completed || 0) + (stats.statusStats?.delivered || 0)}
               icon={CheckCircleIcon}
               color="green"
               subtitle="Successfully completed"
@@ -237,96 +307,86 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Simple Status Overview */}
-            {stats && (
-          <div className="mb-6 sm:mb-8">
-            <div className={`rounded-lg border p-6 ${
-              isDarkMode 
-                ? 'bg-white/5 border-white/10' 
-                : 'bg-white border-gray-200'
+        {/* No Data State */}
+        {!loading && !stats && !error && (
+          <div className={`mb-6 rounded-lg p-8 text-center border ${
+            isDarkMode 
+              ? 'bg-gray-800/50 border-gray-700' 
+              : 'bg-gray-50 border-gray-200'
+          }`}>
+            <ShoppingBagIcon className={`w-12 h-12 mx-auto mb-4 ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-500'
+            }`} />
+            <h3 className={`text-lg font-medium mb-2 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-900'
             }`}>
-              <h3 className={`text-lg font-semibold mb-4 ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                Order Status Overview
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div className="text-center">
-                  <div className={`text-2xl font-bold ${
-                    isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
-                  }`}>
-                    {stats.statusStats.pending + stats.statusStats.not_set}
-                  </div>
-                  <div className={`text-sm ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                  }`}>
-                    Pending
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className={`text-2xl font-bold ${
-                    isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                  }`}>
-                    {stats.statusStats.in_progress}
-                  </div>
-                  <div className={`text-sm ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                  }`}>
-                    In Progress
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className={`text-2xl font-bold ${
-                    isDarkMode ? 'text-green-400' : 'text-green-600'
-                  }`}>
-                    {stats.statusStats.completed}
-                  </div>
-                  <div className={`text-sm ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                  }`}>
-                    Completed
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className={`text-2xl font-bold ${
-                    isDarkMode ? 'text-green-400' : 'text-green-600'
-                  }`}>
-                    {stats.statusStats.delivered}
-                  </div>
-                  <div className={`text-sm ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                  }`}>
-                    Delivered
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className={`text-2xl font-bold ${
-                    isDarkMode ? 'text-red-400' : 'text-red-600'
-                  }`}>
-                    {stats.statusStats.cancelled}
-                  </div>
-                  <div className={`text-sm ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                  }`}>
-                    Cancelled
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className={`text-2xl font-bold ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    {stats.statusStats.not_set}
-                  </div>
-                  <div className={`text-sm ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                  }`}>
-                    Not Set
-                  </div>
-                </div>
-              </div>
-            </div>
+              No Dashboard Data Available
+            </h3>
+            <p className={`text-sm ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              There are no orders in the system yet. Create your first order to see dashboard statistics.
+            </p>
           </div>
         )}
+
+        {/* Pie Charts Section */}
+        {stats && stats.pendingTypeStats && stats.deliveredTypeStats && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8">
+            {/* Pending Orders Pie Chart */}
+            <PieChart
+              data={[
+                {
+                  name: 'Dying',
+                  value: stats.pendingTypeStats.Dying || 0,
+                  color: '#F97316' // Orange
+                },
+                {
+                  name: 'Printing',
+                  value: stats.pendingTypeStats.Printing || 0,
+                  color: '#3B82F6' // Blue
+                },
+                {
+                  name: 'Not Set',
+                  value: stats.pendingTypeStats.not_set || 0,
+                  color: '#6B7280' // Gray
+                }
+              ]}
+              title="Pending Orders by Type"
+              total={(stats.pendingTypeStats.Dying || 0) + (stats.pendingTypeStats.Printing || 0) + (stats.pendingTypeStats.not_set || 0)}
+              isDarkMode={isDarkMode}
+            />
+
+            {/* Delivered Orders Pie Chart */}
+            <PieChart
+              data={[
+                {
+                  name: 'Dying',
+                  value: stats.deliveredTypeStats.Dying || 0,
+                  color: '#F97316' // Orange
+                },
+                {
+                  name: 'Printing',
+                  value: stats.deliveredTypeStats.Printing || 0,
+                  color: '#3B82F6' // Blue
+                },
+                {
+                  name: 'Not Set',
+                  value: stats.deliveredTypeStats.not_set || 0,
+                  color: '#6B7280' // Gray
+                }
+              ]}
+              title="Delivered Orders by Type"
+              total={(stats.deliveredTypeStats.Dying || 0) + (stats.deliveredTypeStats.Printing || 0) + (stats.deliveredTypeStats.not_set || 0)}
+              isDarkMode={isDarkMode}
+            />
+          </div>
+        )}
+
+        {/* Delivered Soon Table */}
+        <div className="mb-6 sm:mb-8">
+          <DeliveredSoonTable isDarkMode={isDarkMode} />
+        </div>
 
       </div>
     </div>
