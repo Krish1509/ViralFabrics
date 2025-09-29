@@ -13,24 +13,28 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
   
   try {
-    // Check cache first
+    // Check cache first (unless force refresh is requested)
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
     const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 100);
     const page = parseInt(searchParams.get('page') || '1');
+    const force = searchParams.get('force') === 'true';
     const cacheKey = `mills-${search || 'all'}-${limit}-${page}`;
     
-    const cached = millsCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-      return NextResponse.json(successResponse(cached.data, 'Mills loaded from cache'), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
-          'X-Cache': 'HIT',
-          'X-Response-Time': `${Date.now() - startTime}ms`
-        }
-      });
+    // Skip cache if force refresh is requested
+    if (!force) {
+      const cached = millsCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+        return NextResponse.json(successResponse(cached.data, 'Mills loaded from cache'), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+            'X-Cache': 'HIT',
+            'X-Response-Time': `${Date.now() - startTime}ms`
+          }
+        });
+      }
     }
 
     await dbConnect();
@@ -90,8 +94,8 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
-        'X-Cache': 'MISS',
+        'Cache-Control': force ? 'no-cache, no-store, must-revalidate' : 'public, max-age=300, stale-while-revalidate=600',
+        'X-Cache': force ? 'FORCE_REFRESH' : 'MISS',
         'X-Response-Time': `${Date.now() - startTime}ms`
       }
     });

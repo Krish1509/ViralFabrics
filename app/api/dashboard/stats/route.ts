@@ -6,7 +6,7 @@ import { successResponse, errorResponse, unauthorizedResponse } from '@/lib/resp
 
 // Professional in-memory cache for dashboard stats
 const statsCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for better performance
+const CACHE_TTL = 30 * 1000; // Reduced to 30 seconds for more frequent updates
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
@@ -18,15 +18,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(unauthorizedResponse('Unauthorized'), { status: 401 });
     }
 
-    // Check cache first
+    // Check for force refresh parameter
+    const { searchParams } = new URL(request.url);
+    const forceRefresh = searchParams.get('force') === 'true';
+
+    // Check cache first (skip if force refresh)
     const cacheKey = 'dashboard-stats';
     const cached = statsCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    if (!forceRefresh && cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
       return NextResponse.json(successResponse(cached.data, 'Dashboard stats loaded from cache'), { 
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+          'Cache-Control': 'public, max-age=30, stale-while-revalidate=60',
           'X-Cache': 'HIT',
           'X-Response-Time': `${Date.now() - startTime}ms`
         }
@@ -233,8 +237,8 @@ export async function GET(request: NextRequest) {
     const responseTime = Date.now() - startTime;
     const headers = {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
-      'X-Cache': 'MISS',
+      'Cache-Control': 'public, max-age=30, stale-while-revalidate=60',
+      'X-Cache': forceRefresh ? 'FORCE_REFRESH' : 'MISS',
       'X-Response-Time': `${responseTime}ms`
     };
 

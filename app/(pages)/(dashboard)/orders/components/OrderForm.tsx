@@ -138,6 +138,13 @@ function CustomDatePicker({
   // Format date for display (dd/mm/yyyy)
   const formatDateForDisplay = (dateString: string) => {
     if (!dateString) return '';
+    
+    // Handle YYYY-MM-DD format directly to avoid timezone issues
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = dateString.split('-');
+      return `${day}/${month}/${year}`;
+    }
+    
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return dateString;
     return date.toLocaleDateString('en-GB'); // dd/mm/yyyy format
@@ -147,7 +154,12 @@ function CustomDatePicker({
   const parseDateFromDisplay = parseDateFromInput;
 
   const handleDateSelect = (date: Date) => {
-    const formattedDate = date.toISOString().split('T')[0];
+    // Fix timezone issue by using local date instead of UTC
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day}`;
+    
     onChange(formattedDate);
     setInputValue(formatDateForDisplay(formattedDate));
     setShowCalendar(false);

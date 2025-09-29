@@ -68,6 +68,13 @@ function CustomDatePicker({
   // Format date for display (dd/mm/yyyy)
   const formatDateForDisplay = (dateString: string) => {
     if (!dateString) return '';
+    
+    // Handle YYYY-MM-DD format directly to avoid timezone issues
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = dateString.split('-');
+      return `${day}/${month}/${year}`;
+    }
+    
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return dateString;
     return date.toLocaleDateString('en-GB'); // dd/mm/yyyy format
@@ -87,7 +94,11 @@ function CustomDatePicker({
       if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
         const date = new Date(year, month, day);
         if (!isNaN(date.getTime())) {
-          return date.toISOString().split('T')[0];
+          // Fix timezone issue by using local date instead of UTC
+          const yearStr = String(date.getFullYear());
+          const monthStr = String(date.getMonth() + 1).padStart(2, '0');
+          const dayStr = String(date.getDate()).padStart(2, '0');
+          return `${yearStr}-${monthStr}-${dayStr}`;
         }
       }
     }
@@ -96,7 +107,12 @@ function CustomDatePicker({
   };
 
   const handleDateSelect = (date: Date) => {
-    const formattedDate = date.toISOString().split('T')[0];
+    // Fix timezone issue by using local date instead of UTC
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day}`;
+    
     onChange(formattedDate);
     setInputValue(formatDateForDisplay(formattedDate));
     setShowCalendar(false);
@@ -647,10 +663,10 @@ export default function MillOutputForm({
         console.log('Using pre-loaded mill output data:', existingMillOutputs);
         loadExistingMillOutputs();
       } else {
-        console.log('No pre-loaded data, skipping API call for faster loading...');
-        // Skip API call for faster loading - just set empty state
-        setHasExistingData(false);
-        setLoadingExistingData(false);
+        console.log('No pre-loaded data, fetching from API...');
+        // Always fetch from API to get existing data
+        setLoadingExistingData(true);
+        fetchExistingMillOutputData();
       }
     }
   }, [isOpen, order?.orderId, existingMillOutputs]);
@@ -833,10 +849,10 @@ export default function MillOutputForm({
             id: (index + 1).toString(),
             recdDate: group.recdDate,
             millBillNo: group.millBillNo,
-            finishedMtr: group.mainOutput.finishedMtr.toString(),
+            finishedMtr: (group.mainOutput.finishedMtr || 0).toString(),
             quality: group.mainOutput.quality?._id || group.mainOutput.quality || '', // Extract quality ID
             additionalFinishedMtr: group.additionalOutputs.map((output: any) => ({
-              meters: output.finishedMtr.toString(),
+              meters: (output.finishedMtr || 0).toString(),
               quality: output.quality?._id || output.quality || '' // Extract quality ID
             }))
           }))
@@ -878,10 +894,10 @@ export default function MillOutputForm({
             id: (index + 1).toString(),
             recdDate: group.recdDate,
             millBillNo: group.millBillNo,
-            finishedMtr: group.mainOutput.finishedMtr.toString(),
+            finishedMtr: (group.mainOutput.finishedMtr || 0).toString(),
             quality: group.mainOutput.quality?._id || group.mainOutput.quality || '', // Extract quality ID
             additionalFinishedMtr: group.additionalOutputs.map((output: any) => ({
-              meters: output.finishedMtr.toString(),
+              meters: (output.finishedMtr || 0).toString(),
               quality: output.quality?._id || output.quality || '' // Extract quality ID
             }))
           }))

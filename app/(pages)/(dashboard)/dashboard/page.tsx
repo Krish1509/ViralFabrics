@@ -60,7 +60,7 @@ interface DashboardFilters {
 const dashboardCache = {
   data: null as DashboardStats | null,
   timestamp: 0,
-  ttl: 5 * 60 * 1000 // 5 minutes for better performance
+  ttl: 30 * 1000 // Reduced to 30 seconds for more frequent updates
 };
 
 export default function DashboardPage() {
@@ -80,8 +80,9 @@ export default function DashboardPage() {
 
   const fetchDashboardData = useCallback(async (isRetry = false) => {
     try {
-      // Check client-side cache first
-      if (!isRetry && dashboardCache.data && (Date.now() - dashboardCache.timestamp) < dashboardCache.ttl) {
+      // Check client-side cache first (but respect cache invalidation)
+      const cacheInvalidated = typeof window !== 'undefined' && !localStorage.getItem('dashboard-cache');
+      if (!isRetry && !cacheInvalidated && dashboardCache.data && (Date.now() - dashboardCache.timestamp) < dashboardCache.ttl) {
         setStats(dashboardCache.data);
         setHasAttemptedFetch(true);
         setLoading(false);
@@ -107,15 +108,14 @@ export default function DashboardPage() {
       const timeoutId = setTimeout(() => controller.abort(), 3000); // Optimized 3 second timeout
 
       // Fetch only dashboard stats API with optimized headers
-      const statsResponse = await fetch('/api/dashboard/stats', {
+      const statsResponse = await fetch('/api/dashboard/stats?force=true', {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=300, stale-while-revalidate=600',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Accept': 'application/json'
         },
         signal: controller.signal,
-        cache: 'force-cache', // Aggressive caching
-        next: { revalidate: 300 } // Next.js caching
+        cache: 'no-store' // No caching for fresh data
       });
 
       clearTimeout(timeoutId);
@@ -126,6 +126,11 @@ export default function DashboardPage() {
           // Cache the data
           dashboardCache.data = statsData.data;
           dashboardCache.timestamp = Date.now();
+          
+          // Restore cache flag
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('dashboard-cache', 'valid');
+          }
           
           setStats(statsData.data);
           setHasAttemptedFetch(true);
@@ -220,6 +225,21 @@ export default function DashboardPage() {
       fetchDashboardData();
     }
   }, [mounted, hasAttemptedFetch, fetchDashboardData]);
+
+  // Refresh dashboard when user navigates to it (focus event)
+  useEffect(() => {
+    const handleFocus = () => {
+      // Check if cache was invalidated
+      const cacheInvalidated = typeof window !== 'undefined' && !localStorage.getItem('dashboard-cache');
+      if (cacheInvalidated) {
+        console.log('Dashboard cache invalidated, refreshing data...');
+        fetchDashboardData();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchDashboardData]);
 
   const handleFiltersChange = useCallback((newFilters: DashboardFilters) => {
     setFilters(newFilters);
@@ -341,11 +361,11 @@ export default function DashboardPage() {
               subtitle="Awaiting processing"
             />
             <MetricsCard
-              title="Completed Orders"
+              title="Delivered Orders"
               value={(stats.statusStats?.completed || 0) + (stats.statusStats?.delivered || 0)}
               icon={CheckCircleIcon}
               color="green"
-              subtitle="Successfully completed"
+              subtitle="Successfully delivered"
             />
           </div>
         )}

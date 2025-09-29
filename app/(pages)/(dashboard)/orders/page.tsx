@@ -904,11 +904,48 @@ export default function OrdersPage() {
     }
   }, []);
 
-  // Mills fetching disabled for performance - will be loaded when needed
+  // Mills fetching function for MillInputForm
   const fetchMills = useCallback(async () => {
-    // Function disabled for performance - mills will be loaded separately when needed
-    console.log('fetchMills disabled for performance');
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No token available for mills fetch');
+        return;
+      }
+
+      console.log('Fetching mills from parent component...');
+      const response = await fetch('/api/mills?limit=100&force=true', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        },
+        cache: 'no-store'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data && data.data.mills) {
+          console.log('✅ Parent fetched mills:', data.data.mills.length, 'mills');
+          // Update mills state to pass to MillInputForm
+          setMills(data.data.mills);
+        } else {
+          console.log('❌ No mills in parent response');
+          setMills([]);
+        }
+      } else {
+        console.log('❌ Parent mills fetch failed:', response.status);
+        setMills([]);
+      }
+    } catch (error) {
+      console.error('Error fetching mills in parent:', error);
+    }
   }, []);
+
+  // Load mills when component mounts
+  useEffect(() => {
+    fetchMills();
+  }, [fetchMills]);
 
   // AGGRESSIVE prefetching for EXTREME speed
   useEffect(() => {
@@ -943,14 +980,14 @@ export default function OrdersPage() {
         const timeoutId = setTimeout(() => controller.abort(), 5000); // Optimized 5 second timeout
 
         // Professional loading with optimized caching (removed mills API to improve performance)
-        const ordersResponse = await fetch('/api/orders?limit=50&page=1', {
+        const ordersResponse = await fetch('/api/orders?limit=50&page=1&force=true', {
           headers: { 
             'Authorization': `Bearer ${token}`,
-            'Cache-Control': 'max-age=300, stale-while-revalidate=600',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Accept': 'application/json'
           },
           signal: controller.signal,
-          cache: 'force-cache'
+          cache: 'no-store'
         });
 
         clearTimeout(timeoutId);
@@ -1473,6 +1510,13 @@ export default function OrdersPage() {
       if (data.success) {
         // Show only one success message
         showMessage('success', `Order ${statusChangeData.orderIdDisplay} status updated to ${statusChangeData.newStatus}`, { autoDismiss: true, dismissTime: 1000 });
+        
+        // Clear dashboard cache when status changes to delivered
+        if (statusChangeData.newStatus === 'delivered') {
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('dashboard-cache');
+          }
+        }
         
         // No need to trigger real-time update since we already have optimistic updates
         // The UI is already updated, so no additional API calls needed
@@ -4287,8 +4331,15 @@ export default function OrdersPage() {
             setEditingOrder(null);
             setOrderCreating(false);
             
-            // Immediate refresh with retry mechanism
+            // Immediate refresh with retry mechanism to show new order
             await refreshOrdersWithRetry();
+            
+            // Clear dashboard cache to ensure fresh data
+            if (typeof window !== 'undefined') {
+              // Clear any cached dashboard data
+              localStorage.removeItem('dashboard-cache');
+            }
+            
             showMessage('success', editingOrder ? 'Order updated successfully' : 'Order created successfully');
           }}
           onError={async () => {

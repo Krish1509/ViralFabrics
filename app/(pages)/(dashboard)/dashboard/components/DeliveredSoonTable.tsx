@@ -21,7 +21,6 @@ interface UpcomingOrder {
   };
   status: string;
   priority: number;
-  finalAmount: number;
   items: Array<{
     quantity: number;
     description?: string;
@@ -49,8 +48,9 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
 
   const fetchUpcomingOrders = useCallback(async () => {
     try {
-      // Check client-side cache first
-      if (deliveredSoonCache.data && (Date.now() - deliveredSoonCache.timestamp) < deliveredSoonCache.ttl) {
+      // Check client-side cache first (but respect cache invalidation)
+      const cacheInvalidated = typeof window !== 'undefined' && !localStorage.getItem('dashboard-cache');
+      if (!cacheInvalidated && deliveredSoonCache.data && (Date.now() - deliveredSoonCache.timestamp) < deliveredSoonCache.ttl) {
         console.log('Loading delivered soon data from client cache');
         setUpcomingOrders(deliveredSoonCache.data);
         setFilteredOrders(deliveredSoonCache.data);
@@ -76,26 +76,29 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
 
       console.log('Fetching orders from:', today.toISOString(), 'to:', nextWeek.toISOString());
 
-      // Professional API call with optimized caching and timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+      // Force client-side filtering by not using date parameters initially
+      // This ensures we get all orders and filter them properly on the client
+      console.log('Fetching all orders for client-side date filtering...');
       
-      let response = await fetch(`/api/orders?startDate=${today.toISOString()}&endDate=${nextWeek.toISOString()}&limit=200`, {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 5 second timeout
+      
+      let response = await fetch(`/api/orders?limit=200&force=true`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=300, stale-while-revalidate=600',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
         signal: controller.signal,
-        cache: 'force-cache'
+        cache: 'no-store'
       });
 
       clearTimeout(timeoutId);
 
-      // If date filtering fails, try without date filters and filter client-side
+      // If the main query fails, try with date filters as fallback
       if (!response.ok) {
-        console.log('Date-filtered query failed, trying without date filters...');
+        console.log('Main query failed, trying with date filters...');
         const fallbackController = new AbortController();
-        const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 2000);
+        const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 5000);
         
         response = await fetch(`/api/orders?limit=200`, {
           headers: {
@@ -126,6 +129,9 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         console.log('Total orders fetched:', orders.length);
         
         // Filter orders with delivery dates in the next 7 days
+        console.log('Processing orders for delivery date filtering...');
+        console.log('Total orders to process:', orders.length);
+        
         const upcoming = orders
           .filter((order: any) => {
             const hasDeliveryDate = order.deliveryDate;
@@ -138,7 +144,30 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
             const deliveryDate = new Date(order.deliveryDate);
             const today = new Date();
             today.setHours(0, 0, 0, 0); // Reset to start of day for accurate calculation
-            const daysUntil = Math.ceil((deliveryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            
+            // More robust date calculation - handle different date formats
+            let deliveryUTC, todayUTC;
+            
+            if (isNaN(deliveryDate.getTime())) {
+              console.log('Invalid delivery date format:', order.deliveryDate, 'for order:', order.orderId);
+              return null;
+            }
+            
+            // Create UTC dates for consistent comparison
+            deliveryUTC = new Date(deliveryDate.getFullYear(), deliveryDate.getMonth(), deliveryDate.getDate());
+            todayUTC = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            
+            const daysUntil = Math.ceil((deliveryUTC.getTime() - todayUTC.getTime()) / (1000 * 60 * 60 * 24));
+            
+            console.log('Order delivery calculation:', {
+              orderId: order.orderId,
+              deliveryDate: order.deliveryDate,
+              deliveryDateParsed: deliveryDate.toISOString(),
+              deliveryUTC: deliveryUTC.toISOString(),
+              todayUTC: todayUTC.toISOString(),
+              daysUntil: daysUntil,
+              isInRange: daysUntil >= 0 && daysUntil <= 7
+            });
             
             return {
               id: order._id || order.id,
@@ -148,27 +177,43 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
               party: order.party || { name: 'Unknown Party' },
               status: order.status,
               priority: order.priority || 5,
-              finalAmount: order.finalAmount || 0,
               items: order.items || [],
               daysUntilDelivery: daysUntil
             };
           })
-          .filter((order: UpcomingOrder) => {
+          .filter((order: UpcomingOrder | null) => {
+            if (!order) return false;
             const isInRange = order.daysUntilDelivery >= 0 && order.daysUntilDelivery <= 7;
             if (!isInRange) {
               console.log('Order outside 7-day range:', order.orderId, 'days until:', order.daysUntilDelivery);
+            } else {
+              console.log('✅ Order within 7-day range:', order.orderId, 'days until:', order.daysUntilDelivery);
             }
             return isInRange;
           })
           .sort((a: UpcomingOrder, b: UpcomingOrder) => a.daysUntilDelivery - b.daysUntilDelivery);
 
         console.log('Upcoming orders (next 7 days):', upcoming.length);
+        
+        // Debug: Show all orders with delivery dates for troubleshooting
+        const allOrdersWithDates = orders.filter((order: any) => order.deliveryDate);
+        console.log('All orders with delivery dates:', allOrdersWithDates.map((order: any) => ({
+          orderId: order.orderId,
+          deliveryDate: order.deliveryDate,
+          status: order.status
+        })));
+        
         setUpcomingOrders(upcoming);
         setFilteredOrders(upcoming);
         
         // Update cache
         deliveredSoonCache.data = upcoming;
         deliveredSoonCache.timestamp = Date.now();
+        
+        // Restore cache flag
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('dashboard-cache', 'valid');
+        }
         
         // If no upcoming orders found, that's not an error - just show empty state
         if (upcoming.length === 0) {
@@ -210,6 +255,20 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
 
   useEffect(() => {
     fetchUpcomingOrders();
+  }, [fetchUpcomingOrders]);
+
+  // Add refresh capability when component becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // Page became visible, refresh data
+        console.log('Page became visible, refreshing delivered soon data...');
+        fetchUpcomingOrders();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [fetchUpcomingOrders]);
 
   // Filter orders by selected date
@@ -257,13 +316,6 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
     });
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
 
   if (loading) {
     return (
@@ -336,7 +388,16 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
               </button>
             )}
             <button
-              onClick={fetchUpcomingOrders}
+              onClick={() => {
+                // Force refresh by clearing cache and fetching fresh data
+                console.log('Force refreshing delivered soon data...');
+                deliveredSoonCache.data = null;
+                deliveredSoonCache.timestamp = 0;
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('dashboard-cache');
+                }
+                fetchUpcomingOrders();
+              }}
               disabled={loading}
               className={`px-3 py-2 text-xs rounded-lg border transition-colors ${
                 isDarkMode
@@ -430,11 +491,6 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
                 }`}>
                   Status
                 </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-500'
-                }`}>
-                  Amount
-                </th>
               </tr>
             </thead>
             <tbody className={`divide-y ${
@@ -521,13 +577,6 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className={`font-medium ${
-                      isDarkMode ? 'text-white' : 'text-gray-900'
-                    }`}>
-                      {formatCurrency(order.finalAmount)}
-                    </div>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -547,26 +596,6 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
               Showing {filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}
               {selectedDate && ` for ${formatDate(selectedDate)}`}
             </span>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Due Today
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Due Soon
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  On Track
-                </span>
-              </div>
-            </div>
           </div>
         </div>
       )}

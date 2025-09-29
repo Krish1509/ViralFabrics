@@ -95,6 +95,13 @@ function CustomDatePicker({
   // Format date for display (dd/mm/yyyy)
   const formatDateForDisplay = (dateString: string) => {
     if (!dateString) return '';
+    
+    // Handle YYYY-MM-DD format directly to avoid timezone issues
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = dateString.split('-');
+      return `${day}/${month}/${year}`;
+    }
+    
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return dateString;
     return date.toLocaleDateString('en-GB'); // dd/mm/yyyy format
@@ -114,7 +121,11 @@ function CustomDatePicker({
       if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
         const date = new Date(year, month, day);
         if (!isNaN(date.getTime())) {
-          return date.toISOString().split('T')[0];
+          // Fix timezone issue by using local date instead of UTC
+          const yearStr = String(date.getFullYear());
+          const monthStr = String(date.getMonth() + 1).padStart(2, '0');
+          const dayStr = String(date.getDate()).padStart(2, '0');
+          return `${yearStr}-${monthStr}-${dayStr}`;
         }
       }
     }
@@ -123,7 +134,12 @@ function CustomDatePicker({
   };
 
   const handleDateSelect = (date: Date) => {
-    const formattedDate = date.toISOString().split('T')[0];
+    // Fix timezone issue by using local date instead of UTC
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day}`;
+    
     onChange(formattedDate);
     setInputValue(formatDateForDisplay(formattedDate));
     setShowCalendar(false);
@@ -742,6 +758,7 @@ export default function MillInputForm({
   const [addingMill, setAddingMill] = useState(false);
   const [millsLoading, setMillsLoading] = useState(false);
   const [localMills, setLocalMills] = useState<Mill[]>([]);
+  const [isFetchingMills, setIsFetchingMills] = useState(false);
   
   // LabDataModal pattern states
   const [hasExistingData, setHasExistingData] = useState(false);
@@ -754,6 +771,7 @@ export default function MillInputForm({
   const [millSearch, setMillSearch] = useState('');
   const [showMillDropdown, setShowMillDropdown] = useState(false);
   const [recentlyAddedMill, setRecentlyAddedMill] = useState<string | null>(null);
+  const [selectedMillName, setSelectedMillName] = useState('');
   
   // Quality-related state
   const [activeQualityDropdown, setActiveQualityDropdown] = useState<{ itemId: string; type: 'main' | 'additional'; index?: number } | null>(null);
@@ -768,25 +786,44 @@ export default function MillInputForm({
 
   // Load mills data when component mounts
   useEffect(() => {
-    console.log('MillInputForm mounted, refreshing mills data...');
-    console.log('Current mills prop:', mills);
-    setMillsLoading(true);
-    onRefreshMills();
-  }, [onRefreshMills]);
-
-  // Also fetch mills directly if not available (with very short timeout)
-  useEffect(() => {
-    if (order?.orderId && (!mills || mills.length === 0) && localMills.length === 0) {
-      console.log('Mills not available, fetching directly...');
-      // Set a very short timeout for mills loading
+    if (isOpen && order?.orderId) {
+      console.log('MillInputForm opened, loading mills data...');
+      console.log('Current mills prop:', mills?.length || 0, 'localMills:', localMills.length);
+      console.log('Mills prop data:', mills);
+      
+      // Always fetch mills when form opens to ensure fresh data
+      setMillsLoading(true);
+      
+      // Always call API to get fresh mills data
       const timeout = setTimeout(() => {
+        console.log('Fetching mills directly from API...');
         fetchMillsDirectly();
-      }, 100); // Reduced to 100ms for faster loading
+      }, 50); // Very short timeout for immediate loading
       
       return () => clearTimeout(timeout);
     }
-  }, [order?.orderId, mills, localMills]);
+  }, [isOpen, order?.orderId]); // Only depend on form opening, not on mills data
 
+  // Force refresh mills when form opens to ensure fresh data
+  useEffect(() => {
+    if (isOpen && order?.orderId && onRefreshMills) {
+      console.log('Form opened, refreshing mills from parent...');
+      onRefreshMills();
+    }
+  }, [isOpen, order?.orderId, onRefreshMills]);
+
+  // Monitor mills prop changes
+  useEffect(() => {
+    if (mills && mills.length > 0) {
+      console.log('Mills prop updated:', mills.length, 'mills');
+      console.log('Mills data:', mills);
+      // Update local mills if we don't have any
+      if (localMills.length === 0) {
+        console.log('Setting local mills from props');
+        setLocalMills(mills);
+      }
+    }
+  }, [mills, localMills.length]);
 
   // Load existing data when form opens or when existingMillInputs prop changes
   useEffect(() => {
@@ -825,14 +862,68 @@ export default function MillInputForm({
     }
   }, [isOpen, order?.orderId, existingMillInputs, isEditing]);
 
+  // Helper function to get mill name by ID
+  const getMillName = (millId: string) => {
+    const allMills = localMills.length > 0 ? localMills : mills;
+    const mill = allMills.find(m => m._id === millId);
+    return mill ? mill.name : '';
+  };
+
+  // Function to handle mill selection
+  const handleMillSelect = (mill: any) => {
+    setFormData({ ...formData, mill: mill._id || mill.id });
+    setSelectedMillName(mill.name);
+    setMillSearch(mill.name);
+    setShowMillDropdown(false);
+  };
+
+  // Function to handle mill search change
+  const handleMillSearchChange = (value: string) => {
+    setMillSearch(value);
+    // Clear mill selection if user is typing something different
+    if (formData.mill && value !== selectedMillName) {
+      setFormData({ ...formData, mill: '' });
+      setSelectedMillName('');
+    }
+  };
+
+  // Function to handle mill dropdown toggle
+  const handleMillDropdownToggle = () => {
+    // Close any active quality and process dropdowns first
+    setActiveQualityDropdown(null);
+    setCurrentQualitySearch('');
+    setActiveProcessDropdown(null);
+    setCurrentProcessSearch('');
+    // Toggle mill dropdown
+    setShowMillDropdown(!showMillDropdown);
+  };
+
+  // Function to handle mill change
+  const handleMillChange = (value: string) => {
+    setFormData({ ...formData, mill: value });
+    // Clear search and selected name if value is empty
+    if (!value) {
+      setMillSearch('');
+      setSelectedMillName('');
+    }
+  };
+
   // Function to fetch mills directly from API
   const fetchMillsDirectly = async () => {
+    // Prevent multiple simultaneous calls
+    if (isFetchingMills) {
+      console.log('Already fetching mills, skipping...');
+      return;
+    }
+    
+    setIsFetchingMills(true);
     setMillsLoading(true);
     try {
       const token = localStorage.getItem('token');
       if (!token) {
         console.log('No authentication token found');
         setMillsLoading(false);
+        setIsFetchingMills(false);
         return;
       }
 
@@ -840,35 +931,63 @@ export default function MillInputForm({
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1000); // Reduced to 1 second for faster response
 
-      // Optimized API call with caching headers
-      const response = await fetch('/api/mills?limit=100', {
+      // API call to get fresh mills data
+      console.log('Making API call to /api/mills...');
+      const response = await fetch('/api/mills?limit=100&force=true', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'Cache-Control': 'max-age=300, stale-while-revalidate=600'
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
         },
         signal: controller.signal,
-        cache: 'force-cache' // Use browser cache for faster loading
+        cache: 'no-store' // Always get fresh data
       });
 
       clearTimeout(timeoutId);
 
+      console.log('API response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        if (data.success && data.data && data.data.length > 0) {
-          console.log('Fetched mills directly from API:', data.data.length, 'mills');
+        console.log('API response data:', data);
+        
+        if (data.success && data.data && data.data.mills && data.data.mills.length > 0) {
+          console.log('✅ Fetched mills directly from API:', data.data.mills.length, 'mills');
+          console.log('Mills data:', data.data.mills);
           // Update local mills state for immediate display
-          setLocalMills(data.data);
-          // Also trigger refresh to update the mills prop
-          onRefreshMills();
+          setLocalMills(data.data.mills);
+          // Also call onRefreshMills to update parent component
+          if (onRefreshMills) {
+            onRefreshMills();
+          }
         } else {
-          console.log('No mills found in API response');
-          setLocalMills([]);
+          console.log('❌ No mills found in API response');
+          console.log('Response structure:', {
+            success: data.success,
+            hasData: !!data.data,
+            hasMills: !!data.data?.mills,
+            millsLength: data.data?.mills?.length || 0
+          });
+          // Fallback to mills from props if available
+          if (mills && mills.length > 0) {
+            console.log('Using mills from props as fallback');
+            setLocalMills(mills);
+          } else {
+            setLocalMills([]);
+          }
         }
       } else {
-        console.log('Failed to fetch mills from API, status:', response.status);
+        console.log('❌ Failed to fetch mills from API, status:', response.status);
+        const errorText = await response.text();
+        console.log('Error response:', errorText);
         if (response.status === 401) {
           console.log('Authentication failed, please login again');
+        }
+        // Fallback to mills from props if available
+        if (mills && mills.length > 0) {
+          console.log('Using mills from props as fallback after API error');
+          setLocalMills(mills);
+        } else {
+          setLocalMills([]);
         }
       }
     } catch (error) {
@@ -877,8 +996,17 @@ export default function MillInputForm({
       } else {
         console.error('Error fetching mills from API:', error);
       }
+      // Fallback to mills from props if available
+      if (mills && mills.length > 0) {
+        console.log('Using mills from props as fallback after catch error');
+        setLocalMills(mills);
+      } else {
+        setLocalMills([]);
+      }
     } finally {
+      console.log('Mills fetch completed, clearing loading states');
       setMillsLoading(false);
+      setIsFetchingMills(false);
     }
   };
 
@@ -986,28 +1114,22 @@ export default function MillInputForm({
   // Note: Removed dependency on isEditing and existingMillInputs props
   // Form now fetches data independently from API like LabDataModal
 
-  // Monitor mills array changes and clear loading state
+  // Monitor mills array changes and clear loading state (simplified to prevent loops)
   useEffect(() => {
-    console.log('Mills array changed:', mills);
-    if (mills.length > 0) {
+    if (mills.length > 0 || localMills.length > 0) {
       console.log('Mills loaded successfully, clearing loading state');
       setMillsLoading(false);
-    } else {
-      console.log('No mills found, setting timeout to clear loading state');
-      // Clear loading state after a timeout even if no mills are found
-      const timeout = setTimeout(() => {
-        console.log('Timeout reached, clearing loading state');
-        setMillsLoading(false);
-        // If still no mills after timeout, try to fetch directly
-        if (mills.length === 0) {
-          console.log('Still no mills after timeout, trying direct fetch...');
-          fetchMillsDirectly();
-        }
-      }, 300); // Reduced to 300ms timeout for faster response
       
-      return () => clearTimeout(timeout);
+      // Initialize mill search value if form has a selected mill
+      if (formData.mill && !millSearch) {
+        const millName = getMillName(formData.mill);
+        if (millName) {
+          setMillSearch(millName);
+          setSelectedMillName(millName);
+        }
+      }
     }
-  }, [mills]);
+  }, [mills.length, localMills.length, formData.mill, millSearch]);
 
   // Reset form when order changes (but not when editing)
   useEffect(() => {
@@ -1036,8 +1158,23 @@ export default function MillInputForm({
         address: '',
         email: ''
       });
+      // Reset mill search state
+      setMillSearch('');
+      setSelectedMillName('');
+      setShowMillDropdown(false);
     }
   }, [order?.orderId, isEditing]);
+
+  // Initialize mill search when editing existing data
+  useEffect(() => {
+    if (isEditing && formData.mill && !millSearch) {
+      const millName = getMillName(formData.mill);
+      if (millName) {
+        setMillSearch(millName);
+        setSelectedMillName(millName);
+      }
+    }
+  }, [isEditing, formData.mill, millSearch]);
 
   // Function to load existing mill inputs from API data (LabDataModal pattern)
   const loadExistingMillInputsFromData = async (millInputsData: any[]) => {
@@ -1064,14 +1201,14 @@ export default function MillInputForm({
               id: (index + 1).toString(),
               millDate: group.millDate,
               chalanNo: group.chalanNo,
-              greighMtr: group.mainInput.greighMtr.toString(),
-              pcs: group.mainInput.pcs.toString(),
+              greighMtr: (group.mainInput.greighMtr || 0).toString(),
+              pcs: (group.mainInput.pcs || 0).toString(),
               quality: group.mainInput.quality?._id || group.mainInput.quality || '', // Extract quality ID
               process: group.mainInput.processName || '', // Extract process name
               additionalMeters: group.additionalInputs.map((input: any) => {
                 return {
-                  meters: input.greighMtr.toString(),
-                  pieces: input.pcs.toString(),
+                  meters: (input.greighMtr || 0).toString(),
+                  pieces: (input.pcs || 0).toString(),
                   quality: input.quality?._id || input.quality || '', // Extract quality ID
                   process: input.processName || '' // Extract process name
                 };
@@ -1121,14 +1258,14 @@ export default function MillInputForm({
               id: (index + 1).toString(),
               millDate: group.millDate,
               chalanNo: group.chalanNo,
-              greighMtr: group.mainInput.greighMtr.toString(),
-              pcs: group.mainInput.pcs.toString(),
+              greighMtr: (group.mainInput.greighMtr || 0).toString(),
+              pcs: (group.mainInput.pcs || 0).toString(),
               quality: group.mainInput.quality?._id || group.mainInput.quality || '', // Extract quality ID
               process: group.mainInput.processName || '', // Extract process name
               additionalMeters: group.additionalInputs.map((input: any) => {
                 return {
-                  meters: input.greighMtr.toString(),
-                  pieces: input.pcs.toString(),
+                  meters: (input.greighMtr || 0).toString(),
+                  pieces: (input.pcs || 0).toString(),
                   quality: input.quality?._id || input.quality || '', // Extract quality ID
                   process: input.processName || '' // Extract process name
                 };
@@ -1773,6 +1910,11 @@ export default function MillInputForm({
         // Refresh mills list
         onRefreshMills();
         
+        // Also fetch mills directly to ensure immediate update
+        setTimeout(() => {
+          fetchMillsDirectly();
+        }, 100);
+        
         // Close modal and show success
         setShowAddMillModal(false);
         // Clear the "recently added" indicator after 3 seconds
@@ -1950,7 +2092,7 @@ export default function MillInputForm({
                 </label>
 
 
-                {millsLoading && mills.length === 0 && localMills.length === 0 ? (
+                {millsLoading || isFetchingMills ? (
                   <div className={`p-4 text-center rounded-lg border ${
                     isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-300 text-gray-600'
                   }`}>
@@ -1959,23 +2101,26 @@ export default function MillInputForm({
                       <p className="text-sm">Loading mills...</p>
                     </div>
                   </div>
-                ) : mills.length === 0 && localMills.length === 0 ? (
+                ) : (mills.length === 0 && localMills.length === 0 && !millsLoading && !isFetchingMills) ? (
                   <div className={`p-4 text-center rounded-lg border ${
                     isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-300 text-gray-600'
                   }`}>
                     <div className="flex flex-col items-center space-y-3">
-                      <p className="text-sm">No mills available</p>
+                      <p className="text-sm">No mills available. Add a mill to get started.</p>
                       <div className="flex space-x-2">
                         <button
                           type="button"
                           onClick={fetchMillsDirectly}
+                          disabled={isFetchingMills}
                           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            isDarkMode
-                              ? 'bg-gray-600 hover:bg-gray-700 text-white' 
-                              : 'bg-gray-500 hover:bg-gray-600 text-white'
+                            isFetchingMills
+                              ? 'bg-gray-400 cursor-not-allowed text-white'
+                              : isDarkMode
+                                ? 'bg-gray-600 hover:bg-gray-700 text-white' 
+                                : 'bg-gray-500 hover:bg-gray-600 text-white'
                           }`}
                         >
-                          Refresh Mills
+                          {isFetchingMills ? 'Loading...' : 'Refresh Mills'}
                         </button>
                     <button
                       type="button"
@@ -1994,42 +2139,45 @@ export default function MillInputForm({
                 ) : (
                   <div className="relative">
                     <EnhancedDropdown
-                      options={localMills.length > 0 ? localMills : mills}
+                      options={(() => {
+                        const options = localMills.length > 0 ? localMills : mills;
+                        console.log('EnhancedDropdown options:', options.length, 'mills');
+                        console.log('Options data:', options);
+                        return options;
+                      })()}
                       value={formData.mill}
-                      onChange={(value) => {
-                        setFormData({ ...formData, mill: value });
-                      }}
-                      placeholder="Search mills..."
+                      onChange={handleMillChange}
+                      placeholder={millsLoading ? "Loading mills..." : "Search mills..."}
                       searchValue={millSearch}
-                      onSearchChange={setMillSearch}
+                      onSearchChange={handleMillSearchChange}
                       showDropdown={showMillDropdown}
-                      onToggleDropdown={() => {
-                        // Close any active quality and process dropdowns first
-                        setActiveQualityDropdown(null);
-                        setCurrentQualitySearch('');
-                        setActiveProcessDropdown(null);
-                        setCurrentProcessSearch('');
-                        // Toggle mill dropdown
-                        setShowMillDropdown(!showMillDropdown);
-                      }}
-                      onSelect={(mill) => {
-                        setFormData({ ...formData, mill: mill._id });
-                        setMillSearch(mill.name);
-                        setShowMillDropdown(false);
-                      }}
+                      onToggleDropdown={handleMillDropdownToggle}
+                      onSelect={handleMillSelect}
                       isDarkMode={isDarkMode}
                       error={errors.mill}
-                    onAddNew={() => setShowAddMillModal(true)}
-                    onDelete={(mill) => {
+                      onAddNew={() => setShowAddMillModal(true)}
+                      onDelete={(mill) => {
                       handleDeleteMill(mill._id);
                     }}
                     recentlyAddedId={recentlyAddedMill}
                   />
-                  {millsLoading && (mills.length > 0 || localMills.length > 0) && (
-                    <div className="absolute top-2 right-2">
+                  <div className="absolute top-2 right-2 flex space-x-1">
+                    {millsLoading && (mills.length > 0 || localMills.length > 0) && (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                    </div>
-                  )}
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMillModal(true)}
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        isDarkMode
+                          ? ' text-white'
+                          : 'text-black'
+                      }`}
+                      title="Add New Mill"
+                    >
+                      
+                    </button>
+                  </div>
                   </div>
                 )}
                 {errors.mill && (
