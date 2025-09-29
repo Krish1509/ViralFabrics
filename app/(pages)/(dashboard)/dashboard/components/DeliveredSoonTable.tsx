@@ -60,8 +60,8 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
 
       console.log('Fetching orders from:', today.toISOString(), 'to:', nextWeek.toISOString());
 
-      // Try with date filters first
-      let response = await fetch(`/api/orders?startDate=${today.toISOString()}&endDate=${nextWeek.toISOString()}&status=in_progress,completed&limit=100`, {
+      // Try with date filters first - get all orders with delivery dates
+      let response = await fetch(`/api/orders?startDate=${today.toISOString()}&endDate=${nextWeek.toISOString()}&limit=200`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -70,7 +70,7 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
       // If date filtering fails, try without date filters and filter client-side
       if (!response.ok) {
         console.log('Date-filtered query failed, trying without date filters...');
-        response = await fetch(`/api/orders?status=in_progress,completed&limit=200`, {
+        response = await fetch(`/api/orders?limit=200`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -89,7 +89,7 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
           .filter((order: any) => {
             const hasDeliveryDate = order.deliveryDate;
             if (!hasDeliveryDate) {
-              console.log('Order without delivery date:', order.orderId);
+              console.log('Order without delivery date:', order.orderId, 'Status:', order.status);
             }
             return hasDeliveryDate;
           })

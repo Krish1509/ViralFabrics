@@ -6,7 +6,7 @@ import { successResponse, errorResponse, unauthorizedResponse } from '@/lib/resp
 
 // In-memory cache for dashboard stats (2 minute TTL)
 const statsCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for better performance
+const CACHE_TTL = 1 * 60 * 1000; // 1 minute for faster updates
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+          'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
           'X-Cache': 'HIT',
           'X-Response-Time': `${Date.now() - startTime}ms`
         }
@@ -39,6 +39,14 @@ export async function GET(request: NextRequest) {
     // Super fast single aggregation query instead of multiple queries
     const [statsResult] = await Promise.all([
       Order.aggregate([
+        {
+          $match: {
+            $or: [
+              { softDeleted: false },
+              { softDeleted: { $exists: false } }
+            ]
+          }
+        },
         {
           $facet: {
             // Total count
@@ -96,16 +104,26 @@ export async function GET(request: NextRequest) {
             ]
           }
         }
-      ]).option({ maxTimeMS: 5000 }) // Increased timeout for better reliability
+      ]).option({ maxTimeMS: 3000 }) // Reduced timeout for faster response
     ]);
 
     // Extract data from the single aggregation result
     const result = statsResult[0];
+    console.log('Dashboard stats aggregation result:', JSON.stringify(result, null, 2));
+    
     const totalOrders = result.totalOrders[0]?.count || 0;
     const statusStats = result.statusStats || [];
     const typeStats = result.typeStats || [];
     const pendingTypeStats = result.pendingTypeStats || [];
     const deliveredTypeStats = result.deliveredTypeStats || [];
+    
+    console.log('Dashboard stats extracted:', {
+      totalOrders,
+      statusStats,
+      typeStats,
+      pendingTypeStats,
+      deliveredTypeStats
+    });
 
     // Process status stats
     const processedStatusStats = {
@@ -119,6 +137,8 @@ export async function GET(request: NextRequest) {
 
     statusStats.forEach((stat: any) => {
       const status = stat._id;
+      console.log('Processing status:', status, 'count:', stat.count);
+      
       if (!status || status === 'Not set' || status === 'Not selected') {
         processedStatusStats.not_set += stat.count;
       } else if (status === 'pending') {
@@ -131,6 +151,10 @@ export async function GET(request: NextRequest) {
         processedStatusStats.delivered += stat.count;
       } else if (status === 'cancelled') {
         processedStatusStats.cancelled += stat.count;
+      } else {
+        // Fallback: treat unknown status as not_set
+        console.log('Unknown status, treating as not_set:', status);
+        processedStatusStats.not_set += stat.count;
       }
     });
 
@@ -143,12 +167,18 @@ export async function GET(request: NextRequest) {
 
     typeStats.forEach((stat: any) => {
       const type = stat._id;
+      console.log('Processing type:', type, 'count:', stat.count);
+      
       if (!type) {
         processedTypeStats.not_set += stat.count;
       } else if (type === 'Dying') {
         processedTypeStats.Dying += stat.count;
       } else if (type === 'Printing') {
         processedTypeStats.Printing += stat.count;
+      } else {
+        // Fallback: treat unknown type as not_set
+        console.log('Unknown type, treating as not_set:', type);
+        processedTypeStats.not_set += stat.count;
       }
     });
 

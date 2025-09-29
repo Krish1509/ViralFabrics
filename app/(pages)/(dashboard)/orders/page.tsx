@@ -822,7 +822,7 @@ export default function OrdersPage() {
   const fetchParties = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for better reliability
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout for better reliability
       
       const token = localStorage.getItem('token');
       const response = await fetch('/api/parties?limit=100', { // Higher limit for better UX
@@ -864,7 +864,7 @@ export default function OrdersPage() {
   const fetchQualities = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout for better stability
+      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 second timeout for better stability
       
       const token = localStorage.getItem('token');
       const response = await fetch('/api/qualities?limit=100', { // Increased limit for better UX
@@ -902,7 +902,7 @@ export default function OrdersPage() {
     try {
       console.log('fetchMills called');
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout for better stability
+      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 second timeout for better stability
       
       const token = localStorage.getItem('token');
       console.log('Token available:', !!token);
@@ -980,7 +980,7 @@ export default function OrdersPage() {
 
         // SUPER FAST: Load orders data with proper timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds for reliable loading
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds for reliable loading
 
         // Load orders data and mills data in parallel for faster loading
         const [ordersResponse, millsResponse] = await Promise.all([
@@ -1005,8 +1005,19 @@ export default function OrdersPage() {
         // Process orders data
         if (ordersResponse.ok) {
           const data = await ordersResponse.json();
+          console.log('Orders API response:', data);
+          console.log('Orders data structure:', {
+            success: data.success,
+            hasData: !!data.data,
+            dataType: typeof data.data,
+            dataLength: Array.isArray(data.data) ? data.data.length : 'not array',
+            pagination: data.pagination
+          });
+          
           if (data.success && data.data) {
-            setOrders(data.data || []); // data.data contains the orders array directly
+            const ordersArray = Array.isArray(data.data) ? data.data : [];
+            console.log('Setting orders:', ordersArray.length, 'orders');
+            setOrders(ordersArray);
             setPaginationInfo(data.pagination || {
               totalCount: 0,
               totalPages: 0,
@@ -1015,7 +1026,7 @@ export default function OrdersPage() {
               hasPrevPage: false
             });
           } else {
-            // No orders found - this is normal
+            console.log('No orders found in response');
             setOrders([]);
           }
           setOrdersLoaded(true);
@@ -1056,13 +1067,16 @@ export default function OrdersPage() {
         if (error instanceof Error && error.name !== 'AbortError') {
           showMessage('error', 'Failed to load orders. Please try again.', { autoDismiss: true, dismissTime: 3000 });
           
-          // Auto-retry after 3 seconds
+          // Auto-retry after 5 seconds (increased from 3)
           setTimeout(() => {
             console.log('Auto-retrying orders load...');
-            initializeAllData();
-          }, 3000);
+            if (!isInitialized) { // Only retry if not already initialized
+              initializeAllData();
+            }
+          }, 5000);
         }
       } finally {
+        console.log('Setting isInitialized to true');
         setIsInitialized(true);
       }
     };
@@ -1599,6 +1613,13 @@ export default function OrdersPage() {
 
   // Memoized filtered and sorted orders
   const filteredOrders = useMemo(() => {
+    console.log('Filtering orders:', {
+      totalOrders: orders.length,
+      searchTerm,
+      filters,
+      orders: orders.map(o => ({ id: o.orderId, status: o.status, type: o.orderType }))
+    });
+    
     // Filtering orders
     let filtered = orders
       .filter(order => {
@@ -1622,14 +1643,25 @@ export default function OrdersPage() {
           normalizedStatus = 'pending';
         }
         
-        // Debug logging for status filter
-        // if (filters.statusFilter === 'pending' && normalizedStatus !== 'pending') {
-        //   console.log('Status filter debug:', { orderId: order.orderId, orderStatus, normalizedStatus, statusFilter: filters.statusFilter });
-        // }
-        
         const matchesStatus = filters.statusFilter === 'all' || normalizedStatus === filters.statusFilter;
 
-        return matchesSearch && matchesType && matchesStatus;
+        const passes = matchesSearch && matchesType && matchesStatus;
+        
+        if (!passes) {
+          console.log('Order filtered out:', {
+            orderId: order.orderId,
+            matchesSearch,
+            matchesType,
+            matchesStatus,
+            orderStatus,
+            normalizedStatus,
+            searchTerm,
+            typeFilter: filters.typeFilter,
+            statusFilter: filters.statusFilter
+          });
+        }
+
+        return passes;
       });
 
     // Apply order filter
@@ -1652,13 +1684,25 @@ export default function OrdersPage() {
     // No search results handling
 
     // Apply client-side pagination
+    let result;
     if (itemsPerPage === 'All') {
-      return filtered; // Show all orders only when "All" is selected
+      result = filtered; // Show all orders only when "All" is selected
     } else {
       const startIndex = (currentPage - 1) * itemsPerPage;
       const endIndex = startIndex + itemsPerPage;
-      return filtered.slice(startIndex, endIndex);
+      result = filtered.slice(startIndex, endIndex);
     }
+    
+    console.log('Filtered orders result:', {
+      filteredCount: filtered.length,
+      resultCount: result.length,
+      currentPage,
+      itemsPerPage,
+      startIndex: itemsPerPage === 'All' ? 0 : (currentPage - 1) * itemsPerPage,
+      endIndex: itemsPerPage === 'All' ? filtered.length : (currentPage - 1) * itemsPerPage + itemsPerPage
+    });
+    
+    return result;
   }, [orders, searchTerm, filters, itemsPerPage, currentPage]);
 
   const handleDeleteClick = useCallback((order: Order) => {
@@ -2030,28 +2074,30 @@ export default function OrdersPage() {
           }`}></div>
         </div>
 
-        {/* Table Skeleton with proper structure */}
+        {/* Table Skeleton with proper structure - EXACTLY matching the real table */}
         <div className="mt-6">
           <div className={`rounded-xl border overflow-hidden shadow-lg ${
-            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+            isDarkMode
+              ? 'bg-white/5 border-white/10 shadow-2xl'
+              : 'bg-white border-gray-200 shadow-xl'
       }`}>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full" style={{ minWidth: '900px' }}>
             <thead className={`${
-                  isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
+              isDarkMode ? 'bg-gradient-to-r from-slate-800/80 to-slate-700/80 border-b border-slate-600' : 'bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-300'
             }`}>
               <tr>
-                    <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[300px] ${
+                    <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[280px] ${
                       isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black/50 bg-blue-50'
                     }`}>
                       Order Information
                     </th>
-                    <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[350px] ${
+                    <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[320px] ${
                       isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
                     }`}>
                       Items
                     </th>
-                    <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[200px] ${
+                    <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[180px] ${
                       isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
                     }`}>
                       Actions
@@ -2059,95 +2105,90 @@ export default function OrdersPage() {
               </tr>
             </thead>
             <tbody className={`divide-y ${
-                  isDarkMode ? 'divide-gray-700' : 'divide-gray-200'
+              isDarkMode ? 'divide-white/10' : 'divide-gray-200'
             }`}>
-                  {[...Array(5)].map((_, i) => (
-                <tr key={i} className={`${
-                      isDarkMode ? 'bg-gray-800/30' : 'bg-white'
-                }`}>
-                      {/* Order Information Column Skeleton */}
-                      <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
-                        <div className="space-y-3">
-                          {/* Order ID and Type */}
-                    <div className="flex items-center space-x-3">
-                      <div className={`h-8 w-8 rounded-full ${
-                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                      }`}></div>
-                      <div className="space-y-1">
-                              <div className={`h-4 w-16 rounded ${
-                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                        }`}></div>
-                              <div className={`h-3 w-12 rounded ${
-                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                        }`}></div>
-                      </div>
-                    </div>
-                          {/* Party and Date */}
-                    <div className="space-y-1">
-                            <div className={`h-3 w-24 rounded ${
-                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                      }`}></div>
-                            <div className={`h-3 w-20 rounded ${
-                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                      }`}></div>
+                  {[...Array(3)].map((_, i) => (
+                <tr key={i} className={`hover:${
+                  isDarkMode ? 'bg-white/5' : 'bg-gray-50'
+                } transition-colors duration-200`}>
+                      {/* Order Information Column Skeleton - Compact */}
+                      <td className="px-2 sm:px-3 py-2 sm:py-3">
+                        <div className="space-y-2">
+                          {/* Order ID and Type - Very compact layout */}
+                          <div className="flex gap-2">
+                            {/* Order ID Skeleton */}
+                            <div className={`p-1.5 rounded border animate-pulse ${
+                              isDarkMode 
+                                ? 'bg-green-500/8 border-green-500/15' 
+                                : 'bg-green-50 border-green-200'
+                            }`}>
+                              <div className="flex items-center gap-1">
+                                <div className={`h-2.5 w-10 rounded ${
+                                  isDarkMode ? 'bg-green-400/30' : 'bg-green-300'
+                                }`}></div>
+                                <div className={`h-3 w-6 rounded ${
+                                  isDarkMode ? 'bg-white/30' : 'bg-gray-300'
+                                }`}></div>
+                              </div>
+                            </div>
+                            
+                            {/* Order Type Skeleton */}
+                            <div className={`p-1.5 rounded border animate-pulse ${
+                              isDarkMode 
+                                ? 'bg-purple-500/8 border-purple-500/15' 
+                                : 'bg-purple-50 border-purple-200'
+                            }`}>
+                              <div className="flex items-center gap-1">
+                                <div className={`h-2.5 w-12 rounded ${
+                                  isDarkMode ? 'bg-purple-400/30' : 'bg-purple-300'
+                                }`}></div>
+                                <div className={`h-3 w-8 rounded ${
+                                  isDarkMode ? 'bg-white/30' : 'bg-gray-300'
+                                }`}></div>
+                              </div>
+                            </div>
                           </div>
-                          {/* Status */}
-                          <div className={`h-6 w-16 rounded-full ${
-                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                      }`}></div>
+                          
+                          {/* Party and Date - Very compact */}
+                          <div className="flex gap-2">
+                            <div className={`h-2.5 w-20 rounded animate-pulse ${
+                              isDarkMode ? 'bg-white/15' : 'bg-gray-200'
+                            }`}></div>
+                            <div className={`h-2.5 w-14 rounded animate-pulse ${
+                              isDarkMode ? 'bg-white/15' : 'bg-gray-200'
+                            }`}></div>
+                          </div>
                         </div>
                       </td>
 
-                      {/* Items Column Skeleton */}
-                      <td className="py-3 sm:py-4 lg:py-5">
-                        <div className="space-y-2">
-                          <div className={`h-3 w-16 rounded ${
-                            isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                      {/* Items Column Skeleton - Very Compact */}
+                      <td className="px-2 sm:px-3 py-2 sm:py-3">
+                        <div className="space-y-1.5">
+                          <div className={`h-3 w-14 rounded animate-pulse ${
+                            isDarkMode ? 'bg-white/15' : 'bg-gray-200'
                           }`}></div>
-                          <div className={`rounded-lg border overflow-hidden ${
-                            isDarkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-white border-gray-200'
-                          }`}>
-                            <div className="p-2">
-                              <div className="space-y-2">
-                                {[...Array(2)].map((_, j) => (
-                                  <div key={j} className="flex items-center space-x-2">
-                                    <div className={`h-3 w-20 rounded ${
-                                      isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                                    }`}></div>
-                                    <div className={`h-3 w-12 rounded ${
-                                      isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                                    }`}></div>
-                                    <div className={`h-3 w-16 rounded ${
-                                      isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                                    }`}></div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                      </div>
-                    </div>
-                  </td>
-
-                      {/* Actions Column Skeleton */}
-                      <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
-                        <div className="space-y-2">
-                          {/* Action Buttons Grid */}
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className={`h-8 w-full rounded-lg ${
-                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                    }`}></div>
-                            <div className={`h-8 w-full rounded-lg ${
-                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                      }`}></div>
-                            <div className={`h-8 w-full rounded-lg ${
-                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                          <div className="flex flex-col gap-1">
+                            <div className={`h-2.5 w-16 rounded animate-pulse ${
+                              isDarkMode ? 'bg-white/15' : 'bg-gray-200'
                             }`}></div>
-                            <div className={`h-8 w-full rounded-lg ${
-                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                      }`}></div>
+                            <div className={`h-2.5 w-12 rounded animate-pulse ${
+                              isDarkMode ? 'bg-white/15' : 'bg-gray-200'
+                            }`}></div>
                           </div>
-                    </div>
-                  </td>
+                        </div>
+                      </td>
+
+                      {/* Actions Column Skeleton - Very Compact */}
+                      <td className="px-2 sm:px-3 py-2 sm:py-3">
+                        <div className="flex flex-col gap-1">
+                          <div className={`h-6 w-full rounded animate-pulse ${
+                            isDarkMode ? 'bg-blue-500/12' : 'bg-blue-100'
+                          }`}></div>
+                          <div className={`h-6 w-full rounded animate-pulse ${
+                            isDarkMode ? 'bg-green-500/12' : 'bg-green-100'
+                          }`}></div>
+                        </div>
+                      </td>
                 </tr>
               ))}
             </tbody>
@@ -2181,6 +2222,7 @@ export default function OrdersPage() {
 
   // Show loading skeleton during initial load or when refreshing
   if (loading || (!ordersLoaded && !isInitialized) || isChangingPage) {
+    console.log('Showing loading skeleton:', { loading, ordersLoaded, isInitialized, isChangingPage });
     return <LoadingSkeleton />;
   }
 
@@ -3657,11 +3699,17 @@ export default function OrdersPage() {
                   <h3 className={`text-lg font-medium ${
                     isDarkMode ? 'text-gray-300' : 'text-gray-900'
                   }`}>
-                    No orders yet
+                    {orders.length === 0 ? 'No orders yet' : 'No orders match your filters'}
                   </h3>
-                  <p className="mt-2">Get started by creating your first order</p>
+                  <p className="mt-2">
+                    {orders.length === 0 
+                      ? 'Get started by creating your first order' 
+                      : `Try adjusting your search or filter criteria. Total orders: ${orders.length}`
+                    }
+                  </p>
                 </div>
                 <div className="flex space-x-3">
+                {orders.length === 0 ? (
                 <button
                   onClick={() => openFormWithData()}
                   className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-colors ${
@@ -3672,7 +3720,26 @@ export default function OrdersPage() {
                 >
                   <PlusIcon className="h-4 w-4 mr-2" />
                   Create Order
-                </button>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setSearchTerm('');
+                      setFilters({
+                        orderFilter: 'latest_first',
+                        typeFilter: 'all',
+                        statusFilter: 'all'
+                      });
+                    }}
+                    className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-colors ${
+                      isDarkMode
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    }`}
+                  >
+                    Clear Filters
+                  </button>
+                )}
                   <button
                     onClick={() => {
                       setLoading(true);
