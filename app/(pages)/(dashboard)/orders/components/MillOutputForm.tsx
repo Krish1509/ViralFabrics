@@ -647,7 +647,7 @@ export default function MillOutputForm({
   const [currentQualitySearch, setCurrentQualitySearch] = useState('');
   const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
 
-  // Load existing mill output data when form opens (optimized pattern)
+  // Load existing mill output data when form opens (smooth pattern like edit order page)
   useEffect(() => {
     console.log('MillOutputForm useEffect triggered:', { isOpen, orderId: order?.orderId, existingMillOutputsLength: existingMillOutputs?.length });
     
@@ -657,14 +657,15 @@ export default function MillOutputForm({
       setErrors({});
       setSuccessMessage('');
       
-      // Use pre-loaded data if available, otherwise fetch from API
+      // Use pre-loaded data if available - show immediately for smooth experience
       if (existingMillOutputs && existingMillOutputs.length > 0) {
         console.log('Using pre-loaded mill output data:', existingMillOutputs);
         loadExistingMillOutputs();
       } else {
-        console.log('No pre-loaded data, fetching from API...');
-        // Always fetch from API to get existing data
-        setLoadingExistingData(true);
+        console.log('No pre-loaded data, but showing form immediately and fetching in background...');
+        // Don't show loading - show form immediately and fetch in background
+        setLoadingExistingData(false);
+        // Fetch in background without blocking UI
         fetchExistingMillOutputData();
       }
     }
@@ -718,7 +719,7 @@ export default function MillOutputForm({
     }
   };
 
-  // Function to fetch existing mill output data from API (LabDataModal pattern)
+  // Function to fetch existing mill output data from API (smooth pattern)
   const fetchExistingMillOutputData = async () => {
     if (!order?.orderId) {
       console.log('No order ID available for fetching mill outputs');
@@ -726,7 +727,8 @@ export default function MillOutputForm({
       return;
     }
 
-    setLoadingExistingData(true);
+    // Don't show loading overlay - fetch in background for smooth experience
+    setLoadingExistingData(false);
     let timeoutId: NodeJS.Timeout | null = null;
     
     try {
@@ -805,6 +807,36 @@ export default function MillOutputForm({
     }
   }, [order?.orderId, qualities]);
 
+  // Update quality search states when qualities are loaded and form data exists
+  useEffect(() => {
+    if (qualities && qualities.length > 0 && formData.millOutputItems.length > 0 && hasExistingData) {
+      console.log('Updating quality search states with loaded qualities');
+      const newQualitySearchStates: { [key: string]: string } = {};
+      
+      formData.millOutputItems.forEach((item) => {
+        // Set main quality search state
+        if (item.quality) {
+          const qualityObj = qualities.find(q => (q._id || q.id) === item.quality);
+          if (qualityObj) {
+            newQualitySearchStates[`${item.id}_main`] = qualityObj.name;
+          }
+        }
+        
+        // Set additional quality search states
+        item.additionalFinishedMtr.forEach((additional: any, index: number) => {
+          if (additional.quality) {
+            const qualityObj = qualities.find(q => (q._id || q.id) === additional.quality);
+            if (qualityObj) {
+              newQualitySearchStates[`${item.id}_additional_${index}`] = qualityObj.name;
+            }
+          }
+        });
+      });
+      
+      setQualitySearchStates(prev => ({ ...prev, ...newQualitySearchStates }));
+    }
+  }, [qualities, formData.millOutputItems, hasExistingData]);
+
   // Note: Removed dependency on isEditing and existingMillOutputs props
   // Form now fetches data independently from API like LabDataModal
 
@@ -860,6 +892,29 @@ export default function MillOutputForm({
         console.log('Setting form data from API:', newFormData);
         setFormData(newFormData);
         setHasExistingData(true);
+        
+        // Set quality search states for proper display
+        const newQualitySearchStates: { [key: string]: string } = {};
+        newFormData.millOutputItems.forEach((item) => {
+          // Set main quality search state
+          if (item.quality) {
+            const qualityObj = qualities?.find(q => (q._id || q.id) === item.quality);
+            if (qualityObj) {
+              newQualitySearchStates[`${item.id}_main`] = qualityObj.name;
+            }
+          }
+          
+          // Set additional quality search states
+          item.additionalFinishedMtr.forEach((additional: any, index: number) => {
+            if (additional.quality) {
+              const qualityObj = qualities?.find(q => (q._id || q.id) === additional.quality);
+              if (qualityObj) {
+                newQualitySearchStates[`${item.id}_additional_${index}`] = qualityObj.name;
+              }
+            }
+          });
+        });
+        setQualitySearchStates(newQualitySearchStates);
       } else {
         console.log('No grouped outputs found from API');
         setHasExistingData(false);
@@ -905,6 +960,29 @@ export default function MillOutputForm({
         console.log('Setting form data from props:', newFormData);
         setFormData(newFormData);
         setHasExistingData(true);
+        
+        // Set quality search states for proper display
+        const newQualitySearchStates: { [key: string]: string } = {};
+        newFormData.millOutputItems.forEach((item) => {
+          // Set main quality search state
+          if (item.quality) {
+            const qualityObj = qualities?.find(q => (q._id || q.id) === item.quality);
+            if (qualityObj) {
+              newQualitySearchStates[`${item.id}_main`] = qualityObj.name;
+            }
+          }
+          
+          // Set additional quality search states
+          item.additionalFinishedMtr.forEach((additional: any, index: number) => {
+            if (additional.quality) {
+              const qualityObj = qualities?.find(q => (q._id || q.id) === additional.quality);
+              if (qualityObj) {
+                newQualitySearchStates[`${item.id}_additional_${index}`] = qualityObj.name;
+              }
+            }
+          });
+        });
+        setQualitySearchStates(newQualitySearchStates);
       } else {
         console.log('No grouped outputs found from props');
         setHasExistingData(false);
@@ -1168,10 +1246,10 @@ export default function MillOutputForm({
       // Call onSuccess immediately to update parent state and button text
       onSuccess();
       
-      // Show success message and then close after short delay
-      setTimeout(() => {
-        onClose();
-      }, 800);
+      // Don't close automatically - let user see the updated data
+      // setTimeout(() => {
+      //   onClose();
+      // }, 800);
     } catch (error) {
       setErrors({ submit: 'Failed to handle mill output' });
     } finally {
@@ -1384,17 +1462,7 @@ export default function MillOutputForm({
         <div className={`relative w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
           isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
         }`}>
-          {/* Loading Overlay for Loading Existing Data */}
-          {loadingExistingData && (
-            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
-              <div className={`p-4 rounded-lg ${
-                isDarkMode ? 'bg-gray-800' : 'bg-white'
-              }`}>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                <p className="mt-2 text-sm">Loading existing mill outputs...</p>
-              </div>
-            </div>
-          )}
+          {/* Loading Overlay removed for smooth experience - form shows immediately */}
 
           {/* Loading Overlay for Saving */}
           {saving && (

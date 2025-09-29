@@ -631,7 +631,7 @@ export default function DispatchForm({
   const [currentQualitySearch, setCurrentQualitySearch] = useState('');
   const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
 
-  // Load existing dispatch data when form opens (optimized pattern)
+  // Load existing dispatch data when form opens (always fetch from API for fresh data)
   useEffect(() => {
     console.log('DispatchForm useEffect triggered:', { isOpen, orderId: order?.orderId, existingDispatchesLength: existingDispatches?.length });
     
@@ -641,18 +641,12 @@ export default function DispatchForm({
       setErrors({});
       setSuccessMessage('');
       
-      // Use pre-loaded data if available, otherwise fetch from API
-      if (existingDispatches && existingDispatches.length > 0) {
-        console.log('Using pre-loaded dispatch data:', existingDispatches);
-        loadExistingDispatches();
-      } else {
-        console.log('No pre-loaded data, fetching from API...');
-        // Always fetch from API to get existing data
-        setLoadingExistingData(true);
-        fetchExistingDispatchData();
-      }
+      // Always fetch fresh data from API to ensure we have the latest data
+      console.log('Fetching fresh dispatch data from API...');
+      setLoadingExistingData(false);
+      fetchExistingDispatchData();
     }
-  }, [isOpen, order?.orderId, existingDispatches]);
+  }, [isOpen, order?.orderId]);
 
   // Function to fetch qualities directly from API
   const fetchQualitiesDirectly = async () => {
@@ -702,7 +696,7 @@ export default function DispatchForm({
     }
   };
 
-  // Function to fetch existing dispatch data from API
+  // Function to fetch existing dispatch data from API (smooth pattern)
   const fetchExistingDispatchData = async () => {
     if (!order?.orderId) {
       console.log('No order ID available for fetching dispatches');
@@ -710,7 +704,8 @@ export default function DispatchForm({
       return;
     }
 
-    setLoadingExistingData(true);
+    // Don't show loading overlay - fetch in background for smooth experience
+    setLoadingExistingData(false);
     let timeoutId: NodeJS.Timeout | null = null;
     
     try {
@@ -772,7 +767,6 @@ export default function DispatchForm({
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      setLoadingExistingData(false);
     }
   };
 
@@ -788,6 +782,28 @@ export default function DispatchForm({
       return () => clearTimeout(timeout);
     }
   }, [order?.orderId, qualities]);
+
+  // Update quality search states when qualities are loaded and form data exists
+  useEffect(() => {
+    if (qualities && qualities.length > 0 && formData.dispatchItems.length > 0 && hasExistingData) {
+      console.log('Updating quality search states with loaded qualities');
+      const newQualitySearchStates: { [key: string]: string } = {};
+      
+      formData.dispatchItems.forEach((item) => {
+        // Set sub-item quality search states
+        item.subItems?.forEach((subItem: any) => {
+          if (subItem.quality) {
+            const qualityObj = qualities.find(q => (q._id || q.id) === subItem.quality);
+            if (qualityObj) {
+              newQualitySearchStates[subItem.id] = qualityObj.name;
+            }
+          }
+        });
+      });
+      
+      setQualitySearchStates(prev => ({ ...prev, ...newQualitySearchStates }));
+    }
+  }, [qualities, formData.dispatchItems, hasExistingData]);
 
   // Note: Removed dependency on isEditing and existingDispatches props
   // Form now fetches data independently from API like LabDataModal
@@ -814,7 +830,7 @@ export default function DispatchForm({
     }
   }, [order?.orderId, isEditing, hasExistingData]);
 
-  // Function to load existing dispatches from API data (LabDataModal pattern)
+  // Function to load existing dispatches from API data (fixed logic)
   const loadExistingDispatchesFromData = async (dispatchesData: any[]) => {
     console.log('Loading existing dispatches from API data:', { order: order?.orderId, dispatchesData });
     
@@ -824,12 +840,12 @@ export default function DispatchForm({
     }
     
     try {
-      // Group dispatches by dispatchDate and billNo
+      // Group dispatches by dispatchDate and billNo to create dispatch items
       const groupedDispatches = dispatchesData.reduce((groups: any, dispatch: any) => {
         const key = `${dispatch.dispatchDate}_${dispatch.billNo}`;
         if (!groups[key]) {
           groups[key] = {
-            dispatchDate: dispatch.dispatchDate,
+            dispatchDate: dispatch.dispatchDate ? new Date(dispatch.dispatchDate).toISOString().split('T')[0] : '',
             billNo: dispatch.billNo,
             subItems: []
           };
@@ -856,15 +872,32 @@ export default function DispatchForm({
       };
       
       console.log('Setting form data from API:', newFormData);
+      console.log('Form data dispatch items:', newFormData.dispatchItems);
+      console.log('First dispatch item:', newFormData.dispatchItems[0]);
       setFormData(newFormData);
       setHasExistingData(true);
+      
+      // Set quality search states for proper display
+      const newQualitySearchStates: { [key: string]: string } = {};
+      newFormData.dispatchItems.forEach((item) => {
+        // Set sub-item quality search states
+        item.subItems?.forEach((subItem: any) => {
+          if (subItem.quality) {
+            const qualityObj = qualities?.find(q => (q._id || q.id) === subItem.quality);
+            if (qualityObj) {
+              newQualitySearchStates[subItem.id] = qualityObj.name;
+            }
+          }
+        });
+      });
+      setQualitySearchStates(newQualitySearchStates);
     } catch (error) {
       console.error('Error loading existing dispatches from API:', error);
       setHasExistingData(false);
     }
   };
 
-  // Function to load existing dispatches from props (LabDataModal pattern)
+  // Function to load existing dispatches from props (fixed logic)
   const loadExistingDispatches = async () => {
     console.log('Loading existing dispatches from props:', { order: order?.orderId, existingDispatches });
     
@@ -873,14 +906,15 @@ export default function DispatchForm({
       return;
     }
     
-    setLoadingExistingData(true);
+    // Don't show loading state - load immediately for smooth experience
+    setLoadingExistingData(false);
     try {
-      // Group dispatches by dispatchDate and billNo
+      // Group dispatches by dispatchDate and billNo to create dispatch items
       const groupedDispatches = existingDispatches.reduce((groups: any, dispatch: any) => {
         const key = `${dispatch.dispatchDate}_${dispatch.billNo}`;
         if (!groups[key]) {
           groups[key] = {
-            dispatchDate: dispatch.dispatchDate,
+            dispatchDate: dispatch.dispatchDate ? new Date(dispatch.dispatchDate).toISOString().split('T')[0] : '',
             billNo: dispatch.billNo,
             subItems: []
           };
@@ -909,11 +943,24 @@ export default function DispatchForm({
       console.log('Setting form data from props:', newFormData);
       setFormData(newFormData);
       setHasExistingData(true);
+      
+      // Set quality search states for proper display
+      const newQualitySearchStates: { [key: string]: string } = {};
+      newFormData.dispatchItems.forEach((item) => {
+        // Set sub-item quality search states
+        item.subItems?.forEach((subItem: any) => {
+          if (subItem.quality) {
+            const qualityObj = qualities?.find(q => (q._id || q.id) === subItem.quality);
+            if (qualityObj) {
+              newQualitySearchStates[subItem.id] = qualityObj.name;
+            }
+          }
+        });
+      });
+      setQualitySearchStates(newQualitySearchStates);
     } catch (error) {
       console.error('Error loading existing dispatches from props:', error);
       setHasExistingData(false);
-    } finally {
-      setLoadingExistingData(false);
     }
   };
 
@@ -1142,11 +1189,14 @@ export default function DispatchForm({
       // Refresh the local data to show updated state
       await fetchExistingDispatchData();
       
-      // Show success message and then close after delay
-      setTimeout(() => {
-        onSuccess();
-        onClose();
-      }, 1500);
+      // Call onSuccess to update parent state
+      onSuccess();
+      
+      // Don't close automatically - let user see the updated data
+      // setTimeout(() => {
+      //   onSuccess();
+      //   onClose();
+      // }, 1500);
     } catch (error) {
       setErrors({ submit: 'Failed to handle dispatch' });
     } finally {
@@ -1325,17 +1375,7 @@ export default function DispatchForm({
         <div className={`relative w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
           isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
         }`}>
-          {/* Loading Overlay for Loading Existing Data */}
-          {loadingExistingData && (
-            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
-              <div className={`p-4 rounded-lg ${
-                isDarkMode ? 'bg-gray-800' : 'bg-white'
-              }`}>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                <p className="mt-2 text-sm">Loading existing dispatches...</p>
-              </div>
-            </div>
-          )}
+          {/* Loading Overlay removed for smooth experience - form shows immediately */}
 
           {/* Loading Overlay for Saving */}
           {saving && (
