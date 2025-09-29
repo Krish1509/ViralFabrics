@@ -637,8 +637,7 @@ export default function DispatchForm({
     
     if (isOpen && order?.orderId) {
       console.log('Form opened, loading existing dispatch data...');
-      // Reset form state first
-      setHasExistingData(false);
+      // Reset form state first (but don't reset hasExistingData immediately)
       setErrors({});
       setSuccessMessage('');
       
@@ -1136,6 +1135,12 @@ export default function DispatchForm({
       }
       
       setSuccessMessage('Dispatch data saved successfully!');
+      
+      // Immediately update local state for better UX
+      setHasExistingData(true);
+      
+      // Refresh the local data to show updated state
+      await fetchExistingDispatchData();
       
       // Show success message and then close after delay
       setTimeout(() => {

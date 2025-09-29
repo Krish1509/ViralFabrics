@@ -653,8 +653,7 @@ export default function MillOutputForm({
     
     if (isOpen && order?.orderId) {
       console.log('Form opened, loading existing mill output data...');
-      // Reset form state first
-      setHasExistingData(false);
+      // Reset form state first (but don't reset hasExistingData immediately)
       setErrors({});
       setSuccessMessage('');
       
@@ -1162,6 +1161,9 @@ export default function MillOutputForm({
       
       // Immediately update local state for better UX (LabDataModal pattern)
       setHasExistingData(true);
+      
+      // Refresh the local data to show updated state
+      await fetchExistingMillOutputData();
       
       // Call onSuccess immediately to update parent state and button text
       onSuccess();

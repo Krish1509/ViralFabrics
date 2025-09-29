@@ -836,9 +836,9 @@ export default function MillInputForm({
     
     if (isOpen && order?.orderId) {
       console.log('Form opened, processing existing mill input data...');
+      console.log('Form mode from prop:', isEditing ? 'EDIT' : 'ADD');
       
-      // Reset form state first
-      setHasExistingData(false);
+      // Reset form state first (but don't reset hasExistingData immediately)
       setLocalMillInputs([]);
       setErrors({});
       setSuccessMessage('');
@@ -854,10 +854,10 @@ export default function MillInputForm({
         console.log('✅ Processing existing mill inputs from props:', existingMillInputs.length);
         processExistingMillInputs(existingMillInputs);
       } else {
-        console.log('No existing mill inputs from props, skipping API fetch for faster loading');
-        // Skip API fetch to make form open faster - data will be loaded when needed
-        setHasExistingData(false);
-        setLocalMillInputs([]);
+        console.log('No existing mill inputs from props, fetching from API...');
+        // Always fetch existing data from API when form opens
+        fetchExistingMillInputData();
+        // Don't reset hasExistingData here - let the API call determine it
       }
     }
   }, [isOpen, order?.orderId, existingMillInputs, isEditing]);
@@ -1053,6 +1053,7 @@ export default function MillInputForm({
 
   // Function to fetch existing mill input data from API
   const fetchExistingMillInputData = async () => {
+    console.log('🔄 fetchExistingMillInputData called for order:', order?.orderId);
     if (!order?.orderId) {
       console.log('No order ID available for fetching mill inputs');
       setHasExistingData(false);
