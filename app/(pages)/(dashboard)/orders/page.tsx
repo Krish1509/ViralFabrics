@@ -468,6 +468,23 @@ export default function OrdersPage() {
     }
   }, [showMessage, currentPage, itemsPerPage, filters]);
 
+  // Helper function for robust data refresh after operations
+  const refreshOrdersWithRetry = useCallback(async (retries = 2) => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        await fetchOrders();
+        console.log('Orders refreshed successfully');
+        return;
+      } catch (error) {
+        console.error(`Refresh attempt ${i + 1} failed:`, error);
+        if (i < retries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+    }
+    console.error('All refresh attempts failed');
+  }, [fetchOrders]);
+
   // Pagination handlers
   const handlePageChange = async (newPage: number) => {
     if (newPage === currentPage) return;
@@ -3946,17 +3963,19 @@ export default function OrdersPage() {
             setShowForm(false);
             setEditingOrder(null);
           }}
-          onSuccess={() => {
+          onSuccess={async () => {
             setShowForm(false);
             setEditingOrder(null);
             setOrderCreating(false);
-            fetchOrders();
+            
+            // Immediate refresh with retry mechanism
+            await refreshOrdersWithRetry();
             showMessage('success', editingOrder ? 'Order updated successfully' : 'Order created successfully');
           }}
-          onError={() => {
+          onError={async () => {
             setOrderCreating(false);
             // Refresh data in case of partial updates
-            fetchOrders();
+            await refreshOrdersWithRetry();
             // Don't close form on error, let user retry
           }}
           onStart={() => {
@@ -4007,10 +4026,10 @@ export default function OrdersPage() {
              setShowLabAddModal(false);
              setSelectedOrderForLab(null);
            }}
-           onLabDataUpdate={() => {
+           onLabDataUpdate={async () => {
              setShowLabAddModal(false);
              setSelectedOrderForLab(null);
-             fetchOrders(); // Refresh orders to show new lab data
+             await refreshOrdersWithRetry(); // Refresh orders to show new lab data
              showMessage('success', 'Lab data added successfully');
            }}
          />
@@ -4509,8 +4528,8 @@ export default function OrdersPage() {
             setSelectedOrderForLabData(null);
           }}
           order={selectedOrderForLabData} //@ts-ignore  
-          onLabDataUpdate={() => {
-            fetchOrders();
+          onLabDataUpdate={async () => {
+            await refreshOrdersWithRetry();
             showMessage('success', 'Lab data updated successfully!');
           }}
         />
@@ -4552,7 +4571,7 @@ export default function OrdersPage() {
               }
               
               // Refresh orders and mill inputs to show any updates
-              await fetchOrders();
+              await refreshOrdersWithRetry();
               await fetchAllOrderMillInputs();
               
               // Also refresh mill inputs for the specific order
@@ -4600,7 +4619,7 @@ export default function OrdersPage() {
           }}
           onSuccess={async () => {
             // Refresh orders and mill outputs to show any updates
-            await fetchOrders();
+            await refreshOrdersWithRetry();
             // Add a small delay to ensure database is updated
             setTimeout(async () => {
               await fetchAllOrderMillOutputs();
@@ -4626,7 +4645,7 @@ export default function OrdersPage() {
           }}
           onSuccess={async () => {
             // Refresh orders and dispatches to show any updates
-            await fetchOrders();
+            await refreshOrdersWithRetry();
             // Add a small delay to ensure database is updated
             setTimeout(async () => {
               await fetchAllOrderDispatches();
