@@ -2223,17 +2223,23 @@ export default function OrdersPage() {
   // Helper functions for button states - super clean and fast
   const hasMillInputs = (order: Order) => {
     const millInputs = (order as any).millInputs;
-    return Array.isArray(millInputs) && millInputs.length > 0;
+    const hasData = Array.isArray(millInputs) && millInputs.length > 0;
+    console.log('🔍 hasMillInputs check for order:', order.orderId, 'millInputs:', millInputs, 'hasData:', hasData);
+    return hasData;
   };
 
   const hasMillOutputs = (order: Order) => {
     const millOutputs = (order as any).millOutputs;
-    return Array.isArray(millOutputs) && millOutputs.length > 0;
+    const hasData = Array.isArray(millOutputs) && millOutputs.length > 0;
+    console.log('🔍 hasMillOutputs check for order:', order.orderId, 'millOutputs:', millOutputs, 'hasData:', hasData);
+    return hasData;
   };
 
   const hasDispatches = (order: Order) => {
     const dispatches = (order as any).dispatches;
-    return Array.isArray(dispatches) && dispatches.length > 0;
+    const hasData = Array.isArray(dispatches) && dispatches.length > 0;
+    console.log('🔍 hasDispatches check for order:', order.orderId, 'dispatches:', dispatches, 'hasData:', hasData);
+    return hasData;
   };
 
   const hasLabData = (order: Order) => {
@@ -5103,11 +5109,12 @@ export default function OrdersPage() {
                 }
               }
               
-              // Show success message
-              const message = isEditingMillInput ? 'Mill input updated successfully!' : 'Mill input added successfully!';
-              showMessage('success', message);
-              
-              console.log('Mill input button state updated for order:', orderId);
+            // Show success message
+            const message = isEditingMillInput ? 'Mill input updated successfully!' : 'Mill input added successfully!';
+            showMessage('success', message);
+            
+            console.log('🎯 Mill input button state updated for order:', orderId, 'operationType:', operationType);
+            console.log('🎯 Updated order millInputs:', orders.find(o => o._id === orderId)?.millInputs);
             }}
           onAddMill={() => {
             // Refresh mills when a new mill is added
@@ -5189,7 +5196,9 @@ export default function OrdersPage() {
             const message = isEditingMillOutput ? 'Mill output updated successfully!' : 'Mill output added successfully!';
             showMessage('success', message);
             
-            console.log('Mill output button state updated for order:', orderId);
+            console.log('🎯 Mill output button state updated for order:', orderId, 'operationType:', operationType);
+            console.log('🎯 Updated order millOutputs:', orders.find(o => o._id === orderId)?.millOutputs);
+            console.log('🎯 hasMillOutputs check result:', hasMillOutputs(orders.find(o => o._id === orderId)!));
           }}
         />
       )}
@@ -5265,7 +5274,9 @@ export default function OrdersPage() {
             const message = isEditingDispatch ? 'Dispatch updated successfully!' : 'Dispatch added successfully!';
             showMessage('success', message);
             
-            console.log('Dispatch button state updated for order:', orderId);
+            console.log('🎯 Dispatch button state updated for order:', orderId, 'operationType:', operationType);
+            console.log('🎯 Updated order dispatches:', orders.find(o => o._id === orderId)?.dispatches);
+            console.log('🎯 hasDispatches check result:', hasDispatches(orders.find(o => o._id === orderId)!));
           }}
         />
       )}

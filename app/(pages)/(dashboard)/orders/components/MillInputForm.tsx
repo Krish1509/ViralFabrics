@@ -843,18 +843,31 @@ export default function MillInputForm({
       setHasExistingData(false); // Reset to false initially
       setErrors({});
       setSuccessMessage('');
+      setShowDeleteConfirm(false);
+      setItemToDelete(null);
       
-      // Initialize form with order ID
-      setFormData(prev => ({
-        ...prev,
-        orderId: order.orderId || ''
-      }));
+      // Reset form data to initial state
+      setFormData({
+        orderId: order.orderId || '',
+        mill: '',
+        millItems: [{
+          id: '1',
+          millDate: '',
+          chalanNo: '',
+          greighMtr: '',
+          pcs: '',
+          quality: '',
+          process: '',
+          additionalMeters: []
+        }]
+      });
       
       // Always fetch fresh data from API when form opens to avoid stale data
       console.log('🔄 Form opened - fetching fresh mill input data from API...');
+      console.log('🔄 Form state reset complete, now fetching fresh data...');
       fetchExistingMillInputData();
     }
-  }, [isOpen, order?.orderId, existingMillInputs, isEditing]);
+  }, [isOpen, order?.orderId]);
 
   // Helper function to get mill name by ID
   const getMillName = (millId: string) => {
@@ -1090,16 +1103,64 @@ export default function MillInputForm({
           });
           setLocalMillInputs([]);
           setHasExistingData(false);
+          
+          // Clear form data when no existing data
+          setFormData({
+            orderId: order.orderId || '',
+            mill: '',
+            millItems: [{
+              id: '1',
+              millDate: '',
+              chalanNo: '',
+              greighMtr: '',
+              pcs: '',
+              quality: '',
+              process: '',
+              additionalMeters: []
+            }]
+          });
         }
       } else {
         console.log('❌ Failed to fetch mill inputs from API, status:', response.status);
         const errorText = await response.text();
         console.log('Error response:', errorText);
         setHasExistingData(false);
+        
+        // Clear form data when API fails
+        setFormData({
+          orderId: order.orderId || '',
+          mill: '',
+          millItems: [{
+            id: '1',
+            millDate: '',
+            chalanNo: '',
+            greighMtr: '',
+            pcs: '',
+            quality: '',
+            process: '',
+            additionalMeters: []
+          }]
+        });
       }
     } catch (error) {
       console.error('Error fetching mill inputs from API:', error);
       setHasExistingData(false);
+      
+      // Clear form data when error occurs
+      setFormData({
+        orderId: order.orderId || '',
+        mill: '',
+        millItems: [{
+          id: '1',
+          millDate: '',
+          chalanNo: '',
+          greighMtr: '',
+          pcs: '',
+          quality: '',
+          process: '',
+          additionalMeters: []
+        }]
+      });
     } finally {
       // Removed loading state
     }
@@ -1417,6 +1478,8 @@ export default function MillInputForm({
           additionalMeters: []
         }],
       });
+      
+      console.log('🎯 Mill input data deleted successfully, closing form and updating button state');
       
       // Close after delay
       setTimeout(() => {

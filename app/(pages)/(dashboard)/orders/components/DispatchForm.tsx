@@ -641,13 +641,32 @@ export default function DispatchForm({
       setHasExistingData(false); // Reset to false initially
       setErrors({});
       setSuccessMessage('');
+      setShowDeleteConfirm(false);
+      setItemToDelete(null);
+      
+      // Reset form data to initial state
+      setFormData({
+        orderId: order.orderId || '',
+        dispatchItems: [{
+          id: '1',
+          dispatchDate: '',
+          billNo: '',
+          finishMtr: '',
+          quality: '',
+          subItems: [{
+            id: '1_1',
+            finishMtr: '',
+            quality: ''
+          }]
+        }]
+      });
       
       // Always fetch fresh data from API when form opens to avoid stale data
       console.log('🔄 Form opened - fetching fresh dispatch data from API...');
       setLoadingExistingData(true);
       fetchExistingDispatchData();
     }
-  }, [isOpen, order?.orderId, existingDispatches]);
+  }, [isOpen, order?.orderId]);
 
   // Update quality search states when qualities are loaded and form data exists
   useEffect(() => {
@@ -770,12 +789,46 @@ export default function DispatchForm({
             dispatchesLength: data.data?.dispatches?.length || 0
           });
           setHasExistingData(false);
+          
+          // Clear form data when no existing data
+          setFormData({
+            orderId: order.orderId || '',
+            dispatchItems: [{
+              id: '1',
+              dispatchDate: '',
+              billNo: '',
+              finishMtr: '',
+              quality: '',
+              subItems: [{
+                id: '1_1',
+                finishMtr: '',
+                quality: ''
+              }]
+            }]
+          });
         }
       } else {
         console.log('❌ Failed to fetch dispatches from API, status:', response.status);
         const errorText = await response.text();
         console.log('Error response:', errorText);
         setHasExistingData(false);
+        
+        // Clear form data when API fails
+        setFormData({
+          orderId: order.orderId || '',
+          dispatchItems: [{
+            id: '1',
+            dispatchDate: '',
+            billNo: '',
+            finishMtr: '',
+            quality: '',
+            subItems: [{
+              id: '1_1',
+              finishMtr: '',
+              quality: ''
+            }]
+          }]
+        });
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -784,6 +837,23 @@ export default function DispatchForm({
         console.error('Error fetching dispatches from API:', error);
       }
       setHasExistingData(false);
+      
+      // Clear form data when error occurs
+      setFormData({
+        orderId: order.orderId || '',
+        dispatchItems: [{
+          id: '1',
+          dispatchDate: '',
+          billNo: '',
+          finishMtr: '',
+          quality: '',
+          subItems: [{
+            id: '1_1',
+            finishMtr: '',
+            quality: ''
+          }]
+        }]
+      });
     } finally {
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -1276,8 +1346,6 @@ export default function DispatchForm({
   };
 
   const handleDelete = async () => {
-    if (!existingDispatches || existingDispatches.length === 0) return;
-
     setSaving(true);
     setErrors({});
     setSuccessMessage('');
@@ -1287,43 +1355,62 @@ export default function DispatchForm({
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No authentication token found');
 
-      // Delete all existing dispatches for this order
-      const deletePromises = existingDispatches.map((dispatch: any) =>
-        fetch(`/api/dispatch/${dispatch._id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
-      );
-
-      await Promise.all(deletePromises);
-      
-      setSuccessMessage('Dispatch data deleted successfully!');
-      setHasExistingData(false);
-      
-      // Reset form to initial state
-      setFormData({
-        orderId: order?.orderId || '',
-        dispatchItems: [{
-          id: '1',
-          dispatchDate: '',
-          billNo: '',
-          finishMtr: '',
-          quality: '',
-          subItems: [{
-            id: '1_1',
-            finishMtr: '',
-            quality: ''
-          }]
-        }]
+      // Fetch all dispatches for this order first
+      const response = await fetch(`/api/dispatch?orderId=${order?.orderId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
-      
-      // Close after delay
-      setTimeout(() => {
-        onSuccess('delete');
-        onClose();
-      }, 1500);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data && data.data.dispatches && data.data.dispatches.length > 0) {
+          // Delete all existing dispatches for this order
+          const deletePromises = data.data.dispatches.map((dispatch: any) =>
+            fetch(`/api/dispatch/${dispatch._id}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            })
+          );
+
+          await Promise.all(deletePromises);
+          
+          setSuccessMessage('Dispatch data deleted successfully!');
+          setHasExistingData(false);
+          
+          // Reset form to initial state
+          setFormData({
+            orderId: order?.orderId || '',
+            dispatchItems: [{
+              id: '1',
+              dispatchDate: '',
+              billNo: '',
+              finishMtr: '',
+              quality: '',
+              subItems: [{
+                id: '1_1',
+                finishMtr: '',
+                quality: ''
+              }]
+            }]
+          });
+          
+          console.log('🎯 Dispatch data deleted successfully, closing form and updating button state');
+          
+          // Close after delay
+          setTimeout(() => {
+            onSuccess('delete');
+            onClose();
+          }, 1500);
+        } else {
+          setErrors({ submit: 'No dispatch data found to delete' });
+        }
+      } else {
+        setErrors({ submit: 'Failed to fetch dispatch data for deletion' });
+      }
     } catch (error) {
       setErrors({ submit: 'Failed to delete dispatch data' });
     } finally {

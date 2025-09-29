@@ -657,12 +657,27 @@ export default function MillOutputForm({
       setHasExistingData(false); // Reset to false initially
       setErrors({});
       setSuccessMessage('');
+      setShowDeleteConfirm(false);
+      setItemToDelete(null);
+      
+      // Reset form data to initial state
+      setFormData({
+        orderId: order.orderId || '',
+        millOutputItems: [{
+          id: '1',
+          recdDate: '',
+          millBillNo: '',
+          finishedMtr: '',
+          quality: '',
+          additionalFinishedMtr: []
+        }]
+      });
       
       // Always fetch fresh data from API when form opens to avoid stale data
       console.log('🔄 Form opened - fetching fresh mill output data from API...');
       fetchExistingMillOutputData();
     }
-  }, [isOpen, order?.orderId, existingMillOutputs]);
+  }, [isOpen, order?.orderId]);
 
   // Function to fetch qualities directly from API
   const fetchQualitiesDirectly = async () => {
@@ -764,12 +779,38 @@ export default function MillOutputForm({
             millOutputsLength: data.data?.millOutputs?.length || 0
           });
           setHasExistingData(false);
+          
+          // Clear form data when no existing data
+          setFormData({
+            orderId: order.orderId || '',
+            millOutputItems: [{
+              id: '1',
+              recdDate: '',
+              millBillNo: '',
+              finishedMtr: '',
+              quality: '',
+              additionalFinishedMtr: []
+            }]
+          });
         }
       } else {
         console.log('❌ Failed to fetch mill outputs from API, status:', response.status);
         const errorText = await response.text();
         console.log('Error response:', errorText);
         setHasExistingData(false);
+        
+        // Clear form data when API fails
+        setFormData({
+          orderId: order.orderId || '',
+          millOutputItems: [{
+            id: '1',
+            recdDate: '',
+            millBillNo: '',
+            finishedMtr: '',
+            quality: '',
+            additionalFinishedMtr: []
+          }]
+        });
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -778,6 +819,19 @@ export default function MillOutputForm({
         console.error('Error fetching mill outputs from API:', error);
       }
       setHasExistingData(false);
+      
+      // Clear form data when error occurs
+      setFormData({
+        orderId: order.orderId || '',
+        millOutputItems: [{
+          id: '1',
+          recdDate: '',
+          millBillNo: '',
+          finishedMtr: '',
+          quality: '',
+          additionalFinishedMtr: []
+        }]
+      });
     } finally {
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -1324,8 +1378,6 @@ export default function MillOutputForm({
   };
 
   const handleDelete = async () => {
-    if (!existingMillOutputs || existingMillOutputs.length === 0) return;
-
     setSaving(true);
     setErrors({});
     setSuccessMessage('');
@@ -1335,39 +1387,58 @@ export default function MillOutputForm({
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No authentication token found');
 
-      // Delete all existing mill outputs for this order
-      const deletePromises = existingMillOutputs.map((output: any) =>
-        fetch(`/api/mill-outputs/${output._id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
-      );
-
-      await Promise.all(deletePromises);
-      
-      setSuccessMessage('Mill output data deleted successfully!');
-      setHasExistingData(false);
-      
-      // Reset form to initial state
-      setFormData({
-        orderId: order?.orderId || '',
-        millOutputItems: [{
-          id: '1',
-          recdDate: '',
-          millBillNo: '',
-          finishedMtr: '',
-          quality: '',
-          additionalFinishedMtr: []
-        }]
+      // Fetch all mill outputs for this order first
+      const response = await fetch(`/api/mill-outputs?orderId=${order?.orderId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
-      
-      // Close after delay
-      setTimeout(() => {
-        onSuccess('delete');
-        onClose();
-      }, 1500);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data && data.data.millOutputs && data.data.millOutputs.length > 0) {
+          // Delete all existing mill outputs for this order
+          const deletePromises = data.data.millOutputs.map((output: any) =>
+            fetch(`/api/mill-outputs/${output._id}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            })
+          );
+
+          await Promise.all(deletePromises);
+          
+          setSuccessMessage('Mill output data deleted successfully!');
+          setHasExistingData(false);
+          
+          // Reset form to initial state
+          setFormData({
+            orderId: order?.orderId || '',
+            millOutputItems: [{
+              id: '1',
+              recdDate: '',
+              millBillNo: '',
+              finishedMtr: '',
+              quality: '',
+              additionalFinishedMtr: []
+            }]
+          });
+          
+          console.log('🎯 Mill output data deleted successfully, closing form and updating button state');
+          
+          // Close after delay
+          setTimeout(() => {
+            onSuccess('delete');
+            onClose();
+          }, 1500);
+        } else {
+          setErrors({ submit: 'No mill output data found to delete' });
+        }
+      } else {
+        setErrors({ submit: 'Failed to fetch mill output data for deletion' });
+      }
     } catch (error) {
       setErrors({ submit: 'Failed to delete mill output data' });
     } finally {
