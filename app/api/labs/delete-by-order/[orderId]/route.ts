@@ -4,12 +4,12 @@ import { Lab } from '@/models';
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
   try {
     await dbConnect();
     
-    const { id: orderId } = await params;
+    const { orderId } = await params;
     
     if (!orderId) {
       return new Response(

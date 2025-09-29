@@ -4445,32 +4445,69 @@ export default function OrdersPage() {
              setShowLabAddModal(false);
              setSelectedOrderForLab(null);
            }}
-           onLabDataUpdate={async () => {
-            const orderId = selectedOrderForLab?.orderId;
+           onLabDataUpdate={async (operationType?: 'add' | 'edit' | 'delete' | 'deleteAll') => {
+            const orderId = selectedOrderForLab?._id;
             
-            try {
-              // Update the order's labData property directly in local state
-              if (orderId) {
-                setOrders(prevOrders => 
-                  prevOrders.map(order => 
-                    order.orderId === orderId 
-                      ? { ...order, labData: [{ _id: 'temp', order: orderId, createdAt: new Date() }] } // Mark as having data
-                      : order
-                  )
-                );
+            if (orderId) {
+              // Immediate UI update based on operation type
+              setOrders(prevOrders => 
+                prevOrders.map(order => {
+                  if (order._id === orderId) {
+                    const updatedOrder = { ...order };
+                    
+                    if (operationType === 'delete' || operationType === 'deleteAll') {
+                      // Remove lab data from all items
+                      updatedOrder.items = updatedOrder.items.map(item => ({
+                        ...item,
+                        labData: undefined
+                      }));
+                      // Clear labData array
+                      updatedOrder.labData = [];
+                    } else if (operationType === 'add' || operationType === 'edit') {
+                      // Mark as having lab data (will be updated with real data from API)
+                      updatedOrder.labData = [{ _id: 'temp', order: orderId, createdAt: new Date() }];
+                    }
+                    
+                    return updatedOrder;
+                  }
+                  return order;
+                })
+              );
+            }
+            
+            // Optional: Fetch fresh data in background (non-blocking)
+            if (orderId) {
+              try {
+                const response = await fetch(`/api/orders/${orderId}`, {
+                  headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                  }
+                });
+                
+                if (response.ok) {
+                  const updatedOrder = await response.json();
+                  if (updatedOrder.success) {
+                    // Update with real data from API
+                    setOrders(prevOrders => 
+                      prevOrders.map(order => 
+                        order._id === orderId 
+                          ? { ...order, ...updatedOrder.data }
+                          : order
+                      )
+                    );
+                  }
+                }
+              } catch (error) {
+                console.log('Background refresh failed, but UI already updated:', error);
               }
+            }
               
              setShowLabAddModal(false);
              setSelectedOrderForLab(null);
              showMessage('success', 'Lab data added successfully');
               
               console.log('Lab data button state updated for order:', orderId);
-            } catch (error) {
-              console.error('Error updating lab data state:', error);
-              setShowLabAddModal(false);
-              setSelectedOrderForLab(null);
-              showMessage('success', 'Lab data added successfully');
-            }
            }}
          />
        )}
@@ -4968,28 +5005,67 @@ export default function OrdersPage() {
             setSelectedOrderForLabData(null);
           }}
           order={selectedOrderForLabData} //@ts-ignore  
-          onLabDataUpdate={async () => {
-            const orderId = selectedOrderForLabData?.orderId;
+          onLabDataUpdate={async (operationType?: 'add' | 'edit' | 'delete' | 'deleteAll') => {
+            const orderId = selectedOrderForLabData?._id;
             
-            try {
-              // Update the order's labData property directly in local state
-              if (orderId) {
-                setOrders(prevOrders => 
-                  prevOrders.map(order => 
-                    order.orderId === orderId 
-                      ? { ...order, labData: [{ _id: 'temp', order: orderId, createdAt: new Date() }] } // Mark as having data
-                      : order
-                  )
-                );
+            if (orderId) {
+              // Immediate UI update based on operation type
+              setOrders(prevOrders => 
+                prevOrders.map(order => {
+                  if (order._id === orderId) {
+                    const updatedOrder = { ...order };
+                    
+                    if (operationType === 'delete' || operationType === 'deleteAll') {
+                      // Remove lab data from all items
+                      updatedOrder.items = updatedOrder.items.map(item => ({
+                        ...item,
+                        labData: undefined
+                      }));
+                      // Clear labData array
+                      updatedOrder.labData = [];
+                    } else if (operationType === 'add' || operationType === 'edit') {
+                      // Mark as having lab data (will be updated with real data from API)
+                      updatedOrder.labData = [{ _id: 'temp', order: orderId, createdAt: new Date() }];
+                    }
+                    
+                    return updatedOrder;
+                  }
+                  return order;
+                })
+              );
+            }
+            
+            // Optional: Fetch fresh data in background (non-blocking)
+            if (orderId) {
+              try {
+                const response = await fetch(`/api/orders/${orderId}`, {
+                  headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                  }
+                });
+                
+                if (response.ok) {
+                  const updatedOrder = await response.json();
+                  if (updatedOrder.success) {
+                    // Update with real data from API
+                    setOrders(prevOrders => 
+                      prevOrders.map(order => 
+                        order._id === orderId 
+                          ? { ...order, ...updatedOrder.data }
+                          : order
+                      )
+                    );
+                  }
+                }
+              } catch (error) {
+                console.log('Background refresh failed, but UI already updated:', error);
               }
+            }
               
             showMessage('success', 'Lab data updated successfully!');
               
-              console.log('Lab data button state updated for order:', orderId);
-            } catch (error) {
-              console.error('Error updating lab data state:', error);
-              showMessage('success', 'Lab data updated successfully!');
-            }
+            console.log('Lab data button state updated for order:', orderId);
           }}
         />
       )}
