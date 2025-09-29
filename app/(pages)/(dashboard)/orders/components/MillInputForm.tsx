@@ -2426,7 +2426,7 @@ export default function MillInputForm({
                             <div className="relative">
                               <input
                                 type="number"
-                                value={item.greighMtr}
+                                value={item.greighMtr || ''}
                                 onChange={(e) => updateMillItem(item.id, 'greighMtr', e.target.value)}
                                 placeholder="Enter meters"
                                 min="0"
@@ -2452,7 +2452,7 @@ export default function MillInputForm({
                             <div className="relative">
                               <input
                                 type="number"
-                                value={item.pcs}
+                                value={item.pcs || ''}
                                 onChange={(e) => updateMillItem(item.id, 'pcs', e.target.value)}
                                 placeholder="Enter pieces"
                                 min="0"

@@ -792,9 +792,9 @@ export default function DispatchForm({
   // Note: Removed dependency on isEditing and existingDispatches props
   // Form now fetches data independently from API like LabDataModal
 
-  // Reset form when order changes (but not when editing)
+  // Reset form when order changes (but not when editing or when there's existing data)
   useEffect(() => {
-    if (order && !isEditing) {
+    if (order && !isEditing && !hasExistingData) {
       setFormData({
         orderId: order.orderId,
         dispatchItems: [{
@@ -812,7 +812,7 @@ export default function DispatchForm({
       });
       setErrors({});
     }
-  }, [order?.orderId, isEditing]);
+  }, [order?.orderId, isEditing, hasExistingData]);
 
   // Function to load existing dispatches from API data (LabDataModal pattern)
   const loadExistingDispatchesFromData = async (dispatchesData: any[]) => {
@@ -1454,7 +1454,7 @@ export default function DispatchForm({
                             Dispatch Date <span className="text-red-500">*</span>
               </label>
                           <CustomDatePicker
-                            value={item.dispatchDate}
+                            value={item.dispatchDate || ''}
                             onChange={(value) => updateDispatchItem(item.id, 'dispatchDate', value)}
                             placeholder="Select dispatch date"
                             isDarkMode={isDarkMode}
@@ -1478,7 +1478,7 @@ export default function DispatchForm({
                           <div className="relative">
               <input
                 type="text"
-                              value={item.billNo}
+                              value={item.billNo || ''}
                               onChange={(e) => updateDispatchItem(item.id, 'billNo', e.target.value)}
                 placeholder="Enter bill number"
                 required
@@ -1552,7 +1552,7 @@ export default function DispatchForm({
                                 </label>
                                 <EnhancedDropdown
                                   options={getFilteredQualities(subItem.id)}
-                                  value={subItem.quality}
+                                  value={subItem.quality || ''}
                                   onChange={(value) => updateSubItem(item.id, subItem.id, 'quality', value)}
                                   placeholder="Search quality..."
                                   searchValue={activeQualityDropdown?.itemId === subItem.id 
@@ -1584,7 +1584,7 @@ export default function DispatchForm({
                               </label>
                               <input
                                 type="number"
-                                  value={subItem.finishMtr}
+                                  value={subItem.finishMtr || ''}
                                   onChange={(e) => updateSubItem(item.id, subItem.id, 'finishMtr', e.target.value)}
                                 placeholder="Enter finish meters"
                                 step="0.01"

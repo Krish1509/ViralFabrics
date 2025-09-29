@@ -1529,7 +1529,7 @@ export default function MillOutputForm({
               <div className="relative">
                 <input
                   type="text"
-                              value={item.millBillNo}
+                              value={item.millBillNo || ''}
                               onChange={(e) => updateMillOutputItem(item.id, 'millBillNo', e.target.value)}
                   placeholder="Enter mill bill number"
                   required
@@ -1616,7 +1616,7 @@ export default function MillOutputForm({
                   </label>
                   <input
                     type="number"
-                    value={item.finishedMtr}
+                    value={item.finishedMtr || ''}
                     onChange={(e) => updateMillOutputItem(item.id, 'finishedMtr', e.target.value)}
                     placeholder="Enter finished meters"
                     step="0.01"
