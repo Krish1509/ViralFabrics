@@ -633,7 +633,7 @@ export default function MillOutputForm({
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [saving, setSaving] = useState(false);
-  const [loadingExistingData, setLoadingExistingData] = useState(false);
+  // Removed loadingExistingData state for instant opening
   
   // LabDataModal pattern states
   const [hasExistingData, setHasExistingData] = useState(false);
@@ -663,8 +663,7 @@ export default function MillOutputForm({
         loadExistingMillOutputs();
       } else {
         console.log('No pre-loaded data, but showing form immediately and fetching in background...');
-        // Don't show loading - show form immediately and fetch in background
-        setLoadingExistingData(false);
+        // Show form immediately and fetch in background
         // Fetch in background without blocking UI
         fetchExistingMillOutputData();
       }
@@ -727,8 +726,7 @@ export default function MillOutputForm({
       return;
     }
 
-    // Don't show loading overlay - fetch in background for smooth experience
-    setLoadingExistingData(false);
+    // Fetch in background for smooth experience
     let timeoutId: NodeJS.Timeout | null = null;
     
     try {
@@ -790,7 +788,7 @@ export default function MillOutputForm({
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      setLoadingExistingData(false);
+      // Removed loading state
     }
   };
 
@@ -935,7 +933,7 @@ export default function MillOutputForm({
       return;
     }
     
-    setLoadingExistingData(true);
+    // Removed loading state
     try {
       // Group mill outputs by bill number and date
       const groupedOutputs = groupMillOutputsByBillAndDate(existingMillOutputs);
@@ -991,7 +989,7 @@ export default function MillOutputForm({
       console.error('Error loading existing mill outputs from props:', error);
       setHasExistingData(false);
     } finally {
-      setLoadingExistingData(false);
+      // Removed loading state
     }
   };
 
@@ -1420,9 +1418,10 @@ export default function MillOutputForm({
     await createNewMillOutputs();
   };
 
-  if (!order) {
-    return null;
-  }
+  // Don't block form opening - show form even if order is not immediately available
+  // if (!order) {
+  //   return null;
+  // }
 
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted) {
@@ -1879,7 +1878,7 @@ export default function MillOutputForm({
                       : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
                 }`}
               >
-                {saving ? 'Saving...' : loadingExistingData ? 'Loading...' : (hasExistingData ? 'Update Mill Output' : 'Add Mill Output')}
+                {saving ? 'Saving...' : (hasExistingData ? 'Update Mill Output' : 'Add Mill Output')}
             </button>
             
             {/* Delete Button - Show only when has existing data */}

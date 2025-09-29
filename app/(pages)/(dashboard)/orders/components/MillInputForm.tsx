@@ -754,7 +754,7 @@ export default function MillInputForm({
     address: '',
     email: ''
   });
-  const [loadingExistingData, setLoadingExistingData] = useState(false);
+  // Removed loadingExistingData state for instant opening
   const [addingMill, setAddingMill] = useState(false);
   const [millsLoading, setMillsLoading] = useState(false);
   const [localMills, setLocalMills] = useState<Mill[]>([]);
@@ -1048,7 +1048,6 @@ export default function MillInputForm({
     
     setLocalMillInputs(millInputs);
     setHasExistingData(true);
-    setLoadingExistingData(false);
   };
 
   // Function to fetch existing mill input data from API
@@ -1060,7 +1059,7 @@ export default function MillInputForm({
       return;
     }
 
-    setLoadingExistingData(true);
+    // Fetch in background for instant opening
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -1108,7 +1107,7 @@ export default function MillInputForm({
       console.error('Error fetching mill inputs from API:', error);
       setHasExistingData(false);
     } finally {
-      setLoadingExistingData(false);
+      // Removed loading state
     }
   };
 
@@ -1243,7 +1242,7 @@ export default function MillInputForm({
       return;
     }
     
-    setLoadingExistingData(true);
+    // Removed loading state
     try {
       // Group mill inputs by mill and chalan number
       const groupedInputs = groupMillInputsByMillAndChalan(existingMillInputs);
@@ -1288,7 +1287,7 @@ export default function MillInputForm({
       console.error('Error loading existing mill inputs from props:', error);
       setHasExistingData(false);
     } finally {
-      setLoadingExistingData(false);
+      // Removed loading state
     }
   };
 
@@ -1941,7 +1940,8 @@ export default function MillInputForm({
     }
   };
 
-  if (!order) return null;
+  // Don't block form opening - show form even if order is not immediately available
+  // if (!order) return null;
 
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted) {
@@ -1981,16 +1981,7 @@ export default function MillInputForm({
         <div className={`relative w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
           isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
         }`}>
-          {loadingExistingData && (
-            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
-              <div className={`p-4 rounded-lg ${
-                isDarkMode ? 'bg-gray-800' : 'bg-white'
-              }`}>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                <p className="mt-2 text-sm">Loading existing mill inputs...</p>
-              </div>
-            </div>
-          )}
+          {/* Removed loading overlay for instant form opening */}
 
           {/* Loading Overlay for Saving */}
           {saving && (
@@ -2774,7 +2765,7 @@ export default function MillInputForm({
                       : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
                 }`}
               >
-                {saving ? 'Saving...' : loadingExistingData ? 'Loading...' : (hasExistingData ? 'Update Mill Input' : 'Add Mill Input')}
+                {saving ? 'Saving...' : (hasExistingData ? 'Update Mill Input' : 'Add Mill Input')}
               </button>
               
               {/* Delete Button - Show only when has existing data */}

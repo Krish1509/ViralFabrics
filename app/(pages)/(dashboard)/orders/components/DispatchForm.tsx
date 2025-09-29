@@ -631,7 +631,7 @@ export default function DispatchForm({
   const [currentQualitySearch, setCurrentQualitySearch] = useState('');
   const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
 
-  // Load existing dispatch data when form opens (always fetch from API for fresh data)
+  // Load existing dispatch data when form opens (use props first, then fetch from API)
   useEffect(() => {
     console.log('DispatchForm useEffect triggered:', { isOpen, orderId: order?.orderId, existingDispatchesLength: existingDispatches?.length });
     
@@ -641,12 +641,40 @@ export default function DispatchForm({
       setErrors({});
       setSuccessMessage('');
       
-      // Always fetch fresh data from API to ensure we have the latest data
-      console.log('Fetching fresh dispatch data from API...');
-      setLoadingExistingData(false);
-      fetchExistingDispatchData();
+      // Use pre-loaded data if available - show immediately for smooth experience
+      if (existingDispatches && existingDispatches.length > 0) {
+        console.log('Using pre-loaded dispatch data:', existingDispatches);
+        setLoadingExistingData(false); // No loading needed for pre-loaded data
+        loadExistingDispatches();
+      } else {
+        console.log('No pre-loaded data, fetching from API...');
+        // Show loading state until data is fetched
+        setLoadingExistingData(true);
+        fetchExistingDispatchData();
+      }
     }
-  }, [isOpen, order?.orderId]);
+  }, [isOpen, order?.orderId, existingDispatches]);
+
+  // Update quality search states when qualities are loaded and form data exists
+  useEffect(() => {
+    if (qualities && qualities.length > 0 && formData.dispatchItems.length > 0) {
+      console.log('Updating quality search states for dispatch form...');
+      const newQualitySearchStates: { [key: string]: string } = {};
+      
+      formData.dispatchItems.forEach((item) => {
+        item.subItems?.forEach((subItem: any) => {
+          if (subItem.quality) {
+            const qualityObj = qualities.find(q => (q._id || q.id) === subItem.quality);
+            if (qualityObj) {
+              newQualitySearchStates[subItem.id] = qualityObj.name;
+            }
+          }
+        });
+      });
+      
+      setQualitySearchStates(prev => ({ ...prev, ...newQualitySearchStates }));
+    }
+  }, [qualities, formData.dispatchItems]);
 
   // Function to fetch qualities directly from API
   const fetchQualitiesDirectly = async () => {
@@ -704,8 +732,7 @@ export default function DispatchForm({
       return;
     }
 
-    // Don't show loading overlay - fetch in background for smooth experience
-    setLoadingExistingData(false);
+    // Show loading state while fetching data
     let timeoutId: NodeJS.Timeout | null = null;
     
     try {
@@ -767,6 +794,8 @@ export default function DispatchForm({
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
+      // Always stop loading when fetch completes (success or error)
+      setLoadingExistingData(false);
     }
   };
 
@@ -906,8 +935,7 @@ export default function DispatchForm({
       return;
     }
     
-    // Don't show loading state - load immediately for smooth experience
-    setLoadingExistingData(false);
+    // Load immediately for smooth experience
     try {
       // Group dispatches by dispatchDate and billNo to create dispatch items
       const groupedDispatches = existingDispatches.reduce((groups: any, dispatch: any) => {
@@ -1333,9 +1361,10 @@ export default function DispatchForm({
     await createNewDispatches();
   };
 
-  if (!order) {
-    return null;
-  }
+  // Don't block form opening - show form even if order is not immediately available
+  // if (!order) {
+  //   return null;
+  // }
 
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted) {
@@ -1375,7 +1404,17 @@ export default function DispatchForm({
         <div className={`relative w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
           isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
         }`}>
-          {/* Loading Overlay removed for smooth experience - form shows immediately */}
+          {/* Loading Overlay for Data Fetching */}
+          {loadingExistingData && (
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
+              <div className={`p-6 rounded-lg ${
+                isDarkMode ? 'bg-gray-800' : 'bg-white'
+              }`}>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-sm">Loading dispatch data...</p>
+              </div>
+            </div>
+          )}
 
           {/* Loading Overlay for Saving */}
           {saving && (

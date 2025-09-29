@@ -81,7 +81,10 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
       console.log('Fetching all orders for client-side date filtering...');
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 5 second timeout
+      const timeoutId = setTimeout(() => {
+        console.log('Request timeout - aborting fetch');
+        controller.abort();
+      }, 15000); // Increased to 15 second timeout for better reliability
       
       let response = await fetch(`/api/orders?limit=200&force=true`, {
         headers: {

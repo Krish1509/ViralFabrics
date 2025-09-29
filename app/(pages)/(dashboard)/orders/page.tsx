@@ -960,7 +960,7 @@ export default function OrdersPage() {
     prefetchAll();
   }, []);
 
-  // SUPER FAST initialization - ONE TIME ONLY
+  // ULTRA FAST initialization - Load orders first, then other data in background
   useEffect(() => {
     if (isInitialized) return;
     
@@ -975,22 +975,25 @@ export default function OrdersPage() {
           return;
         }
 
-        // Professional loading with optimized timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // Optimized 5 second timeout
+        // PHASE 1: Load orders first for instant display
+        console.log('🚀 PHASE 1: Loading orders for instant display...');
+        const ordersController = new AbortController();
+        const ordersTimeoutId = setTimeout(() => {
+          console.log('Orders API timeout - aborting fetch');
+          ordersController.abort();
+        }, 15000); // 15 second timeout for orders
 
-        // Professional loading with optimized caching (removed mills API to improve performance)
         const ordersResponse = await fetch('/api/orders?limit=50&page=1&force=true', {
           headers: { 
             'Authorization': `Bearer ${token}`,
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Accept': 'application/json'
           },
-          signal: controller.signal,
+          signal: ordersController.signal,
           cache: 'no-store'
         });
 
-        clearTimeout(timeoutId);
+        clearTimeout(ordersTimeoutId);
 
         // Process orders data
         if (ordersResponse.ok) {
@@ -1030,7 +1033,18 @@ export default function OrdersPage() {
           }
         }
 
-        // Mills data will be loaded separately when needed (removed for performance)
+        // PHASE 2: Load other data in background for better UX
+        console.log('🚀 PHASE 2: Loading additional data in background...');
+        
+        // Load parties and qualities in background (non-blocking)
+        Promise.allSettled([
+          loadPartiesData(),
+          loadQualitiesData()
+        ]).then((results) => {
+          console.log('Background data loading completed:', results);
+        }).catch((error) => {
+          console.log('Background data loading failed:', error);
+        });
 
         setLoading(false);
         
@@ -1042,6 +1056,7 @@ export default function OrdersPage() {
         
         // Only show error message for network errors, not for aborted requests
         if (error instanceof Error && error.name !== 'AbortError') {
+          console.log('Non-abort error during initialization:', error.message);
           showMessage('error', 'Failed to load orders. Please try again.', { autoDismiss: true, dismissTime: 3000 });
           
           // Auto-retry after 5 seconds (increased from 3)
@@ -1866,15 +1881,49 @@ export default function OrdersPage() {
     setSelectedOrderForDispatch(order);
     setShowDispatchForm(true);
     
-    // Use data from order instead of API call (data already loaded)
-    const existingData = (order as any).dispatches || [];
-    const hasExistingData = existingData.length > 0;
-    
-    // Set editing state and existing data
-    setIsEditingDispatch(hasExistingData);
-    setExistingDispatches(existingData);
-    
-    console.log('Dispatch form opened with data:', { hasExistingData, existingDataLength: existingData.length });
+    // Fetch dispatch data from API to ensure we have the latest data
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        console.log('Fetching dispatch data for order:', order.orderId);
+        const response = await fetch(`/api/dispatch?orderId=${order.orderId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data && data.data.dispatches) {
+            const existingData = data.data.dispatches;
+            const hasExistingData = existingData.length > 0;
+            
+            // Set editing state and existing data
+            setIsEditingDispatch(hasExistingData);
+            setExistingDispatches(existingData);
+            
+            console.log('Dispatch form opened with fresh data:', { hasExistingData, existingDataLength: existingData.length });
+          } else {
+            console.log('No dispatch data found in API response');
+            setIsEditingDispatch(false);
+            setExistingDispatches([]);
+          }
+        } else {
+          console.log('Failed to fetch dispatch data, status:', response.status);
+          setIsEditingDispatch(false);
+          setExistingDispatches([]);
+        }
+      } else {
+        console.log('No authentication token found');
+        setIsEditingDispatch(false);
+        setExistingDispatches([]);
+      }
+    } catch (error) {
+      console.error('Error fetching dispatch data:', error);
+      setIsEditingDispatch(false);
+      setExistingDispatches([]);
+    }
     
     // Load parties data in background (non-blocking)
     if (parties.length === 0) {
