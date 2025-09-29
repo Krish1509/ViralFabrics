@@ -185,7 +185,7 @@ interface DispatchItem {
 interface DispatchFormProps {
   order: Order | null;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (operationType?: 'add' | 'edit' | 'delete') => void;
   isOpen?: boolean; // Add isOpen prop like LabDataModal
   isEditing?: boolean;
   existingDispatches?: any[];
@@ -637,21 +637,15 @@ export default function DispatchForm({
     
     if (isOpen && order?.orderId) {
       console.log('Form opened, loading existing dispatch data...');
-      // Reset form state first (but don't reset hasExistingData immediately)
+      // Reset form state first to avoid showing stale data
+      setHasExistingData(false); // Reset to false initially
       setErrors({});
       setSuccessMessage('');
       
-      // Use pre-loaded data if available - show immediately for smooth experience
-      if (existingDispatches && existingDispatches.length > 0) {
-        console.log('Using pre-loaded dispatch data:', existingDispatches);
-        setLoadingExistingData(false); // No loading needed for pre-loaded data
-        loadExistingDispatches();
-      } else {
-        console.log('No pre-loaded data, fetching from API...');
-        // Show loading state until data is fetched
-        setLoadingExistingData(true);
-        fetchExistingDispatchData();
-      }
+      // Always fetch fresh data from API when form opens to avoid stale data
+      console.log('🔄 Form opened - fetching fresh dispatch data from API...');
+      setLoadingExistingData(true);
+      fetchExistingDispatchData();
     }
   }, [isOpen, order?.orderId, existingDispatches]);
 
@@ -749,7 +743,7 @@ export default function DispatchForm({
       const controller = new AbortController();
       timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for faster response
       
-      const response = await fetch(`/api/dispatch?orderId=${order.orderId}`, {
+      const response = await fetch(`/api/dispatch?orderId=${order.orderId}&t=${Date.now()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1218,7 +1212,7 @@ export default function DispatchForm({
       await fetchExistingDispatchData();
       
       // Call onSuccess to update parent state
-      onSuccess();
+      onSuccess(hasExistingData ? 'edit' : 'add');
       
       // Don't close automatically - let user see the updated data
       // setTimeout(() => {
@@ -1327,7 +1321,7 @@ export default function DispatchForm({
       
       // Close after delay
       setTimeout(() => {
-        onSuccess();
+        onSuccess('delete');
         onClose();
       }, 1500);
     } catch (error) {
@@ -1774,20 +1768,6 @@ export default function DispatchForm({
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={saving}
-                onClick={handleSubmit}
-                className={`px-10 py-3 rounded-lg text-white font-medium transition-all duration-200 hover:scale-105 ${
-                  saving 
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : isDarkMode
-                      ? 'bg-blue-600 hover:bg-blue-700 shadow-lg' 
-                      : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
-                }`}
-              >
-                {saving ? 'Saving...' : loadingExistingData ? 'Loading...' : (hasExistingData ? 'Update Dispatch' : 'Add Dispatch')}
-              </button>
               
               {/* Delete Button - Show only when has existing data */}
               {hasExistingData && (
@@ -1807,6 +1787,21 @@ export default function DispatchForm({
                   Delete
                 </button>
               )}
+              
+              <button
+                type="submit"
+                disabled={saving}
+                onClick={handleSubmit}
+                className={`px-10 py-3 rounded-lg text-white font-medium transition-all duration-200 hover:scale-105 ${
+                  saving 
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : isDarkMode
+                      ? 'bg-blue-600 hover:bg-blue-700 shadow-lg' 
+                      : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
+                }`}
+              >
+                {saving ? 'Saving...' : loadingExistingData ? 'Loading...' : (hasExistingData ? 'Update Dispatch' : 'Add Dispatch')}
+              </button>
             </div>
             </div>
         </div>

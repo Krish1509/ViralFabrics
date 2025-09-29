@@ -41,7 +41,7 @@ interface MillInputFormProps {
   mills: Mill[];
   qualities: Quality[];
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (operationType?: 'add' | 'edit' | 'delete') => void;
   onAddMill: () => void;
   onRefreshMills: () => void;
   onRefreshQualities?: () => void; // Add quality refresh function
@@ -838,8 +838,9 @@ export default function MillInputForm({
       console.log('Form opened, processing existing mill input data...');
       console.log('Form mode from prop:', isEditing ? 'EDIT' : 'ADD');
       
-      // Reset form state first (but don't reset hasExistingData immediately)
+      // Reset form state first to avoid showing stale data
       setLocalMillInputs([]);
+      setHasExistingData(false); // Reset to false initially
       setErrors({});
       setSuccessMessage('');
       
@@ -849,16 +850,9 @@ export default function MillInputForm({
         orderId: order.orderId || ''
       }));
       
-      // Process existing data from props first
-      if (existingMillInputs && existingMillInputs.length > 0) {
-        console.log('✅ Processing existing mill inputs from props:', existingMillInputs.length);
-        processExistingMillInputs(existingMillInputs);
-      } else {
-        console.log('No existing mill inputs from props, fetching from API...');
-        // Always fetch existing data from API when form opens
-        fetchExistingMillInputData();
-        // Don't reset hasExistingData here - let the API call determine it
-      }
+      // Always fetch fresh data from API when form opens to avoid stale data
+      console.log('🔄 Form opened - fetching fresh mill input data from API...');
+      fetchExistingMillInputData();
     }
   }, [isOpen, order?.orderId, existingMillInputs, isEditing]);
 
@@ -1069,7 +1063,7 @@ export default function MillInputForm({
       }
 
       console.log('Fetching mill inputs for order:', order.orderId);
-      const response = await fetch(`/api/mill-inputs?orderId=${order.orderId}`, {
+      const response = await fetch(`/api/mill-inputs?orderId=${order.orderId}&t=${Date.now()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1426,7 +1420,7 @@ export default function MillInputForm({
       
       // Close after delay
       setTimeout(() => {
-        onSuccess();
+        onSuccess('delete');
         onClose();
       }, 1500);
         } else {
@@ -1755,7 +1749,7 @@ export default function MillInputForm({
             // Show success message for 1 second, then close
       setTimeout(() => {
         setSuccessMessage('');
-        onSuccess();
+        onSuccess(hasExistingData ? 'edit' : 'add');
         onClose();
       }, 1000);
     } catch (error) {
@@ -2753,20 +2747,6 @@ export default function MillInputForm({
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={saving}
-                onClick={handleSubmit}
-                className={`px-10 py-3 rounded-lg text-white font-medium transition-all duration-200 hover:scale-105 ${
-                  saving
-                    ? 'bg-gray-400 cursor-not-allowed' 
-                    : isDarkMode
-                      ? 'bg-blue-600 hover:bg-blue-700 shadow-lg' 
-                      : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
-                }`}
-              >
-                {saving ? 'Saving...' : (hasExistingData ? 'Update Mill Input' : 'Add Mill Input')}
-              </button>
               
               {/* Delete Button - Show only when has existing data */}
               {hasExistingData && (
@@ -2786,6 +2766,21 @@ export default function MillInputForm({
                   Delete
                 </button>
               )}
+              
+              <button
+                type="submit"
+                disabled={saving}
+                onClick={handleSubmit}
+                className={`px-10 py-3 rounded-lg text-white font-medium transition-all duration-200 hover:scale-105 ${
+                  saving
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : isDarkMode
+                      ? 'bg-blue-600 hover:bg-blue-700 shadow-lg' 
+                      : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
+                }`}
+              >
+                {saving ? 'Saving...' : (hasExistingData ? 'Update Mill Input' : 'Add Mill Input')}
+              </button>
             </div>
         </div>
 

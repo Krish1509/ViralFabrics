@@ -35,7 +35,7 @@ interface MillOutputFormProps {
   order: Order | null;
   qualities: any[]; // Add qualities prop
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (operationType?: 'add' | 'edit' | 'delete') => void;
   isOpen?: boolean; // Add isOpen prop like LabDataModal
   isEditing?: boolean;
   existingMillOutputs?: any[];
@@ -653,20 +653,14 @@ export default function MillOutputForm({
     
     if (isOpen && order?.orderId) {
       console.log('Form opened, loading existing mill output data...');
-      // Reset form state first (but don't reset hasExistingData immediately)
+      // Reset form state first to avoid showing stale data
+      setHasExistingData(false); // Reset to false initially
       setErrors({});
       setSuccessMessage('');
       
-      // Use pre-loaded data if available - show immediately for smooth experience
-      if (existingMillOutputs && existingMillOutputs.length > 0) {
-        console.log('Using pre-loaded mill output data:', existingMillOutputs);
-        loadExistingMillOutputs();
-      } else {
-        console.log('No pre-loaded data, but showing form immediately and fetching in background...');
-        // Show form immediately and fetch in background
-        // Fetch in background without blocking UI
-        fetchExistingMillOutputData();
-      }
+      // Always fetch fresh data from API when form opens to avoid stale data
+      console.log('🔄 Form opened - fetching fresh mill output data from API...');
+      fetchExistingMillOutputData();
     }
   }, [isOpen, order?.orderId, existingMillOutputs]);
 
@@ -743,7 +737,7 @@ export default function MillOutputForm({
       const controller = new AbortController();
       timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for faster response
       
-      const response = await fetch(`/api/mill-outputs?orderId=${order.orderId}`, {
+      const response = await fetch(`/api/mill-outputs?orderId=${order.orderId}&t=${Date.now()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1242,7 +1236,7 @@ export default function MillOutputForm({
       await fetchExistingMillOutputData();
       
       // Call onSuccess immediately to update parent state and button text
-      onSuccess();
+      onSuccess(hasExistingData ? 'edit' : 'add');
       
       // Don't close automatically - let user see the updated data
       // setTimeout(() => {
@@ -1371,7 +1365,7 @@ export default function MillOutputForm({
       
       // Close after delay
       setTimeout(() => {
-        onSuccess();
+        onSuccess('delete');
         onClose();
       }, 1500);
     } catch (error) {
@@ -1866,20 +1860,6 @@ export default function MillOutputForm({
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-                onClick={handleSubmit}
-                className={`px-10 py-3 rounded-lg text-white font-medium transition-all duration-200 hover:scale-105 ${
-                  saving 
-                    ? 'bg-gray-400 cursor-not-allowed' 
-                    : isDarkMode 
-                      ? 'bg-blue-600 hover:bg-blue-700 shadow-lg' 
-                      : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
-                }`}
-              >
-                {saving ? 'Saving...' : (hasExistingData ? 'Update Mill Output' : 'Add Mill Output')}
-            </button>
             
             {/* Delete Button - Show only when has existing data */}
             {hasExistingData && (
@@ -1899,6 +1879,21 @@ export default function MillOutputForm({
                 Delete
               </button>
             )}
+            
+            <button
+              type="submit"
+              disabled={saving}
+                onClick={handleSubmit}
+                className={`px-10 py-3 rounded-lg text-white font-medium transition-all duration-200 hover:scale-105 ${
+                  saving 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : isDarkMode 
+                      ? 'bg-blue-600 hover:bg-blue-700 shadow-lg' 
+                      : 'bg-blue-500 hover:bg-blue-600 shadow-lg'
+                }`}
+              >
+                {saving ? 'Saving...' : (hasExistingData ? 'Update Mill Output' : 'Add Mill Output')}
+            </button>
           </div>
           </div>
       </div>

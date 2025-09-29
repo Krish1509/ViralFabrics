@@ -1831,15 +1831,12 @@ export default function OrdersPage() {
     setSelectedOrderForMillInputForm(order);
     setShowMillInputForm(true);
     
-    // Use data from order instead of API call (data already loaded)
-    const existingData = (order as any).millInputs || [];
-    const hasExistingData = existingData.length > 0;
+    // Don't pass stale data - let the form fetch fresh data from API
+    // This ensures we always show the most current data
+    setIsEditingMillInput(false); // Will be updated by the form after API fetch
+    setExistingMillInputs([]); // Start with empty array
     
-    // Set editing state and existing data
-    setIsEditingMillInput(hasExistingData);
-    setExistingMillInputs(existingData);
-    
-    console.log('Mill Input form opened with data:', { hasExistingData, existingDataLength: existingData.length });
+    console.log('Mill Input form opened - will fetch fresh data from API');
     
     // Load qualities data in background (non-blocking)
     if (qualities.length === 0) {
@@ -1856,15 +1853,12 @@ export default function OrdersPage() {
     setSelectedOrderForMillOutput(order);
     setShowMillOutputForm(true);
     
-    // Use data from order instead of API call (data already loaded)
-    const existingData = (order as any).millOutputs || [];
-    const hasExistingData = existingData.length > 0;
+    // Don't pass stale data - let the form fetch fresh data from API
+    // This ensures we always show the most current data
+    setIsEditingMillOutput(false); // Will be updated by the form after API fetch
+    setExistingMillOutputs([]); // Start with empty array
     
-    // Set editing state and existing data
-    setIsEditingMillOutput(hasExistingData);
-    setExistingMillOutputs(existingData);
-    
-    console.log('Mill Output form opened with data:', { hasExistingData, existingDataLength: existingData.length });
+    console.log('Mill Output form opened - will fetch fresh data from API');
     
     // Load qualities data in background (non-blocking)
     if (qualities.length === 0) {
@@ -1881,49 +1875,12 @@ export default function OrdersPage() {
     setSelectedOrderForDispatch(order);
     setShowDispatchForm(true);
     
-    // Fetch dispatch data from API to ensure we have the latest data
-    try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        console.log('Fetching dispatch data for order:', order.orderId);
-        const response = await fetch(`/api/dispatch?orderId=${order.orderId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.data && data.data.dispatches) {
-            const existingData = data.data.dispatches;
-            const hasExistingData = existingData.length > 0;
-            
-            // Set editing state and existing data
-            setIsEditingDispatch(hasExistingData);
-            setExistingDispatches(existingData);
-            
-            console.log('Dispatch form opened with fresh data:', { hasExistingData, existingDataLength: existingData.length });
-          } else {
-            console.log('No dispatch data found in API response');
-            setIsEditingDispatch(false);
-            setExistingDispatches([]);
-          }
-        } else {
-          console.log('Failed to fetch dispatch data, status:', response.status);
-          setIsEditingDispatch(false);
-          setExistingDispatches([]);
-        }
-      } else {
-        console.log('No authentication token found');
-        setIsEditingDispatch(false);
-        setExistingDispatches([]);
-      }
-    } catch (error) {
-      console.error('Error fetching dispatch data:', error);
-      setIsEditingDispatch(false);
-      setExistingDispatches([]);
-    }
+    // Don't pass stale data - let the form fetch fresh data from API
+    // This ensures we always show the most current data
+    setIsEditingDispatch(false); // Will be updated by the form after API fetch
+    setExistingDispatches([]); // Start with empty array
+    
+    console.log('Dispatch form opened - will fetch fresh data from API');
     
     // Load parties data in background (non-blocking)
     if (parties.length === 0) {
@@ -5093,31 +5050,64 @@ export default function OrdersPage() {
               window.localStorage.removeItem('millInputFormData');
             }
           }}
-                      onSuccess={async () => {
-              const orderId = selectedOrderForMillInputForm?.orderId;
+                      onSuccess={async (operationType?: 'add' | 'edit' | 'delete') => {
+              const orderId = selectedOrderForMillInputForm?._id;
               
-              try {
-                // Update the order's millInputs property directly in local state
-                if (orderId) {
-                  setOrders(prevOrders => 
-                    prevOrders.map(order => 
-                      order.orderId === orderId 
-                        ? { ...order, millInputs: [{ _id: 'temp', order: orderId, createdAt: new Date() }] } // Mark as having data
-                        : order
-                    )
-                  );
-                }
-                
-                // Show success message
-                const message = isEditingMillInput ? 'Mill input updated successfully!' : 'Mill input added successfully!';
-                showMessage('success', message);
-                
-                console.log('Mill input button state updated for order:', orderId);
-              } catch (error) {
-                console.error('Error updating mill input state:', error);
-                const message = isEditingMillInput ? 'Mill input updated successfully!' : 'Mill input added successfully!';
-                showMessage('success', message);
+              if (orderId) {
+                // Immediate UI update based on operation type
+                setOrders(prevOrders => 
+                  prevOrders.map(order => {
+                    if (order._id === orderId) {
+                      const updatedOrder = { ...order };
+                      
+                      if (operationType === 'delete') {
+                        // Remove mill input data
+                        updatedOrder.millInputs = [];
+                      } else if (operationType === 'add' || operationType === 'edit') {
+                        // Mark as having mill input data (will be updated with real data from API)
+                        updatedOrder.millInputs = [{ _id: 'temp', order: orderId, createdAt: new Date() }];
+                      }
+                      
+                      return updatedOrder;
+                    }
+                    return order;
+                  })
+                );
               }
+              
+              // Optional: Fetch fresh data in background (non-blocking)
+              if (orderId) {
+                try {
+                  const response = await fetch(`/api/orders/${orderId}`, {
+                    headers: {
+                      'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                      'Content-Type': 'application/json'
+                    }
+                  });
+                  
+                  if (response.ok) {
+                    const updatedOrder = await response.json();
+                    if (updatedOrder.success) {
+                      // Update with real data from API
+                      setOrders(prevOrders => 
+                        prevOrders.map(order => 
+                          order._id === orderId 
+                            ? { ...order, ...updatedOrder.data }
+                            : order
+                        )
+                      );
+                    }
+                  }
+                } catch (error) {
+                  console.log('Background refresh failed, but UI already updated:', error);
+                }
+              }
+              
+              // Show success message
+              const message = isEditingMillInput ? 'Mill input updated successfully!' : 'Mill input added successfully!';
+              showMessage('success', message);
+              
+              console.log('Mill input button state updated for order:', orderId);
             }}
           onAddMill={() => {
             // Refresh mills when a new mill is added
@@ -5142,31 +5132,64 @@ export default function OrdersPage() {
             setIsEditingMillOutput(false);
             setExistingMillOutputs([]);
           }}
-          onSuccess={async () => {
-            const orderId = selectedOrderForMillOutput?.orderId;
+          onSuccess={async (operationType?: 'add' | 'edit' | 'delete') => {
+            const orderId = selectedOrderForMillOutput?._id;
             
-            try {
-              // Update the order's millOutputs property directly in local state
-              if (orderId) {
-                setOrders(prevOrders => 
-                  prevOrders.map(order => 
-                    order.orderId === orderId 
-                      ? { ...order, millOutputs: [{ _id: 'temp', order: orderId, createdAt: new Date() }] } // Mark as having data
-                      : order
-                  )
-                );
-              }
-              
-              // Show success message
-              const message = isEditingMillOutput ? 'Mill output updated successfully!' : 'Mill output added successfully!';
-              showMessage('success', message);
-              
-              console.log('Mill output button state updated for order:', orderId);
-            } catch (error) {
-              console.error('Error updating mill output state:', error);
-              const message = isEditingMillOutput ? 'Mill output updated successfully!' : 'Mill output added successfully!';
-              showMessage('success', message);
+            if (orderId) {
+              // Immediate UI update based on operation type
+              setOrders(prevOrders => 
+                prevOrders.map(order => {
+                  if (order._id === orderId) {
+                    const updatedOrder = { ...order };
+                    
+                    if (operationType === 'delete') {
+                      // Remove mill output data
+                      updatedOrder.millOutputs = [];
+                    } else if (operationType === 'add' || operationType === 'edit') {
+                      // Mark as having mill output data (will be updated with real data from API)
+                      updatedOrder.millOutputs = [{ _id: 'temp', order: orderId, createdAt: new Date() }];
+                    }
+                    
+                    return updatedOrder;
+                  }
+                  return order;
+                })
+              );
             }
+            
+            // Optional: Fetch fresh data in background (non-blocking)
+            if (orderId) {
+              try {
+                const response = await fetch(`/api/orders/${orderId}`, {
+                  headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                  }
+                });
+                
+                if (response.ok) {
+                  const updatedOrder = await response.json();
+                  if (updatedOrder.success) {
+                    // Update with real data from API
+                    setOrders(prevOrders => 
+                      prevOrders.map(order => 
+                        order._id === orderId 
+                          ? { ...order, ...updatedOrder.data }
+                          : order
+                      )
+                    );
+                  }
+                }
+              } catch (error) {
+                console.log('Background refresh failed, but UI already updated:', error);
+              }
+            }
+            
+            // Show success message
+            const message = isEditingMillOutput ? 'Mill output updated successfully!' : 'Mill output added successfully!';
+            showMessage('success', message);
+            
+            console.log('Mill output button state updated for order:', orderId);
           }}
         />
       )}
@@ -5185,31 +5208,64 @@ export default function OrdersPage() {
             setIsEditingDispatch(false);
             setExistingDispatches([]);
           }}
-          onSuccess={async () => {
-            const orderId = selectedOrderForDispatch?.orderId;
+          onSuccess={async (operationType?: 'add' | 'edit' | 'delete') => {
+            const orderId = selectedOrderForDispatch?._id;
             
-            try {
-              // Update the order's dispatches property directly in local state
-              if (orderId) {
-                setOrders(prevOrders => 
-                  prevOrders.map(order => 
-                    order.orderId === orderId 
-                      ? { ...order, dispatches: [{ _id: 'temp', order: orderId, createdAt: new Date() }] } // Mark as having data
-                      : order
-                  )
-                );
-              }
-              
-              // Show success message
-              const message = isEditingDispatch ? 'Dispatch updated successfully!' : 'Dispatch added successfully!';
-              showMessage('success', message);
-              
-              console.log('Dispatch button state updated for order:', orderId);
-            } catch (error) {
-              console.error('Error updating dispatch state:', error);
-              const message = isEditingDispatch ? 'Dispatch updated successfully!' : 'Dispatch added successfully!';
-              showMessage('success', message);
+            if (orderId) {
+              // Immediate UI update based on operation type
+              setOrders(prevOrders => 
+                prevOrders.map(order => {
+                  if (order._id === orderId) {
+                    const updatedOrder = { ...order };
+                    
+                    if (operationType === 'delete') {
+                      // Remove dispatch data
+                      updatedOrder.dispatches = [];
+                    } else if (operationType === 'add' || operationType === 'edit') {
+                      // Mark as having dispatch data (will be updated with real data from API)
+                      updatedOrder.dispatches = [{ _id: 'temp', order: orderId, createdAt: new Date() }];
+                    }
+                    
+                    return updatedOrder;
+                  }
+                  return order;
+                })
+              );
             }
+            
+            // Optional: Fetch fresh data in background (non-blocking)
+            if (orderId) {
+              try {
+                const response = await fetch(`/api/orders/${orderId}`, {
+                  headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                  }
+                });
+                
+                if (response.ok) {
+                  const updatedOrder = await response.json();
+                  if (updatedOrder.success) {
+                    // Update with real data from API
+                    setOrders(prevOrders => 
+                      prevOrders.map(order => 
+                        order._id === orderId 
+                          ? { ...order, ...updatedOrder.data }
+                          : order
+                      )
+                    );
+                  }
+                }
+              } catch (error) {
+                console.log('Background refresh failed, but UI already updated:', error);
+              }
+            }
+            
+            // Show success message
+            const message = isEditingDispatch ? 'Dispatch updated successfully!' : 'Dispatch added successfully!';
+            showMessage('success', message);
+            
+            console.log('Dispatch button state updated for order:', orderId);
           }}
         />
       )}
