@@ -11,9 +11,12 @@ import {
   CheckIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  TableCellsIcon,
+  Squares2X2Icon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '../hooks/useDarkMode';
+import UserCardView from './components/UserCardView';
 
 interface User {
   _id: string;
@@ -69,6 +72,7 @@ export default function UsersPage() {
   const itemsPerPageOptions = [10, 25, 50, 100, 'All'] as const; // Standard pagination options
   const fetchInProgress = useRef(false); // Prevent multiple simultaneous fetches
   const [isChangingPage, setIsChangingPage] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'card'>('table'); // Default to table view
 
   // Get current user from localStorage and check access
   useEffect(() => {
@@ -673,8 +677,44 @@ export default function UsersPage() {
         {/* View Toggle - Right Side */}
         <div className="flex items-center space-x-2">
           <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            Table View
+            View:
           </span>
+          <div className={`flex rounded-lg border ${
+            isDarkMode ? 'border-white/20 bg-white/5' : 'border-gray-300 bg-white'
+          }`}>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`flex items-center px-3 py-2 text-sm font-medium rounded-l-lg transition-all duration-200 ${
+                viewMode === 'table'
+                  ? isDarkMode
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-blue-600 text-white'
+                  : isDarkMode
+                    ? 'text-gray-300 hover:bg-white/10'
+                    : 'text-gray-600 hover:bg-gray-50'
+              }`}
+              title="Table View"
+            >
+              <TableCellsIcon className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Table</span>
+            </button>
+            <button
+              onClick={() => setViewMode('card')}
+              className={`flex items-center px-3 py-2 text-sm font-medium rounded-r-lg transition-all duration-200 ${
+                viewMode === 'card'
+                  ? isDarkMode
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-blue-600 text-white'
+                  : isDarkMode
+                    ? 'text-gray-300 hover:bg-white/10'
+                    : 'text-gray-600 hover:bg-gray-50'
+              }`}
+              title="Card View"
+            >
+              <Squares2X2Icon className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Cards</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -826,14 +866,14 @@ export default function UsersPage() {
       </div>
 
 
-      {/* Users Display - Table View Only */}
-      {(
+      {/* Users Display - Table and Card Views */}
+      {viewMode === 'table' ? (
         /* Table View */
-      <div className={`rounded-lg border overflow-hidden ${
-        isDarkMode
-          ? 'bg-white/5 border-white/10'
-          : 'bg-white border-gray-200'
-      }`}>
+        <div className={`rounded-lg border overflow-hidden ${
+          isDarkMode
+            ? 'bg-white/5 border-white/10'
+            : 'bg-white border-gray-200'
+        }`}>
         {/* Pagination Controls - Top */}
         <div className={`flex items-center justify-between px-4 py-3 border-b ${
           isDarkMode 
@@ -1330,6 +1370,202 @@ export default function UsersPage() {
               isDarkMode ? 'text-gray-400' : 'text-gray-500'
             }`}>
               <p>No users found</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Card View */
+        <div className="space-y-4">
+          {/* Pagination Controls - Top for Card View */}
+          <div className={`flex items-center justify-between px-4 py-3 rounded-lg border ${
+            isDarkMode 
+              ? 'bg-white/5 border-white/10' 
+              : 'bg-white border-gray-200'
+          }`}>
+            <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:space-x-3 lg:space-x-4">
+              <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="hidden sm:inline">Showing {paginationDisplayInfo.start} to {paginationDisplayInfo.end} of {paginationDisplayInfo.total} users</span>
+                <span className="sm:hidden">{paginationDisplayInfo.start}-{paginationDisplayInfo.end} of {paginationDisplayInfo.total}</span>
+              </span>
+              
+              {/* Items per page dropdown */}
+              <div className="flex items-center space-x-2">
+                <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Show:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    const value = e.target.value === 'All' ? 'All' : parseInt(e.target.value);
+                    handleItemsPerPageChange(value);
+                  }}
+                  className={`text-xs sm:text-sm px-2 py-1 rounded border transition-colors ${
+                    isDarkMode 
+                      ? 'bg-gray-800 border-gray-600 text-white' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                  } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {itemsPerPageOptions.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Pagination Navigation for Card View */}
+            {totalPages > 1 && (
+              <div key={`card-pagination-${itemsPerPage}-${totalPages}`} className="flex items-center space-x-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1 || isChangingPage || loading}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === 1 || isChangingPage || loading
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  }`}
+                >
+                  Previous
+                </button>
+                
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        disabled={isChangingPage || loading}
+                        className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                          currentPage === pageNum
+                            ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white'
+                            : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages || isChangingPage || loading}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === totalPages || isChangingPage || loading
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Card View Component */}
+          <UserCardView
+            users={currentUsers}
+            currentUser={currentUser}
+            isDarkMode={isDarkMode}
+            onEditUser={(user) => {
+              setSelectedUser(user);
+              setFormData({
+                name: user.name,
+                username: user.username,
+                password: '',
+                phoneNumber: user.phoneNumber || '',
+                address: user.address || '',
+                role: user.role
+              });
+              setShowEditModal(true);
+              setValidationAlert(null);
+            }}
+            onDeleteUser={(user) => {
+              if (canDeleteUser(user) && user._id) {
+                setSelectedUser(user);
+                setShowDeleteModal(true);
+                setValidationAlert(null);
+              }
+            }}
+            onViewProfile={(user) => {
+              setSelectedUser(user);
+              setShowProfileModal(true);
+            }}
+            canDeleteUser={canDeleteUser}
+            getUserInitials={getUserInitials}
+            formatDate={formatDate}
+          />
+
+          {/* Pagination Controls - Bottom for Card View */}
+          {totalPages > 1 && (
+            <div className={`flex items-center justify-center px-4 py-3 rounded-lg border ${
+              isDarkMode 
+                ? 'bg-white/5 border-white/10' 
+                : 'bg-white border-gray-200'
+            }`}>
+              <div key={`card-bottom-pagination-${itemsPerPage}-${totalPages}`} className="flex items-center space-x-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1 || isChangingPage || loading}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === 1 || isChangingPage || loading
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  }`}
+                >
+                  Previous
+                </button>
+                
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 7) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 4) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 3) {
+                      pageNum = totalPages - 6 + i;
+                    } else {
+                      pageNum = currentPage - 3 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        disabled={isChangingPage || loading}
+                        className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                          currentPage === pageNum
+                            ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white'
+                            : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages || isChangingPage || loading}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === totalPages || isChangingPage || loading
+                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>

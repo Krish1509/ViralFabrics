@@ -4,45 +4,108 @@ import Order from '@/models/Order';
 import { getSession } from '@/lib/session';
 import { successResponse, errorResponse, unauthorizedResponse } from '@/lib/response';
 
+// In-memory cache for dashboard stats (2 minute TTL)
+const statsCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
-    await dbConnect();
-    
-    // Validate session
+    // Validate session first (fast check)
     const session = await getSession(request);
     if (!session) {
       return NextResponse.json(unauthorizedResponse('Unauthorized'), { status: 401 });
     }
 
-    // Super fast aggregated stats query with increased timeout
-    const [
-      totalOrders,
-      statusStats,
-      typeStats
-    ] = await Promise.all([
-      // Total orders count
-      Order.countDocuments().maxTimeMS(5000),
-      
-      // Status aggregation
+    // Check cache first
+    const cacheKey = 'dashboard-stats';
+    const cached = statsCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      return NextResponse.json(successResponse(cached.data, 'Dashboard stats loaded from cache'), { 
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=120, stale-while-revalidate=240',
+          'X-Cache': 'HIT',
+          'X-Response-Time': `${Date.now() - startTime}ms`
+        }
+      });
+    }
+
+    // Connect to database with optimized settings
+    await dbConnect();
+
+    // Super fast single aggregation query instead of multiple queries
+    const [statsResult] = await Promise.all([
       Order.aggregate([
         {
-          $group: {
-            _id: '$status',
-            count: { $sum: 1 }
+          $facet: {
+            // Total count
+            totalOrders: [{ $count: "count" }],
+            
+            // Status stats
+            statusStats: [
+              {
+                $group: {
+                  _id: '$status',
+                  count: { $sum: 1 }
+                }
+              }
+            ],
+            
+            // Type stats
+            typeStats: [
+              {
+                $group: {
+                  _id: '$orderType',
+                  count: { $sum: 1 }
+                }
+              }
+            ],
+            
+            // Pending type stats (orders with pending or not_set status)
+            pendingTypeStats: [
+              {
+                $match: {
+                  $or: [
+                    { status: { $in: ['pending', 'Not set', 'Not selected', null] } },
+                    { status: { $exists: false } }
+                  ]
+                }
+              },
+              {
+                $group: {
+                  _id: '$orderType',
+                  count: { $sum: 1 }
+                }
+              }
+            ],
+            
+            // Delivered type stats
+            deliveredTypeStats: [
+              {
+                $match: { status: 'delivered' }
+              },
+              {
+                $group: {
+                  _id: '$orderType',
+                  count: { $sum: 1 }
+                }
+              }
+            ]
           }
         }
-      ]),
-      
-      // Type aggregation
-      Order.aggregate([
-        {
-          $group: {
-            _id: '$orderType',
-            count: { $sum: 1 }
-          }
-        }
-      ])
+      ]).option({ maxTimeMS: 3000 }) // Reduced timeout for faster response
     ]);
+
+    // Extract data from the single aggregation result
+    const result = statsResult[0];
+    const totalOrders = result.totalOrders[0]?.count || 0;
+    const statusStats = result.statusStats || [];
+    const typeStats = result.typeStats || [];
+    const pendingTypeStats = result.pendingTypeStats || [];
+    const deliveredTypeStats = result.deliveredTypeStats || [];
 
     // Process status stats
     const processedStatusStats = {
@@ -89,40 +152,6 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Get actual pending and delivered type stats from database
-    const [pendingTypeStats, deliveredTypeStats] = await Promise.all([
-      // Pending type stats (orders with pending or not_set status)
-      Order.aggregate([
-        {
-          $match: {
-            $or: [
-              { status: { $in: ['pending', 'Not set', 'Not selected', null] } },
-              { status: { $exists: false } }
-            ]
-          }
-        },
-        {
-          $group: {
-            _id: '$orderType',
-            count: { $sum: 1 }
-          }
-        }
-      ]),
-      
-      // Delivered type stats (orders with delivered status)
-      Order.aggregate([
-        {
-          $match: { status: 'delivered' }
-        },
-        {
-          $group: {
-            _id: '$orderType',
-            count: { $sum: 1 }
-          }
-        }
-      ])
-    ]);
-
     // Process pending type stats
     const processedPendingTypeStats = {
       Dying: 0,
@@ -159,7 +188,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Simple monthly trends (last 6 months)
+    // Simple monthly trends (last 6 months) - lightweight calculation
     const monthlyTrends = [];
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
@@ -180,10 +209,16 @@ export async function GET(request: NextRequest) {
       recentOrders: [] // Empty for now to keep it fast
     };
 
-    // Add aggressive cache headers
+    // Cache the result
+    statsCache.set(cacheKey, { data: dashboardStats, timestamp: Date.now() });
+
+    // Add optimized cache headers
+    const responseTime = Date.now() - startTime;
     const headers = {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+      'Cache-Control': 'public, max-age=120, stale-while-revalidate=240',
+      'X-Cache': 'MISS',
+      'X-Response-Time': `${responseTime}ms`
     };
 
     return NextResponse.json(successResponse(dashboardStats, 'Dashboard stats loaded successfully'), { 
@@ -192,17 +227,42 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error: any) {
+    const responseTime = Date.now() - startTime;
     console.error('Dashboard stats error:', error);
     
-    // Handle specific error types
+    // Handle specific error types with better error messages
     if (error.name === 'MongoServerError') {
-      return NextResponse.json(errorResponse('Database connection error. Please try again.'), { status: 500 });
-    } else if (error.name === 'MongoTimeoutError') {
-      return NextResponse.json(errorResponse('Database timeout. Please try again.'), { status: 500 });
+      return NextResponse.json(errorResponse('Database connection error. Please try again.'), { 
+        status: 500,
+        headers: {
+          'X-Response-Time': `${responseTime}ms`,
+          'X-Error-Type': 'database-connection'
+        }
+      });
+    } else if (error.name === 'MongoTimeoutError' || error.message?.includes('timeout')) {
+      return NextResponse.json(errorResponse('Request timeout. Please try again.'), { 
+        status: 408,
+        headers: {
+          'X-Response-Time': `${responseTime}ms`,
+          'X-Error-Type': 'timeout'
+        }
+      });
     } else if (error.message?.includes('connect')) {
-      return NextResponse.json(errorResponse('Unable to connect to database. Please try again.'), { status: 500 });
+      return NextResponse.json(errorResponse('Unable to connect to database. Please try again.'), { 
+        status: 503,
+        headers: {
+          'X-Response-Time': `${responseTime}ms`,
+          'X-Error-Type': 'database-unavailable'
+        }
+      });
     }
     
-    return NextResponse.json(errorResponse('Failed to load dashboard stats. Please try again.'), { status: 500 });
+    return NextResponse.json(errorResponse('Failed to load dashboard stats. Please try again.'), { 
+      status: 500,
+      headers: {
+        'X-Response-Time': `${responseTime}ms`,
+        'X-Error-Type': 'unknown'
+      }
+    });
   }
 }

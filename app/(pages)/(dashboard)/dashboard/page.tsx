@@ -12,6 +12,7 @@ import MetricsCard from './components/MetricsCard';
 import DashboardFilters from './components/DashboardFilters';
 import PieChart from './components/PieChart';
 import DeliveredSoonTable from './components/DeliveredSoonTable';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // Removed heavy components for super fast loading
 import { Order } from '@/types';
@@ -55,6 +56,13 @@ interface DashboardFilters {
   financialYear: string;
 }
 
+// Client-side cache for dashboard data
+const dashboardCache = {
+  data: null as DashboardStats | null,
+  timestamp: 0,
+  ttl: 2 * 60 * 1000 // 2 minutes
+};
+
 export default function DashboardPage() {
   const { isDarkMode, mounted } = useDarkMode();
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -72,6 +80,17 @@ export default function DashboardPage() {
 
   const fetchDashboardData = useCallback(async (isRetry = false) => {
     try {
+      // Check client-side cache first
+      if (!isRetry && dashboardCache.data && (Date.now() - dashboardCache.timestamp) < dashboardCache.ttl) {
+        console.log('Loading dashboard data from client cache');
+        setStats(dashboardCache.data);
+        setHasAttemptedFetch(true);
+        setLoading(false);
+        setSuccessMessage('Dashboard data loaded from cache');
+        setTimeout(() => setSuccessMessage(null), 2000);
+        return;
+      }
+
       // Only show loading spinner on initial load, not on retries
       if (!isRetry) {
         setLoading(true);
@@ -84,18 +103,20 @@ export default function DashboardPage() {
         return;
       }
 
-      // Super fast dashboard - only fetch essential stats
+      // Super fast dashboard with reduced timeout and better caching
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced to 5 second timeout
 
-      // Fetch only dashboard stats API (much faster than fetching all orders)
+      // Fetch only dashboard stats API with optimized headers
       const statsResponse = await fetch('/api/dashboard/stats', {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=30' // Add caching
+          'Cache-Control': 'max-age=120, stale-while-revalidate=240',
+          'Accept': 'application/json'
         },
         signal: controller.signal,
-        cache: 'default'
+        cache: 'default',
+        next: { revalidate: 120 } // Next.js caching
       });
 
       clearTimeout(timeoutId);
@@ -103,10 +124,16 @@ export default function DashboardPage() {
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
         if (statsData.success && statsData.data) {
+          // Cache the data
+          dashboardCache.data = statsData.data;
+          dashboardCache.timestamp = Date.now();
+          
           setStats(statsData.data);
           setHasAttemptedFetch(true);
           if (!isRetry) {
-            setSuccessMessage('Dashboard data loaded successfully');
+            const cacheStatus = statsResponse.headers.get('X-Cache');
+            const responseTime = statsResponse.headers.get('X-Response-Time');
+            setSuccessMessage(`Dashboard data loaded successfully${cacheStatus === 'HIT' ? ' (from cache)' : ''}${responseTime ? ` (${responseTime})` : ''}`);
             // Clear success message after 3 seconds
             setTimeout(() => setSuccessMessage(null), 3000);
           }
@@ -171,10 +198,17 @@ export default function DashboardPage() {
           setTimeout(() => {
             console.log('Retrying dashboard data fetch in background...');
             fetchDashboardData(true);
-          }, 3000);
+          }, 2000); // Reduced retry delay
         }
-      } else if (error.message?.includes('fetch')) {
-        setError('Network error. Please check your internet connection.');
+      } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        setError('Network error. Please check your internet connection and try again.');
+      } else if (error.message?.includes('timeout')) {
+        setError('Request timeout. The server is taking too long to respond. Please try again.');
+      } else if (error.message?.includes('401') || error.message?.includes('unauthorized')) {
+        setError('Authentication failed. Please log in again.');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
       } else {
         setError('Failed to load dashboard data. Please try again.');
       }
@@ -232,8 +266,9 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+    <ErrorBoundary>
+      <div className="min-h-screen">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
 
         {/* Success Message */}
         {successMessage && (
@@ -400,7 +435,8 @@ export default function DashboardPage() {
           <DeliveredSoonTable isDarkMode={isDarkMode} />
         </div>
 
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }
