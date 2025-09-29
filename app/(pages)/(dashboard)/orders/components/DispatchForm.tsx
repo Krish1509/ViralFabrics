@@ -663,6 +663,7 @@ export default function DispatchForm({
       
       // Always fetch fresh data from API when form opens to avoid stale data
       console.log('🔄 Form opened - fetching fresh dispatch data from API...');
+      console.log('🔄 Order details:', { orderId: order.orderId, order: order });
       setLoadingExistingData(true);
       fetchExistingDispatchData();
     }

@@ -4415,7 +4415,7 @@ export default function OrdersPage() {
               // Immediate UI update based on operation type
               setOrders(prevOrders => 
                 prevOrders.map(order => {
-                  if (order._id === orderId) {
+                  if (order.orderId === orderId) {
                     const updatedOrder = { ...order };
                     
                     if (operationType === 'delete' || operationType === 'deleteAll') {
@@ -4454,7 +4454,7 @@ export default function OrdersPage() {
                     // Update with real data from API
                     setOrders(prevOrders => 
                       prevOrders.map(order => 
-                        order._id === orderId 
+                        order.orderId === orderId 
                           ? { ...order, ...updatedOrder.data }
                           : order
                       )
@@ -4975,7 +4975,7 @@ export default function OrdersPage() {
               // Immediate UI update based on operation type
               setOrders(prevOrders => 
                 prevOrders.map(order => {
-                  if (order._id === orderId) {
+                  if (order.orderId === orderId) {
                     const updatedOrder = { ...order };
                     
                     if (operationType === 'delete' || operationType === 'deleteAll') {
@@ -5014,7 +5014,7 @@ export default function OrdersPage() {
                     // Update with real data from API
                     setOrders(prevOrders => 
                       prevOrders.map(order => 
-                        order._id === orderId 
+                        order.orderId === orderId 
                           ? { ...order, ...updatedOrder.data }
                           : order
                       )
@@ -5057,13 +5057,13 @@ export default function OrdersPage() {
             }
           }}
                       onSuccess={async (operationType?: 'add' | 'edit' | 'delete') => {
-              const orderId = selectedOrderForMillInputForm?._id;
+              const orderId = selectedOrderForMillInputForm?.orderId;
               
               if (orderId) {
                 // Immediate UI update based on operation type
                 setOrders(prevOrders => 
                   prevOrders.map(order => {
-                    if (order._id === orderId) {
+                    if (order.orderId === orderId) {
                       const updatedOrder = { ...order };
                       
                       if (operationType === 'delete') {
@@ -5084,7 +5084,7 @@ export default function OrdersPage() {
               // Optional: Fetch fresh data in background (non-blocking)
               if (orderId) {
                 try {
-                  const response = await fetch(`/api/orders/${orderId}`, {
+                  const response = await fetch(`/api/orders/${selectedOrderForMillInputForm?._id}`, {
                     headers: {
                       'Authorization': `Bearer ${localStorage.getItem('token')}`,
                       'Content-Type': 'application/json'
@@ -5097,7 +5097,7 @@ export default function OrdersPage() {
                       // Update with real data from API
                       setOrders(prevOrders => 
                         prevOrders.map(order => 
-                          order._id === orderId 
+                          order.orderId === orderId 
                             ? { ...order, ...updatedOrder.data }
                             : order
                         )
@@ -5114,7 +5114,7 @@ export default function OrdersPage() {
             showMessage('success', message);
             
             console.log('🎯 Mill input button state updated for order:', orderId, 'operationType:', operationType);
-            console.log('🎯 Updated order millInputs:', orders.find(o => o._id === orderId)?.millInputs);
+            console.log('🎯 Updated order millInputs:', orders.find(o => o.orderId === orderId)?.millInputs);
             }}
           onAddMill={() => {
             // Refresh mills when a new mill is added
@@ -5140,13 +5140,13 @@ export default function OrdersPage() {
             setExistingMillOutputs([]);
           }}
           onSuccess={async (operationType?: 'add' | 'edit' | 'delete') => {
-            const orderId = selectedOrderForMillOutput?._id;
+            const orderId = selectedOrderForMillOutput?.orderId;
             
             if (orderId) {
               // Immediate UI update based on operation type
               setOrders(prevOrders => 
                 prevOrders.map(order => {
-                  if (order._id === orderId) {
+                  if (order.orderId === orderId) {
                     const updatedOrder = { ...order };
                     
                     if (operationType === 'delete') {
@@ -5167,7 +5167,7 @@ export default function OrdersPage() {
             // Optional: Fetch fresh data in background (non-blocking)
             if (orderId) {
               try {
-                const response = await fetch(`/api/orders/${orderId}`, {
+                const response = await fetch(`/api/orders/${selectedOrderForMillOutput?._id}`, {
                   headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     'Content-Type': 'application/json'
@@ -5180,7 +5180,7 @@ export default function OrdersPage() {
                     // Update with real data from API
                     setOrders(prevOrders => 
                       prevOrders.map(order => 
-                        order._id === orderId 
+                        order.orderId === orderId 
                           ? { ...order, ...updatedOrder.data }
                           : order
                       )
@@ -5197,8 +5197,8 @@ export default function OrdersPage() {
             showMessage('success', message);
             
             console.log('🎯 Mill output button state updated for order:', orderId, 'operationType:', operationType);
-            console.log('🎯 Updated order millOutputs:', orders.find(o => o._id === orderId)?.millOutputs);
-            console.log('🎯 hasMillOutputs check result:', hasMillOutputs(orders.find(o => o._id === orderId)!));
+            console.log('🎯 Updated order millOutputs:', orders.find(o => o.orderId === orderId)?.millOutputs);
+            console.log('🎯 hasMillOutputs check result:', hasMillOutputs(orders.find(o => o.orderId === orderId)!));
           }}
         />
       )}
@@ -5218,13 +5218,13 @@ export default function OrdersPage() {
             setExistingDispatches([]);
           }}
           onSuccess={async (operationType?: 'add' | 'edit' | 'delete') => {
-            const orderId = selectedOrderForDispatch?._id;
+            const orderId = selectedOrderForDispatch?.orderId;
             
             if (orderId) {
               // Immediate UI update based on operation type
               setOrders(prevOrders => 
                 prevOrders.map(order => {
-                  if (order._id === orderId) {
+                  if (order.orderId === orderId) {
                     const updatedOrder = { ...order };
                     
                     if (operationType === 'delete') {
@@ -5245,7 +5245,7 @@ export default function OrdersPage() {
             // Optional: Fetch fresh data in background (non-blocking)
             if (orderId) {
               try {
-                const response = await fetch(`/api/orders/${orderId}`, {
+                const response = await fetch(`/api/orders/${selectedOrderForDispatch?._id}`, {
                   headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     'Content-Type': 'application/json'
@@ -5258,7 +5258,7 @@ export default function OrdersPage() {
                     // Update with real data from API
                     setOrders(prevOrders => 
                       prevOrders.map(order => 
-                        order._id === orderId 
+                        order.orderId === orderId 
                           ? { ...order, ...updatedOrder.data }
                           : order
                       )
@@ -5275,8 +5275,8 @@ export default function OrdersPage() {
             showMessage('success', message);
             
             console.log('🎯 Dispatch button state updated for order:', orderId, 'operationType:', operationType);
-            console.log('🎯 Updated order dispatches:', orders.find(o => o._id === orderId)?.dispatches);
-            console.log('🎯 hasDispatches check result:', hasDispatches(orders.find(o => o._id === orderId)!));
+            console.log('🎯 Updated order dispatches:', orders.find(o => o.orderId === orderId)?.dispatches);
+            console.log('🎯 hasDispatches check result:', hasDispatches(orders.find(o => o.orderId === orderId)!));
           }}
         />
       )}

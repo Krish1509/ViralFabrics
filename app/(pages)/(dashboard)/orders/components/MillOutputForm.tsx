@@ -633,7 +633,7 @@ export default function MillOutputForm({
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [saving, setSaving] = useState(false);
-  // Removed loadingExistingData state for instant opening
+  const [loadingData, setLoadingData] = useState(false);
   
   // LabDataModal pattern states
   const [hasExistingData, setHasExistingData] = useState(false);
@@ -649,12 +649,14 @@ export default function MillOutputForm({
 
   // Load existing mill output data when form opens (smooth pattern like edit order page)
   useEffect(() => {
-    console.log('MillOutputForm useEffect triggered:', { isOpen, orderId: order?.orderId, existingMillOutputsLength: existingMillOutputs?.length });
+    console.log('🔄 MillOutputForm useEffect triggered:', { isOpen, orderId: order?.orderId, existingMillOutputsLength: existingMillOutputs?.length });
     
     if (isOpen && order?.orderId) {
-      console.log('Form opened, loading existing mill output data...');
-      // Reset form state first to avoid showing stale data
-      setHasExistingData(false); // Reset to false initially
+      console.log('📂 Form opened, loading existing mill output data...');
+      
+      // Reset all states first to avoid showing stale data
+      setHasExistingData(false);
+      setLoadingData(true);
       setErrors({});
       setSuccessMessage('');
       setShowDeleteConfirm(false);
@@ -675,7 +677,15 @@ export default function MillOutputForm({
       
       // Always fetch fresh data from API when form opens to avoid stale data
       console.log('🔄 Form opened - fetching fresh mill output data from API...');
-      fetchExistingMillOutputData();
+      console.log('🔄 Order details:', { orderId: order.orderId, order: order });
+      
+      // Use setTimeout to ensure state updates are processed before API call
+      setTimeout(() => {
+        fetchExistingMillOutputData();
+      }, 100);
+    } else if (!isOpen) {
+      // Reset loading state when form is closed
+      setLoadingData(false);
     }
   }, [isOpen, order?.orderId]);
 
@@ -732,9 +742,13 @@ export default function MillOutputForm({
     if (!order?.orderId) {
       console.log('No order ID available for fetching mill outputs');
       setHasExistingData(false);
+      setLoadingData(false);
       return;
     }
 
+    console.log('🔄 Starting to fetch mill output data for order:', order.orderId);
+    setLoadingData(true);
+    
     // Fetch in background for smooth experience
     let timeoutId: NodeJS.Timeout | null = null;
     
@@ -743,14 +757,15 @@ export default function MillOutputForm({
       if (!token) {
         console.log('No authentication token available');
         setHasExistingData(false);
+        setLoadingData(false);
         return;
       }
 
-      console.log('Fetching mill outputs for order:', order.orderId);
+      console.log('📡 Fetching mill outputs for order:', order.orderId);
       
       // Create AbortController for timeout
       const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for faster response
+      timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for reliable response
       
       const response = await fetch(`/api/mill-outputs?orderId=${order.orderId}&t=${Date.now()}`, {
         headers: {
@@ -769,7 +784,8 @@ export default function MillOutputForm({
           console.log('✅ Found existing mill outputs:', data.data.millOutputs.length, 'records');
           console.log('Mill outputs data:', data.data.millOutputs);
           setHasExistingData(true);
-          loadExistingMillOutputsFromData(data.data.millOutputs);
+          await loadExistingMillOutputsFromData(data.data.millOutputs);
+          console.log('✅ Mill output data loaded successfully - form should now show data');
         } else {
           console.log('❌ No existing mill outputs found in API response');
           console.log('Response structure:', {
@@ -814,9 +830,9 @@ export default function MillOutputForm({
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('Mill outputs fetch was aborted due to timeout');
+        console.log('❌ Mill outputs fetch was aborted due to timeout');
       } else {
-        console.error('Error fetching mill outputs from API:', error);
+        console.error('❌ Error fetching mill outputs from API:', error);
       }
       setHasExistingData(false);
       
@@ -836,7 +852,8 @@ export default function MillOutputForm({
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      // Removed loading state
+      setLoadingData(false);
+      console.log('🔄 Mill output data fetch completed');
     }
   };
 
@@ -906,10 +923,10 @@ export default function MillOutputForm({
 
   // Function to load existing mill outputs from API data (LabDataModal pattern)
   const loadExistingMillOutputsFromData = async (millOutputsData: any[]) => {
-    console.log('Loading existing mill outputs from API data:', { order: order?.orderId, millOutputsData });
+    console.log('🔄 Loading existing mill outputs from API data:', { order: order?.orderId, millOutputsData });
     
     if (!order || millOutputsData.length === 0) {
-      console.log('No order or existing mill outputs found');
+      console.log('❌ No order or existing mill outputs found');
       setHasExistingData(false);
       return;
     }
@@ -935,9 +952,18 @@ export default function MillOutputForm({
           }))
         };
         
-        console.log('Setting form data from API:', newFormData);
-        setFormData(newFormData);
+        console.log('🔄 Setting form data from API:', newFormData);
+        
+        // Add a timestamp to force re-render
+        const formDataWithTimestamp = {
+          ...newFormData,
+          _lastUpdated: Date.now()
+        };
+        
+        setFormData(formDataWithTimestamp);
         setHasExistingData(true);
+        setLoadingData(false); // Ensure loading state is cleared
+        console.log('✅ Form data set successfully - form should now display the data');
         
         // Set quality search states for proper display
         const newQualitySearchStates: { [key: string]: string } = {};
@@ -1273,24 +1299,44 @@ export default function MillOutputForm({
     setErrors({});
 
     try {
-      if (isEditing && existingMillOutputs.length > 0) {
+      if (hasExistingData) {
         // Update existing mill outputs
+        console.log('🔄 Updating existing mill outputs...');
         await updateExistingMillOutputs();
       } else {
         // Create new mill outputs
+        console.log('➕ Creating new mill outputs...');
         await createNewMillOutputs();
       }
       
       setSuccessMessage('Mill output data saved successfully!');
       
+      // Determine operation type before updating hasExistingData
+      const operationType = hasExistingData ? 'edit' : 'add';
+      
       // Immediately update local state for better UX (LabDataModal pattern)
       setHasExistingData(true);
       
       // Refresh the local data to show updated state
-      await fetchExistingMillOutputData();
+      console.log('🔄 Refreshing data after save...');
+      
+      // Add a small delay to ensure database is updated
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      try {
+        await fetchExistingMillOutputData();
+        console.log('✅ Data refresh completed after save');
+      } catch (error) {
+        console.error('❌ Error refreshing data after save:', error);
+        // If refresh fails, at least ensure the form shows the data that was just saved
+        console.log('🔄 Fallback: Setting form data to show saved data');
+        setHasExistingData(true);
+        setLoadingData(false);
+      }
       
       // Call onSuccess immediately to update parent state and button text
-      onSuccess(hasExistingData ? 'edit' : 'add');
+      console.log('🔄 Calling onSuccess with operation type:', operationType);
+      onSuccess(operationType);
       
       // Don't close automatically - let user see the updated data
       // setTimeout(() => {
@@ -1311,9 +1357,13 @@ export default function MillOutputForm({
       throw new Error('No authentication token found');
     }
 
+    console.log('📝 Creating mill outputs for items:', formData.millOutputItems.length, 'items');
+    console.log('📝 Form data mill output items:', formData.millOutputItems);
+
     const allMillOutputPromises: Promise<any>[] = [];
 
-    formData.millOutputItems.forEach((item) => {
+    formData.millOutputItems.forEach((item, index) => {
+      console.log(`📝 Processing mill output item ${index + 1}:`, item);
       // Main mill output
       const millOutputData = {
         orderId: formData.orderId,
@@ -1323,6 +1373,8 @@ export default function MillOutputForm({
         quality: item.quality // Add quality field
       };
 
+      console.log(`📤 Sending mill output request for item ${index + 1}:`, millOutputData);
+
       allMillOutputPromises.push(
         fetch('/api/mill-outputs', {
           method: 'POST',
@@ -1331,7 +1383,11 @@ export default function MillOutputForm({
             'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify(millOutputData)
-        }).then(response => response.json())
+        }).then(async response => {
+          const data = await response.json();
+          console.log(`📥 Response for mill output item ${index + 1}:`, data);
+          return data;
+        })
       );
 
       // Additional finished meters and rates
@@ -1458,29 +1514,44 @@ export default function MillOutputForm({
       throw new Error('No authentication token found');
     }
 
-    // First delete existing mill outputs for this order
-    const deletePromises = existingMillOutputs.map((output: any) => {
-      return fetch(`/api/mill-outputs/${output._id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        }
-      });
+    console.log('🔄 Starting mill output update process...');
+    
+    // First fetch all existing mill outputs for this order from API
+    const response = await fetch(`/api/mill-outputs?orderId=${order?.orderId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
     });
 
-    try {
-      const deleteResults = await Promise.all(deletePromises);
-      // Check if all deletions were successful
-      const allDeleted = deleteResults.every(result => result.ok);
-      if (!allDeleted) {
-        }
-    } catch (error) {
-      // Continue with creating new ones even if deletion fails
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success && data.data && data.data.millOutputs && data.data.millOutputs.length > 0) {
+        console.log('🗑️ Deleting existing mill outputs:', data.data.millOutputs.length, 'records');
+        
+        // Delete all existing mill outputs for this order
+        const deletePromises = data.data.millOutputs.map((output: any) =>
+          fetch(`/api/mill-outputs/${output._id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          })
+        );
+
+        // Wait for all deletions to complete
+        const deleteResults = await Promise.all(deletePromises);
+        console.log('✅ Deletion completed:', deleteResults.length, 'records deleted');
+        
+        // Add a small delay to ensure deletions are processed
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
 
     // Then create new ones with updated data
+    console.log('➕ Creating new mill outputs with updated data...');
     await createNewMillOutputs();
+    console.log('✅ Mill output update process completed');
   };
 
   // Don't block form opening - show form even if order is not immediately available
@@ -1526,7 +1597,18 @@ export default function MillOutputForm({
         <div className={`relative w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
           isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
         }`}>
-          {/* Loading Overlay removed for smooth experience - form shows immediately */}
+          {/* Loading Overlay for Data Fetching */}
+          {loadingData && (
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
+              <div className={`p-6 rounded-lg ${
+                isDarkMode ? 'bg-gray-800' : 'bg-white'
+              }`}>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-3 text-sm font-medium">Loading mill output data...</p>
+                <p className="mt-1 text-xs text-gray-500">Please wait while we fetch your data</p>
+              </div>
+            </div>
+          )}
 
           {/* Loading Overlay for Saving */}
           {saving && (
