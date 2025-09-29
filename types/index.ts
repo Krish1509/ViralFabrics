@@ -61,6 +61,10 @@ export interface Order {
   items: OrderItem[];
   status?: "Not set" | "Not selected" | "pending" | "in_progress" | "completed" | "delivered" | "cancelled";
   labData?: any;
+  // Additional data for button states (populated by API)
+  millInputs?: any[];
+  millOutputs?: any[];
+  dispatches?: any[];
   createdAt: string;
   updatedAt: string;
 }

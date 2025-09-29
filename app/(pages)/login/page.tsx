@@ -193,9 +193,9 @@ function LoginForm() {
     setErrors({});
     
     try {
-      // Optimized timeout - 8 seconds for reliability
+      // Optimized timeout - 15 seconds for reliability
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
       
       // Start login API call and dashboard prefetch in parallel
       const [response] = await Promise.all([

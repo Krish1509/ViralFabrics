@@ -354,7 +354,7 @@ export default function OrdersPage() {
   }, [processDataByQuality]);
 
   // ULTRA FAST fetch functions - 50ms target
-  const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage) => {
+  const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage, forceRefresh = false) => {
     const maxRetries = 1; // Single retry for speed
     const baseTimeout = 500; // 500ms timeout for 50ms target
     const timeoutIncrement = 200; // Add 200ms per retry
@@ -375,6 +375,12 @@ export default function OrdersPage() {
       const limitValue = limit === 'All' ? 200 : Math.max(limit, 50); // Much smaller limits for speed
       url.searchParams.append('limit', limitValue.toString());
       url.searchParams.append('page', page.toString());
+      
+      // Add cache-busting parameter to ensure fresh data (especially after deletions)
+      if (forceRefresh) {
+        url.searchParams.append('t', Date.now().toString());
+        url.searchParams.append('force', 'true');
+      }
       
       // Search is handled client-side for better performance
       if (filters.typeFilter && filters.typeFilter !== 'all') {
@@ -472,7 +478,7 @@ export default function OrdersPage() {
   const refreshOrdersWithRetry = useCallback(async (retries = 2) => {
     for (let i = 0; i < retries; i++) {
       try {
-        await fetchOrders();
+        await fetchOrders(0, currentPage, itemsPerPage, true); // Force refresh
         console.log('Orders refreshed successfully');
         return;
       } catch (error) {
@@ -483,7 +489,7 @@ export default function OrdersPage() {
       }
     }
     console.error('All refresh attempts failed');
-  }, [fetchOrders]);
+  }, [fetchOrders, currentPage, itemsPerPage]);
 
   // Pagination handlers
   const handlePageChange = async (newPage: number) => {
@@ -747,6 +753,37 @@ export default function OrdersPage() {
   const fetchAllOrderMillOutputs = useCallback(() => fetchAllOrderData(), [fetchAllOrderData]);
   const fetchAllOrderDispatches = useCallback(() => fetchAllOrderData(), [fetchAllOrderData]);
 
+  // Function to immediately refresh mill output state for a specific order
+  const refreshOrderMillOutputState = useCallback(async (orderId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      const response = await fetch(`/api/mill-outputs?orderId=${orderId}&limit=100`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data?.millOutputs) {
+          setOrderMillOutputs(prev => ({
+            ...prev,
+            [orderId]: data.data.millOutputs
+          }));
+        } else {
+          // If no data, set empty array to update button state
+          setOrderMillOutputs(prev => ({
+            ...prev,
+            [orderId]: []
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing mill output state:', error);
+    }
+  }, []);
+
+
   // Function to fetch mill inputs for a specific order
   const fetchMillInputsForOrder = useCallback(async (orderId: string) => {
     try {
@@ -1006,6 +1043,48 @@ export default function OrdersPage() {
     return () => clearTimeout(timeoutId);
   }, [showMessage, isInitialized]);
 
+  // Auto-refresh button states when orders are loaded
+  useEffect(() => {
+    if (orders.length > 0 && ordersLoaded) {
+      // Update button states from orders data (no API calls needed)
+      orders.forEach(order => {
+        // Update mill input state
+        if ((order as any).millInputs && (order as any).millInputs.length > 0) {
+          setOrderMillInputs(prev => ({
+            ...prev,
+            [order.orderId]: (order as any).millInputs
+          }));
+        }
+        
+        // Update mill output state
+        if ((order as any).millOutputs && (order as any).millOutputs.length > 0) {
+          setOrderMillOutputs(prev => ({
+            ...prev,
+            [order.orderId]: (order as any).millOutputs
+          }));
+        }
+        
+        // Update dispatch state
+        if ((order as any).dispatches && (order as any).dispatches.length > 0) {
+          setOrderDispatches(prev => ({
+            ...prev,
+            [order.orderId]: (order as any).dispatches
+          }));
+        }
+      });
+      
+      console.log('Button states updated from orders data');
+    }
+  }, [orders, ordersLoaded]); // Run when orders change
+
+  // Auto-refresh lab data states when orders change
+  useEffect(() => {
+    if (orders.length > 0 && ordersLoaded) {
+      // Lab data is already included in orders, so no additional API call needed
+      console.log('Lab data states updated for all orders');
+    }
+  }, [orders, ordersLoaded]); // Run when orders change
+
   // Load additional data only when needed (lazy loading)
   const loadPartiesData = useCallback(async () => {
     try {
@@ -1158,8 +1237,8 @@ export default function OrdersPage() {
     }
   }, [orderMillInputs]);
 
-  const loadMillOutputsData = useCallback(async (orderId: string) => {
-    if (orderMillOutputs[orderId]) return; // Already loaded for this order
+  const loadMillOutputsData = useCallback(async (orderId: string, forceRefresh = false) => {
+    if (!forceRefresh && orderMillOutputs[orderId]) return; // Already loaded for this order
     
     try {
       const token = localStorage.getItem('token');
@@ -1183,8 +1262,8 @@ export default function OrdersPage() {
     }
   }, [orderMillOutputs]);
 
-  const loadDispatchesData = useCallback(async (orderId: string) => {
-    if (orderDispatches[orderId]) return; // Already loaded for this order
+  const loadDispatchesData = useCallback(async (orderId: string, forceRefresh = false) => {
+    if (!forceRefresh && orderDispatches[orderId]) return; // Already loaded for this order
     
     try {
       const token = localStorage.getItem('token');
@@ -1208,6 +1287,28 @@ export default function OrdersPage() {
     }
   }, [orderDispatches]);
 
+  // Function to refresh orders data (includes all button states)
+  const refreshOrdersData = useCallback(async () => {
+    try {
+      await fetchOrders();
+      console.log('Orders data refreshed');
+    } catch (error) {
+      console.error('Error refreshing orders data:', error);
+    }
+  }, [fetchOrders]);
+
+  // Function to refresh lab data states for all orders
+  const refreshLabDataStates = useCallback(async () => {
+    if (orders.length === 0) return;
+    
+    try {
+      // Refresh orders to get latest lab data
+      await refreshOrdersWithRetry();
+      console.log('Lab data states refreshed');
+    } catch (error) {
+      console.error('Error refreshing lab data states:', error);
+    }
+  }, [orders, refreshOrdersWithRetry]);
 
   // Keyboard navigation for image preview
   useEffect(() => {
@@ -1603,7 +1704,7 @@ export default function OrdersPage() {
       });
       
       if (response.ok) {
-        setOrders(prev => prev.filter(order => order._id !== orderToDelete._id));
+        // Show success message immediately
         showMessage('success', 'Order deleted successfully');
         
         // Trigger real-time update for Order Activity Log
@@ -1616,8 +1717,18 @@ export default function OrdersPage() {
         });
         window.dispatchEvent(event);
         
+        // Close modal immediately
         setShowDeleteModal(false);
         setOrderToDelete(null);
+        
+        // Update local state immediately for better UX
+        setOrders(prev => prev.filter(order => order._id !== orderToDelete._id));
+        
+        // Wait a moment for deletion to be fully processed on server
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Refresh orders from server to ensure consistency
+        await refreshOrdersWithRetry();
       } else {
         const errorData = await response.json();
         const errorMessage = errorData.message || `Failed to delete order (${response.status})`;
@@ -1628,7 +1739,7 @@ export default function OrdersPage() {
     } finally {
       setDeleting(false);
     }
-  }, [orderToDelete, showMessage]);
+  }, [orderToDelete, showMessage, refreshOrdersWithRetry]);
 
   const handleDeleteCancel = useCallback(() => {
     setShowDeleteModal(false);
@@ -1662,20 +1773,14 @@ export default function OrdersPage() {
   const handleMillInput = async (order: Order) => {
     console.log('handleMillInput called for order:', order.orderId);
     
-    // Always force refresh data when opening the form
-    await Promise.all([
-      loadQualitiesData(),
-      loadMillInputsData(order.orderId, true) // Force refresh
-    ]);
+    // Load qualities data only (mill input data is already in order)
+    await loadQualitiesData();
     
-    // Wait a moment for state to update
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Check if there's existing mill input data for this order
-    const existingData = orderMillInputs[order.orderId] || [];
+    // Use data from order instead of API call
+    const existingData = (order as any).millInputs || [];
     const hasExistingData = existingData.length > 0;
     
-    console.log('Mill input data loaded:', {
+    console.log('Mill input data from order:', {
       orderId: order.orderId,
       existingDataCount: existingData.length,
       hasExistingData,
@@ -1693,14 +1798,14 @@ export default function OrdersPage() {
   const handleMillOutput = async (order: Order) => {
     // handleMillOutput called for order
     
-    // Load data only when button is clicked
-    await Promise.all([
-      loadQualitiesData(),
-      loadMillOutputsData(order.orderId)
-    ]);
+    // Set order immediately for faster UI response
+    setSelectedOrderForMillOutput(order);
     
-    // Check if there's existing mill output data for this order
-    const existingData = orderMillOutputs[order.orderId] || [];
+    // Load qualities data only (mill output data is already in order)
+    await loadQualitiesData();
+    
+    // Use data from order instead of API call
+    const existingData = (order as any).millOutputs || [];
     const hasExistingData = existingData.length > 0;
     
     // Mill output data check completed
@@ -1708,20 +1813,16 @@ export default function OrdersPage() {
     // Set editing state and existing data
     setIsEditingMillOutput(hasExistingData);
     setExistingMillOutputs(existingData);
-    setSelectedOrderForMillOutput(order);
     
     setShowMillOutputForm(true);
   };
 
   const handleDispatch = async (order: Order) => {
-    // Load data only when button is clicked
-    await Promise.all([
-      loadPartiesData(),
-      loadDispatchesData(order.orderId)
-    ]);
+    // Load parties data only (dispatch data is already in order)
+    await loadPartiesData();
     
-    // Check if there's existing dispatch data for this order
-    const existingData = orderDispatches[order.orderId] || [];
+    // Use data from order instead of API call
+    const existingData = (order as any).dispatches || [];
     const hasExistingData = existingData.length > 0;
     
     // Set editing state and existing data
@@ -1844,99 +1945,192 @@ export default function OrdersPage() {
     return order.items.reduce((total: number, item: any) => total + (item.quantity || 0), 0);
   };
 
-  // Optimized loading skeleton - Fast and minimal
+  // Enhanced loading skeleton with proper table structure
   const LoadingSkeleton = () => (
-    <div className="space-y-4">
-      {/* Compact Header Skeleton */}
-      <div className="flex items-center justify-between">
-        <div className={`h-6 w-32 rounded ${
-          isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+    <div className={`min-h-screen ${
+      isDarkMode 
+        ? 'bg-gray-900 text-white' 
+        : 'bg-gray-50 text-gray-900'
+    }`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header Skeleton */}
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+            {/* Create Order Button Skeleton */}
+            <div className="flex items-center order-1 md:order-1">
+              <div className={`h-10 w-32 rounded-lg ${
+                isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+              }`}></div>
+            </div>
+            
+            {/* Search Bar Skeleton */}
+            <div className="flex-1 order-2 md:order-2">
+              <div className={`h-10 rounded-lg ${
+                isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+              }`}></div>
+            </div>
+            
+            {/* Quick Actions Button Skeleton */}
+            <div className="flex items-center order-3 md:order-3">
+              <div className={`h-10 w-24 rounded-lg ${
+                isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+              }`}></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Pagination Info Skeleton */}
+        <div className="mt-6 flex items-center justify-between">
+          <div className={`h-4 w-32 rounded ${
+            isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
           }`}></div>
-        <div className={`h-8 w-24 rounded ${
-          isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-        }`}></div>
-      </div>
+          <div className={`h-8 w-20 rounded ${
+            isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+          }`}></div>
+        </div>
 
-      {/* Compact Search Skeleton */}
-      <div className={`h-10 rounded-lg ${
-        isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-        }`}></div>
-
-      {/* Optimized Table Skeleton */}
-      <div className={`rounded-lg border overflow-hidden ${
-        isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-gray-200'
-      }`}>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className={`${
-              isDarkMode ? 'bg-slate-700/50' : 'bg-gray-50'
-            }`}>
-              <tr>
-                <th className={`px-4 py-3 text-left text-sm font-medium ${
-                  isDarkMode ? 'text-slate-300' : 'text-gray-700'
-                }`}>Order Information</th>
-                <th className={`px-4 py-3 text-left text-sm font-medium ${
-                  isDarkMode ? 'text-slate-300' : 'text-gray-700'
-                }`}>Items</th>
-                <th className={`px-4 py-3 text-left text-sm font-medium ${
-                  isDarkMode ? 'text-slate-300' : 'text-gray-700'
-                }`}>Actions</th>
-              </tr>
-            </thead>
-            <tbody className={`divide-y ${
-              isDarkMode ? 'divide-slate-700' : 'divide-gray-200'
-            }`}>
-              {[...Array(4)].map((_, i) => (
-                <tr key={i} className={`${
-                  isDarkMode ? 'bg-slate-800/30' : 'bg-white'
+        {/* Table Skeleton with proper structure */}
+        <div className="mt-6">
+          <div className={`rounded-xl border overflow-hidden shadow-lg ${
+            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+          }`}>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className={`${
+                  isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
                 }`}>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center space-x-3">
-                      <div className={`h-8 w-8 rounded-full ${
-                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                      }`}></div>
-                      <div className="space-y-1">
-                        <div className={`h-3 w-20 rounded ${
-                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                        }`}></div>
-                        <div className={`h-2 w-16 rounded ${
-                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                        }`}></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="space-y-1">
-                      <div className={`h-3 w-12 rounded ${
-                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                      }`}></div>
-                      <div className="flex space-x-1">
-                        <div className={`h-4 w-12 rounded ${
-                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                      }`}></div>
-                      <div className={`h-4 w-12 rounded ${
-                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                      }`}></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex space-x-2">
-                      <div className={`h-6 w-6 rounded ${
-                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                    }`}></div>
-                      <div className={`h-6 w-6 rounded ${
-                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                      }`}></div>
-                      <div className={`h-6 w-6 rounded ${
-                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                      }`}></div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  <tr>
+                    <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[300px] ${
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black/50 bg-blue-50'
+                    }`}>
+                      Order Information
+                    </th>
+                    <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[350px] ${
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
+                    }`}>
+                      Items
+                    </th>
+                    <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[200px] ${
+                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
+                    }`}>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y ${
+                  isDarkMode ? 'divide-gray-700' : 'divide-gray-200'
+                }`}>
+                  {[...Array(5)].map((_, i) => (
+                    <tr key={i} className={`${
+                      isDarkMode ? 'bg-gray-800/30' : 'bg-white'
+                    }`}>
+                      {/* Order Information Column Skeleton */}
+                      <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
+                        <div className="space-y-3">
+                          {/* Order ID and Type */}
+                          <div className="flex items-center space-x-3">
+                            <div className={`h-8 w-8 rounded-full ${
+                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                            }`}></div>
+                            <div className="space-y-1">
+                              <div className={`h-4 w-16 rounded ${
+                                isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                              }`}></div>
+                              <div className={`h-3 w-12 rounded ${
+                                isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                              }`}></div>
+                            </div>
+                          </div>
+                          {/* Party and Date */}
+                          <div className="space-y-1">
+                            <div className={`h-3 w-24 rounded ${
+                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                            }`}></div>
+                            <div className={`h-3 w-20 rounded ${
+                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                            }`}></div>
+                          </div>
+                          {/* Status */}
+                          <div className={`h-6 w-16 rounded-full ${
+                            isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                          }`}></div>
+                        </div>
+                      </td>
+
+                      {/* Items Column Skeleton */}
+                      <td className="py-3 sm:py-4 lg:py-5">
+                        <div className="space-y-2">
+                          <div className={`h-3 w-16 rounded ${
+                            isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                          }`}></div>
+                          <div className={`rounded-lg border overflow-hidden ${
+                            isDarkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-white border-gray-200'
+                          }`}>
+                            <div className="p-2">
+                              <div className="space-y-2">
+                                {[...Array(2)].map((_, j) => (
+                                  <div key={j} className="flex items-center space-x-2">
+                                    <div className={`h-3 w-20 rounded ${
+                                      isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                                    }`}></div>
+                                    <div className={`h-3 w-12 rounded ${
+                                      isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                                    }`}></div>
+                                    <div className={`h-3 w-16 rounded ${
+                                      isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                                    }`}></div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Actions Column Skeleton */}
+                      <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
+                        <div className="space-y-2">
+                          {/* Action Buttons Grid */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className={`h-8 w-full rounded-lg ${
+                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                            }`}></div>
+                            <div className={`h-8 w-full rounded-lg ${
+                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                            }`}></div>
+                            <div className={`h-8 w-full rounded-lg ${
+                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                            }`}></div>
+                            <div className={`h-8 w-full rounded-lg ${
+                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                            }`}></div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Pagination Skeleton */}
+        <div className="mt-6 flex items-center justify-between">
+          <div className={`h-4 w-32 rounded ${
+            isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+          }`}></div>
+          <div className="flex space-x-2">
+            <div className={`h-8 w-8 rounded ${
+              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+            }`}></div>
+            <div className={`h-8 w-8 rounded ${
+              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+            }`}></div>
+            <div className={`h-8 w-8 rounded ${
+              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+            }`}></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1944,7 +2138,8 @@ export default function OrdersPage() {
 
   if (!mounted) return null;
 
-  if (loading || (!ordersLoaded && !isInitialized)) {
+  // Show loading skeleton during initial load or when refreshing
+  if (loading || (!ordersLoaded && !isInitialized) || isChangingPage) {
     return <LoadingSkeleton />;
   }
 
@@ -3141,7 +3336,7 @@ export default function OrdersPage() {
                          <div className="space-y-2">
                            <button
                              onClick={() => handleLabData(order)}
-                             className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 ${
+                             className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                                isDarkMode
                                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30'
                                  : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
@@ -3149,72 +3344,78 @@ export default function OrdersPage() {
                              title={order.items.some(item => item.labData?.sampleNumber) ? "Edit Lab Data" : "Add Lab Data"}
                            >
                              <BeakerIcon className="h-4 w-4" />
-                             <span>{order.items.some(item => item.labData?.sampleNumber) ? "Edit Lab" : "Add Lab"}</span>
+                             <span>{order.items.some(item => item.labData?.sampleNumber) ? "Edit Lab Data" : "Add Lab Data"}</span>
+                             {/* Status indicator */}
+                             <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
+                               isDarkMode ? 'border-gray-800' : 'border-white'
+                             } ${
+                               order.items.some(item => item.labData?.sampleNumber)
+                                 ? 'bg-green-500' 
+                                 : 'bg-gray-400'
+                             }`} title={order.items.some(item => item.labData?.sampleNumber) ? "Data exists" : "No data"} />
                            </button>
 
                            <button
-                             onClick={async () => {
-                               // Load mill input data for this order first with force refresh
-                               await loadMillInputsData(order.orderId, true);
-                               
-                               const existingInputs = orderMillInputs[order.orderId] || [];
-                               console.log('Button click - existing inputs:', existingInputs.length);
-                               
-                               if (existingInputs.length > 0) {
-                                 setIsEditingMillInput(true);
-                                 setExistingMillInputs(existingInputs);
-                               } else {
-                                 setIsEditingMillInput(false);
-                                 setExistingMillInputs([]);
-                               }
-                               
-                               // Clear any cached data
-                               if (typeof window !== 'undefined') {
-                                 window.localStorage.removeItem('millInputFormCache');
-                                 window.localStorage.removeItem('millInputFormData');
-                                 window.localStorage.removeItem('millInputFormState');
-                                 window.localStorage.setItem('millInputFormVersion', '2.0');
-                                 window.localStorage.setItem('millInputFormForceNew', 'true');
-                               }
-                               
-                               setSelectedOrderForMillInputForm(order);
-                               setShowMillInputForm(true);
-                             }}
-                             className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 ${
+                             onClick={() => handleMillInput(order)}
+                             className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                                isDarkMode
                                  ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30'
                                  : 'bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100'
                              }`}
-                             title={orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? "Edit Mill Input" : "Add Mill Input"}
+                             title={(order as any).millInputs && (order as any).millInputs.length > 0 ? "Edit Mill Input" : "Add Mill Input"}
                            >
                              <CubeIcon className="h-4 w-4" />
-                             <span>{orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? "Edit Mill Input" : "Add Mill Input"}</span>
+                             <span>{(order as any).millInputs && (order as any).millInputs.length > 0 ? "Edit Mill Input" : "Add Mill Input"}</span>
+                             {/* Status indicator */}
+                             <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
+                               isDarkMode ? 'border-gray-800' : 'border-white'
+                             } ${
+                               (order as any).millInputs && (order as any).millInputs.length > 0 
+                                 ? 'bg-green-500' 
+                                 : 'bg-gray-400'
+                             }`} title={(order as any).millInputs && (order as any).millInputs.length > 0 ? "Data exists" : "No data"} />
                            </button>
 
                            <button
                              onClick={() => handleMillOutput(order)}
-                             className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 ${
+                             className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                                isDarkMode
                                  ? 'bg-teal-600/20 text-teal-400 border border-teal-500/30 hover:bg-teal-600/30'
                                  : 'bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100'
                              }`}
-                             title={orderMillOutputs[order.orderId] && orderMillOutputs[order.orderId].length > 0 ? "Edit Mill Output" : "Add Mill Output"}
+                             title={(order as any).millOutputs && (order as any).millOutputs.length > 0 ? "Edit Mill Output" : "Add Mill Output"}
                            >
                              <DocumentTextIcon className="h-4 w-4" />
-                             <span>{orderMillOutputs[order.orderId] && orderMillOutputs[order.orderId].length > 0 ? "Edit Mill Output" : "Add Mill Output"}</span>
+                             <span>{(order as any).millOutputs && (order as any).millOutputs.length > 0 ? "Edit Mill Output" : "Add Mill Output"}</span>
+                             {/* Status indicator */}
+                             <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
+                               isDarkMode ? 'border-gray-800' : 'border-white'
+                             } ${
+                               (order as any).millOutputs && (order as any).millOutputs.length > 0 
+                                 ? 'bg-green-500' 
+                                 : 'bg-gray-400'
+                             }`} title={(order as any).millOutputs && (order as any).millOutputs.length > 0 ? "Data exists" : "No data"} />
                            </button>
 
                            <button
                              onClick={() => handleDispatch(order)}
-                             className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 ${
+                             className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                                isDarkMode
                                  ? 'bg-orange-600/20 text-orange-400 border border-orange-500/30 hover:bg-orange-600/30'
                                  : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
                              }`}
-                             title={orderDispatches[order.orderId] && orderDispatches[order.orderId].length > 0 ? "Edit Dispatch" : "Add Dispatch"}
+                             title={(order as any).dispatches && (order as any).dispatches.length > 0 ? "Edit Dispatch" : "Add Dispatch"}
                            >
                              <TruckIcon className="h-4 w-4" />
-                             <span>{orderDispatches[order.orderId] && orderDispatches[order.orderId].length > 0 ? "Edit Dispatch" : "Add Dispatch"}</span>
+                             <span>{(order as any).dispatches && (order as any).dispatches.length > 0 ? "Edit Dispatch" : "Add Dispatch"}</span>
+                             {/* Status indicator */}
+                             <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
+                               isDarkMode ? 'border-gray-800' : 'border-white'
+                             } ${
+                               (order as any).dispatches && (order as any).dispatches.length > 0 
+                                 ? 'bg-green-500' 
+                                 : 'bg-gray-400'
+                             }`} title={(order as any).dispatches && (order as any).dispatches.length > 0 ? "Data exists" : "No data"} />
                            </button>
                          </div>
 
@@ -3346,6 +3547,18 @@ export default function OrdersPage() {
               >
                 Next
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Loading overlay for when data is being refreshed */}
+        {(loading || isChangingPage) && orders.length > 0 && (
+          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl">
+            <div className={`p-4 rounded-lg ${
+              isDarkMode ? 'bg-gray-800' : 'bg-white'
+            }`}>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+              <p className="mt-2 text-sm">{isChangingPage ? 'Changing page...' : 'Loading orders...'}</p>
             </div>
           </div>
         )}
@@ -3763,7 +3976,7 @@ export default function OrdersPage() {
                         setSelectedOrderForLabData(order);
                         setShowLabDataModal(true);
                       }}
-                      className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 ${
+                      className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                         isDarkMode
                           ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30'
                           : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
@@ -3771,55 +3984,78 @@ export default function OrdersPage() {
                       title={order.labData && order.labData.length > 0 ? "Edit Lab Data" : "Add Lab Data"}
                     >
                       <BeakerIcon className="h-4 w-4" />
-                      <span>{order.labData && order.labData.length > 0 ? "Add Lab" : "Add Lab"}</span>
+                      <span>{order.labData && order.labData.length > 0 ? "Edit Lab Data" : "Add Lab Data"}</span>
+                      {/* Status indicator */}
+                      <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
+                        isDarkMode ? 'border-gray-800' : 'border-white'
+                      } ${
+                        order.labData && order.labData.length > 0 
+                          ? 'bg-green-500' 
+                          : 'bg-gray-400'
+                      }`} title={order.labData && order.labData.length > 0 ? "Data exists" : "No data"} />
                     </button>
 
                     <button
-                      onClick={async () => {
-                        // Load mill input data for this order with force refresh first
-                        await loadMillInputsData(order.orderId, true);
-                        
-                        // Wait a moment for state to update
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                        
-                        setSelectedOrderForMillInputForm(order);
-                        setShowMillInputForm(true);
-                      }}
-                      className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 ${
+                      onClick={() => handleMillInput(order)}
+                      className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                         isDarkMode
                           ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30'
                           : 'bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100'
                       }`}
-                      title={orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? "Edit Mill Input" : "Add Mill Input"}
+                      title={(order as any).millInputs && (order as any).millInputs.length > 0 ? "Edit Mill Input" : "Add Mill Input"}
                     >
                       <CubeIcon className="h-4 w-4" />
-                      <span>{orderMillInputs[order.orderId] && orderMillInputs[order.orderId].length > 0 ? "Edit Mill Input" : "Add Mill Input"}</span>
+                      <span>{(order as any).millInputs && (order as any).millInputs.length > 0 ? "Edit Mill Input" : "Add Mill Input"}</span>
+                      {/* Status indicator */}
+                      <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
+                        isDarkMode ? 'border-gray-800' : 'border-white'
+                      } ${
+                        (order as any).millInputs && (order as any).millInputs.length > 0 
+                          ? 'bg-green-500' 
+                          : 'bg-gray-400'
+                      }`} title={(order as any).millInputs && (order as any).millInputs.length > 0 ? "Data exists" : "No data"} />
                     </button>
 
                     <button
                       onClick={() => handleMillOutput(order)}
-                      className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 ${
+                      className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                         isDarkMode
                           ? 'bg-teal-600/20 text-teal-400 border border-teal-500/30 hover:bg-teal-600/30'
                           : 'bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100'
                       }`}
-                      title={orderMillOutputs[order.orderId] && orderMillOutputs[order.orderId].length > 0 ? "Edit Mill Output" : "Add Mill Output"}
+                      title={(order as any).millOutputs && (order as any).millOutputs.length > 0 ? "Edit Mill Output" : "Add Mill Output"}
                     >
                       <DocumentTextIcon className="h-4 w-4" />
-                      <span>{orderMillOutputs[order.orderId] && orderMillOutputs[order.orderId].length > 0 ? "Edit Mill Output" : "Add Mill Output"}</span>
+                      <span>{(order as any).millOutputs && (order as any).millOutputs.length > 0 ? "Edit Mill Output" : "Add Mill Output"}</span>
+                      {/* Status indicator */}
+                      <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
+                        isDarkMode ? 'border-gray-800' : 'border-white'
+                      } ${
+                        (order as any).millOutputs && (order as any).millOutputs.length > 0 
+                          ? 'bg-green-500' 
+                          : 'bg-gray-400'
+                      }`} title={(order as any).millOutputs && (order as any).millOutputs.length > 0 ? "Data exists" : "No data"} />
                     </button>
 
                     <button
                       onClick={() => handleDispatch(order)}
-                      className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 ${
+                      className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                         isDarkMode
                           ? 'bg-orange-600/20 text-orange-400 border border-orange-500/30 hover:bg-orange-600/30'
                           : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
                       }`}
-                      title={orderDispatches[order.orderId] && orderDispatches[order.orderId].length > 0 ? "Edit Dispatch" : "Add Dispatch"}
+                      title={(order as any).dispatches && (order as any).dispatches.length > 0 ? "Edit Dispatch" : "Add Dispatch"}
                     >
                       <TruckIcon className="h-4 w-4" />
-                      <span>{orderDispatches[order.orderId] && orderDispatches[order.orderId].length > 0 ? "Edit Dispatch" : "Add Dispatch"}</span>
+                      <span>{(order as any).dispatches && (order as any).dispatches.length > 0 ? "Edit Dispatch" : "Add Dispatch"}</span>
+                      {/* Status indicator */}
+                      <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
+                        isDarkMode ? 'border-gray-800' : 'border-white'
+                      } ${
+                        (order as any).dispatches && (order as any).dispatches.length > 0 
+                          ? 'bg-green-500' 
+                          : 'bg-gray-400'
+                      }`} title={(order as any).dispatches && (order as any).dispatches.length > 0 ? "Data exists" : "No data"} />
                     </button>
                   </div>
 
@@ -4036,7 +4272,7 @@ export default function OrdersPage() {
            onLabDataUpdate={async () => {
              setShowLabAddModal(false);
              setSelectedOrderForLab(null);
-             await refreshOrdersWithRetry(); // Refresh orders to show new lab data
+             await refreshLabDataStates(); // Refresh lab data states to update button indicators
              showMessage('success', 'Lab data added successfully');
            }}
          />
@@ -4536,7 +4772,7 @@ export default function OrdersPage() {
           }}
           order={selectedOrderForLabData} //@ts-ignore  
           onLabDataUpdate={async () => {
-            await refreshOrdersWithRetry();
+            await refreshLabDataStates(); // Refresh lab data states to update button indicators
             showMessage('success', 'Lab data updated successfully!');
           }}
         />
@@ -4551,6 +4787,8 @@ export default function OrdersPage() {
           mills={mills}
           qualities={qualities}
           isOpen={showMillInputForm}
+          isEditing={isEditingMillInput}
+          existingMillInputs={existingMillInputs}
           onRefreshQualities={fetchQualities}
           onClose={() => {
             setShowMillInputForm(false);
@@ -4572,11 +4810,8 @@ export default function OrdersPage() {
                   await fetchMillInputsForOrder(orderId);
                 }
                 
-                // Then refresh all orders data
-                await refreshOrdersWithRetry();
-                
-                // Finally refresh all mill inputs data
-                await fetchAllOrderMillInputs();
+                // Then refresh orders data to ensure consistency
+                await refreshOrdersData();
                 
                 // Show success message
                 const message = isEditingMillInput ? 'Mill input updated successfully!' : 'Mill input added successfully!';
@@ -4594,8 +4829,6 @@ export default function OrdersPage() {
             fetchMills();
           }}
           onRefreshMills={fetchMills}
-          isEditing={isEditingMillInput}
-          existingMillInputs={existingMillInputs}
         />
         );
       })()}
@@ -4615,12 +4848,12 @@ export default function OrdersPage() {
             setExistingMillOutputs([]);
           }}
           onSuccess={async () => {
-            // Refresh orders and mill outputs to show any updates
-            await refreshOrdersWithRetry();
-            // Add a small delay to ensure database is updated
-            setTimeout(async () => {
-              await fetchAllOrderMillOutputs();
-            }, 500);
+            // Immediately refresh mill outputs data for this specific order to update button state
+            if (selectedOrderForMillOutput) {
+              await refreshOrderMillOutputState(selectedOrderForMillOutput.orderId);
+            }
+            // Also refresh orders data to ensure consistency
+            await refreshOrdersData();
             showMessage('success', isEditingMillOutput ? 'Mill output updated successfully!' : 'Mill output added successfully!');
           }}
         />
@@ -4641,12 +4874,8 @@ export default function OrdersPage() {
             setExistingDispatches([]);
           }}
           onSuccess={async () => {
-            // Refresh orders and dispatches to show any updates
-            await refreshOrdersWithRetry();
-            // Add a small delay to ensure database is updated
-            setTimeout(async () => {
-              await fetchAllOrderDispatches();
-            }, 500);
+            // Refresh orders data to ensure consistency
+            await refreshOrdersData();
             showMessage('success', isEditingDispatch ? 'Dispatch updated successfully!' : 'Dispatch added successfully!');
           }}
         />

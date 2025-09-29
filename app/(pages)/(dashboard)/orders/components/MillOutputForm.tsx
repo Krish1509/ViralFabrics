@@ -1104,14 +1104,13 @@ export default function MillOutputForm({
       // Immediately update local state for better UX (LabDataModal pattern)
       setHasExistingData(true);
       
-      // Refresh the local data to show updated state
-      await fetchExistingMillOutputData();
+      // Call onSuccess immediately to update parent state and button text
+      onSuccess();
       
-      // Show success message and then close after delay
+      // Show success message and then close after short delay
       setTimeout(() => {
-        onSuccess();
         onClose();
-      }, 1500);
+      }, 800);
     } catch (error) {
       setErrors({ submit: 'Failed to handle mill output' });
     } finally {

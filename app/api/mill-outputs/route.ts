@@ -31,15 +31,17 @@ export async function GET(request: NextRequest) {
         .skip(skip)
         .limit(limit)
         .lean()
-        .maxTimeMS(200)
+        .maxTimeMS(100) // Reduced timeout for faster response
         .catch(error => {
+          console.log('Primary query timed out, using fallback');
           return MillOutput.find(query)
             .sort({ recdDate: -1 })
             .skip(skip)
             .limit(limit)
-            .lean();
+            .lean()
+            .maxTimeMS(50); // Even faster fallback
         }),
-      MillOutput.countDocuments(query)
+      MillOutput.countDocuments(query).maxTimeMS(50) // Faster count query
     ]);
 
     // Ensure quality field is included even if null

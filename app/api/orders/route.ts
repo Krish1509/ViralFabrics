@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || '';
     const startDate = searchParams.get('startDate') || '';
     const endDate = searchParams.get('endDate') || '';
+    const force = searchParams.get('force') === 'true';
     
     // Build query
     const query: any = {
@@ -71,8 +72,8 @@ export async function GET(request: NextRequest) {
       .lean()
       .maxTimeMS(200); // 200ms timeout for 50ms target
 
-    // Use Promise.all to parallelize lab data fetching, mill input data, and total count
-    const [labs, millInputs, total] = await Promise.all([
+    // Use Promise.all to parallelize all data fetching
+    const [labs, millInputs, millOutputs, dispatches, total] = await Promise.all([
       // Fetch lab data for all orders
       orders.length > 0 ? (async () => {
         try {
@@ -114,6 +115,46 @@ export async function GET(request: NextRequest) {
         }
       })() : Promise.resolve([]),
       
+      // Fetch mill output data for button states
+      orders.length > 0 ? (async () => {
+        try {
+          const MillOutput = (await import('@/models/MillOutput')).default;
+          const orderIds = orders.map(order => order._id);
+          
+          const millOutputs = await MillOutput.find({ 
+            order: { $in: orderIds }
+          })
+          .select('order recdDate millBillNo finishedMtr quality')
+          .lean()
+          .maxTimeMS(200);
+          
+          return millOutputs;
+        } catch (millError) {
+          console.error('Mill output fetch error:', millError);
+          return [];
+        }
+      })() : Promise.resolve([]),
+      
+      // Fetch dispatch data for button states
+      orders.length > 0 ? (async () => {
+        try {
+          const Dispatch = (await import('@/models/Dispatch')).default;
+          const orderIds = orders.map(order => order._id);
+          
+          const dispatches = await Dispatch.find({ 
+            order: { $in: orderIds }
+          })
+          .select('order dispatchDate dispatchNo quantity dispatchedTo')
+          .lean()
+          .maxTimeMS(200);
+          
+          return dispatches;
+        } catch (dispatchError) {
+          console.error('Dispatch fetch error:', dispatchError);
+          return [];
+        }
+      })() : Promise.resolve([]),
+      
       // Get total count in parallel
       Order.countDocuments(query).maxTimeMS(200)
     ]);
@@ -133,6 +174,22 @@ export async function GET(request: NextRequest) {
       if (millInputs.length > 0) {
         millInputs.forEach(millInput => {
           millInputMap.set(millInput.order.toString(), millInput);
+        });
+      }
+      
+      // Create a map of order ObjectId to mill output data
+      const millOutputMap = new Map();
+      if (millOutputs.length > 0) {
+        millOutputs.forEach(millOutput => {
+          millOutputMap.set(millOutput.order.toString(), millOutput);
+        });
+      }
+      
+      // Create a map of order ObjectId to dispatch data
+      const dispatchMap = new Map();
+      if (dispatches.length > 0) {
+        dispatches.forEach(dispatch => {
+          dispatchMap.set(dispatch.order.toString(), dispatch);
         });
       }
       
@@ -223,15 +280,17 @@ export async function GET(request: NextRequest) {
           });
         }
         
-        // Add mill inputs to each order for PDF generation
+        // Add mill inputs, mill outputs, and dispatches to each order for button states
         (order as any).millInputs = millInputMap.get(order._id.toString()) || [];
+        (order as any).millOutputs = millOutputMap.get(order._id.toString()) || [];
+        (order as any).dispatches = dispatchMap.get(order._id.toString()) || [];
       });
     }
 
-    // Add cache headers - short cache for better performance while maintaining real-time updates
+    // Add cache headers - very short cache to prevent stale data after deletions
     const headers = {
       'Content-Type': 'application/json',
-      'Cache-Control': 'max-age=30, must-revalidate', // 30 second cache for better performance
+      'Cache-Control': force ? 'no-cache, no-store, must-revalidate' : 'max-age=5, must-revalidate', // No cache when force refresh
       'Pragma': 'no-cache'
     };
     

@@ -45,6 +45,10 @@ export interface IOrder extends Document {
   shippingAddress?: string;
   billingAddress?: string;
   notes?: string;
+  // Additional data for button states (populated by API)
+  millInputs?: any[];
+  millOutputs?: any[];
+  dispatches?: any[];
   metadata: {
     createdBy?: string;
     tags: string[];

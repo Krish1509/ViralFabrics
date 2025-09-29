@@ -1588,8 +1588,7 @@ export default function MillInputForm({
       
       // Refresh the local data to show updated state
       await fetchExistingMillInputData();
-      
-      // Show success message for 1 second, then close
+            // Show success message for 1 second, then close
       setTimeout(() => {
         setSuccessMessage('');
         onSuccess();
