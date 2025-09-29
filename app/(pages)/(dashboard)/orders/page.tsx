@@ -942,10 +942,7 @@ export default function OrdersPage() {
     }
   }, []);
 
-  // Load mills when component mounts
-  useEffect(() => {
-    fetchMills();
-  }, [fetchMills]);
+  // Mills are now loaded in parallel with other APIs - no separate useEffect needed
 
   // AGGRESSIVE prefetching for EXTREME speed
   useEffect(() => {
@@ -975,76 +972,133 @@ export default function OrdersPage() {
           return;
         }
 
-        // PHASE 1: Load orders first for instant display
-        console.log('🚀 PHASE 1: Loading orders for instant display...');
-        const ordersController = new AbortController();
-        const ordersTimeoutId = setTimeout(() => {
-          console.log('Orders API timeout - aborting fetch');
-          ordersController.abort();
-        }, 15000); // 15 second timeout for orders
-
-        const ordersResponse = await fetch('/api/orders?limit=50&page=1&force=true', {
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Accept': 'application/json'
-          },
-          signal: ordersController.signal,
-          cache: 'no-store'
-        });
-
-        clearTimeout(ordersTimeoutId);
-
-        // Process orders data
-        if (ordersResponse.ok) {
-          const data = await ordersResponse.json();
-          console.log('Orders API response:', data);
-          console.log('Orders data structure:', {
-            success: data.success,
-            hasData: !!data.data,
-            dataType: typeof data.data,
-            dataLength: Array.isArray(data.data) ? data.data.length : 'not array',
-            pagination: data.pagination
-          });
-          
-          if (data.success && data.data) {
-            const ordersArray = Array.isArray(data.data) ? data.data : [];
-            console.log('Setting orders:', ordersArray.length, 'orders');
-            setOrders(ordersArray);
-            setPaginationInfo(data.pagination || {
-              totalCount: 0,
-              totalPages: 0,
-              currentPage: 1,
-              hasNextPage: false,
-              hasPrevPage: false
-            });
-          } else {
-            console.log('No orders found in response');
-            setOrders([]);
-          }
-          setOrdersLoaded(true);
-        } else {
-          console.error('Failed to load orders:', ordersResponse.status, ordersResponse.statusText);
-          setOrders([]);
-          setOrdersLoaded(true); // Mark as loaded to show "No orders yet"
-          // Don't show error message for 404 or empty results - this is normal
-          if (ordersResponse.status !== 404) {
-            showMessage('error', 'Failed to load orders', { autoDismiss: true, dismissTime: 3000 });
-          }
-        }
-
-        // PHASE 2: Load other data in background for better UX
-        console.log('🚀 PHASE 2: Loading additional data in background...');
+        // ULTRA FAST PARALLEL LOADING - All APIs at once
+        console.log('🚀 ULTRA FAST PARALLEL LOADING: Loading all APIs simultaneously...');
         
-        // Load parties and qualities in background (non-blocking)
-        Promise.allSettled([
-          loadPartiesData(),
-          loadQualitiesData()
-        ]).then((results) => {
-          console.log('Background data loading completed:', results);
-        }).catch((error) => {
-          console.log('Background data loading failed:', error);
-        });
+        const startTime = Date.now();
+        
+        // Create abort controllers for all requests
+        const ordersController = new AbortController();
+        const partiesController = new AbortController();
+        const qualitiesController = new AbortController();
+        const millsController = new AbortController();
+        
+        // Set timeouts for all requests
+        const ordersTimeoutId = setTimeout(() => ordersController.abort(), 10000);
+        const partiesTimeoutId = setTimeout(() => partiesController.abort(), 8000);
+        const qualitiesTimeoutId = setTimeout(() => qualitiesController.abort(), 8000);
+        const millsTimeoutId = setTimeout(() => millsController.abort(), 8000);
+        
+        // Load ALL APIs in parallel
+        const [ordersResult, partiesResult, qualitiesResult, millsResult] = await Promise.allSettled([
+          // Orders API
+          fetch('/api/orders?limit=50&page=1&force=true', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Accept': 'application/json'
+            },
+            signal: ordersController.signal,
+            cache: 'no-store'
+          }).then(async response => {
+            clearTimeout(ordersTimeoutId);
+            if (response.ok) {
+              const data = await response.json();
+              console.log('✅ Orders API loaded successfully:', data.data?.length || 0, 'orders');
+              return { type: 'orders', data, success: true };
+            } else {
+              console.error('❌ Orders API failed:', response.status);
+              return { type: 'orders', data: null, success: false };
+            }
+          }),
+          
+          // Parties API
+          fetch('/api/parties?limit=100&force=true', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Accept': 'application/json'
+            },
+            signal: partiesController.signal,
+            cache: 'no-store'
+          }).then(async response => {
+            clearTimeout(partiesTimeoutId);
+            if (response.ok) {
+              const data = await response.json();
+              console.log('✅ Parties API loaded successfully:', data.data?.length || 0, 'parties');
+              return { type: 'parties', data, success: true };
+            } else {
+              console.error('❌ Parties API failed:', response.status);
+              return { type: 'parties', data: null, success: false };
+            }
+          }),
+          
+          // Qualities API
+          fetch('/api/qualities?limit=100&force=true', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Accept': 'application/json'
+            },
+            signal: qualitiesController.signal,
+            cache: 'no-store'
+          }).then(async response => {
+            clearTimeout(qualitiesTimeoutId);
+            if (response.ok) {
+              const data = await response.json();
+              console.log('✅ Qualities API loaded successfully:', data.data?.length || 0, 'qualities');
+              return { type: 'qualities', data, success: true };
+            } else {
+              console.error('❌ Qualities API failed:', response.status);
+              return { type: 'qualities', data: null, success: false };
+            }
+          }),
+          
+          // Mills API
+          fetch('/api/mills?limit=100&force=true', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Accept': 'application/json'
+            },
+            signal: millsController.signal,
+            cache: 'no-store'
+          }).then(async response => {
+            clearTimeout(millsTimeoutId);
+            if (response.ok) {
+              const data = await response.json();
+              console.log('✅ Mills API loaded successfully:', data.data?.length || 0, 'mills');
+              return { type: 'mills', data, success: true };
+            } else {
+              console.error('❌ Mills API failed:', response.status);
+              return { type: 'mills', data: null, success: false };
+            }
+          })
+        ]);
+        
+        const endTime = Date.now();
+        console.log(`🚀 PARALLEL LOADING COMPLETED in ${endTime - startTime}ms`);
+        
+        // Process results
+        ordersResult.status === 'fulfilled' && ordersResult.value.success && ordersResult.value.data?.success && ordersResult.value.data?.data && setOrders(Array.isArray(ordersResult.value.data.data) ? ordersResult.value.data.data : []);
+        ordersResult.status === 'fulfilled' && ordersResult.value.success && ordersResult.value.data?.pagination && setPaginationInfo(ordersResult.value.data.pagination);
+        setOrdersLoaded(true);
+        
+        partiesResult.status === 'fulfilled' && partiesResult.value.success && partiesResult.value.data?.success && partiesResult.value.data?.data && setParties(Array.isArray(partiesResult.value.data.data) ? partiesResult.value.data.data : []);
+        
+        qualitiesResult.status === 'fulfilled' && qualitiesResult.value.success && qualitiesResult.value.data?.success && qualitiesResult.value.data?.data && setQualities(Array.isArray(qualitiesResult.value.data.data) ? qualitiesResult.value.data.data : []);
+        
+        millsResult.status === 'fulfilled' && millsResult.value.success && millsResult.value.data?.success && millsResult.value.data?.data && setMills(Array.isArray(millsResult.value.data.data) ? millsResult.value.data.data : []);
+        
+        console.log('🎯 All data loaded and set successfully!');
+        
+        // Show success message with loading time
+        const totalTime = endTime - startTime;
+        if (totalTime < 1000) {
+          console.log(`🚀 ULTRA FAST LOADING: ${totalTime}ms - Target achieved!`);
+        } else {
+          console.log(`⚡ FAST LOADING: ${totalTime}ms - Good performance!`);
+        }
 
         setLoading(false);
         
