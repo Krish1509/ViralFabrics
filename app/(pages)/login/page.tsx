@@ -93,14 +93,11 @@ function LoginForm() {
   // Aggressive preloading for super fast navigation
   useEffect(() => {
     const preloadEverything = () => {
-      // Preload all critical routes in parallel
+      // Preload only essential routes (removed dashboard prefetch to prevent API compilation)
       Promise.all([
-        router.prefetch('/dashboard'),
         router.prefetch('/orders'),
         router.prefetch('/users'),
-        router.prefetch('/fabrics'),
-        // Preload API endpoints too (removed users API call to prevent conflicts)
-        fetch('/api/orders?limit=10').catch(() => {})
+        router.prefetch('/fabrics')
       ]).catch(() => {}); // Silent fail
     };
     

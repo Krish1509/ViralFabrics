@@ -3,15 +3,22 @@ import Order, { IOrderModel, IOrder } from "@/models/Order";
 import Party from "@/models/Party";
 import Quality from "@/models/Quality";
 import Counter from "@/models/Counter";
-import { requireAuth } from "@/lib/session";
+import { getSession } from "@/lib/session";
 import { type NextRequest } from "next/server";
 import { logView, logOrderChange, logError } from "@/lib/logger";
+import { unauthorizedResponse } from "@/lib/response";
 
 // Ensure all models are registered
 const models = { Order, Party, Quality, Counter };
 
 export async function GET(request: NextRequest) {
   try {
+    // Validate session first (security check)
+    const session = await getSession(request);
+    if (!session) {
+      return Response.json(unauthorizedResponse('Unauthorized'), { status: 401 });
+    }
+
     await dbConnect();
     
     const { searchParams } = new URL(request.url);
@@ -327,6 +334,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    // Validate session first (security check)
+    const session = await getSession(req);
+    if (!session) {
+      return Response.json(unauthorizedResponse('Unauthorized'), { status: 401 });
+    }
+
     await dbConnect();
 
     // Extract and validate request body

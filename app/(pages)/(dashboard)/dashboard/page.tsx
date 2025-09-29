@@ -82,7 +82,6 @@ export default function DashboardPage() {
     try {
       // Check client-side cache first
       if (!isRetry && dashboardCache.data && (Date.now() - dashboardCache.timestamp) < dashboardCache.ttl) {
-        console.log('Loading dashboard data from client cache');
         setStats(dashboardCache.data);
         setHasAttemptedFetch(true);
         setLoading(false);
@@ -159,7 +158,6 @@ export default function DashboardPage() {
     } catch (error: any) {
       if (error.name === 'AbortError') {
         // Don't show timeout error immediately, try to load with fallback data
-        console.warn('Dashboard request timed out, loading with fallback data');
         setStats({
           totalOrders: 0,
           statusStats: {
@@ -196,7 +194,6 @@ export default function DashboardPage() {
         if (!isBackgroundRetry) {
           setIsBackgroundRetry(true);
           setTimeout(() => {
-            console.log('Retrying dashboard data fetch in background...');
             fetchDashboardData(true);
           }, 2000); // Reduced retry delay
         }
@@ -212,7 +209,6 @@ export default function DashboardPage() {
       } else {
         setError('Failed to load dashboard data. Please try again.');
       }
-      console.error('Dashboard fetch error:', error);
     } finally {
       setLoading(false);
     }

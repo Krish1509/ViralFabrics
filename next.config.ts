@@ -11,6 +11,32 @@ const nextConfig: NextConfig = {
     },
   },
 
+  // Reduce logging output
+  logging: {
+    fetches: {
+      fullUrl: false,
+    },
+  },
+
+  // Disable detailed compilation logs
+  onDemandEntries: {
+    // period (in ms) where the server will keep pages in the buffer
+    maxInactiveAge: 25 * 1000,
+    // number of pages that should be kept simultaneously without being disposed
+    pagesBufferLength: 2,
+  },
+
+  // Disable telemetry and reduce build output
+  ...(process.env.NODE_ENV === 'development' && {
+    // Reduce development logging
+    typescript: {
+      ignoreBuildErrors: false,
+    },
+    eslint: {
+      ignoreDuringBuilds: false,
+    },
+  }),
+
   // Enable Turbopack for faster development (now stable)
   turbopack: {
     rules: {

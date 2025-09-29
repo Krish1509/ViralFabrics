@@ -33,7 +33,6 @@ export async function GET(request: NextRequest) {
         .lean()
         .maxTimeMS(100) // Reduced timeout for faster response
         .catch(error => {
-          console.log('Primary query timed out, using fallback');
           return MillOutput.find(query)
             .sort({ recdDate: -1 })
             .skip(skip)

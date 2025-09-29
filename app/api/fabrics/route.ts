@@ -1,9 +1,17 @@
 import dbConnect from "@/lib/dbConnect";
 import Fabric from "@/models/Fabric";
+import { getSession } from "@/lib/session";
+import { unauthorizedResponse } from "@/lib/response";
 import { type NextRequest } from "next/server";
 
 export async function GET(req: NextRequest) {
   try {
+    // Validate session first (security check)
+    const session = await getSession(req);
+    if (!session) {
+      return Response.json(unauthorizedResponse('Unauthorized'), { status: 401 });
+    }
+
     await dbConnect();
     
     const { searchParams } = new URL(req.url);
@@ -104,6 +112,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    // Validate session first (security check)
+    const session = await getSession(req);
+    if (!session) {
+      return Response.json(unauthorizedResponse('Unauthorized'), { status: 401 });
+    }
+
     await dbConnect();
     
     const requestData = await req.json();
@@ -244,6 +258,12 @@ export async function POST(req: NextRequest) {
 // DELETE /api/fabrics - Delete multiple fabrics by quality code and quality name OR by fabric IDs
 export async function DELETE(req: NextRequest) {
   try {
+    // Validate session first (security check)
+    const session = await getSession(req);
+    if (!session) {
+      return Response.json(unauthorizedResponse('Unauthorized'), { status: 401 });
+    }
+
     await dbConnect();
     
     const { searchParams } = new URL(req.url);

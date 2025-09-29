@@ -109,21 +109,12 @@ export async function GET(request: NextRequest) {
 
     // Extract data from the single aggregation result
     const result = statsResult[0];
-    console.log('Dashboard stats aggregation result:', JSON.stringify(result, null, 2));
     
     const totalOrders = result.totalOrders[0]?.count || 0;
     const statusStats = result.statusStats || [];
     const typeStats = result.typeStats || [];
     const pendingTypeStats = result.pendingTypeStats || [];
     const deliveredTypeStats = result.deliveredTypeStats || [];
-    
-    console.log('Dashboard stats extracted:', {
-      totalOrders,
-      statusStats,
-      typeStats,
-      pendingTypeStats,
-      deliveredTypeStats
-    });
 
     // Process status stats
     const processedStatusStats = {
@@ -137,7 +128,6 @@ export async function GET(request: NextRequest) {
 
     statusStats.forEach((stat: any) => {
       const status = stat._id;
-      console.log('Processing status:', status, 'count:', stat.count);
       
       if (!status || status === 'Not set' || status === 'Not selected') {
         processedStatusStats.not_set += stat.count;
@@ -153,7 +143,6 @@ export async function GET(request: NextRequest) {
         processedStatusStats.cancelled += stat.count;
       } else {
         // Fallback: treat unknown status as not_set
-        console.log('Unknown status, treating as not_set:', status);
         processedStatusStats.not_set += stat.count;
       }
     });
@@ -167,7 +156,6 @@ export async function GET(request: NextRequest) {
 
     typeStats.forEach((stat: any) => {
       const type = stat._id;
-      console.log('Processing type:', type, 'count:', stat.count);
       
       if (!type) {
         processedTypeStats.not_set += stat.count;
@@ -177,7 +165,6 @@ export async function GET(request: NextRequest) {
         processedTypeStats.Printing += stat.count;
       } else {
         // Fallback: treat unknown type as not_set
-        console.log('Unknown type, treating as not_set:', type);
         processedTypeStats.not_set += stat.count;
       }
     });

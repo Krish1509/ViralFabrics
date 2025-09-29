@@ -157,7 +157,7 @@ export default function UsersPage() {
       
       const data = await response.json();
       if (data.success) {
-        setUsers(data.data || []);
+        setUsers(data.data?.users || []);
         setMessage(null);
         // Initial load complete
         
@@ -254,7 +254,8 @@ export default function UsersPage() {
   // Filter and sort users
   // Memoized filtering for better performance
   const filteredUsers = useMemo(() => {
-    return users
+    const usersArray = Array.isArray(users) ? users : [];
+    return usersArray
       .filter(user => {
         const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                              user.username.toLowerCase().includes(searchTerm.toLowerCase());
@@ -374,7 +375,7 @@ export default function UsersPage() {
 
       if (response.ok) {
         const data = JSON.parse(responseText);
-        setUsers([...users, data.user]);
+        setUsers([...(Array.isArray(users) ? users : []), data.user]);
         setShowCreateModal(false);
         resetForm();
         setValidationAlert({ type: 'success', text: 'User created' });
@@ -426,7 +427,7 @@ export default function UsersPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setUsers(users.map(user => user._id === selectedUser._id ? data.user : user));
+        setUsers(Array.isArray(users) ? users.map(user => user._id === selectedUser._id ? data.user : user) : []);
         setShowEditModal(false);
         resetForm();
         setValidationAlert({ type: 'success', text: 'User updated' });
@@ -463,7 +464,7 @@ export default function UsersPage() {
       });
 
       if (response.ok) {
-        setUsers(users.filter(user => user._id !== selectedUser._id));
+        setUsers(Array.isArray(users) ? users.filter(user => user._id !== selectedUser._id) : []);
         setShowDeleteModal(false);
         setSelectedUser(null);
         setValidationAlert({ type: 'success', text: 'User deleted' });
