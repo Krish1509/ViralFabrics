@@ -982,14 +982,23 @@ export default function OrdersPage() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds for reliable loading
 
-        // Load orders data
-        const ordersResponse = await fetch('/api/orders?limit=50&page=1', {
+        // Load orders data and mills data in parallel for faster loading
+        const [ordersResponse, millsResponse] = await Promise.all([
+          fetch('/api/orders?limit=50&page=1', {
           headers: { 
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json'
           },
           signal: controller.signal
-        });
+          }),
+          fetch('/api/mills?limit=100', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json'
+            },
+            signal: controller.signal
+          })
+        ]);
 
         clearTimeout(timeoutId);
 
@@ -1018,6 +1027,21 @@ export default function OrdersPage() {
           if (ordersResponse.status !== 404) {
             showMessage('error', 'Failed to load orders', { autoDismiss: true, dismissTime: 3000 });
           }
+        }
+
+        // Process mills data
+        if (millsResponse.ok) {
+          const millsData = await millsResponse.json();
+          if (millsData.success && millsData.data && millsData.data.mills) {
+            console.log('Setting mills data from initialization:', millsData.data.mills);
+            setMills(millsData.data.mills);
+          } else {
+            console.log('No mills data found in initialization response');
+            setMills([]);
+          }
+        } else {
+          console.log('Mills API response not ok during initialization:', millsResponse.status);
+          setMills([]);
         }
 
         setLoading(false);
@@ -3666,7 +3690,7 @@ export default function OrdersPage() {
                     }`}
                   >
                     Refresh
-                  </button>
+                </button>
                 </div>
               </div>
             ) : (

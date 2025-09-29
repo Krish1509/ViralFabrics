@@ -773,11 +773,16 @@ export default function MillInputForm({
     onRefreshMills();
   }, [onRefreshMills]);
 
-  // Also fetch mills directly if not available
+  // Also fetch mills directly if not available (with shorter timeout)
   useEffect(() => {
     if (order?.orderId && (!mills || mills.length === 0)) {
       console.log('Mills not available, fetching directly...');
-      fetchMillsDirectly();
+      // Set a shorter timeout for mills loading
+      const timeout = setTimeout(() => {
+        fetchMillsDirectly();
+      }, 500); // 500ms delay to allow props to load first
+      
+      return () => clearTimeout(timeout);
     }
   }, [order?.orderId, mills]);
 
@@ -811,9 +816,10 @@ export default function MillInputForm({
         console.log('✅ Processing existing mill inputs from props:', existingMillInputs.length);
         processExistingMillInputs(existingMillInputs);
       } else {
-        console.log('No existing mill inputs from props, fetching from API...');
-        // Fallback: fetch from API if not provided via props
-        fetchExistingMillInputData();
+        console.log('No existing mill inputs from props, skipping API fetch for faster loading');
+        // Skip API fetch to make form open faster - data will be loaded when needed
+        setHasExistingData(false);
+        setLocalMillInputs([]);
       }
     }
   }, [isOpen, order?.orderId, existingMillInputs, isEditing]);
@@ -976,7 +982,7 @@ export default function MillInputForm({
           console.log('Still no mills after timeout, trying direct fetch...');
           fetchMillsDirectly();
         }
-      }, 3000); // 3 second timeout
+      }, 1000); // 1 second timeout for faster response
       
       return () => clearTimeout(timeout);
     }
@@ -1923,7 +1929,7 @@ export default function MillInputForm({
                 </label>
 
 
-                {millsLoading ? (
+                {millsLoading && mills.length === 0 ? (
                   <div className={`p-4 text-center rounded-lg border ${
                     isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-300 text-gray-600'
                   }`}>
@@ -1965,38 +1971,45 @@ export default function MillInputForm({
                 </div>
                   </div>
                 ) : (
-                  <EnhancedDropdown
-                    options={mills}
-                    value={formData.mill}
-                    onChange={(value) => {
-                      setFormData({ ...formData, mill: value });
-                    }}
-                    placeholder="Search mills..."
-                    searchValue={millSearch}
-                    onSearchChange={setMillSearch}
-                    showDropdown={showMillDropdown}
-                    onToggleDropdown={() => {
-                      // Close any active quality and process dropdowns first
-                      setActiveQualityDropdown(null);
-                      setCurrentQualitySearch('');
-                      setActiveProcessDropdown(null);
-                      setCurrentProcessSearch('');
-                      // Toggle mill dropdown
-                      setShowMillDropdown(!showMillDropdown);
-                    }}
-                    onSelect={(mill) => {
-                      setFormData({ ...formData, mill: mill._id });
-                      setMillSearch(mill.name);
-                      setShowMillDropdown(false);
-                    }}
-                    isDarkMode={isDarkMode}
-                    error={errors.mill}
+                  <div className="relative">
+                    <EnhancedDropdown
+                      options={mills}
+                      value={formData.mill}
+                      onChange={(value) => {
+                        setFormData({ ...formData, mill: value });
+                      }}
+                      placeholder="Search mills..."
+                      searchValue={millSearch}
+                      onSearchChange={setMillSearch}
+                      showDropdown={showMillDropdown}
+                      onToggleDropdown={() => {
+                        // Close any active quality and process dropdowns first
+                        setActiveQualityDropdown(null);
+                        setCurrentQualitySearch('');
+                        setActiveProcessDropdown(null);
+                        setCurrentProcessSearch('');
+                        // Toggle mill dropdown
+                        setShowMillDropdown(!showMillDropdown);
+                      }}
+                      onSelect={(mill) => {
+                        setFormData({ ...formData, mill: mill._id });
+                        setMillSearch(mill.name);
+                        setShowMillDropdown(false);
+                      }}
+                      isDarkMode={isDarkMode}
+                      error={errors.mill}
                     onAddNew={() => setShowAddMillModal(true)}
                     onDelete={(mill) => {
                       handleDeleteMill(mill._id);
                     }}
                     recentlyAddedId={recentlyAddedMill}
                   />
+                  {millsLoading && mills.length > 0 && (
+                    <div className="absolute top-2 right-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                    </div>
+                  )}
+                  </div>
                 )}
                 {errors.mill && (
                   <p className={`text-sm mt-1 ${
