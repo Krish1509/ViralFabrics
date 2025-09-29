@@ -641,6 +641,8 @@ export default function DispatchForm({
 
   // Function to fetch qualities directly from API
   const fetchQualitiesDirectly = async () => {
+    let timeoutId: NodeJS.Timeout | null = null;
+    
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -650,7 +652,7 @@ export default function DispatchForm({
 
       // Create AbortController for timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for faster response
+      timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for faster response
 
       const response = await fetch('/api/qualities', {
         headers: {
@@ -679,7 +681,9 @@ export default function DispatchForm({
         console.error('Error fetching qualities from API:', error);
       }
     } finally {
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
   };
 
@@ -692,6 +696,8 @@ export default function DispatchForm({
     }
 
     setLoadingExistingData(true);
+    let timeoutId: NodeJS.Timeout | null = null;
+    
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -704,7 +710,7 @@ export default function DispatchForm({
       
       // Create AbortController for timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for faster response
+      timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for faster response
       
       const response = await fetch(`/api/dispatch?orderId=${order.orderId}`, {
         headers: {
@@ -748,7 +754,9 @@ export default function DispatchForm({
       }
       setHasExistingData(false);
     } finally {
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       setLoadingExistingData(false);
     }
   };
