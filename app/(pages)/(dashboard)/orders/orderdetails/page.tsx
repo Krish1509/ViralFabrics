@@ -181,7 +181,7 @@ export default function OrderDetailsPage() {
             })
               .then(res => res.json())
               .then(data => {
-                if (data.success) setMillOutputs(data.data || []);
+                if (data.success) setMillOutputs(data.data?.millOutputs || []);
                 setLoadingSections(prev => ({ ...prev, millOutputs: false }));
               }),
             
@@ -191,7 +191,7 @@ export default function OrderDetailsPage() {
             })
               .then(res => res.json())
               .then(data => {
-                if (data.success) setDispatches(data.data || []);
+                if (data.success) setDispatches(data.data?.dispatches || []);
                 setLoadingSections(prev => ({ ...prev, dispatches: false }));
               })
           ])

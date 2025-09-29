@@ -800,6 +800,12 @@ export default function MillInputForm({
       setErrors({});
       setSuccessMessage('');
       
+      // Initialize form with order ID
+      setFormData(prev => ({
+        ...prev,
+        orderId: order.orderId || ''
+      }));
+      
       // Process existing data from props first
       if (existingMillInputs && existingMillInputs.length > 0) {
         console.log('✅ Processing existing mill inputs from props:', existingMillInputs.length);
@@ -1542,7 +1548,13 @@ export default function MillInputForm({
     });
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const isValid = Object.keys(newErrors).length === 0;
+    
+    if (!isValid) {
+      console.log('Validation failed:', newErrors);
+    }
+    
+    return isValid;
   };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -1577,16 +1589,18 @@ export default function MillInputForm({
       // Refresh the local data to show updated state
       await fetchExistingMillInputData();
       
-      // Show success message and then close after delay
+      // Show success message for 1 second, then close
       setTimeout(() => {
-      onSuccess();
-      onClose();
-      }, 1500);
+        setSuccessMessage('');
+        onSuccess();
+        onClose();
+      }, 1000);
     } catch (error) {
+      console.error('Error in handleSubmit:', error);
       setErrors({ submit: error instanceof Error ? error.message : 'Failed to handle mill input' });
+      setSavingProgress('');
     } finally {
       setSaving(false);
-      setSavingProgress('');
     }
   };
 
@@ -1623,7 +1637,7 @@ export default function MillInputForm({
 
       // Create AbortController for timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout for faster response
 
       const response = await fetch('/api/mill-inputs', {
         method: 'POST',

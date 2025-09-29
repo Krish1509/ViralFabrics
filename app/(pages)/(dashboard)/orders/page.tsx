@@ -1668,6 +1668,9 @@ export default function OrdersPage() {
       loadMillInputsData(order.orderId, true) // Force refresh
     ]);
     
+    // Wait a moment for state to update
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // Check if there's existing mill input data for this order
     const existingData = orderMillInputs[order.orderId] || [];
     const hasExistingData = existingData.length > 0;
@@ -3773,9 +3776,13 @@ export default function OrdersPage() {
 
                     <button
                       onClick={async () => {
-                        setSelectedOrderForMillInputForm(order);
-                        // Load mill input data for this order with force refresh
+                        // Load mill input data for this order with force refresh first
                         await loadMillInputsData(order.orderId, true);
+                        
+                        // Wait a moment for state to update
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        
+                        setSelectedOrderForMillInputForm(order);
                         setShowMillInputForm(true);
                       }}
                       className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 ${
@@ -4558,39 +4565,29 @@ export default function OrdersPage() {
           }}
                       onSuccess={async () => {
               const orderId = selectedOrderForMillInputForm?.orderId;
-              // Immediately mark that this order now has mill input data
-              if (orderId) {
-                setOrderMillInputs(prev => {
-                  const updated = { ...prev };
-                  // If no data exists, create an empty array to indicate data exists
-                  if (!updated[orderId]) {
-                    updated[orderId] = [];
-                  }
-                  return updated;
-                });
-              }
               
-              // Refresh orders and mill inputs to show any updates
-              await refreshOrdersWithRetry();
-              await fetchAllOrderMillInputs();
-              
-              // Also refresh mill inputs for the specific order
-              if (orderId) {
-                await fetchMillInputsForOrder(orderId);
+              try {
+                // First, refresh the specific order's mill input data
+                if (orderId) {
+                  await fetchMillInputsForOrder(orderId);
+                }
                 
-                // Debug: Log the updated state after refresh
-                setTimeout(() => {
-                  }, 100);
+                // Then refresh all orders data
+                await refreshOrdersWithRetry();
+                
+                // Finally refresh all mill inputs data
+                await fetchAllOrderMillInputs();
+                
+                // Show success message
+                const message = isEditingMillInput ? 'Mill input updated successfully!' : 'Mill input added successfully!';
+                showMessage('success', message);
+                
+                console.log('Mill input data refreshed successfully for order:', orderId);
+              } catch (error) {
+                console.error('Error refreshing mill input data:', error);
+                const message = isEditingMillInput ? 'Mill input updated successfully!' : 'Mill input added successfully!';
+                showMessage('success', message);
               }
-              
-              // Force a small delay to ensure state is updated
-              setTimeout(() => {
-                // Force re-render by updating a dummy state if needed
-                setOrderMillInputs(prev => ({ ...prev }));
-              }, 200);
-              
-              const message = isEditingMillInput ? 'Mill input updated successfully!' : 'Mill input added successfully!';
-              showMessage('success', message);
             }}
           onAddMill={() => {
             // Refresh mills when a new mill is added
