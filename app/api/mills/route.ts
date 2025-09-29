@@ -35,11 +35,11 @@ export async function GET(request: NextRequest) {
 
     await dbConnect();
     
-    // Validate session - temporarily disabled for testing
-    // const session = await getSession(request);
-    // if (!session) {
-    //   return NextResponse.json(unauthorizedResponse('Unauthorized'), { status: 401 });
-    // }
+    // Validate session
+    const session = await getSession(request);
+    if (!session) {
+      return NextResponse.json(unauthorizedResponse('Unauthorized'), { status: 401 });
+    }
 
     const skip = (page - 1) * limit;
 

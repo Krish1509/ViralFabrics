@@ -741,6 +741,7 @@ export default function MillInputForm({
   const [loadingExistingData, setLoadingExistingData] = useState(false);
   const [addingMill, setAddingMill] = useState(false);
   const [millsLoading, setMillsLoading] = useState(false);
+  const [localMills, setLocalMills] = useState<Mill[]>([]);
   
   // LabDataModal pattern states
   const [hasExistingData, setHasExistingData] = useState(false);
@@ -773,18 +774,18 @@ export default function MillInputForm({
     onRefreshMills();
   }, [onRefreshMills]);
 
-  // Also fetch mills directly if not available (with shorter timeout)
+  // Also fetch mills directly if not available (with very short timeout)
   useEffect(() => {
-    if (order?.orderId && (!mills || mills.length === 0)) {
+    if (order?.orderId && (!mills || mills.length === 0) && localMills.length === 0) {
       console.log('Mills not available, fetching directly...');
-      // Set a shorter timeout for mills loading
+      // Set a very short timeout for mills loading
       const timeout = setTimeout(() => {
         fetchMillsDirectly();
-      }, 200); // Reduced to 200ms for faster loading
+      }, 100); // Reduced to 100ms for faster loading
       
       return () => clearTimeout(timeout);
     }
-  }, [order?.orderId, mills]);
+  }, [order?.orderId, mills, localMills]);
 
 
   // Load existing data when form opens or when existingMillInputs prop changes
@@ -835,29 +836,40 @@ export default function MillInputForm({
         return;
       }
 
-      // Create AbortController for timeout
+      // Create AbortController for faster timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout for faster response
+      const timeoutId = setTimeout(() => controller.abort(), 1000); // Reduced to 1 second for faster response
 
-      const response = await fetch('/api/mills', {
+      // Optimized API call with caching headers
+      const response = await fetch('/api/mills?limit=100', {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Cache-Control': 'max-age=300, stale-while-revalidate=600'
         },
-        signal: controller.signal
+        signal: controller.signal,
+        cache: 'force-cache' // Use browser cache for faster loading
       });
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data && data.data.length > 0) {
-          console.log('Fetched mills directly from API:', data.data);
-          // Note: We can't directly set mills here as it's a prop, but we can trigger onRefreshMills
+          console.log('Fetched mills directly from API:', data.data.length, 'mills');
+          // Update local mills state for immediate display
+          setLocalMills(data.data);
+          // Also trigger refresh to update the mills prop
           onRefreshMills();
         } else {
           console.log('No mills found in API response');
+          setLocalMills([]);
         }
       } else {
         console.log('Failed to fetch mills from API, status:', response.status);
+        if (response.status === 401) {
+          console.log('Authentication failed, please login again');
+        }
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -991,7 +1003,7 @@ export default function MillInputForm({
           console.log('Still no mills after timeout, trying direct fetch...');
           fetchMillsDirectly();
         }
-      }, 500); // 500ms timeout for faster response
+      }, 300); // Reduced to 300ms timeout for faster response
       
       return () => clearTimeout(timeout);
     }
@@ -1938,7 +1950,7 @@ export default function MillInputForm({
                 </label>
 
 
-                {millsLoading && mills.length === 0 ? (
+                {millsLoading && mills.length === 0 && localMills.length === 0 ? (
                   <div className={`p-4 text-center rounded-lg border ${
                     isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-300 text-gray-600'
                   }`}>
@@ -1947,7 +1959,7 @@ export default function MillInputForm({
                       <p className="text-sm">Loading mills...</p>
                     </div>
                   </div>
-                ) : mills.length === 0 ? (
+                ) : mills.length === 0 && localMills.length === 0 ? (
                   <div className={`p-4 text-center rounded-lg border ${
                     isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-300 text-gray-600'
                   }`}>
@@ -1982,7 +1994,7 @@ export default function MillInputForm({
                 ) : (
                   <div className="relative">
                     <EnhancedDropdown
-                      options={mills}
+                      options={localMills.length > 0 ? localMills : mills}
                       value={formData.mill}
                       onChange={(value) => {
                         setFormData({ ...formData, mill: value });
@@ -2013,7 +2025,7 @@ export default function MillInputForm({
                     }}
                     recentlyAddedId={recentlyAddedMill}
                   />
-                  {millsLoading && mills.length > 0 && (
+                  {millsLoading && (mills.length > 0 || localMills.length > 0) && (
                     <div className="absolute top-2 right-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
                     </div>

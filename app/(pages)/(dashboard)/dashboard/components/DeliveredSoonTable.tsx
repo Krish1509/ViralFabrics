@@ -113,7 +113,16 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         const data = await response.json();
         console.log('DeliveredSoon API response:', data);
         
-        const orders = data.data || []; // The API returns data directly, not data.orders
+        // Handle different response formats
+        let orders = [];
+        if (data.success && data.data) {
+          orders = Array.isArray(data.data) ? data.data : [];
+        } else if (Array.isArray(data)) {
+          orders = data;
+        } else if (data.data && Array.isArray(data.data)) {
+          orders = data.data;
+        }
+        
         console.log('Total orders fetched:', orders.length);
         
         // Filter orders with delivery dates in the next 7 days
@@ -160,22 +169,40 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         // Update cache
         deliveredSoonCache.data = upcoming;
         deliveredSoonCache.timestamp = Date.now();
+        
+        // If no upcoming orders found, that's not an error - just show empty state
+        if (upcoming.length === 0) {
+          console.log('No orders with delivery dates in the next 7 days');
+        }
       } else {
         console.error('DeliveredSoon API error:', response.status, response.statusText);
         if (response.status === 401) {
           setError('Authentication failed. Please log in again.');
           return;
+        } else if (response.status === 404) {
+          // No orders found is not an error
+          setUpcomingOrders([]);
+          setFilteredOrders([]);
+          deliveredSoonCache.data = [];
+          deliveredSoonCache.timestamp = Date.now();
+          return;
         }
         try {
           const errorData = await response.json();
-          setError(errorData.message || 'Failed to load upcoming orders');
+          setError(errorData.message || `Failed to load upcoming orders (${response.status})`);
         } catch (parseError) {
           setError(`Failed to load upcoming orders (${response.status})`);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('DeliveredSoon fetch error:', error);
-      setError('Failed to load upcoming orders. Please try again.');
+      if (error.name === 'AbortError') {
+        setError('Request timeout. Please try again.');
+      } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        setError('Network error. Please check your connection.');
+      } else {
+        setError('Failed to load upcoming orders. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -326,19 +353,37 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
       {/* Error Message */}
       {error && (
         <div className="p-6">
-          <div className={`flex items-center gap-2 p-3 rounded-lg ${
+          <div className={`flex items-center justify-between gap-2 p-3 rounded-lg ${
             isDarkMode 
               ? 'bg-red-900/20 border border-red-800/30' 
               : 'bg-red-50 border border-red-200'
           }`}>
-            <ExclamationTriangleIcon className={`w-5 h-5 ${
-              isDarkMode ? 'text-red-400' : 'text-red-600'
-            }`} />
-            <p className={`text-sm ${
-              isDarkMode ? 'text-red-300' : 'text-red-800'
-            }`}>
-              {error}
-            </p>
+            <div className="flex items-center gap-2">
+              <ExclamationTriangleIcon className={`w-5 h-5 ${
+                isDarkMode ? 'text-red-400' : 'text-red-600'
+              }`} />
+              <p className={`text-sm ${
+                isDarkMode ? 'text-red-300' : 'text-red-800'
+              }`}>
+                {error}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setError(null);
+                fetchUpcomingOrders();
+              }}
+              disabled={loading}
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                loading
+                  ? 'bg-gray-400 cursor-not-allowed text-white'
+                  : isDarkMode
+                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    : 'bg-red-500 hover:bg-red-600 text-white'
+              }`}
+            >
+              {loading ? 'Retrying...' : 'Retry'}
+            </button>
           </div>
         </div>
       )}

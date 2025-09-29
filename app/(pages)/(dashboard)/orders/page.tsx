@@ -904,56 +904,10 @@ export default function OrdersPage() {
     }
   }, []);
 
-  // Professional mills fetching with caching
+  // Mills fetching disabled for performance - will be loaded when needed
   const fetchMills = useCallback(async () => {
-    try {
-      console.log('fetchMills called');
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // Optimized 3 second timeout
-      
-      const token = localStorage.getItem('token');
-      console.log('Token available:', !!token);
-      
-      // Professional headers with caching
-      const headers: any = {
-        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
-        'Accept': 'application/json'
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await fetch('/api/mills?limit=100', {
-        headers: headers,
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      console.log('Mills API response status:', response.status);
-      
-      if (!response.ok) {
-        console.log('Mills API response not ok:', response.status);
-        setMills([]);
-        return;
-      }
-      
-      const data = await response.json();
-      console.log('Mills API response data:', data);
-      if (data.success && data.data && data.data.mills) {
-        const millsData = data.data.mills;
-        console.log('Setting mills data:', millsData);
-        setMills(millsData);
-      } else {
-        console.log('No mills data found in response');
-        setMills([]);
-      }
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        // Silent timeout for mills - not critical for main functionality
-      } else if (!error.message?.includes('401')) {
-        // Silent error for mills - not critical for main functionality
-      }
-    }
+    // Function disabled for performance - mills will be loaded separately when needed
+    console.log('fetchMills disabled for performance');
   }, []);
 
   // AGGRESSIVE prefetching for EXTREME speed
@@ -988,9 +942,8 @@ export default function OrdersPage() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // Optimized 5 second timeout
 
-        // Professional parallel loading with optimized caching
-        const [ordersResponse, millsResponse] = await Promise.all([
-          fetch('/api/orders?limit=50&page=1', {
+        // Professional loading with optimized caching (removed mills API to improve performance)
+        const ordersResponse = await fetch('/api/orders?limit=50&page=1', {
           headers: { 
             'Authorization': `Bearer ${token}`,
             'Cache-Control': 'max-age=300, stale-while-revalidate=600',
@@ -998,17 +951,7 @@ export default function OrdersPage() {
           },
           signal: controller.signal,
           cache: 'force-cache'
-          }),
-          fetch('/api/mills?limit=100', {
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'Cache-Control': 'max-age=300, stale-while-revalidate=600',
-              'Accept': 'application/json'
-            },
-            signal: controller.signal,
-            cache: 'force-cache'
-          })
-        ]);
+        });
 
         clearTimeout(timeoutId);
 
@@ -1050,20 +993,7 @@ export default function OrdersPage() {
           }
         }
 
-        // Process mills data
-        if (millsResponse.ok) {
-          const millsData = await millsResponse.json();
-          if (millsData.success && millsData.data && millsData.data.mills) {
-            console.log('Setting mills data from initialization:', millsData.data.mills);
-            setMills(millsData.data.mills);
-          } else {
-            console.log('No mills data found in initialization response');
-            setMills([]);
-          }
-        } else {
-          console.log('Mills API response not ok during initialization:', millsResponse.status);
-          setMills([]);
-        }
+        // Mills data will be loaded separately when needed (removed for performance)
 
         setLoading(false);
         
@@ -1220,44 +1150,10 @@ export default function OrdersPage() {
     }
   }, [loadPartiesData, loadQualitiesData]);
 
+  // Mills data loading disabled for performance
   const loadMillsData = useCallback(async () => {
-    try {
-      console.log('loadMillsData called');
-      const token = localStorage.getItem('token');
-      
-      // Professional headers with caching
-      const headers: any = {
-        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
-        'Accept': 'application/json'
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await fetch('/api/mills?limit=100', {
-        headers: headers,
-        cache: 'force-cache'
-      });
-      
-      console.log('loadMillsData response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('loadMillsData response data:', data);
-        if (data.success && data.data && data.data.mills) {
-          console.log('Setting mills from loadMillsData:', data.data.mills);
-          setMills(data.data.mills);
-        } else {
-          console.log('No mills data in loadMillsData response');
-          setMills([]);
-        }
-      } else {
-        console.log('loadMillsData response not ok:', response.status);
-        setMills([]);
-      }
-    } catch (error) {
-      console.error('Error loading mills:', error);
-    }
+    // Function disabled for performance - mills will be loaded when needed
+    console.log('loadMillsData disabled for performance');
   }, []);
 
   const loadMillInputsData = useCallback(async (orderId: string, forceRefresh = false) => {
