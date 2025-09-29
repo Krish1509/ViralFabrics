@@ -780,7 +780,7 @@ export default function MillInputForm({
       // Set a shorter timeout for mills loading
       const timeout = setTimeout(() => {
         fetchMillsDirectly();
-      }, 500); // 500ms delay to allow props to load first
+      }, 200); // Reduced to 200ms for faster loading
       
       return () => clearTimeout(timeout);
     }
@@ -835,11 +835,16 @@ export default function MillInputForm({
         return;
       }
 
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout for faster response
+
       const response = await fetch('/api/mills', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        signal: controller.signal
       });
 
       if (response.ok) {
@@ -855,7 +860,11 @@ export default function MillInputForm({
         console.log('Failed to fetch mills from API, status:', response.status);
       }
     } catch (error) {
-      console.error('Error fetching mills from API:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Mills fetch was aborted due to timeout');
+      } else {
+        console.error('Error fetching mills from API:', error);
+      }
     } finally {
       setMillsLoading(false);
     }
@@ -982,7 +991,7 @@ export default function MillInputForm({
           console.log('Still no mills after timeout, trying direct fetch...');
           fetchMillsDirectly();
         }
-      }, 1000); // 1 second timeout for faster response
+      }, 500); // 500ms timeout for faster response
       
       return () => clearTimeout(timeout);
     }

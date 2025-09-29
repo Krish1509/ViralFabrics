@@ -1856,66 +1856,78 @@ export default function OrdersPage() {
   };
 
   const handleMillInput = async (order: Order) => {
-    console.log('handleMillInput called for order:', order.orderId);
+    console.log('Opening Mill Input form for order:', order.orderId);
     
-    // Load qualities data only (mill input data is already in order)
-    await loadQualitiesData();
+    // Set order and show form immediately for faster UI response
+    setSelectedOrderForMillInputForm(order);
+    setShowMillInputForm(true);
     
-    // Use data from order instead of API call
+    // Use data from order instead of API call (data already loaded)
     const existingData = (order as any).millInputs || [];
     const hasExistingData = existingData.length > 0;
-    
-    console.log('Mill input data from order:', {
-      orderId: order.orderId,
-      existingDataCount: existingData.length,
-      hasExistingData,
-      existingData: existingData
-    });
     
     // Set editing state and existing data
     setIsEditingMillInput(hasExistingData);
     setExistingMillInputs(existingData);
-    setSelectedOrderForMillInputForm(order);
     
-    setShowMillInputForm(true);
+    console.log('Mill Input form opened with data:', { hasExistingData, existingDataLength: existingData.length });
+    
+    // Load qualities data in background (non-blocking)
+    if (qualities.length === 0) {
+      loadQualitiesData().catch(error => {
+        console.error('Error loading qualities for mill input:', error);
+      });
+    }
   };
 
   const handleMillOutput = async (order: Order) => {
-    // handleMillOutput called for order
+    console.log('Opening Mill Output form for order:', order.orderId);
     
-    // Set order immediately for faster UI response
+    // Set order and show form immediately for faster UI response
     setSelectedOrderForMillOutput(order);
+    setShowMillOutputForm(true);
     
-    // Load qualities data only (mill output data is already in order)
-    await loadQualitiesData();
-    
-    // Use data from order instead of API call
+    // Use data from order instead of API call (data already loaded)
     const existingData = (order as any).millOutputs || [];
     const hasExistingData = existingData.length > 0;
-    
-    // Mill output data check completed
     
     // Set editing state and existing data
     setIsEditingMillOutput(hasExistingData);
     setExistingMillOutputs(existingData);
     
-    setShowMillOutputForm(true);
+    console.log('Mill Output form opened with data:', { hasExistingData, existingDataLength: existingData.length });
+    
+    // Load qualities data in background (non-blocking)
+    if (qualities.length === 0) {
+      loadQualitiesData().catch(error => {
+        console.error('Error loading qualities for mill output:', error);
+      });
+    }
   };
 
   const handleDispatch = async (order: Order) => {
-    // Load parties data only (dispatch data is already in order)
-    await loadPartiesData();
+    console.log('Opening Dispatch form for order:', order.orderId);
     
-    // Use data from order instead of API call
+    // Set order and show form immediately for faster UI response
+    setSelectedOrderForDispatch(order);
+    setShowDispatchForm(true);
+    
+    // Use data from order instead of API call (data already loaded)
     const existingData = (order as any).dispatches || [];
     const hasExistingData = existingData.length > 0;
     
     // Set editing state and existing data
     setIsEditingDispatch(hasExistingData);
     setExistingDispatches(existingData);
-    setSelectedOrderForDispatch(order);
     
-    setShowDispatchForm(true);
+    console.log('Dispatch form opened with data:', { hasExistingData, existingDataLength: existingData.length });
+    
+    // Load parties data in background (non-blocking)
+    if (parties.length === 0) {
+      loadPartiesData().catch(error => {
+        console.error('Error loading parties for dispatch:', error);
+      });
+    }
   };
 
   const handleImagePreview = (url: string, alt: string, allImages?: string[], startIndex?: number) => {
@@ -3708,7 +3720,7 @@ export default function OrdersPage() {
                     }
                   </p>
                 </div>
-                <div className="flex space-x-3">
+                <div className="flex space-x-3 justify-center">
                 {orders.length === 0 ? (
                 <button
                   onClick={() => openFormWithData()}
