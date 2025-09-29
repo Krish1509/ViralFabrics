@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get total count for pagination
-    const totalCount = await Order.countDocuments(query).maxTimeMS(2000);
+    const totalCount = await Order.countDocuments(query).maxTimeMS(1000);
     
     // Get orders with pagination and populate references
     const orders = await Order.find(query)
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       .skip(skip)
       .limit(limit)
       .lean()
-      .maxTimeMS(2000);
+      .maxTimeMS(1000);
 
     const totalPages = Math.ceil(totalCount / limit);
 

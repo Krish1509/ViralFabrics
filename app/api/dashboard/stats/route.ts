@@ -4,9 +4,9 @@ import Order from '@/models/Order';
 import { getSession } from '@/lib/session';
 import { successResponse, errorResponse, unauthorizedResponse } from '@/lib/response';
 
-// In-memory cache for dashboard stats (2 minute TTL)
+// Professional in-memory cache for dashboard stats
 const statsCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 1 * 60 * 1000; // 1 minute for faster updates
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for better performance
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+          'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
           'X-Cache': 'HIT',
           'X-Response-Time': `${Date.now() - startTime}ms`
         }
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
             ]
           }
         }
-      ]).option({ maxTimeMS: 3000 }) // Reduced timeout for faster response
+      ]).option({ maxTimeMS: 1000 }) // Optimized timeout for faster response
     ]);
 
     // Extract data from the single aggregation result

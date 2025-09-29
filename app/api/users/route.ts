@@ -5,17 +5,42 @@ import bcrypt from "bcryptjs";
 import { type NextRequest } from "next/server";
 import { logCreate } from "@/lib/logger";
 
+// Professional in-memory cache for users data
+const usersCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for better performance
+
 export async function GET(req: NextRequest) {
+  const startTime = Date.now();
+  
   try {
     // Require superadmin access
     await requireSuperAdmin(req);
 
+    // Check cache first
+    const { searchParams } = new URL(req.url);
+    const limit = parseInt(searchParams.get('limit') || '25');
+    const page = parseInt(searchParams.get('page') || '1');
+    const cacheKey = `users-${limit}-${page}`;
+    
+    const cached = usersCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      return new Response(JSON.stringify({
+        success: true,
+        data: cached.data,
+        message: 'Users loaded from cache'
+      }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+          'X-Cache': 'HIT',
+          'X-Response-Time': `${Date.now() - startTime}ms`
+        }
+      });
+    }
+
     await dbConnect();
     
-    // Get query parameters
-    const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get('limit') || '25'); // Fetch 25 initially for pagination
-    const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
     
     // Super simple and fast query - no complex operations
@@ -48,9 +73,8 @@ export async function GET(req: NextRequest) {
     // Calculate pagination info
     const totalPages = Math.ceil(totalCount / limit);
     
-    return new Response(JSON.stringify({
-      success: true,
-      data: users,
+    const responseData = {
+      users,
       pagination: {
         currentPage: page,
         totalPages: totalPages,
@@ -59,7 +83,27 @@ export async function GET(req: NextRequest) {
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1
       }
-    }), { status: 200, headers });
+    };
+
+    // Update cache
+    usersCache.set(cacheKey, {
+      data: responseData,
+      timestamp: Date.now()
+    });
+    
+    return new Response(JSON.stringify({
+      success: true,
+      data: responseData,
+      message: 'Users fetched successfully'
+    }), { 
+      status: 200, 
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+        'X-Cache': 'MISS',
+        'X-Response-Time': `${Date.now() - startTime}ms`
+      }
+    });
   } catch (error: unknown) {
     if (error instanceof Error) {
       if (error.message.includes("Unauthorized")) {

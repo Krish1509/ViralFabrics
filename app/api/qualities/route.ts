@@ -24,16 +24,40 @@ import {
 } from '@/lib/response';
 import { logCreate } from '@/lib/logger';
 
+// Professional in-memory cache for qualities data
+const qualitiesCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for better performance
+
 // GET /api/qualities - List qualities with pagination and search
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
+    // Check cache first
+    const url = new URL(request.url);
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '25'), 100);
+    const search = url.searchParams.get('search') || '';
+    const cacheKey = `qualities-${search || 'all'}-${limit}`;
+    
+    const cached = qualitiesCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      return NextResponse.json({
+        success: true,
+        data: cached.data,
+        message: 'Qualities loaded from cache'
+      }, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+          'X-Cache': 'HIT',
+          'X-Response-Time': `${Date.now() - startTime}ms`
+        }
+      });
+    }
+
     // Connect to database
     await dbConnect();
-    
-    // Parse query parameters
-    const url = new URL(request.url);
-    const limit = Math.min(parseInt(url.searchParams.get('limit') || '25'), 100); // Ultra fast - 50ms target
-    const search = url.searchParams.get('search') || '';
     
     // Build query
     const query: any = {};
@@ -49,16 +73,25 @@ export async function GET(request: NextRequest) {
       .lean()
       .maxTimeMS(200); // 200ms timeout for 50ms target
 
-    // Add cache headers
-    const headers = {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
-    };
+    // Update cache
+    qualitiesCache.set(cacheKey, {
+      data: qualities,
+      timestamp: Date.now()
+    });
 
     return new Response(JSON.stringify({
       success: true,
-      data: qualities
-    }), { status: 200, headers });
+      data: qualities,
+      message: 'Qualities fetched successfully'
+    }), { 
+      status: 200, 
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+        'X-Cache': 'MISS',
+        'X-Response-Time': `${Date.now() - startTime}ms`
+      }
+    });
 
   } catch (error) {
     return new Response(JSON.stringify({

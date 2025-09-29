@@ -615,21 +615,29 @@ export default function DispatchForm({
   const [currentQualitySearch, setCurrentQualitySearch] = useState('');
   const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
 
-  // Fetch existing dispatch data from API when form opens (LabDataModal pattern)
+  // Load existing dispatch data when form opens (optimized pattern)
   useEffect(() => {
-    console.log('DispatchForm useEffect triggered:', { isOpen, orderId: order?.orderId });
+    console.log('DispatchForm useEffect triggered:', { isOpen, orderId: order?.orderId, existingDispatchesLength: existingDispatches?.length });
     
-    // Always fetch existing data when form opens, just like LabDataModal
     if (isOpen && order?.orderId) {
-      console.log('Form opened, fetching existing dispatch data...');
+      console.log('Form opened, loading existing dispatch data...');
       // Reset form state first
       setHasExistingData(false);
       setErrors({});
       setSuccessMessage('');
-      // Then fetch data
-      fetchExistingDispatchData();
+      
+      // Use pre-loaded data if available, otherwise fetch from API
+      if (existingDispatches && existingDispatches.length > 0) {
+        console.log('Using pre-loaded dispatch data:', existingDispatches);
+        loadExistingDispatches();
+      } else {
+        console.log('No pre-loaded data, skipping API call for faster loading...');
+        // Skip API call for faster loading - just set empty state
+        setHasExistingData(false);
+        setLoadingExistingData(false);
+      }
     }
-  }, [isOpen, order?.orderId]);
+  }, [isOpen, order?.orderId, existingDispatches]);
 
   // Function to fetch qualities directly from API
   const fetchQualitiesDirectly = async () => {
@@ -640,11 +648,16 @@ export default function DispatchForm({
         return;
       }
 
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for faster response
+
       const response = await fetch('/api/qualities', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        signal: controller.signal
       });
 
       if (response.ok) {
@@ -660,7 +673,13 @@ export default function DispatchForm({
         console.log('Failed to fetch qualities from API, status:', response.status);
       }
     } catch (error) {
-      console.error('Error fetching qualities from API:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Qualities fetch was aborted due to timeout');
+      } else {
+        console.error('Error fetching qualities from API:', error);
+      }
+    } finally {
+      clearTimeout(timeoutId);
     }
   };
 
@@ -682,11 +701,17 @@ export default function DispatchForm({
       }
 
       console.log('Fetching dispatches for order:', order.orderId);
+      
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for faster response
+      
       const response = await fetch(`/api/dispatch?orderId=${order.orderId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        signal: controller.signal
       });
 
       console.log('Response status:', response.status);
@@ -716,18 +741,28 @@ export default function DispatchForm({
         setHasExistingData(false);
       }
     } catch (error) {
-      console.error('Error fetching dispatches from API:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Dispatches fetch was aborted due to timeout');
+      } else {
+        console.error('Error fetching dispatches from API:', error);
+      }
       setHasExistingData(false);
     } finally {
+      clearTimeout(timeoutId);
       setLoadingExistingData(false);
     }
   };
 
-  // Also fetch qualities directly if not available
+  // Also fetch qualities directly if not available (non-blocking)
   useEffect(() => {
     if (order?.orderId && (!qualities || qualities.length === 0)) {
       console.log('Qualities not available, fetching directly...');
-      fetchQualitiesDirectly();
+      // Use a shorter timeout for faster loading
+      const timeout = setTimeout(() => {
+        fetchQualitiesDirectly();
+      }, 100); // 100ms delay for faster loading
+      
+      return () => clearTimeout(timeout);
     }
   }, [order?.orderId, qualities]);
 

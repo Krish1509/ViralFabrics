@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
           })
           .select('orderItemId labSendDate labSendData labSendNumber status remarks')
           .lean()
-          .maxTimeMS(2000);
+          .maxTimeMS(1000);
         } catch (labError) {
           return [];
         }
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
           .populate('quality', 'name')
           .populate('additionalMeters.quality', 'name')
           .lean()
-          .maxTimeMS(2000);
+          .maxTimeMS(1000);
           
           return millInputs;
         } catch (millError) {
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
           })
           .select('order recdDate millBillNo finishedMtr quality')
           .lean()
-          .maxTimeMS(2000);
+          .maxTimeMS(1000);
           
           return millOutputs;
         } catch (millError) {
@@ -146,7 +146,7 @@ export async function GET(request: NextRequest) {
           })
           .select('order dispatchDate dispatchNo quantity dispatchedTo')
           .lean()
-          .maxTimeMS(2000);
+          .maxTimeMS(1000);
           
           return dispatches;
         } catch (dispatchError) {

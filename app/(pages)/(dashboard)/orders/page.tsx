@@ -181,6 +181,13 @@ export default function OrdersPage() {
   const [orderDispatches, setOrderDispatches] = useState<{[key: string]: any[]}>({});
   const [mills, setMills] = useState<Mill[]>([]);
   
+  // Professional client-side cache for orders data
+  const ordersCache = {
+    data: null as any,
+    timestamp: 0,
+    ttl: 5 * 60 * 1000 // 5 minutes for better performance
+  };
+  
   // Debug mills state changes
   useEffect(() => {
     console.log('Mills state changed:', mills);
@@ -897,20 +904,19 @@ export default function OrdersPage() {
     }
   }, []);
 
-  // Fetch mills with optimized timeout
+  // Professional mills fetching with caching
   const fetchMills = useCallback(async () => {
     try {
       console.log('fetchMills called');
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 second timeout for better stability
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // Optimized 3 second timeout
       
       const token = localStorage.getItem('token');
       console.log('Token available:', !!token);
       
-      // Make request with or without token
+      // Professional headers with caching
       const headers: any = {
-        'Cache-Control': 'no-cache, no-store, must-revalidate', // No cache for fresh data
-        'Pragma': 'no-cache',
+        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
         'Accept': 'application/json'
       };
       if (token) {
@@ -978,25 +984,29 @@ export default function OrdersPage() {
           return;
         }
 
-        // SUPER FAST: Load orders data with proper timeout
+        // Professional loading with optimized timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds for reliable loading
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // Optimized 5 second timeout
 
-        // Load orders data and mills data in parallel for faster loading
+        // Professional parallel loading with optimized caching
         const [ordersResponse, millsResponse] = await Promise.all([
           fetch('/api/orders?limit=50&page=1', {
           headers: { 
             'Authorization': `Bearer ${token}`,
+            'Cache-Control': 'max-age=300, stale-while-revalidate=600',
             'Accept': 'application/json'
           },
-          signal: controller.signal
+          signal: controller.signal,
+          cache: 'force-cache'
           }),
           fetch('/api/mills?limit=100', {
             headers: { 
               'Authorization': `Bearer ${token}`,
+              'Cache-Control': 'max-age=300, stale-while-revalidate=600',
               'Accept': 'application/json'
             },
-            signal: controller.signal
+            signal: controller.signal,
+            cache: 'force-cache'
           })
         ]);
 
@@ -1215,14 +1225,18 @@ export default function OrdersPage() {
       console.log('loadMillsData called');
       const token = localStorage.getItem('token');
       
-      // Make request with or without token
-      const headers: any = {};
+      // Professional headers with caching
+      const headers: any = {
+        'Cache-Control': 'max-age=300, stale-while-revalidate=600',
+        'Accept': 'application/json'
+      };
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch('/api/mills?limit=50', {
-        headers: headers
+      const response = await fetch('/api/mills?limit=100', {
+        headers: headers,
+        cache: 'force-cache'
       });
       
       console.log('loadMillsData response status:', response.status);

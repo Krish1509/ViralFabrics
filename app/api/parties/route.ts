@@ -4,18 +4,41 @@ import { requireAuth } from "@/lib/session";
 import { type NextRequest } from "next/server";
 import { logCreate } from "@/lib/logger";
 
+// Professional in-memory cache for parties data
+const partiesCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for better performance
+
 export async function GET(req: NextRequest) {
+  const startTime = Date.now();
+  
   try {
-    // Parties API GET request received
+    // Check cache first
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get('search');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 100);
+    const cacheKey = `parties-${search || 'all'}-${limit}`;
     
+    const cached = partiesCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      return new Response(JSON.stringify({
+        success: true,
+        data: cached.data,
+        message: 'Parties loaded from cache'
+      }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+          'X-Cache': 'HIT',
+          'X-Response-Time': `${Date.now() - startTime}ms`
+        }
+      });
+    }
+
     // Remove authentication requirement for now
     // await requireAuth(req);
 
     await dbConnect();
-    
-    const { searchParams } = new URL(req.url);
-    const search = searchParams.get('search');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 100); // Ultra fast - 50ms target
 
     let query = {};
     
@@ -34,16 +57,25 @@ export async function GET(req: NextRequest) {
       .lean()
       .maxTimeMS(200); // 200ms timeout for 50ms target
 
-    // Add cache headers
-    const headers = {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
-    };
+    // Update cache
+    partiesCache.set(cacheKey, {
+      data: parties,
+      timestamp: Date.now()
+    });
 
     return new Response(JSON.stringify({ 
       success: true, 
-      data: parties 
-    }), { status: 200, headers });
+      data: parties,
+      message: 'Parties fetched successfully'
+    }), { 
+      status: 200, 
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+        'X-Cache': 'MISS',
+        'X-Response-Time': `${Date.now() - startTime}ms`
+      }
+    });
   } catch (error: unknown) {
     console.error('Parties API GET error:', error);
     

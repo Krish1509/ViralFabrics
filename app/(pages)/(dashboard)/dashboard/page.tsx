@@ -56,11 +56,11 @@ interface DashboardFilters {
   financialYear: string;
 }
 
-// Client-side cache for dashboard data
+// Professional client-side cache for dashboard data
 const dashboardCache = {
   data: null as DashboardStats | null,
   timestamp: 0,
-  ttl: 2 * 60 * 1000 // 2 minutes
+  ttl: 5 * 60 * 1000 // 5 minutes for better performance
 };
 
 export default function DashboardPage() {
@@ -103,20 +103,20 @@ export default function DashboardPage() {
         return;
       }
 
-      // Super fast dashboard with reduced timeout and better caching
+      // Professional dashboard with optimized timeout and caching
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced to 5 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // Optimized 3 second timeout
 
       // Fetch only dashboard stats API with optimized headers
       const statsResponse = await fetch('/api/dashboard/stats', {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'max-age=120, stale-while-revalidate=240',
+          'Cache-Control': 'max-age=300, stale-while-revalidate=600',
           'Accept': 'application/json'
         },
         signal: controller.signal,
-        cache: 'default',
-        next: { revalidate: 120 } // Next.js caching
+        cache: 'force-cache', // Aggressive caching
+        next: { revalidate: 300 } // Next.js caching
       });
 
       clearTimeout(timeoutId);

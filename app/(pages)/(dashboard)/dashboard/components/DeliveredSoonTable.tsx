@@ -33,6 +33,13 @@ interface DeliveredSoonTableProps {
   isDarkMode: boolean;
 }
 
+// Professional client-side cache for delivered soon data
+const deliveredSoonCache = {
+  data: null as UpcomingOrder[] | null,
+  timestamp: 0,
+  ttl: 5 * 60 * 1000 // 5 minutes for better performance
+};
+
 const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) => {
   const [upcomingOrders, setUpcomingOrders] = useState<UpcomingOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +49,15 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
 
   const fetchUpcomingOrders = useCallback(async () => {
     try {
+      // Check client-side cache first
+      if (deliveredSoonCache.data && (Date.now() - deliveredSoonCache.timestamp) < deliveredSoonCache.ttl) {
+        console.log('Loading delivered soon data from client cache');
+        setUpcomingOrders(deliveredSoonCache.data);
+        setFilteredOrders(deliveredSoonCache.data);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
       
@@ -60,21 +76,37 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
 
       console.log('Fetching orders from:', today.toISOString(), 'to:', nextWeek.toISOString());
 
-      // Try with date filters first - get all orders with delivery dates
+      // Professional API call with optimized caching and timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+      
       let response = await fetch(`/api/orders?startDate=${today.toISOString()}&endDate=${nextWeek.toISOString()}&limit=200`, {
         headers: {
           'Authorization': `Bearer ${token}`,
+          'Cache-Control': 'max-age=300, stale-while-revalidate=600',
         },
+        signal: controller.signal,
+        cache: 'force-cache'
       });
+
+      clearTimeout(timeoutId);
 
       // If date filtering fails, try without date filters and filter client-side
       if (!response.ok) {
         console.log('Date-filtered query failed, trying without date filters...');
+        const fallbackController = new AbortController();
+        const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 2000);
+        
         response = await fetch(`/api/orders?limit=200`, {
           headers: {
             'Authorization': `Bearer ${token}`,
+            'Cache-Control': 'max-age=300, stale-while-revalidate=600',
           },
+          signal: fallbackController.signal,
+          cache: 'force-cache'
         });
+        
+        clearTimeout(fallbackTimeoutId);
       }
 
       if (response.ok) {
@@ -124,6 +156,10 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         console.log('Upcoming orders (next 7 days):', upcoming.length);
         setUpcomingOrders(upcoming);
         setFilteredOrders(upcoming);
+        
+        // Update cache
+        deliveredSoonCache.data = upcoming;
+        deliveredSoonCache.timestamp = Date.now();
       } else {
         console.error('DeliveredSoon API error:', response.status, response.statusText);
         if (response.status === 401) {

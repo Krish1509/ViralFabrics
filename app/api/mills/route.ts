@@ -5,8 +5,34 @@ import { getSession } from '@/lib/session';
 import { successResponse, errorResponse, validationErrorResponse, unauthorizedResponse, createdResponse } from '@/lib/response';
 import { logCreate, logError } from '@/lib/logger';
 
+// Professional in-memory cache for mills data
+const millsCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for better performance
+
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
+    // Check cache first
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 100);
+    const page = parseInt(searchParams.get('page') || '1');
+    const cacheKey = `mills-${search || 'all'}-${limit}-${page}`;
+    
+    const cached = millsCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      return NextResponse.json(successResponse(cached.data, 'Mills loaded from cache'), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+          'X-Cache': 'HIT',
+          'X-Response-Time': `${Date.now() - startTime}ms`
+        }
+      });
+    }
+
     await dbConnect();
     
     // Validate session - temporarily disabled for testing
@@ -15,10 +41,6 @@ export async function GET(request: NextRequest) {
     //   return NextResponse.json(unauthorizedResponse('Unauthorized'), { status: 401 });
     // }
 
-    const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 100); // Ultra fast - 50ms target
-    const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -34,20 +56,20 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Get total count for pagination
-    const totalCount = await Mill.countDocuments(query);
-    
-    // Get mills with pagination
-    const mills = await Mill.find(query)
-      .sort({ name: 1 })
-      .skip(skip)
-      .limit(limit)
-      .maxTimeMS(200)
-      .lean();
+    // Optimized parallel queries
+    const [totalCount, mills] = await Promise.all([
+      Mill.countDocuments(query).maxTimeMS(500),
+      Mill.find(query)
+        .sort({ name: 1 })
+        .skip(skip)
+        .limit(limit)
+        .maxTimeMS(500)
+        .lean()
+    ]);
 
     const totalPages = Math.ceil(totalCount / limit);
-
-    return NextResponse.json(successResponse({
+    
+    const responseData = {
       mills,
       pagination: {
         currentPage: page,
@@ -56,7 +78,23 @@ export async function GET(request: NextRequest) {
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1
       }
-    }, 'Mills fetched successfully'));
+    };
+
+    // Update cache
+    millsCache.set(cacheKey, {
+      data: responseData,
+      timestamp: Date.now()
+    });
+
+    return NextResponse.json(successResponse(responseData, 'Mills fetched successfully'), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+        'X-Cache': 'MISS',
+        'X-Response-Time': `${Date.now() - startTime}ms`
+      }
+    });
 
   } catch (error: any) {
     return NextResponse.json(errorResponse('Failed to fetch mills'), { status: 500 });
