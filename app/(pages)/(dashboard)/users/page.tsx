@@ -506,7 +506,7 @@ export default function UsersPage() {
 
   // Check if user can be deleted (prevent self-deletion)
   const canDeleteUser = useCallback((user: User) => {
-    return currentUser && user._id !== currentUser._id;
+    return Boolean(currentUser && user._id !== currentUser._id);
   }, [currentUser]);
 
   // Format date
