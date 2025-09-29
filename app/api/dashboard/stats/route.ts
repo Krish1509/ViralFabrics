@@ -6,7 +6,7 @@ import { successResponse, errorResponse, unauthorizedResponse } from '@/lib/resp
 
 // In-memory cache for dashboard stats (2 minute TTL)
 const statsCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for better performance
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=120, stale-while-revalidate=240',
+          'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
           'X-Cache': 'HIT',
           'X-Response-Time': `${Date.now() - startTime}ms`
         }
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
             ]
           }
         }
-      ]).option({ maxTimeMS: 3000 }) // Reduced timeout for faster response
+      ]).option({ maxTimeMS: 5000 }) // Increased timeout for better reliability
     ]);
 
     // Extract data from the single aggregation result
@@ -216,7 +216,7 @@ export async function GET(request: NextRequest) {
     const responseTime = Date.now() - startTime;
     const headers = {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=120, stale-while-revalidate=240',
+      'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
       'X-Cache': 'MISS',
       'X-Response-Time': `${responseTime}ms`
     };

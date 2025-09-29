@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get total count for pagination
-    const totalCount = await Order.countDocuments(query).maxTimeMS(1000);
+    const totalCount = await Order.countDocuments(query).maxTimeMS(3000);
     
     // Get orders with pagination and populate references
     const orders = await Order.find(query)
@@ -52,14 +52,14 @@ export async function GET(request: NextRequest) {
       .skip(skip)
       .limit(limit)
       .lean()
-      .maxTimeMS(1000);
+      .maxTimeMS(3000);
 
     const totalPages = Math.ceil(totalCount / limit);
 
     // Add aggressive cache headers
     const headers = {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+      'Cache-Control': 'public, max-age=120, stale-while-revalidate=240',
     };
 
     return NextResponse.json(successResponse({

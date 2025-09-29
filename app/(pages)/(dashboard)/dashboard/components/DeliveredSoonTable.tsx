@@ -53,29 +53,54 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
 
       // Calculate date range for next 7 days
       const today = new Date();
+      today.setHours(0, 0, 0, 0); // Start of today
       const nextWeek = new Date(today);
       nextWeek.setDate(today.getDate() + 7);
+      nextWeek.setHours(23, 59, 59, 999); // End of 7th day
 
-      const response = await fetch(`/api/orders?startDate=${today.toISOString()}&endDate=${nextWeek.toISOString()}&status=in_progress,completed`, {
+      console.log('Fetching orders from:', today.toISOString(), 'to:', nextWeek.toISOString());
+
+      // Try with date filters first
+      let response = await fetch(`/api/orders?startDate=${today.toISOString()}&endDate=${nextWeek.toISOString()}&status=in_progress,completed&limit=100`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
+      // If date filtering fails, try without date filters and filter client-side
+      if (!response.ok) {
+        console.log('Date-filtered query failed, trying without date filters...');
+        response = await fetch(`/api/orders?status=in_progress,completed&limit=200`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+      }
+
       if (response.ok) {
         const data = await response.json();
-        const orders = data.data?.orders || [];
+        console.log('DeliveredSoon API response:', data);
+        
+        const orders = data.data || []; // The API returns data directly, not data.orders
+        console.log('Total orders fetched:', orders.length);
         
         // Filter orders with delivery dates in the next 7 days
         const upcoming = orders
-          .filter((order: any) => order.deliveryDate)
+          .filter((order: any) => {
+            const hasDeliveryDate = order.deliveryDate;
+            if (!hasDeliveryDate) {
+              console.log('Order without delivery date:', order.orderId);
+            }
+            return hasDeliveryDate;
+          })
           .map((order: any) => {
             const deliveryDate = new Date(order.deliveryDate);
             const today = new Date();
+            today.setHours(0, 0, 0, 0); // Reset to start of day for accurate calculation
             const daysUntil = Math.ceil((deliveryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
             
             return {
-              id: order.id,
+              id: order._id || order.id,
               orderId: order.orderId,
               orderType: order.orderType || 'Not Set',
               deliveryDate: order.deliveryDate,
@@ -87,20 +112,33 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
               daysUntilDelivery: daysUntil
             };
           })
-          .filter((order: UpcomingOrder) => order.daysUntilDelivery >= 0 && order.daysUntilDelivery <= 7)
+          .filter((order: UpcomingOrder) => {
+            const isInRange = order.daysUntilDelivery >= 0 && order.daysUntilDelivery <= 7;
+            if (!isInRange) {
+              console.log('Order outside 7-day range:', order.orderId, 'days until:', order.daysUntilDelivery);
+            }
+            return isInRange;
+          })
           .sort((a: UpcomingOrder, b: UpcomingOrder) => a.daysUntilDelivery - b.daysUntilDelivery);
 
+        console.log('Upcoming orders (next 7 days):', upcoming.length);
         setUpcomingOrders(upcoming);
         setFilteredOrders(upcoming);
       } else {
+        console.error('DeliveredSoon API error:', response.status, response.statusText);
         if (response.status === 401) {
           setError('Authentication failed. Please log in again.');
           return;
         }
-        const errorData = await response.json();
-        setError(errorData.message || 'Failed to load upcoming orders');
+        try {
+          const errorData = await response.json();
+          setError(errorData.message || 'Failed to load upcoming orders');
+        } catch (parseError) {
+          setError(`Failed to load upcoming orders (${response.status})`);
+        }
       }
     } catch (error) {
+      console.error('DeliveredSoon fetch error:', error);
       setError('Failed to load upcoming orders. Please try again.');
     } finally {
       setLoading(false);
@@ -208,7 +246,7 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
             </span>
           </div>
           
-          {/* Date Filter */}
+          {/* Date Filter and Refresh */}
           <div className="flex items-center gap-2">
             <CalendarIcon className={`w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
             <input
@@ -234,6 +272,17 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
                 Clear
               </button>
             )}
+            <button
+              onClick={fetchUpcomingOrders}
+              disabled={loading}
+              className={`px-3 py-2 text-xs rounded-lg border transition-colors ${
+                isDarkMode
+                  ? 'bg-slate-700 text-gray-300 hover:bg-slate-600 border-slate-600'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-300'
+              } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {loading ? 'Loading...' : 'Refresh'}
+            </button>
           </div>
         </div>
       </div>

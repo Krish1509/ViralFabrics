@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .skip((page - 1) * limit)
       .lean()
-      .maxTimeMS(200); // 200ms timeout for 50ms target
+      .maxTimeMS(2000); // 2 second timeout for better reliability
 
     // Use Promise.all to parallelize all data fetching
     const [labs, millInputs, millOutputs, dispatches, total] = await Promise.all([
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
           })
           .select('orderItemId labSendDate labSendData labSendNumber status remarks')
           .lean()
-          .maxTimeMS(200);
+          .maxTimeMS(2000);
         } catch (labError) {
           return [];
         }
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
           .populate('quality', 'name')
           .populate('additionalMeters.quality', 'name')
           .lean()
-          .maxTimeMS(200);
+          .maxTimeMS(2000);
           
           return millInputs;
         } catch (millError) {
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
           })
           .select('order recdDate millBillNo finishedMtr quality')
           .lean()
-          .maxTimeMS(200);
+          .maxTimeMS(2000);
           
           return millOutputs;
         } catch (millError) {
@@ -146,7 +146,7 @@ export async function GET(request: NextRequest) {
           })
           .select('order dispatchDate dispatchNo quantity dispatchedTo')
           .lean()
-          .maxTimeMS(200);
+          .maxTimeMS(2000);
           
           return dispatches;
         } catch (dispatchError) {
@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
       })() : Promise.resolve([]),
       
       // Get total count in parallel
-      Order.countDocuments(query).maxTimeMS(200)
+      Order.countDocuments(query).maxTimeMS(2000)
     ]);
 
     // Attach lab data and mill input process data to order items
@@ -169,27 +169,39 @@ export async function GET(request: NextRequest) {
         });
       }
       
-      // Create a map of order ObjectId to mill input data
+      // Create a map of order ObjectId to mill input data arrays
       const millInputMap = new Map();
       if (millInputs.length > 0) {
         millInputs.forEach(millInput => {
-          millInputMap.set(millInput.order.toString(), millInput);
+          const orderId = millInput.order.toString();
+          if (!millInputMap.has(orderId)) {
+            millInputMap.set(orderId, []);
+          }
+          millInputMap.get(orderId).push(millInput);
         });
       }
-      
-      // Create a map of order ObjectId to mill output data
+
+      // Create a map of order ObjectId to mill output data arrays
       const millOutputMap = new Map();
       if (millOutputs.length > 0) {
         millOutputs.forEach(millOutput => {
-          millOutputMap.set(millOutput.order.toString(), millOutput);
+          const orderId = millOutput.order.toString();
+          if (!millOutputMap.has(orderId)) {
+            millOutputMap.set(orderId, []);
+          }
+          millOutputMap.get(orderId).push(millOutput);
         });
       }
-      
-      // Create a map of order ObjectId to dispatch data
+
+      // Create a map of order ObjectId to dispatch data arrays
       const dispatchMap = new Map();
       if (dispatches.length > 0) {
         dispatches.forEach(dispatch => {
-          dispatchMap.set(dispatch.order.toString(), dispatch);
+          const orderId = dispatch.order.toString();
+          if (!dispatchMap.has(orderId)) {
+            dispatchMap.set(orderId, []);
+          }
+          dispatchMap.get(orderId).push(dispatch);
         });
       }
       
@@ -290,7 +302,7 @@ export async function GET(request: NextRequest) {
     // Add cache headers - very short cache to prevent stale data after deletions
     const headers = {
       'Content-Type': 'application/json',
-      'Cache-Control': force ? 'no-cache, no-store, must-revalidate' : 'max-age=5, must-revalidate', // No cache when force refresh
+      'Cache-Control': force ? 'no-cache, no-store, must-revalidate' : 'max-age=30, must-revalidate', // 30 second cache for better performance
       'Pragma': 'no-cache'
     };
     

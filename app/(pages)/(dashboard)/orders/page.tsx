@@ -355,9 +355,9 @@ export default function OrdersPage() {
 
   // ULTRA FAST fetch functions - 50ms target
   const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage, forceRefresh = false) => {
-    const maxRetries = 1; // Single retry for speed
-    const baseTimeout = 500; // 500ms timeout for 50ms target
-    const timeoutIncrement = 200; // Add 200ms per retry
+    const maxRetries = 2; // Two retries for better reliability
+    const baseTimeout = 3000; // 3 second timeout for better reliability
+    const timeoutIncrement = 1000; // Add 1 second per retry
     
     try {
       const controller = new AbortController();
@@ -660,7 +660,7 @@ export default function OrdersPage() {
 
       // Create abort controller for timeout handling
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout (increased for stability)
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout for better stability
 
       // Fetch all three endpoints in parallel for better performance
       const [millInputsResponse, millOutputsResponse, dispatchesResponse] = await Promise.all([
@@ -822,7 +822,7 @@ export default function OrdersPage() {
   const fetchParties = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout for faster response
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for better reliability
       
       const token = localStorage.getItem('token');
       const response = await fetch('/api/parties?limit=100', { // Higher limit for better UX
@@ -864,7 +864,7 @@ export default function OrdersPage() {
   const fetchQualities = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 second timeout (increased for stability)
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout for better stability
       
       const token = localStorage.getItem('token');
       const response = await fetch('/api/qualities?limit=100', { // Increased limit for better UX
@@ -902,7 +902,7 @@ export default function OrdersPage() {
     try {
       console.log('fetchMills called');
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 second timeout (increased for stability)
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout for better stability
       
       const token = localStorage.getItem('token');
       console.log('Token available:', !!token);
@@ -980,7 +980,7 @@ export default function OrdersPage() {
 
         // SUPER FAST: Load orders data with proper timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 seconds for reliable loading
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds for reliable loading
 
         // Load orders data
         const ordersResponse = await fetch('/api/orders?limit=50&page=1', {
@@ -1011,9 +1011,13 @@ export default function OrdersPage() {
           }
           setOrdersLoaded(true);
         } else {
-          showMessage('error', 'Failed to load orders', { autoDismiss: true, dismissTime: 3000 });
+          console.error('Failed to load orders:', ordersResponse.status, ordersResponse.statusText);
           setOrders([]);
-          setOrdersLoaded(true); // Still mark as loaded to show "No orders yet"
+          setOrdersLoaded(true); // Mark as loaded to show "No orders yet"
+          // Don't show error message for 404 or empty results - this is normal
+          if (ordersResponse.status !== 404) {
+            showMessage('error', 'Failed to load orders', { autoDismiss: true, dismissTime: 3000 });
+          }
         }
 
         setLoading(false);
@@ -1023,6 +1027,17 @@ export default function OrdersPage() {
         setOrders([]);
         setLoading(false);
         setOrdersLoaded(true); // Mark as loaded even on error to show "No orders yet"
+        
+        // Only show error message for network errors, not for aborted requests
+        if (error instanceof Error && error.name !== 'AbortError') {
+          showMessage('error', 'Failed to load orders. Please try again.', { autoDismiss: true, dismissTime: 3000 });
+          
+          // Auto-retry after 3 seconds
+          setTimeout(() => {
+            console.log('Auto-retrying orders load...');
+            initializeAllData();
+          }, 3000);
+        }
       } finally {
         setIsInitialized(true);
       }
@@ -1030,15 +1045,17 @@ export default function OrdersPage() {
     
     initializeAllData();
     
-    // ONE TIME timeout - 5 seconds max for reliable loading
+    // ONE TIME timeout - 15 seconds max for reliable loading
     const timeoutId = setTimeout(() => {
       if (!isInitialized) {
+        console.warn('Orders initialization timed out after 15 seconds');
         setOrders([]);
         setLoading(false);
         setOrdersLoaded(true); // Mark as loaded even on timeout
         setIsInitialized(true);
+        showMessage('warning', 'Loading is taking longer than expected. Please refresh if needed.', { autoDismiss: true, dismissTime: 5000 });
       }
-    }, 5000);
+    }, 15000);
     
     return () => clearTimeout(timeoutId);
   }, [showMessage, isInitialized]);
@@ -1486,7 +1503,7 @@ export default function OrdersPage() {
         
         // Create AbortController for timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout (increased for stability)
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout for better stability
         
         const response = await fetch(`/api/orders/status`, {
           method: 'PATCH',
@@ -1959,22 +1976,22 @@ export default function OrdersPage() {
             {/* Create Order Button Skeleton */}
             <div className="flex items-center order-1 md:order-1">
               <div className={`h-10 w-32 rounded-lg ${
-                isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-              }`}></div>
+          isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+          }`}></div>
             </div>
             
             {/* Search Bar Skeleton */}
             <div className="flex-1 order-2 md:order-2">
               <div className={`h-10 rounded-lg ${
-                isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-              }`}></div>
-            </div>
-            
+          isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+        }`}></div>
+      </div>
+
             {/* Quick Actions Button Skeleton */}
             <div className="flex items-center order-3 md:order-3">
               <div className={`h-10 w-24 rounded-lg ${
-                isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-              }`}></div>
+        isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+        }`}></div>
             </div>
           </div>
         </div>
@@ -1993,13 +2010,13 @@ export default function OrdersPage() {
         <div className="mt-6">
           <div className={`rounded-xl border overflow-hidden shadow-lg ${
             isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-          }`}>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className={`${
+      }`}>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className={`${
                   isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'
-                }`}>
-                  <tr>
+            }`}>
+              <tr>
                     <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[300px] ${
                       isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black/50 bg-blue-50'
                     }`}>
@@ -2015,45 +2032,45 @@ export default function OrdersPage() {
                     }`}>
                       Actions
                     </th>
-                  </tr>
-                </thead>
-                <tbody className={`divide-y ${
+              </tr>
+            </thead>
+            <tbody className={`divide-y ${
                   isDarkMode ? 'divide-gray-700' : 'divide-gray-200'
-                }`}>
+            }`}>
                   {[...Array(5)].map((_, i) => (
-                    <tr key={i} className={`${
+                <tr key={i} className={`${
                       isDarkMode ? 'bg-gray-800/30' : 'bg-white'
-                    }`}>
+                }`}>
                       {/* Order Information Column Skeleton */}
                       <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
                         <div className="space-y-3">
                           {/* Order ID and Type */}
-                          <div className="flex items-center space-x-3">
-                            <div className={`h-8 w-8 rounded-full ${
-                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                            }`}></div>
-                            <div className="space-y-1">
+                    <div className="flex items-center space-x-3">
+                      <div className={`h-8 w-8 rounded-full ${
+                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                      }`}></div>
+                      <div className="space-y-1">
                               <div className={`h-4 w-16 rounded ${
-                                isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                              }`}></div>
+                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                        }`}></div>
                               <div className={`h-3 w-12 rounded ${
-                                isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                              }`}></div>
-                            </div>
-                          </div>
+                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                        }`}></div>
+                      </div>
+                    </div>
                           {/* Party and Date */}
-                          <div className="space-y-1">
+                    <div className="space-y-1">
                             <div className={`h-3 w-24 rounded ${
-                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                            }`}></div>
+                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                      }`}></div>
                             <div className={`h-3 w-20 rounded ${
-                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                            }`}></div>
+                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                      }`}></div>
                           </div>
                           {/* Status */}
                           <div className={`h-6 w-16 rounded-full ${
-                            isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                          }`}></div>
+                          isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                      }`}></div>
                         </div>
                       </td>
 
@@ -2083,9 +2100,9 @@ export default function OrdersPage() {
                                 ))}
                               </div>
                             </div>
-                          </div>
-                        </div>
-                      </td>
+                      </div>
+                    </div>
+                  </td>
 
                       {/* Actions Column Skeleton */}
                       <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
@@ -2093,24 +2110,24 @@ export default function OrdersPage() {
                           {/* Action Buttons Grid */}
                           <div className="grid grid-cols-2 gap-2">
                             <div className={`h-8 w-full rounded-lg ${
-                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                            }`}></div>
+                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                    }`}></div>
+                            <div className={`h-8 w-full rounded-lg ${
+                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                      }`}></div>
                             <div className={`h-8 w-full rounded-lg ${
                               isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
                             }`}></div>
                             <div className={`h-8 w-full rounded-lg ${
-                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                            }`}></div>
-                            <div className={`h-8 w-full rounded-lg ${
-                              isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                            }`}></div>
+                        isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                      }`}></div>
                           </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
             </div>
           </div>
         </div>
@@ -2142,6 +2159,48 @@ export default function OrdersPage() {
   if (loading || (!ordersLoaded && !isInitialized) || isChangingPage) {
     return <LoadingSkeleton />;
   }
+
+  // Debug logging for troubleshooting
+  console.log('Orders page render state:', {
+    loading,
+    ordersLoaded,
+    isInitialized,
+    ordersCount: orders.length,
+    currentOrdersCount: currentOrders.length,
+    searchTerm,
+    filters
+  });
+
+  // Debug button states for first few orders
+  if (orders.length > 0) {
+    console.log('Button states for first 3 orders:', orders.slice(0, 3).map(order => ({
+      orderId: order.orderId,
+      millInputs: (order as any).millInputs?.length || 0,
+      millOutputs: (order as any).millOutputs?.length || 0,
+      dispatches: (order as any).dispatches?.length || 0,
+      labData: order.labData?.length || 0
+    })));
+  }
+
+  // Helper functions for button states - super clean and fast
+  const hasMillInputs = (order: Order) => {
+    const millInputs = (order as any).millInputs;
+    return Array.isArray(millInputs) && millInputs.length > 0;
+  };
+
+  const hasMillOutputs = (order: Order) => {
+    const millOutputs = (order as any).millOutputs;
+    return Array.isArray(millOutputs) && millOutputs.length > 0;
+  };
+
+  const hasDispatches = (order: Order) => {
+    const dispatches = (order as any).dispatches;
+    return Array.isArray(dispatches) && dispatches.length > 0;
+  };
+
+  const hasLabData = (order: Order) => {
+    return (order.labData && order.labData.length > 0) || order.items.some(item => item.labData?.sampleNumber);
+  };
 
   return (
     <div className={`min-h-screen ${
@@ -3341,18 +3400,16 @@ export default function OrdersPage() {
                                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30'
                                  : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
                              }`}
-                             title={order.items.some(item => item.labData?.sampleNumber) ? "Edit Lab Data" : "Add Lab Data"}
+                             title={hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}
                            >
                              <BeakerIcon className="h-4 w-4" />
-                             <span>{order.items.some(item => item.labData?.sampleNumber) ? "Edit Lab Data" : "Add Lab Data"}</span>
+                             <span>{hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}</span>
                              {/* Status indicator */}
                              <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                                isDarkMode ? 'border-gray-800' : 'border-white'
                              } ${
-                               order.items.some(item => item.labData?.sampleNumber)
-                                 ? 'bg-green-500' 
-                                 : 'bg-gray-400'
-                             }`} title={order.items.some(item => item.labData?.sampleNumber) ? "Data exists" : "No data"} />
+                               hasLabData(order) ? 'bg-green-500' : 'bg-gray-400'
+                             }`} title={hasLabData(order) ? "Data exists" : "No data"} />
                            </button>
 
                            <button
@@ -3362,18 +3419,16 @@ export default function OrdersPage() {
                                  ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30'
                                  : 'bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100'
                              }`}
-                             title={(order as any).millInputs && (order as any).millInputs.length > 0 ? "Edit Mill Input" : "Add Mill Input"}
+                             title={hasMillInputs(order) ? "Edit Mill Input" : "Add Mill Input"}
                            >
                              <CubeIcon className="h-4 w-4" />
-                             <span>{(order as any).millInputs && (order as any).millInputs.length > 0 ? "Edit Mill Input" : "Add Mill Input"}</span>
+                             <span>{hasMillInputs(order) ? "Edit Mill Input" : "Add Mill Input"}</span>
                              {/* Status indicator */}
                              <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                                isDarkMode ? 'border-gray-800' : 'border-white'
                              } ${
-                               (order as any).millInputs && (order as any).millInputs.length > 0 
-                                 ? 'bg-green-500' 
-                                 : 'bg-gray-400'
-                             }`} title={(order as any).millInputs && (order as any).millInputs.length > 0 ? "Data exists" : "No data"} />
+                               hasMillInputs(order) ? 'bg-green-500' : 'bg-gray-400'
+                             }`} title={hasMillInputs(order) ? "Data exists" : "No data"} />
                            </button>
 
                            <button
@@ -3383,18 +3438,16 @@ export default function OrdersPage() {
                                  ? 'bg-teal-600/20 text-teal-400 border border-teal-500/30 hover:bg-teal-600/30'
                                  : 'bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100'
                              }`}
-                             title={(order as any).millOutputs && (order as any).millOutputs.length > 0 ? "Edit Mill Output" : "Add Mill Output"}
+                             title={hasMillOutputs(order) ? "Edit Mill Output" : "Add Mill Output"}
                            >
                              <DocumentTextIcon className="h-4 w-4" />
-                             <span>{(order as any).millOutputs && (order as any).millOutputs.length > 0 ? "Edit Mill Output" : "Add Mill Output"}</span>
+                             <span>{hasMillOutputs(order) ? "Edit Mill Output" : "Add Mill Output"}</span>
                              {/* Status indicator */}
                              <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                                isDarkMode ? 'border-gray-800' : 'border-white'
                              } ${
-                               (order as any).millOutputs && (order as any).millOutputs.length > 0 
-                                 ? 'bg-green-500' 
-                                 : 'bg-gray-400'
-                             }`} title={(order as any).millOutputs && (order as any).millOutputs.length > 0 ? "Data exists" : "No data"} />
+                               hasMillOutputs(order) ? 'bg-green-500' : 'bg-gray-400'
+                             }`} title={hasMillOutputs(order) ? "Data exists" : "No data"} />
                            </button>
 
                            <button
@@ -3404,18 +3457,16 @@ export default function OrdersPage() {
                                  ? 'bg-orange-600/20 text-orange-400 border border-orange-500/30 hover:bg-orange-600/30'
                                  : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
                              }`}
-                             title={(order as any).dispatches && (order as any).dispatches.length > 0 ? "Edit Dispatch" : "Add Dispatch"}
+                             title={hasDispatches(order) ? "Edit Dispatch" : "Add Dispatch"}
                            >
                              <TruckIcon className="h-4 w-4" />
-                             <span>{(order as any).dispatches && (order as any).dispatches.length > 0 ? "Edit Dispatch" : "Add Dispatch"}</span>
+                             <span>{hasDispatches(order) ? "Edit Dispatch" : "Add Dispatch"}</span>
                              {/* Status indicator */}
                              <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                                isDarkMode ? 'border-gray-800' : 'border-white'
                              } ${
-                               (order as any).dispatches && (order as any).dispatches.length > 0 
-                                 ? 'bg-green-500' 
-                                 : 'bg-gray-400'
-                             }`} title={(order as any).dispatches && (order as any).dispatches.length > 0 ? "Data exists" : "No data"} />
+                               hasDispatches(order) ? 'bg-green-500' : 'bg-gray-400'
+                             }`} title={hasDispatches(order) ? "Data exists" : "No data"} />
                            </button>
                          </div>
 
@@ -3586,6 +3637,7 @@ export default function OrdersPage() {
                   </h3>
                   <p className="mt-2">Get started by creating your first order</p>
                 </div>
+                <div className="flex space-x-3">
                 <button
                   onClick={() => openFormWithData()}
                   className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-colors ${
@@ -3597,6 +3649,25 @@ export default function OrdersPage() {
                   <PlusIcon className="h-4 w-4 mr-2" />
                   Create Order
                 </button>
+                  <button
+                    onClick={() => {
+                      setLoading(true);
+                      setOrdersLoaded(false);
+                      setIsInitialized(false);
+                      // Trigger a fresh load
+                      setTimeout(() => {
+                        window.location.reload();
+                      }, 100);
+                    }}
+                    className={`inline-flex items-center px-4 py-2 border text-sm font-medium rounded-md shadow-sm transition-colors ${
+                      isDarkMode
+                        ? 'bg-gray-600 hover:bg-gray-700 text-white border-gray-500'
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300'
+                    }`}
+                  >
+                    Refresh
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
@@ -3981,18 +4052,16 @@ export default function OrdersPage() {
                           ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30'
                           : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
                       }`}
-                      title={order.labData && order.labData.length > 0 ? "Edit Lab Data" : "Add Lab Data"}
+                      title={hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}
                     >
                       <BeakerIcon className="h-4 w-4" />
-                      <span>{order.labData && order.labData.length > 0 ? "Edit Lab Data" : "Add Lab Data"}</span>
+                      <span>{hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}</span>
                       {/* Status indicator */}
                       <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                         isDarkMode ? 'border-gray-800' : 'border-white'
                       } ${
-                        order.labData && order.labData.length > 0 
-                          ? 'bg-green-500' 
-                          : 'bg-gray-400'
-                      }`} title={order.labData && order.labData.length > 0 ? "Data exists" : "No data"} />
+                        hasLabData(order) ? 'bg-green-500' : 'bg-gray-400'
+                      }`} title={hasLabData(order) ? "Data exists" : "No data"} />
                     </button>
 
                     <button
@@ -4002,18 +4071,16 @@ export default function OrdersPage() {
                           ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30'
                           : 'bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100'
                       }`}
-                      title={(order as any).millInputs && (order as any).millInputs.length > 0 ? "Edit Mill Input" : "Add Mill Input"}
+                      title={hasMillInputs(order) ? "Edit Mill Input" : "Add Mill Input"}
                     >
                       <CubeIcon className="h-4 w-4" />
-                      <span>{(order as any).millInputs && (order as any).millInputs.length > 0 ? "Edit Mill Input" : "Add Mill Input"}</span>
+                      <span>{hasMillInputs(order) ? "Edit Mill Input" : "Add Mill Input"}</span>
                       {/* Status indicator */}
                       <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                         isDarkMode ? 'border-gray-800' : 'border-white'
                       } ${
-                        (order as any).millInputs && (order as any).millInputs.length > 0 
-                          ? 'bg-green-500' 
-                          : 'bg-gray-400'
-                      }`} title={(order as any).millInputs && (order as any).millInputs.length > 0 ? "Data exists" : "No data"} />
+                        hasMillInputs(order) ? 'bg-green-500' : 'bg-gray-400'
+                      }`} title={hasMillInputs(order) ? "Data exists" : "No data"} />
                     </button>
 
                     <button
@@ -4023,18 +4090,16 @@ export default function OrdersPage() {
                           ? 'bg-teal-600/20 text-teal-400 border border-teal-500/30 hover:bg-teal-600/30'
                           : 'bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100'
                       }`}
-                      title={(order as any).millOutputs && (order as any).millOutputs.length > 0 ? "Edit Mill Output" : "Add Mill Output"}
+                      title={hasMillOutputs(order) ? "Edit Mill Output" : "Add Mill Output"}
                     >
                       <DocumentTextIcon className="h-4 w-4" />
-                      <span>{(order as any).millOutputs && (order as any).millOutputs.length > 0 ? "Edit Mill Output" : "Add Mill Output"}</span>
+                      <span>{hasMillOutputs(order) ? "Edit Mill Output" : "Add Mill Output"}</span>
                       {/* Status indicator */}
                       <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                         isDarkMode ? 'border-gray-800' : 'border-white'
                       } ${
-                        (order as any).millOutputs && (order as any).millOutputs.length > 0 
-                          ? 'bg-green-500' 
-                          : 'bg-gray-400'
-                      }`} title={(order as any).millOutputs && (order as any).millOutputs.length > 0 ? "Data exists" : "No data"} />
+                        hasMillOutputs(order) ? 'bg-green-500' : 'bg-gray-400'
+                      }`} title={hasMillOutputs(order) ? "Data exists" : "No data"} />
                     </button>
 
                     <button
@@ -4044,18 +4109,16 @@ export default function OrdersPage() {
                           ? 'bg-orange-600/20 text-orange-400 border border-orange-500/30 hover:bg-orange-600/30'
                           : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
                       }`}
-                      title={(order as any).dispatches && (order as any).dispatches.length > 0 ? "Edit Dispatch" : "Add Dispatch"}
+                      title={hasDispatches(order) ? "Edit Dispatch" : "Add Dispatch"}
                     >
                       <TruckIcon className="h-4 w-4" />
-                      <span>{(order as any).dispatches && (order as any).dispatches.length > 0 ? "Edit Dispatch" : "Add Dispatch"}</span>
+                      <span>{hasDispatches(order) ? "Edit Dispatch" : "Add Dispatch"}</span>
                       {/* Status indicator */}
                       <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                         isDarkMode ? 'border-gray-800' : 'border-white'
                       } ${
-                        (order as any).dispatches && (order as any).dispatches.length > 0 
-                          ? 'bg-green-500' 
-                          : 'bg-gray-400'
-                      }`} title={(order as any).dispatches && (order as any).dispatches.length > 0 ? "Data exists" : "No data"} />
+                        hasDispatches(order) ? 'bg-green-500' : 'bg-gray-400'
+                      }`} title={hasDispatches(order) ? "Data exists" : "No data"} />
                     </button>
                   </div>
 
@@ -4270,10 +4333,31 @@ export default function OrdersPage() {
              setSelectedOrderForLab(null);
            }}
            onLabDataUpdate={async () => {
+            const orderId = selectedOrderForLab?.orderId;
+            
+            try {
+              // Update the order's labData property directly in local state
+              if (orderId) {
+                setOrders(prevOrders => 
+                  prevOrders.map(order => 
+                    order.orderId === orderId 
+                      ? { ...order, labData: [{ _id: 'temp', order: orderId, createdAt: new Date() }] } // Mark as having data
+                      : order
+                  )
+                );
+              }
+              
              setShowLabAddModal(false);
              setSelectedOrderForLab(null);
-             await refreshLabDataStates(); // Refresh lab data states to update button indicators
              showMessage('success', 'Lab data added successfully');
+              
+              console.log('Lab data button state updated for order:', orderId);
+            } catch (error) {
+              console.error('Error updating lab data state:', error);
+              setShowLabAddModal(false);
+              setSelectedOrderForLab(null);
+              showMessage('success', 'Lab data added successfully');
+            }
            }}
          />
        )}
@@ -4772,8 +4856,27 @@ export default function OrdersPage() {
           }}
           order={selectedOrderForLabData} //@ts-ignore  
           onLabDataUpdate={async () => {
-            await refreshLabDataStates(); // Refresh lab data states to update button indicators
+            const orderId = selectedOrderForLabData?.orderId;
+            
+            try {
+              // Update the order's labData property directly in local state
+              if (orderId) {
+                setOrders(prevOrders => 
+                  prevOrders.map(order => 
+                    order.orderId === orderId 
+                      ? { ...order, labData: [{ _id: 'temp', order: orderId, createdAt: new Date() }] } // Mark as having data
+                      : order
+                  )
+                );
+              }
+              
             showMessage('success', 'Lab data updated successfully!');
+              
+              console.log('Lab data button state updated for order:', orderId);
+            } catch (error) {
+              console.error('Error updating lab data state:', error);
+              showMessage('success', 'Lab data updated successfully!');
+            }
           }}
         />
       )}
@@ -4805,21 +4908,24 @@ export default function OrdersPage() {
               const orderId = selectedOrderForMillInputForm?.orderId;
               
               try {
-                // First, refresh the specific order's mill input data
+                // Update the order's millInputs property directly in local state
                 if (orderId) {
-                  await fetchMillInputsForOrder(orderId);
+                  setOrders(prevOrders => 
+                    prevOrders.map(order => 
+                      order.orderId === orderId 
+                        ? { ...order, millInputs: [{ _id: 'temp', order: orderId, createdAt: new Date() }] } // Mark as having data
+                        : order
+                    )
+                  );
                 }
-                
-                // Then refresh orders data to ensure consistency
-                await refreshOrdersData();
                 
                 // Show success message
                 const message = isEditingMillInput ? 'Mill input updated successfully!' : 'Mill input added successfully!';
                 showMessage('success', message);
                 
-                console.log('Mill input data refreshed successfully for order:', orderId);
+                console.log('Mill input button state updated for order:', orderId);
               } catch (error) {
-                console.error('Error refreshing mill input data:', error);
+                console.error('Error updating mill input state:', error);
                 const message = isEditingMillInput ? 'Mill input updated successfully!' : 'Mill input added successfully!';
                 showMessage('success', message);
               }
@@ -4848,13 +4954,30 @@ export default function OrdersPage() {
             setExistingMillOutputs([]);
           }}
           onSuccess={async () => {
-            // Immediately refresh mill outputs data for this specific order to update button state
-            if (selectedOrderForMillOutput) {
-              await refreshOrderMillOutputState(selectedOrderForMillOutput.orderId);
+            const orderId = selectedOrderForMillOutput?.orderId;
+            
+            try {
+              // Update the order's millOutputs property directly in local state
+              if (orderId) {
+                setOrders(prevOrders => 
+                  prevOrders.map(order => 
+                    order.orderId === orderId 
+                      ? { ...order, millOutputs: [{ _id: 'temp', order: orderId, createdAt: new Date() }] } // Mark as having data
+                      : order
+                  )
+                );
+              }
+              
+              // Show success message
+              const message = isEditingMillOutput ? 'Mill output updated successfully!' : 'Mill output added successfully!';
+              showMessage('success', message);
+              
+              console.log('Mill output button state updated for order:', orderId);
+            } catch (error) {
+              console.error('Error updating mill output state:', error);
+              const message = isEditingMillOutput ? 'Mill output updated successfully!' : 'Mill output added successfully!';
+              showMessage('success', message);
             }
-            // Also refresh orders data to ensure consistency
-            await refreshOrdersData();
-            showMessage('success', isEditingMillOutput ? 'Mill output updated successfully!' : 'Mill output added successfully!');
           }}
         />
       )}
@@ -4874,9 +4997,30 @@ export default function OrdersPage() {
             setExistingDispatches([]);
           }}
           onSuccess={async () => {
-            // Refresh orders data to ensure consistency
-            await refreshOrdersData();
-            showMessage('success', isEditingDispatch ? 'Dispatch updated successfully!' : 'Dispatch added successfully!');
+            const orderId = selectedOrderForDispatch?.orderId;
+            
+            try {
+              // Update the order's dispatches property directly in local state
+              if (orderId) {
+                setOrders(prevOrders => 
+                  prevOrders.map(order => 
+                    order.orderId === orderId 
+                      ? { ...order, dispatches: [{ _id: 'temp', order: orderId, createdAt: new Date() }] } // Mark as having data
+                      : order
+                  )
+                );
+              }
+              
+              // Show success message
+              const message = isEditingDispatch ? 'Dispatch updated successfully!' : 'Dispatch added successfully!';
+              showMessage('success', message);
+              
+              console.log('Dispatch button state updated for order:', orderId);
+            } catch (error) {
+              console.error('Error updating dispatch state:', error);
+              const message = isEditingDispatch ? 'Dispatch updated successfully!' : 'Dispatch added successfully!';
+              showMessage('success', message);
+            }
           }}
         />
       )}
