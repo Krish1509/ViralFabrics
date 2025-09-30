@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     await dbConnect();
     
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 100); // Ultra small for 50ms target
+    const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 1000); // Increased limit to handle all orders
     const page = parseInt(searchParams.get('page') || '1');
     const search = searchParams.get('search') || '';
     const orderType = searchParams.get('orderType') || '';

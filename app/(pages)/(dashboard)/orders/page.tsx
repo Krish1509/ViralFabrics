@@ -282,7 +282,11 @@ export default function OrdersPage() {
   const handleSearchChange = useCallback((value: string) => {
     const trimmedValue = value.trim();
     setSearchTerm(trimmedValue);
-  }, []);
+    // Reset to page 1 when searching to show search results
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
+  }, [currentPage]);
 
    // Function to process mill input data and group by order and quality
   const processMillInputDataByQuality = useCallback((millInputs: any[]) => {
@@ -406,7 +410,7 @@ export default function OrdersPage() {
       
       // Build URL with pagination and filter parameters
       const url = new URL('/api/orders', window.location.origin);
-      const limitValue = limit === 'All' ? 200 : Math.max(limit, 50); // Much smaller limits for speed
+      const limitValue = limit === 'All' ? 1000 : Math.max(limit, 50); // Increased limit to handle all orders
       url.searchParams.append('limit', limitValue.toString());
       url.searchParams.append('page', page.toString());
       
@@ -548,7 +552,7 @@ export default function OrdersPage() {
     setCurrentPage(1); // Reset to first page
     
     // For better UX, fetch all orders and use client-side pagination
-    await fetchOrders(0, 1, 'All');
+    await fetchOrders(0, 1, 'All', true);
     setIsChangingPage(false);
   };
 
@@ -1046,7 +1050,7 @@ export default function OrdersPage() {
         
         const [ordersResult, millsResult] = await Promise.allSettled([
           // Orders API - Most critical
-          fetch('/api/orders?limit=50&page=1&force=true', {
+          fetch('/api/orders?limit=1000&page=1&force=true', {
             headers: { 
               'Authorization': `Bearer ${token}`,
               'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -1492,7 +1496,8 @@ export default function OrdersPage() {
     
     try {
       // Only refresh orders - super simple
-      await fetchOrders();
+      // Force refresh to get all orders
+      await fetchOrders(0, 1, 'All', true);
       showMessage('success', 'Orders refreshed successfully', { 
         autoDismiss: true, 
         dismissTime: 2000 
@@ -2884,12 +2889,23 @@ export default function OrdersPage() {
                   placeholder="Search orders by ID, PO number, style, or party..."
                   value={searchTerm}
                   onChange={(e) => handleSearchChange(e.target.value)}
-                  className={`w-full pl-9 pr-4 py-2 rounded-lg border transition-all duration-300 font-medium text-sm ${
+                  className={`w-full pl-9 pr-10 py-2 rounded-lg border transition-all duration-300 font-medium text-sm ${
                     isDarkMode
                       ? 'bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
                       : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
                   }`}
                 />
+                {searchTerm && (
+                  <button
+                    onClick={() => handleSearchChange('')}
+                    className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors ${
+                      isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                    title="Clear search"
+                  >
+                    <XMarkIcon className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2916,8 +2932,29 @@ export default function OrdersPage() {
 
           {/* Second Row - Filters and Controls */}
           <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
-            {/* Left Side - Filters */}
+            {/* Left Side - Filters and Search Results */}
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 order-2 lg:order-1 w-full lg:w-auto">
+              {/* Search Results Indicator */}
+              {searchTerm && (
+                <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  isDarkMode 
+                    ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30' 
+                    : 'bg-blue-100 text-blue-700 border border-blue-200'
+                }`}>
+                  {(() => {
+                    const filteredCount = orders.filter(order => {
+                      const matchesSearch = (
+                        (order.orderId && order.orderId.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (order.poNumber && order.poNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (order.styleNo && order.styleNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (order.party && typeof order.party === 'object' && order.party.name && order.party.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                      );
+                      return matchesSearch;
+                    }).length;
+                    return `${filteredCount} result${filteredCount !== 1 ? 's' : ''} for "${searchTerm}"`;
+                  })()}
+                </div>
+              )}
 
             {/* Sort Filter - Segmented Button Style */}
             <div className="flex items-center gap-2">
@@ -3117,35 +3154,145 @@ export default function OrdersPage() {
                     <span className="sm:hidden">Prev</span>
                   </button>
                   
-                  {/* Page numbers */}
+                  {/* Smart Page numbers */}
                   <div className="flex items-center space-x-1">
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNum;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
+                    {(() => {
+                      const pages = [];
+                      
+                      if (totalPages <= 7) {
+                        // Show all pages if 7 or fewer
+                        for (let i = 1; i <= totalPages; i++) {
+                          pages.push(
+                            <button
+                              key={i}
+                              onClick={() => handlePageChange(i)}
+                              disabled={isChangingPage || loading}
+                              className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                                currentPage === i
+                                    ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                    : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                              } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              {i}
+                            </button>
+                          );
+                        }
                       } else {
-                        pageNum = currentPage - 2 + i;
+                        // Smart pagination for more than 7 pages
+                        
+                        // Always show first page
+                        pages.push(
+                          <button
+                            key={1}
+                            onClick={() => handlePageChange(1)}
+                            disabled={isChangingPage || loading}
+                            className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                              currentPage === 1
+                                  ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                  : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                            } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            1
+                          </button>
+                        );
+                        
+                        if (currentPage <= 4) {
+                          // Show: 1, 2, 3, 4, 5, ..., last
+                          for (let i = 2; i <= 5; i++) {
+                            pages.push(
+                              <button
+                                key={i}
+                                onClick={() => handlePageChange(i)}
+                                disabled={isChangingPage || loading}
+                                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                                  currentPage === i
+                                      ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                                } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                {i}
+                              </button>
+                            );
+                          }
+                          pages.push(
+                            <span key="ellipsis1" className={`px-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              ...
+                            </span>
+                          );
+                        } else if (currentPage >= totalPages - 3) {
+                          // Show: 1, ..., last-4, last-3, last-2, last-1, last
+                          pages.push(
+                            <span key="ellipsis1" className={`px-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              ...
+                            </span>
+                          );
+                          for (let i = totalPages - 4; i <= totalPages; i++) {
+                            pages.push(
+                              <button
+                                key={i}
+                                onClick={() => handlePageChange(i)}
+                                disabled={isChangingPage || loading}
+                                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                                  currentPage === i
+                                      ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                                } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                {i}
+                              </button>
+                            );
+                          }
+                        } else {
+                          // Show: 1, ..., current-1, current, current+1, ..., last
+                          pages.push(
+                            <span key="ellipsis1" className={`px-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              ...
+                            </span>
+                          );
+                          for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+                            pages.push(
+                              <button
+                                key={i}
+                                onClick={() => handlePageChange(i)}
+                                disabled={isChangingPage || loading}
+                                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                                  currentPage === i
+                                      ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                                } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                {i}
+                              </button>
+                            );
+                          }
+                          pages.push(
+                            <span key="ellipsis2" className={`px-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              ...
+                            </span>
+                          );
+                        }
+                        
+                        // Always show last page (if not already shown)
+                        if (currentPage < totalPages - 3) {
+                          pages.push(
+                            <button
+                              key={totalPages}
+                              onClick={() => handlePageChange(totalPages)}
+                              disabled={isChangingPage || loading}
+                              className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                                currentPage === totalPages
+                                    ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                    : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                              } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              {totalPages}
+                            </button>
+                          );
+                        }
                       }
                       
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => handlePageChange(pageNum)}
-                          disabled={isChangingPage || loading}
-                          className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
-                            currentPage === pageNum
-                              ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
-                              : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-                          } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
+                      return pages;
+                    })()}
                   </div>
                   
                   <button
@@ -3925,34 +4072,141 @@ export default function OrdersPage() {
                 <span className="sm:hidden">Prev</span>
               </button>
               
-                {/* Page numbers */}
+                {/* Smart Page numbers */}
               <div className="flex items-center space-x-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
+                {(() => {
+                  const pages = [];
+                  const maxVisible = 5;
+                  
+                  if (totalPages <= 7) {
+                    // Show all pages if 7 or fewer
+                    for (let i = 1; i <= totalPages; i++) {
+                      pages.push(
+                        <button
+                          key={i}
+                          onClick={() => handlePageChange(i)}
+                          className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-colors ${
+                            currentPage === i
+                                ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                          }`}
+                        >
+                          {i}
+                        </button>
+                      );
+                    }
                   } else {
-                    pageNum = currentPage - 2 + i;
+                    // Smart pagination for more than 7 pages
+                    const showEllipsis = totalPages > 7;
+                    
+                    // Always show first page
+                    pages.push(
+                      <button
+                        key={1}
+                        onClick={() => handlePageChange(1)}
+                        className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-colors ${
+                          currentPage === 1
+                              ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                              : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                        }`}
+                      >
+                        1
+                      </button>
+                    );
+                    
+                    if (currentPage <= 4) {
+                      // Show: 1, 2, 3, 4, 5, ..., last
+                      for (let i = 2; i <= 5; i++) {
+                        pages.push(
+                          <button
+                            key={i}
+                            onClick={() => handlePageChange(i)}
+                            className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-colors ${
+                              currentPage === i
+                                  ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                  : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                            }`}
+                          >
+                            {i}
+                          </button>
+                        );
+                      }
+                      pages.push(
+                        <span key="ellipsis1" className={`px-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          ...
+                        </span>
+                      );
+                    } else if (currentPage >= totalPages - 3) {
+                      // Show: 1, ..., last-4, last-3, last-2, last-1, last
+                      pages.push(
+                        <span key="ellipsis1" className={`px-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          ...
+                        </span>
+                      );
+                      for (let i = totalPages - 4; i <= totalPages; i++) {
+                        pages.push(
+                          <button
+                            key={i}
+                            onClick={() => handlePageChange(i)}
+                            className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-colors ${
+                              currentPage === i
+                                  ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                  : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                            }`}
+                          >
+                            {i}
+                          </button>
+                        );
+                      }
+                    } else {
+                      // Show: 1, ..., current-1, current, current+1, ..., last
+                      pages.push(
+                        <span key="ellipsis1" className={`px-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          ...
+                        </span>
+                      );
+                      for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+                        pages.push(
+                          <button
+                            key={i}
+                            onClick={() => handlePageChange(i)}
+                            className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-colors ${
+                              currentPage === i
+                                  ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                  : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                            }`}
+                          >
+                            {i}
+                          </button>
+                        );
+                      }
+                      pages.push(
+                        <span key="ellipsis2" className={`px-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          ...
+                        </span>
+                      );
+                    }
+                    
+                    // Always show last page (if not already shown)
+                    if (currentPage < totalPages - 3) {
+                      pages.push(
+                        <button
+                          key={totalPages}
+                          onClick={() => handlePageChange(totalPages)}
+                          className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-colors ${
+                            currentPage === totalPages
+                                ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                          }`}
+                        >
+                          {totalPages}
+                        </button>
+                      );
+                    }
                   }
                   
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => handlePageChange(pageNum)}
-                      className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-colors ${
-                        currentPage === pageNum
-                            ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
-                            : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
+                  return pages;
+                })()}
               </div>
               
               <button
@@ -4598,35 +4852,145 @@ export default function OrdersPage() {
                 <span className="sm:hidden">Prev</span>
               </button>
               
-              {/* Page numbers */}
+              {/* Smart Page numbers */}
               <div className="flex items-center space-x-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
+                {(() => {
+                  const pages = [];
+                  
+                  if (totalPages <= 7) {
+                    // Show all pages if 7 or fewer
+                    for (let i = 1; i <= totalPages; i++) {
+                      pages.push(
+                        <button
+                          key={i}
+                          onClick={() => handlePageChange(i)}
+                          disabled={isChangingPage || loading}
+                          className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                            currentPage === i
+                              ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+                              : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                          } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          {i}
+                        </button>
+                      );
+                    }
                   } else {
-                    pageNum = currentPage - 2 + i;
+                    // Smart pagination for more than 7 pages
+                    
+                    // Always show first page
+                    pages.push(
+                      <button
+                        key={1}
+                        onClick={() => handlePageChange(1)}
+                        disabled={isChangingPage || loading}
+                        className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                          currentPage === 1
+                            ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+                            : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                        } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        1
+                      </button>
+                    );
+                    
+                    if (currentPage <= 4) {
+                      // Show: 1, 2, 3, 4, 5, ..., last
+                      for (let i = 2; i <= 5; i++) {
+                        pages.push(
+                          <button
+                            key={i}
+                            onClick={() => handlePageChange(i)}
+                            disabled={isChangingPage || loading}
+                            className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                              currentPage === i
+                                ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+                                : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                            } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            {i}
+                          </button>
+                        );
+                      }
+                      pages.push(
+                        <span key="ellipsis1" className={`px-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          ...
+                        </span>
+                      );
+                    } else if (currentPage >= totalPages - 3) {
+                      // Show: 1, ..., last-4, last-3, last-2, last-1, last
+                      pages.push(
+                        <span key="ellipsis1" className={`px-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          ...
+                        </span>
+                      );
+                      for (let i = totalPages - 4; i <= totalPages; i++) {
+                        pages.push(
+                          <button
+                            key={i}
+                            onClick={() => handlePageChange(i)}
+                            disabled={isChangingPage || loading}
+                            className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                              currentPage === i
+                                ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+                                : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                            } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            {i}
+                          </button>
+                        );
+                      }
+                    } else {
+                      // Show: 1, ..., current-1, current, current+1, ..., last
+                      pages.push(
+                        <span key="ellipsis1" className={`px-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          ...
+                        </span>
+                      );
+                      for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+                        pages.push(
+                          <button
+                            key={i}
+                            onClick={() => handlePageChange(i)}
+                            disabled={isChangingPage || loading}
+                            className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                              currentPage === i
+                                ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+                                : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                            } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            {i}
+                          </button>
+                        );
+                      }
+                      pages.push(
+                        <span key="ellipsis2" className={`px-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          ...
+                        </span>
+                      );
+                    }
+                    
+                    // Always show last page (if not already shown)
+                    if (currentPage < totalPages - 3) {
+                      pages.push(
+                        <button
+                          key={totalPages}
+                          onClick={() => handlePageChange(totalPages)}
+                          disabled={isChangingPage || loading}
+                          className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                            currentPage === totalPages
+                              ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+                              : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                          } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          {totalPages}
+                        </button>
+                      );
+                    }
                   }
                   
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => handlePageChange(pageNum)}
-                      disabled={isChangingPage || loading}
-                      className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
-                        currentPage === pageNum
-                          ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
-                          : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-                      } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
+                  return pages;
+                })()}
               </div>
               
               <button
@@ -5607,6 +5971,7 @@ export default function OrdersPage() {
           }}
         />
       )}
+
     </div>
   );
 }

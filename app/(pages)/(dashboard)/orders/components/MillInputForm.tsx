@@ -856,7 +856,7 @@ export default function MillInputForm({
       
       // Use setTimeout to ensure state updates are processed before API call
       setTimeout(() => {
-        fetchExistingMillInputData();
+      fetchExistingMillInputData();
       }, 100);
     } else if (!isOpen) {
       // Reset loading state when form is closed

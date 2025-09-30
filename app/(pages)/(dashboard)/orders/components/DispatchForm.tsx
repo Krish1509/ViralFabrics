@@ -654,7 +654,7 @@ export default function DispatchForm({
       
       // Use setTimeout to ensure state updates are processed before API call
       setTimeout(() => {
-        fetchExistingDispatchData();
+      fetchExistingDispatchData();
       }, 100);
     } else if (!isOpen) {
       // Reset loading state when form is closed
@@ -976,12 +976,12 @@ export default function DispatchForm({
           // Use the first sub-item's data for the main dispatch item
           const firstSubItem = group.subItems[0];
           return {
-            id: (index + 1).toString(),
-            dispatchDate: group.dispatchDate,
-            billNo: group.billNo,
+          id: (index + 1).toString(),
+          dispatchDate: group.dispatchDate,
+          billNo: group.billNo,
             finishMtr: firstSubItem ? firstSubItem.finishMtr : '',
             quality: firstSubItem ? firstSubItem.quality : '',
-            subItems: group.subItems
+          subItems: group.subItems
           };
         })
       };
@@ -1608,8 +1608,8 @@ export default function DispatchForm({
             const remainingExisting = existingGroup.slice(1 + (item.subItems?.length || 0));
             remainingExisting.forEach((dispatch: any) => {
               deletePromises.push(
-                fetch(`/api/dispatch/${dispatch._id}`, {
-                  method: 'DELETE',
+      fetch(`/api/dispatch/${dispatch._id}`, {
+        method: 'DELETE',
                   headers: {
                     'Authorization': `Bearer ${token}`
                   }
@@ -1633,9 +1633,9 @@ export default function DispatchForm({
             createPromises.push(
               fetch('/api/dispatch', {
                 method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
                 },
                 body: JSON.stringify(mainData)
               }).then(response => response.json())
@@ -1674,9 +1674,9 @@ export default function DispatchForm({
                 method: 'DELETE',
                 headers: {
                   'Authorization': `Bearer ${token}`
-                }
-              })
-            );
+        }
+      })
+    );
           }
         });
         
@@ -1691,7 +1691,7 @@ export default function DispatchForm({
       } else {
         // No existing data, create new ones
         console.log('➕ No existing dispatches found, creating new ones...');
-        await createNewDispatches();
+    await createNewDispatches();
       }
     } else {
       // API error, fallback to create new

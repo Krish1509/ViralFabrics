@@ -1650,13 +1650,13 @@ export default function MillOutputForm({
             const remainingExisting = existingGroup.slice(1 + item.additionalFinishedMtr.length);
             remainingExisting.forEach((output: any) => {
               deletePromises.push(
-                fetch(`/api/mill-outputs/${output._id}`, {
-                  method: 'DELETE',
-                  headers: {
-                    'Authorization': `Bearer ${token}`
-                  }
-                })
-              );
+          fetch(`/api/mill-outputs/${output._id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          })
+        );
             });
             
           } else {
@@ -1733,7 +1733,7 @@ export default function MillOutputForm({
       } else {
         // No existing data, create new ones
         console.log('➕ No existing mill outputs found, creating new ones...');
-        await createNewMillOutputs();
+    await createNewMillOutputs();
       }
     } else {
       // API error, fallback to create new
