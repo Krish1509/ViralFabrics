@@ -14,9 +14,10 @@ interface PieChartProps {
   title: string;
   total: number;
   isDarkMode: boolean;
+  icon?: any;
 }
 
-const PieChart: React.FC<PieChartProps> = ({ data, title, total, isDarkMode }) => {
+const PieChart: React.FC<PieChartProps> = ({ data, title, total, isDarkMode, icon: Icon }) => {
   // Filter out "Not Set" entries
   const filteredData = data.filter(item => item.name !== 'Not Set' && item.value > 0);
   
@@ -79,9 +80,10 @@ const PieChart: React.FC<PieChartProps> = ({ data, title, total, isDarkMode }) =
         ? 'bg-slate-800/90 border-slate-600 shadow-slate-900/50 backdrop-blur-sm' 
         : 'bg-white/90 border-gray-200 shadow-gray-200/50 backdrop-blur-sm'
     }`}>
-      <h3 className={`text-xl font-bold mb-6 text-center ${
+      <h3 className={`text-xl font-bold mb-6 text-center flex items-center justify-center gap-2 ${
         isDarkMode ? 'text-white' : 'text-gray-900'
       }`}>
+        {Icon && <Icon className="w-6 h-6" />}
         {title}
       </h3>
       

@@ -373,7 +373,8 @@ export default function DashboardPage() {
                         color: '#6B7280' // Gray
                       }
                     ]}
-                    title="⏳ Pending Orders by Type"
+                    title="Pending Orders by Type"
+                    icon={ClockIcon}
                     total={(stats.pendingTypeStats.Dying || 0) + (stats.pendingTypeStats.Printing || 0) + (stats.pendingTypeStats.not_set || 0)}
                     isDarkMode={isDarkMode}
                   />
@@ -399,7 +400,8 @@ export default function DashboardPage() {
                         color: '#6B7280' // Gray
                       }
                     ]}
-                    title="✅ Delivered Orders by Type"
+                    title="Delivered Orders by Type"
+                    icon={CheckCircleIcon}
                     total={(stats.deliveredTypeStats.Dying || 0) + (stats.deliveredTypeStats.Printing || 0) + (stats.deliveredTypeStats.not_set || 0)}
                     isDarkMode={isDarkMode}
                   />
