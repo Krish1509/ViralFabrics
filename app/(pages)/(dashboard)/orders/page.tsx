@@ -5863,7 +5863,7 @@ export default function OrdersPage() {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     'Content-Type': 'application/json'
                   }
-                });
+                }); 
                 
                 if (response.ok) {
                   const updatedOrder = await response.json();

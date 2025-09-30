@@ -1,14 +1,15 @@
-import { NextRequest } from 'next/server';
-import { getSession } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSession } from '@/lib/session';
 import dbConnect from '@/lib/dbConnect';
 import Order from '@/models/Order';
+import { unauthorizedResponse } from '@/lib/response';
 
 export async function POST(req: NextRequest) {
   try {
     // Validate session
     const session = await getSession(req);
     if (!session) {
-      return Response.json({ message: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(unauthorizedResponse('Unauthorized'), { status: 401 });
     }
 
     await dbConnect();
@@ -17,26 +18,30 @@ export async function POST(req: NextRequest) {
 
     // Validation
     if (!orderType || !party || !quantity) {
-      return Response.json({ 
+      return NextResponse.json({ 
+        success: false,
         message: 'Missing required fields: orderType, party, quantity' 
       }, { status: 400 });
     }
 
     if (typeof quantity !== 'number' || quantity <= 0) {
-      return Response.json({ 
+      return NextResponse.json({ 
+        success: false,
         message: 'Quantity must be a positive number' 
       }, { status: 400 });
     }
 
     if (!['Dying', 'Printing', 'Bulk'].includes(orderType)) {
-      return Response.json({ 
+      return NextResponse.json({ 
+        success: false,
         message: 'Order type must be Dying, Printing, or Bulk' 
       }, { status: 400 });
     }
 
     // Validate party ID format
     if (!party.match(/^[0-9a-fA-F]{24}$/)) {
-      return Response.json({ 
+      return NextResponse.json({ 
+        success: false,
         message: 'Invalid party ID format' 
       }, { status: 400 });
     }
@@ -67,7 +72,7 @@ export async function POST(req: NextRequest) {
     const order = new Order(orderData);
     await order.save();
 
-    return Response.json({
+    return NextResponse.json({
       success: true,
       message: 'Bulk order created successfully',
       data: {
@@ -79,25 +84,28 @@ export async function POST(req: NextRequest) {
         poNumber: order.poNumber,
         styleNo: order.styleNo
       }
-    });
+    }, { status: 201 });
 
   } catch (error: any) {
     console.error('Bulk order creation error:', error);
     
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map((err: any) => err.message);
-      return Response.json({ 
+      return NextResponse.json({ 
+        success: false,
         message: validationErrors.join(', ') 
       }, { status: 400 });
     }
 
     if (error.code === 11000) {
-      return Response.json({ 
+      return NextResponse.json({ 
+        success: false,
         message: 'Order with this PO number already exists' 
       }, { status: 400 });
     }
 
-    return Response.json({ 
+    return NextResponse.json({ 
+      success: false,
       message: 'Internal server error' 
     }, { status: 500 });
   }
