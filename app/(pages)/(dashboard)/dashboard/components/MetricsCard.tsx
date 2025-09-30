@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
-import { useDarkMode } from '../../hooks/useDarkMode';
+import { useDarkMode } from '@/app/contexts/DarkModeContext';
 
 interface MetricsCardProps {
   title: string;

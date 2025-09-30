@@ -38,7 +38,7 @@ import MillInputForm from './components/MillInputForm';
 import MillOutputForm from './components/MillOutputForm';
 import DispatchForm from './components/DispatchForm';
 import { Order, Party, Quality, Mill, MillOutput } from '@/types';
-import { useDarkMode } from '../hooks/useDarkMode';
+import { useDarkMode } from '@/app/contexts/DarkModeContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 // Enhanced message interface

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { CalendarIcon, FunnelIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { useDarkMode } from '../../hooks/useDarkMode';
+import { useDarkMode } from '@/app/contexts/DarkModeContext';
 
 interface DashboardFiltersProps {
   onFiltersChange: (filters: {

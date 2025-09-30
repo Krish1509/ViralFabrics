@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useDarkMode } from '../hooks/useDarkMode';
+import { useDarkMode } from '@/app/contexts/DarkModeContext';
 import { BRAND_NAME, BRAND_TAGLINE } from '@/lib/config';
 import { BuildingOfficeIcon } from '@heroicons/react/24/outline';
 

@@ -15,7 +15,7 @@ import {
   TableCellsIcon,
   Squares2X2Icon
 } from '@heroicons/react/24/outline';
-import { useDarkMode } from '../hooks/useDarkMode';
+import { useDarkMode } from '@/app/contexts/DarkModeContext';
 import UserCardView from './components/UserCardView';
 
 interface User {

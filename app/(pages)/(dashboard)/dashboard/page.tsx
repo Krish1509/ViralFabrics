@@ -7,7 +7,7 @@ import {
   CheckCircleIcon, 
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
-import { useDarkMode } from '../hooks/useDarkMode';
+import { useDarkMode } from '@/app/contexts/DarkModeContext';
 import MetricsCard from './components/MetricsCard';
 import DashboardFilters from './components/DashboardFilters';
 import PieChart from './components/PieChart';

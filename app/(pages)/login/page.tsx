@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, Suspense, useRef } from 'react';
-import { useModeAnimation, ThemeAnimationType } from 'react-theme-switch-animation';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useDarkMode } from '@/app/contexts/DarkModeContext';
 import { 
   EyeIcon, 
   EyeSlashIcon, 
@@ -39,7 +39,7 @@ function LoginForm() {
   const [isPasswordShown, setIsPasswordShown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { isDarkMode, toggleDarkMode, mounted: darkModeMounted, isTransitioning } = useDarkMode();
   const [isCheckingSession, setIsCheckingSession] = useState(false);
   const [formData, setFormData] = useState<LoginFormData>({
     username: '',
@@ -49,33 +49,11 @@ function LoginForm() {
   const [errors, setErrors] = useState<LoginErrors>({});
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [showRememberMeAlert, setShowRememberMeAlert] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const usernameInputRef = useRef<HTMLInputElement>(null);
-
-  // Use the react-theme-switch-animation hook
-  const { ref: themeSwitchRef, toggleSwitchTheme, isDarkMode: hookDarkMode } = useModeAnimation({
-    animationType: ThemeAnimationType.CIRCLE,
-    duration: 400,
-    easing: "ease-in-out",
-    globalClassName: "dark",
-    isDarkMode: isDarkMode,
-    onDarkModeChange: (isDark: boolean) => {
-      setIsDarkMode(isDark);
-      localStorage.setItem('darkMode', isDark.toString());
-    }
-  });
-
-  // Check for dark mode preference - prevent flash
-  useEffect(() => {
-    const savedMode = localStorage.getItem('darkMode');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    setIsDarkMode(savedMode ? savedMode === 'true' : prefersDark);
-    setMounted(true);
-  }, []);
 
   // Auto-focus username field when component mounts
   useEffect(() => {
-    if (mounted && usernameInputRef.current) {
+    if (darkModeMounted && usernameInputRef.current) {
       // Small delay to ensure smooth transition and dark mode is set
       const timer = setTimeout(() => {
         usernameInputRef.current?.focus();
@@ -88,7 +66,7 @@ function LoginForm() {
       
       return () => clearTimeout(timer);
     }
-  }, [mounted]);
+  }, [darkModeMounted]);
 
   // Aggressive preloading for super fast navigation
   useEffect(() => {
@@ -161,10 +139,6 @@ function LoginForm() {
     }
   }, [searchParams]);
 
-  const toggleDarkMode = () => {
-    // Use the hook's toggle function for smooth animation
-    toggleSwitchTheme();
-  };
 
   const validateForm = (): boolean => {
     const newErrors: LoginErrors = {};
@@ -267,13 +241,8 @@ function LoginForm() {
   };
 
   // Show skeleton while checking session or not mounted
-  if (isCheckingSession || !mounted) {
+  if (isCheckingSession || !darkModeMounted) {
     return <GlobalSkeleton type="login" />;
-  }
-
-  // Also show skeleton for a brief moment to prevent flash
-  if (!mounted) {
-    return <GlobalSkeleton type="login" minLoadTime={200} />;
   }
 
   return (
@@ -363,13 +332,13 @@ function LoginForm() {
           {/* Dark Mode Toggle - Left Section (Mobile Only) */}
           <div className="lg:hidden absolute top-4 right-4 z-20">
             <button
-              ref={themeSwitchRef}
               onClick={toggleDarkMode}
+              disabled={isTransitioning}
               className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
                 isDarkMode
                   ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/90 border border-slate-600/50 hover:shadow-slate-500/25'
                   : 'bg-white/90 text-slate-700 hover:bg-white border border-slate-200/50 shadow-xl hover:shadow-slate-300/25'
-              }`}
+              } ${isTransitioning ? 'opacity-50 cursor-not-allowed' : ''}`}
               aria-label="Toggle dark mode"
             >
               {isDarkMode ? (
@@ -426,13 +395,13 @@ function LoginForm() {
           {/* Dark Mode Toggle - Top Right of Left Side (Mobile) */}
           <div className="absolute top-4 right-4 z-20">
             <button
-              ref={themeSwitchRef}
               onClick={toggleDarkMode}
+              disabled={isTransitioning}
               className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
                 isDarkMode
                   ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/90 border border-slate-600/50 hover:shadow-slate-500/25'
                   : 'bg-white/90 text-slate-700 hover:bg-white border border-slate-200/50 shadow-xl hover:shadow-slate-300/25'
-              }`}
+              } ${isTransitioning ? 'opacity-50 cursor-not-allowed' : ''}`}
               aria-label="Toggle dark mode"
             >
               {isDarkMode ? (
@@ -519,13 +488,13 @@ function LoginForm() {
           {/* Dark Mode Toggle - Right Section (Desktop Only) */}
           <div className="hidden lg:block absolute top-4 right-4 z-20">
             <button
-              ref={themeSwitchRef}
               onClick={toggleDarkMode}
+              disabled={isTransitioning}
               className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
                 isDarkMode
                   ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600 hover:shadow-slate-500/25'
                   : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-xl hover:shadow-slate-300/25'
-              }`}
+              } ${isTransitioning ? 'opacity-50 cursor-not-allowed' : ''}`}
               aria-label="Toggle dark mode"
             >
               {isDarkMode ? (

@@ -17,7 +17,7 @@ import {
   CloudArrowUpIcon
 } from '@heroicons/react/24/outline';
 import { Order, Party, Quality, OrderFormData, OrderItem } from '@/types';
-import { useDarkMode } from '../../hooks/useDarkMode';
+import { useDarkMode } from '@/app/contexts/DarkModeContext';
 import QualityModal from './QualityModal';
 import PartyModal from './PartyModal';
 

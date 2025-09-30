@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
-import { useDarkMode } from './hooks/useDarkMode';
+import { useDarkMode } from '@/app/contexts/DarkModeContext';
 
 import GlobalSkeleton from './components/GlobalSkeleton';
 
