@@ -419,6 +419,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
     sampleNumber: ''
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [localItems, setLocalItems] = useState<OrderItem[]>([]);
@@ -428,6 +429,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
 
   // Function to fetch existing lab data from API
   const fetchExistingLabData = async () => {
+    setLoadingData(true);
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`/api/labs/by-order/${order._id}?t=${Date.now()}`, {
@@ -478,6 +480,8 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       }
     } catch (error) {
       console.error('Error fetching lab data:', error);
+    } finally {
+      setLoadingData(false);
     }
   };
 
@@ -768,6 +772,18 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       <div className={`relative w-full max-w-6xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
         isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
       }`}>
+        {/* Loading Overlay for Data Fetching */}
+        {loadingData && (
+          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
+            <div className={`p-6 rounded-lg ${
+              isDarkMode ? 'bg-gray-800' : 'bg-white'
+            }`}>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+              <p className="mt-2 text-sm">Loading lab data...</p>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className={`flex items-center justify-between p-6 border-b ${
           isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'

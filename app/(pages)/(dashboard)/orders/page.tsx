@@ -105,17 +105,10 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState<'critical' | 'secondary' | 'complete'>('critical');
-  
-  // Simple cache to prevent redundant API calls
-  const [dataCache, setDataCache] = useState<{
-    orders?: { data: Order[], timestamp: number };
-    mills?: { data: any[], timestamp: number };
-    parties?: { data: any[], timestamp: number };
-    qualities?: { data: any[], timestamp: number };
-  }>({});
   const [orderCreating, setOrderCreating] = useState(false);
   const [orderMillInputs, setOrderMillInputs] = useState<{[key: string]: any[]}>({});
   const [processDataByQuality, setProcessDataByQuality] = useState<{[key: string]: string[]}>({});
+  const [processDataLoading, setProcessDataLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [formParties, setFormParties] = useState<any[]>([]);
@@ -143,7 +136,6 @@ export default function OrdersPage() {
   const [screenSize, setScreenSize] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(10);
-  const itemsPerPageOptions = [10, 25, 50, 100, 'All'] as const;
   const [paginationInfo, setPaginationInfo] = useState({
     totalCount: 0,
     totalPages: 0,
@@ -152,12 +144,6 @@ export default function OrdersPage() {
     hasPrevPage: false
   });
   const [isChangingPage, setIsChangingPage] = useState(false);
-  
-  // Handle view mode changes
-  const handleViewModeChange = (newMode: 'table' | 'cards') => {
-    setViewMode(newMode);
-    localStorage.setItem('ordersViewMode', newMode);
-  };
   
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
@@ -190,17 +176,24 @@ export default function OrdersPage() {
   const [orderDispatches, setOrderDispatches] = useState<{[key: string]: any[]}>({});
   const [mills, setMills] = useState<Mill[]>([]);
   
-  // Professional client-side cache for orders data
-  const ordersCache = {
-    data: null as any,
+  // Performance optimization - single cache system
+  const dataCache = useRef<{
+    orders: { data: any, timestamp: number } | null;
+    mills: { data: any, timestamp: number } | null;
+    parties: { data: any, timestamp: number } | null;
+    qualities: { data: any, timestamp: number } | null;
+    timestamp: number;
+    ttl: number;
+  }>({
+    orders: null,
+    mills: null,
+    parties: null,
+    qualities: null,
     timestamp: 0,
-    ttl: 5 * 60 * 1000 // 5 minutes for better performance
-  };
+    ttl: 5 * 60 * 1000 // 5 minutes
+  });
   
-  // Debug mills state changes
-  useEffect(() => {
-    console.log('Mills state changed:', mills);
-  }, [mills]);
+  const itemsPerPageOptions = [10, 25, 50, 100, 'All'] as const;
   const [isInitialized, setIsInitialized] = useState(false);
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
   const [isValidating, setIsValidating] = useState(false);
@@ -211,6 +204,11 @@ export default function OrdersPage() {
     }
     return 'table';
   });
+
+  const handleViewModeChange = useCallback((newMode: 'table' | 'cards') => {
+    setViewMode(newMode);
+    localStorage.setItem('ordersViewMode', newMode);
+  }, []);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -288,15 +286,25 @@ export default function OrdersPage() {
 
    // Function to process mill input data and group by order and quality
   const processMillInputDataByQuality = useCallback((millInputs: any[]) => {
+    console.log('🔄 Processing mill input data by quality:', millInputs);
     const processMap: {[key: string]: Set<string>} = {};
     
     millInputs.forEach((millInput) => {
+      console.log('🔄 Processing mill input:', {
+        orderId: millInput.orderId,
+        quality: millInput.quality,
+        processName: millInput.processName,
+        additionalMeters: millInput.additionalMeters
+      });
+      
       // Process main input
       if (millInput.quality && millInput.processName && millInput.orderId) {
         const qualityId = typeof millInput.quality === 'object' ? millInput.quality._id : millInput.quality;
         const qualityName = typeof millInput.quality === 'object' ? millInput.quality.name : millInput.quality;
         // Include orderId in the key to make it order-specific
         const key = `${millInput.orderId}_${qualityId}_${qualityName}`;
+        
+        console.log('🔄 Adding main process:', { key, processName: millInput.processName });
         
         if (!processMap[key]) {
           processMap[key] = new Set();
@@ -312,6 +320,8 @@ export default function OrdersPage() {
             const qualityName = typeof additional.quality === 'object' ? additional.quality.name : additional.quality;
             // Include orderId in the key to make it order-specific
             const key = `${millInput.orderId}_${qualityId}_${qualityName}`;
+            
+            console.log('🔄 Adding additional process:', { key, processName: additional.processName });
             
             if (!processMap[key]) {
               processMap[key] = new Set();
@@ -354,17 +364,25 @@ export default function OrdersPage() {
       });
     });
     
+    console.log('🔄 Final processed data result:', result);
     return result;
   }, []);
 
   // Function to get process data for a specific quality and order
   const getProcessDataForQuality = useCallback((quality: any, orderId?: string) => {
-    if (!quality || !orderId) return [];
+    if (!quality || !orderId) {
+      console.log('🔍 getProcessDataForQuality: Missing quality or orderId', { quality, orderId });
+      return [];
+    }
     
     const qualityId = typeof quality === 'object' ? quality._id : quality;
     const qualityName = typeof quality === 'object' ? quality.name : quality;
     // Include orderId in the key to make it order-specific
     const key = `${orderId}_${qualityId}_${qualityName}`;
+    
+    console.log('🔍 getProcessDataForQuality: Looking for key:', key);
+    console.log('🔍 getProcessDataForQuality: Available keys:', Object.keys(processDataByQuality));
+    console.log('🔍 getProcessDataForQuality: Found data:', processDataByQuality[key]);
     
     return processDataByQuality[key] || [];
   }, [processDataByQuality]);
@@ -674,6 +692,9 @@ export default function OrdersPage() {
       const token = localStorage.getItem('token');
       if (!token) return;
 
+      // Set loading state for process data
+      setProcessDataLoading(true);
+
       // Create abort controller for timeout handling
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout for better stability
@@ -698,8 +719,12 @@ export default function OrdersPage() {
 
       // Process mill inputs
       const millInputsData = await millInputsResponse.json();
+      console.log('🔄 Mill inputs API response:', millInputsData);
+      
       // Mill inputs API response processed
       if (millInputsData.success && millInputsData.data?.millInputs) {
+        console.log('🔄 Mill inputs data found:', millInputsData.data.millInputs);
+        
         const groupedInputs: {[key: string]: any[]} = {};
         millInputsData.data.millInputs.forEach((input: any) => {
           if (!groupedInputs[input.orderId]) {
@@ -707,16 +732,20 @@ export default function OrdersPage() {
           }
           groupedInputs[input.orderId].push(input);
         });
-        // Grouped mill inputs processed
-        setOrderMillInputs(groupedInputs);
         
         // Process mill input data by quality
         const processedData = processMillInputDataByQuality(millInputsData.data.millInputs);
+        console.log('🔄 Setting process data by quality:', processedData);
+        
+        setOrderMillInputs(groupedInputs);
         setProcessDataByQuality(processedData);
+        setProcessDataLoading(false);
       } else {
+        console.log('🔄 No mill inputs data found');
         // No mill inputs data found
         setOrderMillInputs({});
         setProcessDataByQuality({});
+        setProcessDataLoading(false);
       }
 
       // Process mill outputs
@@ -730,10 +759,8 @@ export default function OrdersPage() {
           }
           groupedOutputs[output.orderId].push(output);
         });
-        // Grouped mill outputs processed
         setOrderMillOutputs(groupedOutputs);
       } else {
-        // No mill outputs data found
         setOrderMillOutputs({});
       }
 
@@ -756,6 +783,8 @@ export default function OrdersPage() {
       setOrderMillInputs({});
       setOrderMillOutputs({});
       setOrderDispatches({});
+      setProcessDataByQuality({});
+      setProcessDataLoading(false);
       
       // Handle timeout gracefully - don't show error for non-critical data
       if (error.name === 'AbortError') {
@@ -768,6 +797,7 @@ export default function OrdersPage() {
   const fetchAllOrderMillInputs = useCallback(() => fetchAllOrderData(), [fetchAllOrderData]);
   const fetchAllOrderMillOutputs = useCallback(() => fetchAllOrderData(), [fetchAllOrderData]);
   const fetchAllOrderDispatches = useCallback(() => fetchAllOrderData(), [fetchAllOrderData]);
+
 
   // Function to immediately refresh mill output state for a specific order
   const refreshOrderMillOutputState = useCallback(async (orderId: string) => {
@@ -980,7 +1010,7 @@ export default function OrdersPage() {
           setLoading(false);
           return;
         }
-
+        
         const startTime = Date.now();
         console.log('🚀 PRIORITIZED LOADING: Loading critical data first...');
         
@@ -994,13 +1024,13 @@ export default function OrdersPage() {
         const criticalStartTime = Date.now();
         
         // Check if we have cached data that's still valid
-        const hasValidOrdersCache = dataCache.orders && (now - dataCache.orders.timestamp) < cacheValidity;
-        const hasValidMillsCache = dataCache.mills && (now - dataCache.mills.timestamp) < cacheValidity;
+        const hasValidOrdersCache = dataCache.current.orders !== null && (now - dataCache.current.orders.timestamp) < cacheValidity;
+        const hasValidMillsCache = dataCache.current.mills !== null && (now - dataCache.current.mills.timestamp) < cacheValidity;
         
         if (hasValidOrdersCache && hasValidMillsCache) {
           console.log('⚡ Using cached data for critical resources');
-          setOrders(dataCache.orders!.data);
-          setMills(dataCache.mills!.data);
+          setOrders(dataCache.current.orders!.data);
+          setMills(dataCache.current.mills!.data);
           setOrdersLoaded(true);
           setLoading(false);
           setIsInitialized(true);
@@ -1064,10 +1094,7 @@ export default function OrdersPage() {
           setOrdersLoaded(true);
           
           // Cache the orders data
-          setDataCache(prev => ({
-            ...prev,
-            orders: { data: ordersData, timestamp: now }
-          }));
+          dataCache.current.orders = { data: ordersData, timestamp: now };
           
           console.log('📋 Orders loaded - Page is now functional!');
         }
@@ -1081,10 +1108,7 @@ export default function OrdersPage() {
           setMills(millsData);
           
           // Cache the mills data
-          setDataCache(prev => ({
-            ...prev,
-            mills: { data: millsData, timestamp: now }
-          }));
+          dataCache.current.mills = { data: millsData, timestamp: now };
           
           console.log('🏭 Mills loaded - Mill operations ready!');
         }
@@ -1148,10 +1172,7 @@ export default function OrdersPage() {
           setParties(partiesData);
           
           // Cache the parties data
-          setDataCache(prev => ({
-            ...prev,
-            parties: { data: partiesData, timestamp: now }
-          }));
+          dataCache.current.parties = { data: partiesData, timestamp: now };
           
           console.log('👥 Parties loaded - Form functionality enhanced!');
         }
@@ -1161,10 +1182,7 @@ export default function OrdersPage() {
           setQualities(qualitiesData);
           
           // Cache the qualities data
-          setDataCache(prev => ({
-            ...prev,
-            qualities: { data: qualitiesData, timestamp: now }
-          }));
+          dataCache.current.qualities = { data: qualitiesData, timestamp: now };
           
           console.log('🏷️ Qualities loaded - Form functionality complete!');
         }
@@ -1246,8 +1264,14 @@ export default function OrdersPage() {
       });
       
       console.log('Button states updated from orders data');
+      
+      // Ensure process data loading is set to false when orders are loaded
+      if (processDataLoading) {
+        console.log('🔄 Setting process data loading to false - orders are loaded');
+        setProcessDataLoading(false);
+      }
     }
-  }, [orders, ordersLoaded]); // Run when orders change
+  }, [orders, ordersLoaded, processDataLoading]); // Run when orders change
 
   // Auto-refresh lab data states when orders change
   useEffect(() => {
@@ -1875,6 +1899,123 @@ export default function OrdersPage() {
         return;
       }
 
+      console.log('🗑️ Starting cascade delete for order:', orderToDelete.orderId);
+      
+      // Step 1: Delete all related data first
+      const deletePromises = [];
+      
+      // Delete Lab Data
+      console.log('🗑️ Deleting lab data...');
+      deletePromises.push(
+        fetch(`/api/labs/delete-by-order/${orderToDelete._id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }).catch(error => {
+          console.log('Lab data deletion failed (may not exist):', error);
+          return { ok: true }; // Continue even if lab data doesn't exist
+        })
+      );
+      
+      // Delete Mill Input Data
+      console.log('🗑️ Deleting mill input data...');
+      deletePromises.push(
+        fetch(`/api/mill-inputs?orderId=${orderToDelete.orderId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success && data.data?.millInputs?.length > 0) {
+            const millInputDeletePromises = data.data.millInputs.map((input: any) =>
+              fetch(`/api/mill-inputs/${input._id}`, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                },
+              })
+            );
+            return Promise.all(millInputDeletePromises);
+          }
+          return [];
+        })
+        .catch(error => {
+          console.log('Mill input deletion failed (may not exist):', error);
+          return [];
+        })
+      );
+      
+      // Delete Mill Output Data
+      console.log('🗑️ Deleting mill output data...');
+      deletePromises.push(
+        fetch(`/api/mill-outputs?orderId=${orderToDelete.orderId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success && data.data?.millOutputs?.length > 0) {
+            const millOutputDeletePromises = data.data.millOutputs.map((output: any) =>
+              fetch(`/api/mill-outputs/${output._id}`, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                },
+              })
+            );
+            return Promise.all(millOutputDeletePromises);
+          }
+          return [];
+        })
+        .catch(error => {
+          console.log('Mill output deletion failed (may not exist):', error);
+          return [];
+        })
+      );
+      
+      // Delete Dispatch Data
+      console.log('🗑️ Deleting dispatch data...');
+      deletePromises.push(
+        fetch(`/api/dispatch?orderId=${orderToDelete.orderId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success && data.data?.dispatches?.length > 0) {
+            const dispatchDeletePromises = data.data.dispatches.map((dispatch: any) =>
+              fetch(`/api/dispatch/${dispatch._id}`, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                },
+              })
+            );
+            return Promise.all(dispatchDeletePromises);
+          }
+          return [];
+        })
+        .catch(error => {
+          console.log('Dispatch deletion failed (may not exist):', error);
+          return [];
+        })
+      );
+      
+      // Wait for all related data to be deleted
+      console.log('⏳ Waiting for all related data to be deleted...');
+      await Promise.allSettled(deletePromises);
+      console.log('✅ All related data deleted successfully');
+      
+      // Step 2: Delete the order itself
+      console.log('🗑️ Deleting order...');
       const response = await fetch(`/api/orders/${orderToDelete._id}`, {
         method: 'DELETE',
         headers: {
@@ -1884,7 +2025,7 @@ export default function OrdersPage() {
       
       if (response.ok) {
         // Show success message immediately
-        showMessage('success', 'Order deleted successfully');
+        showMessage('success', 'Order and all related data deleted successfully');
         
         // Trigger real-time update for Order Activity Log
         const event = new CustomEvent('orderUpdated', { 
@@ -1903,6 +2044,23 @@ export default function OrdersPage() {
         // Update local state immediately for better UX
         setOrders(prev => prev.filter(order => order._id !== orderToDelete._id));
         
+        // Clear related data from local state
+        setOrderMillInputs(prev => {
+          const newState = { ...prev };
+          delete newState[orderToDelete.orderId];
+          return newState;
+        });
+        setOrderMillOutputs(prev => {
+          const newState = { ...prev };
+          delete newState[orderToDelete.orderId];
+          return newState;
+        });
+        setOrderDispatches(prev => {
+          const newState = { ...prev };
+          delete newState[orderToDelete.orderId];
+          return newState;
+        });
+        
         // Wait a moment for deletion to be fully processed on server
         await new Promise(resolve => setTimeout(resolve, 500));
         
@@ -1914,7 +2072,8 @@ export default function OrdersPage() {
         showMessage('error', errorMessage);
         }
     } catch (error) {
-      showMessage('error', 'Failed to delete order');
+      console.error('Error during cascade delete:', error);
+      showMessage('error', 'Failed to delete order and related data');
     } finally {
       setDeleting(false);
     }
@@ -3402,32 +3561,73 @@ export default function OrdersPage() {
                                    <td className="px-4 py-4">
                                      <div className="max-w-[150px]">
                                        {(() => {
-                                         const qualityName = typeof item.quality === 'string' ? item.quality : item.quality?.name || 'N/A';
-                                         
-                                         // Use process data from API if available
-                                         const processFromAPI = getHighestPriorityProcess((item as any).processData, qualityName);
-                                         if (processFromAPI) {
-                                           const displayProcess = processFromAPI;
-                                           
+                                         // Show loading indicator while process data is being fetched
+                                         if (processDataLoading) {
                                            return (
-                                             <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                                               isDarkMode 
-                                                 ? 'bg-orange-600/20 text-orange-300 border border-orange-500/30' 
-                                                 : 'bg-orange-100 text-orange-700 border border-orange-200'
-                                             }`}>
-                                               {displayProcess}
+                                             <div className="flex items-center space-x-2">
+                                               <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
+                                               <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Loading...</span>
                                              </div>
                                            );
                                          }
+
+                                         const qualityName = typeof item.quality === 'string' ? item.quality : item.quality?.name || 'N/A';
+                                         const qualityId = typeof item.quality === 'object' ? item.quality._id : item.quality;
                                          
-                                         // Fallback to old method if no process data from API
+                                         // Debug logging
+                                         console.log('🔍 Process data debug:', {
+                                           orderId: order.orderId,
+                                           qualityId,
+                                           qualityName,
+                                           processDataByQuality: Object.keys(processDataByQuality),
+                                           itemQuality: item.quality
+                                         });
+                                         
+                                         // Get process data for this specific quality and order
                                          const processes = getProcessDataForQuality(item.quality, order.orderId);
+                                         console.log('🔍 Processes found:', processes);
+                                         
+                                         // Check if we have mill input data for this order
+                                         const orderMillInputsData = orderMillInputs[order.orderId] || [];
+                                         console.log('🔍 Order mill inputs:', orderMillInputsData);
+                                         
+                                         // If no processed data but we have mill inputs, try to extract process from mill inputs
+                                         if (processes.length === 0 && Array.isArray(orderMillInputsData) && orderMillInputsData.length > 0) {
+                                           console.log('🔍 No processed data, checking mill inputs directly');
+                                           
+                                           // Look for process data in mill inputs for this quality
+                                           const relevantMillInputs = orderMillInputsData.filter((input: any) => {
+                                             const inputQualityId = typeof input.quality === 'object' ? input.quality._id : input.quality;
+                                             const itemQualityId = typeof item.quality === 'object' ? item.quality._id : item.quality;
+                                             return inputQualityId === itemQualityId && input.processName;
+                                           });
+                                           
+                                           console.log('🔍 Relevant mill inputs for quality:', relevantMillInputs);
+                                           
+                                           if (relevantMillInputs.length > 0) {
+                                             // Get the process name from the first relevant mill input
+                                             const processName = relevantMillInputs[0].processName;
+                                             console.log('🔍 Found process from mill input:', processName);
+                                             
+                                             return (
+                                               <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                                                 isDarkMode 
+                                                   ? 'bg-orange-600/20 text-orange-300 border border-orange-500/30' 
+                                                   : 'bg-orange-100 text-orange-700 border border-orange-200'
+                                               }`}>
+                                                 {processName}
+                                               </div>
+                                             );
+                                           }
+                                         }
+                                         
                                          if (processes.length === 0) {
                                            return <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>No process data</span>;
                                          }
                                          
                                          // Show only the highest priority process (last one in the sorted array)
                                          const highestPriorityProcess = processes[processes.length - 1];
+                                         console.log('🔍 Highest priority process:', highestPriorityProcess);
                                          
                                          return (
                                            <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
