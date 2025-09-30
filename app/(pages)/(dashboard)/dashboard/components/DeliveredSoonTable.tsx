@@ -196,7 +196,10 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
             }
             return isInRange;
           })
-          .sort((a, b) => (a?.daysUntilDelivery || 0) - (b?.daysUntilDelivery || 0));
+          .sort((a: UpcomingOrder | null, b: UpcomingOrder | null) => {
+            if (!a || !b) return 0;
+            return a.daysUntilDelivery - b.daysUntilDelivery;
+          });
 
         // Filter out null values to ensure type safety
         const validUpcoming = upcoming.filter((order): order is UpcomingOrder => order !== null);
