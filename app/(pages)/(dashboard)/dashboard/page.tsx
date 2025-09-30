@@ -68,7 +68,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  // Success message state removed - no validation messages shown
   const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
   const [isBackgroundRetry, setIsBackgroundRetry] = useState(false);
   const [filters, setFilters] = useState<DashboardFilters>({
@@ -86,8 +86,7 @@ export default function DashboardPage() {
         setStats(dashboardCache.data);
         setHasAttemptedFetch(true);
         setLoading(false);
-        setSuccessMessage('Dashboard data loaded from cache');
-        setTimeout(() => setSuccessMessage(null), 2000);
+        // Success message removed - no validation messages shown
         return;
       }
 
@@ -134,13 +133,7 @@ export default function DashboardPage() {
           
           setStats(statsData.data);
           setHasAttemptedFetch(true);
-          if (!isRetry) {
-            const cacheStatus = statsResponse.headers.get('X-Cache');
-            const responseTime = statsResponse.headers.get('X-Response-Time');
-            setSuccessMessage(`Dashboard data loaded successfully${cacheStatus === 'HIT' ? ' (from cache)' : ''}${responseTime ? ` (${responseTime})` : ''}`);
-            // Clear success message after 3 seconds
-            setTimeout(() => setSuccessMessage(null), 3000);
-          }
+          // Success message removed - no validation messages shown
         } else {
           setError(statsData.message || 'Invalid response format from server');
         }
@@ -192,8 +185,8 @@ export default function DashboardPage() {
           recentOrders: []
         });
         setHasAttemptedFetch(true);
-        setSuccessMessage('Dashboard loaded with basic data. Some features may be limited.');
-        setTimeout(() => setSuccessMessage(null), 5000);
+        // setSuccessMessage('Dashboard loaded with basic data. Some features may be limited.');
+        // setTimeout(() => setSuccessMessage(null), 5000);
         
         // Only retry once in background if we haven't already attempted
         if (!isBackgroundRetry) {
@@ -286,23 +279,7 @@ export default function DashboardPage() {
       <div className="min-h-screen">
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
 
-        {/* Success Message */}
-        {successMessage && (
-          <div className={`mb-6 rounded-lg p-4 border transition-colors duration-300 ${
-            isDarkMode 
-              ? 'bg-green-900/20 border-green-800/30' 
-              : 'bg-green-50 border-green-200'
-          }`}>
-            <div className="flex items-center">
-              <CheckCircleIcon className={`w-5 h-5 mr-2 transition-colors duration-300 ${
-                isDarkMode ? 'text-green-400' : 'text-green-600'
-              }`} />
-              <p className={`transition-colors duration-300 ${
-                isDarkMode ? 'text-green-300' : 'text-green-800'
-              }`}>{successMessage}</p>
-            </div>
-          </div>
-        )}
+        {/* Success Message removed - no validation messages shown */}
 
         {/* Error Message */}
         {error && (

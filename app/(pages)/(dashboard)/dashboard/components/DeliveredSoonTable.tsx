@@ -135,7 +135,9 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         console.log('Processing orders for delivery date filtering...');
         console.log('Total orders to process:', orders.length);
         
-        const upcoming = orders
+        // Ensure orders is an array before using filter
+        const ordersArray = Array.isArray(orders) ? orders : [];
+        const upcoming = ordersArray
           .filter((order: any) => {
             const hasDeliveryDate = order.deliveryDate;
             if (!hasDeliveryDate) {
@@ -199,7 +201,7 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         console.log('Upcoming orders (next 7 days):', upcoming.length);
         
         // Debug: Show all orders with delivery dates for troubleshooting
-        const allOrdersWithDates = orders.filter((order: any) => order.deliveryDate);
+        const allOrdersWithDates = ordersArray.filter((order: any) => order.deliveryDate);
         console.log('All orders with delivery dates:', allOrdersWithDates.map((order: any) => ({
           orderId: order.orderId,
           deliveryDate: order.deliveryDate,

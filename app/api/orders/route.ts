@@ -8,6 +8,10 @@ import { type NextRequest } from "next/server";
 import { logView, logOrderChange, logError } from "@/lib/logger";
 import { unauthorizedResponse } from "@/lib/response";
 
+// Simple in-memory cache for frequently accessed data
+const queryCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 30 * 1000; // 30 seconds cache
+
 // Ensure all models are registered
 const models = { Order, Party, Quality, Counter };
 
@@ -29,7 +33,27 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || '';
     const startDate = searchParams.get('startDate') || '';
     const endDate = searchParams.get('endDate') || '';
+    const sort = searchParams.get('sort') || 'latest_first';
     const force = searchParams.get('force') === 'true';
+    
+    // Create cache key for this query
+    const cacheKey = `orders_${JSON.stringify({ limit, page, search, orderType, status, startDate, endDate, sort })}`;
+    
+    // Check cache first (skip if force refresh)
+    if (!force) {   
+      const cached = queryCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+        return Response.json({
+          success: true,
+          data: cached.data,
+          message: 'Orders loaded from cache',
+          total: cached.data.total,
+          page: cached.data.page,
+          limit: cached.data.limit,
+          totalPages: cached.data.totalPages
+        });
+      }
+    }
     
     // Build query
     const query: any = {
@@ -72,15 +96,24 @@ export async function GET(request: NextRequest) {
       };
     }
     
+    // Determine sort order for optimal performance
+    let sortOrder: any = { createdAt: -1 }; // Default: latest first
+    if (sort === 'oldest_first') {
+      sortOrder = { createdAt: 1 }; // Oldest first
+    } else if (sort === 'latest_first') {
+      sortOrder = { createdAt: -1 }; // Latest first (explicit)
+    }
+    
     // Super optimized query with limits and proper indexing
     const orders = await Order.find(query)
       .populate('party', 'name contactName contactPhone address')
       .populate('items.quality', 'name')
-      .sort({ createdAt: -1 })
+      .sort(sortOrder)
       .limit(limit)
       .skip((page - 1) * limit)
       .lean()
-      .maxTimeMS(2000); // 2 second timeout for better reliability
+      .maxTimeMS(5000) // Increased timeout for large datasets
+      .hint({ createdAt: -1 }); // Force index usage for better performance
 
     // Use Promise.all to parallelize all data fetching
     const [labs, millInputs, millOutputs, dispatches, total] = await Promise.all([
@@ -165,8 +198,8 @@ export async function GET(request: NextRequest) {
         }
       })() : Promise.resolve([]),
       
-      // Get total count in parallel
-      Order.countDocuments(query).maxTimeMS(2000)
+      // Get total count in parallel with optimized query
+      Order.countDocuments(query).maxTimeMS(3000).hint({ createdAt: -1 })
     ]);
 
     // Attach lab data and mill input process data to order items
@@ -316,7 +349,8 @@ export async function GET(request: NextRequest) {
       'Pragma': 'no-cache'
     };
     
-    return new Response(JSON.stringify({
+    // Cache the result for future requests
+    const responseData = {
       success: true,
       data: orders,
       pagination: {
@@ -325,7 +359,23 @@ export async function GET(request: NextRequest) {
         total,
         pages: Math.ceil(total / limit)
       }
-    }), { headers });
+    };
+    
+    // Store in cache
+    queryCache.set(cacheKey, {
+      data: responseData,
+      timestamp: Date.now()
+    });
+    
+    // Clean up old cache entries (keep only last 100 entries)
+    if (queryCache.size > 100) {
+      const entries = Array.from(queryCache.entries());
+      entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+      const toDelete = entries.slice(0, entries.length - 100);
+      toDelete.forEach(([key]) => queryCache.delete(key));
+    }
+    
+    return new Response(JSON.stringify(responseData), { headers });
     
   } catch (error) {
     return new Response(JSON.stringify({

@@ -102,6 +102,12 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [qualities, setQualities] = useState<Quality[]>([]);
+  
+  // Helper function to safely set orders (always ensure it's an array)
+  const setOrdersSafe = useCallback((ordersData: any) => {
+    const safeOrders = Array.isArray(ordersData) ? ordersData : [];
+    setOrders(safeOrders);
+  }, []);
   const [loading, setLoading] = useState(true);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState<'critical' | 'secondary' | 'complete'>('critical');
@@ -111,6 +117,8 @@ export default function OrdersPage() {
   const [processDataLoading, setProcessDataLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
+  const [sortLoading, setSortLoading] = useState(false);
+  const [filterLoading, setFilterLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [formParties, setFormParties] = useState<any[]>([]);
   const [formQualities, setFormQualities] = useState<any[]>([]);
@@ -310,19 +318,35 @@ export default function OrdersPage() {
 
   // Server-side filter handlers
   const handleFilterChange = useCallback(async (filterType: string, value: string) => {
-    const newFilters = { ...filters, [filterType]: value };
-    
-    // Map filter values to API parameters
-    if (filterType === 'typeFilter') {
-      newFilters.orderType = value === 'all' ? '' : value;
-    } else if (filterType === 'statusFilter') {
-      newFilters.status = value === 'all' ? '' : value;
+    // Set appropriate loading state
+    if (filterType === 'orderFilter') {
+      setSortLoading(true);
+    } else {
+      setFilterLoading(true);
     }
     
-    setFilters(newFilters);
-    setCurrentPage(1); // Reset to page 1 when filtering
-    // Fetch filtered results from server
-    await fetchOrders(0, 1, itemsPerPage, false, newFilters, searchTerm);
+    try {
+      const newFilters = { ...filters, [filterType]: value };
+      
+      // Map filter values to API parameters
+      if (filterType === 'typeFilter') {
+        newFilters.orderType = value === 'all' ? '' : value;
+      } else if (filterType === 'statusFilter') {
+        newFilters.status = value === 'all' ? '' : value;
+      }
+      
+      setFilters(newFilters);
+      setCurrentPage(1); // Reset to page 1 when filtering
+      // Fetch filtered results from server
+      await fetchOrders(0, 1, itemsPerPage, false, newFilters, searchTerm);
+    } finally {
+      // Clear loading states
+      if (filterType === 'orderFilter') {
+        setSortLoading(false);
+      } else {
+        setFilterLoading(false);
+      }
+    }
   }, [filters, itemsPerPage, searchTerm]);
 
   const handleClearFilters = useCallback(async () => {
@@ -536,7 +560,7 @@ export default function OrdersPage() {
       
       if (data.success) {
         const ordersData = data.data || [];
-        setOrders(ordersData);
+        setOrdersSafe(ordersData);
         setLastRefreshTime(new Date());
         
         // Update pagination info if available, otherwise use fallback
@@ -1058,7 +1082,7 @@ export default function OrdersPage() {
         
         if (hasValidOrdersCache && hasValidMillsCache) {
           console.log('⚡ Using cached data for critical resources');
-          setOrders(dataCache.current.orders!.data);
+          setOrdersSafe(dataCache.current.orders!.data);
           setMills(dataCache.current.mills!.data);
           setOrdersLoaded(true);
           setLoading(false);
@@ -1119,7 +1143,7 @@ export default function OrdersPage() {
         // Process critical results immediately - Show page with orders and mills
         if (ordersResult.status === 'fulfilled' && ordersResult.value.success && ordersResult.value.data?.success && ordersResult.value.data?.data) {
           const ordersData = Array.isArray(ordersResult.value.data.data) ? ordersResult.value.data.data : [];
-          setOrders(ordersData);
+          setOrdersSafe(ordersData);
           setOrdersLoaded(true);
           
           // Cache the orders data
@@ -1222,7 +1246,7 @@ export default function OrdersPage() {
         
       } catch (error) {
         console.error('Error during prioritized API loading:', error);
-        setOrders([]);
+        setOrdersSafe([]);
         setLoading(false);
         setOrdersLoaded(true); // Mark as loaded even on error to show "No orders yet"
         
@@ -1251,7 +1275,7 @@ export default function OrdersPage() {
     const timeoutId = setTimeout(() => {
       if (!isInitialized) {
         console.warn('Orders initialization timed out after 10 seconds');
-        setOrders([]);
+        setOrdersSafe([]);
         setLoading(false);
         setOrdersLoaded(true); // Mark as loaded even on timeout
         setIsInitialized(true);
@@ -1741,17 +1765,19 @@ export default function OrdersPage() {
 
   // Memoized order statistics
   const orderStats = useMemo(() => {
-    const total = orders.length;
-    const pending = orders.filter(order => {
+    // Ensure orders is an array before using filter
+    const ordersArray = Array.isArray(orders) ? orders : [];
+    const total = ordersArray.length;
+    const pending = ordersArray.filter(order => {
       const now = new Date();
       return now <= new Date(order.arrivalDate || '');  
     }).length;
-    const arrived = orders.filter(order => {
+    const arrived = ordersArray.filter(order => {
       const now = new Date();
       return now > new Date(order.arrivalDate || '') && 
              (!order.deliveryDate || now <= new Date(order.deliveryDate));
     }).length;
-    const delivered = orders.filter(order => {
+    const delivered = ordersArray.filter(order => {
       const now = new Date();
       return order.deliveryDate && now > new Date(order.deliveryDate);
     }).length;
@@ -2885,7 +2911,8 @@ export default function OrdersPage() {
                     : 'bg-blue-100 text-blue-700 border border-blue-200'
                 }`}>
                   {(() => {
-                    const filteredCount = orders.filter(order => {
+                    const ordersArray = Array.isArray(orders) ? orders : [];
+                    const filteredCount = ordersArray.filter(order => {
                       const matchesSearch = (
                         (order.orderId && order.orderId.toLowerCase().includes(searchTerm.toLowerCase())) ||
                         (order.poNumber && order.poNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -2909,7 +2936,8 @@ export default function OrdersPage() {
               } overflow-hidden`}>
                 <button
                   onClick={() => handleFilterChange('orderFilter', 'latest_first')}
-                  className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all duration-200 ${
+                  disabled={sortLoading}
+                  className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all duration-200 flex items-center gap-1 ${
                     filters.orderFilter === 'latest_first'
                       ? isDarkMode
                         ? 'bg-green-600 text-white border-green-500'
@@ -2917,13 +2945,19 @@ export default function OrdersPage() {
                       : isDarkMode
                         ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                  } ${sortLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
+                  {sortLoading && filters.orderFilter === 'latest_first' && (
+                    <div className={`animate-spin rounded-full h-3 w-3 border-b-2 ${
+                      isDarkMode ? 'border-white' : 'border-gray-600'
+                    }`}></div>
+                  )}
                   Latest
                 </button>
                 <button
                   onClick={() => handleFilterChange('orderFilter', 'oldest_first')}
-                  className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all duration-200 ${
+                  disabled={sortLoading}
+                  className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all duration-200 flex items-center gap-1 ${
                     filters.orderFilter === 'oldest_first'
                       ? isDarkMode
                         ? 'bg-green-600 text-white border-green-500'
@@ -2931,8 +2965,13 @@ export default function OrdersPage() {
                       : isDarkMode
                         ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                  } ${sortLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
+                  {sortLoading && filters.orderFilter === 'oldest_first' && (
+                    <div className={`animate-spin rounded-full h-3 w-3 border-b-2 ${
+                      isDarkMode ? 'border-white' : 'border-gray-600'
+                    }`}></div>
+                  )}
                   Oldest
               </button>
             </div>
@@ -2948,11 +2987,12 @@ export default function OrdersPage() {
               <select
                 value={filters.statusFilter}
                 onChange={(e) => handleFilterChange('statusFilter', e.target.value)}
+                disabled={filterLoading}
                 className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg border transition-colors ${
                   isDarkMode
                     ? 'bg-gray-700 border-gray-600 text-white hover:bg-gray-600'
                     : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                }`}
+                } ${filterLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <option value="all">All</option>
                 <option value="pending">Pending</option>
@@ -2968,11 +3008,12 @@ export default function OrdersPage() {
               <select
                 value={filters.typeFilter}
                 onChange={(e) => handleFilterChange('typeFilter', e.target.value)}
+                disabled={filterLoading}
                 className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg border transition-colors ${
                   isDarkMode
                     ? 'bg-gray-700 border-gray-600 text-white hover:bg-gray-600'
                     : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                }`}
+                } ${filterLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <option value="all" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>All Types</option>
                
@@ -2980,6 +3021,20 @@ export default function OrdersPage() {
                 <option value="Printing" className={isDarkMode ? 'bg-[#1D293D] text-white' : 'bg-white text-gray-900'}>Printing</option>
               </select>
             </div>
+
+            {/* Loading Indicator for Filters */}
+            {(sortLoading || filterLoading) && (
+              <div className="flex items-center gap-2">
+                <div className={`animate-spin rounded-full h-4 w-4 border-b-2 ${
+                  isDarkMode ? 'border-blue-400' : 'border-blue-600'
+                }`}></div>
+                <span className={`text-xs font-medium ${
+                  isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                }`}>
+                  {sortLoading ? 'Sorting...' : 'Filtering...'}
+                </span>
+              </div>
+            )}
 
             </div>
 
@@ -4171,13 +4226,17 @@ export default function OrdersPage() {
         )}
 
         {/* Loading overlay for when data is being refreshed */}
-        {(loading || isChangingPage) && orders.length > 0 && (
+        {(loading || isChangingPage || sortLoading || filterLoading) && orders.length > 0 && (
           <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl">
             <div className={`p-4 rounded-lg ${
               isDarkMode ? 'bg-gray-800' : 'bg-white'
             }`}>
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-              <p className="mt-2 text-sm">{isChangingPage ? 'Changing page...' : 'Loading orders...'}</p>
+              <p className="mt-2 text-sm">
+                {sortLoading ? 'Sorting orders...' : 
+                 filterLoading ? 'Applying filters...' : 
+                 isChangingPage ? 'Changing page...' : 'Loading orders...'}
+              </p>
             </div>
           </div>
         )}
