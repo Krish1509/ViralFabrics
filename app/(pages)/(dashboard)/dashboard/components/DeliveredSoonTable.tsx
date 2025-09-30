@@ -196,7 +196,10 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
             }
             return isInRange;
           })
-          .sort((a: UpcomingOrder, b: UpcomingOrder) => a.daysUntilDelivery - b.daysUntilDelivery);
+          .sort((a: UpcomingOrder | null, b: UpcomingOrder | null) => {
+            if (!a || !b) return 0;
+            return a.daysUntilDelivery - b.daysUntilDelivery;
+          });
 
         console.log('Upcoming orders (next 7 days):', upcoming.length);
         
