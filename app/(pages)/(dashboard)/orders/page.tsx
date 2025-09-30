@@ -146,7 +146,7 @@ export default function OrdersPage() {
   const [changingStatus, setChangingStatus] = useState(false);
   const [screenSize, setScreenSize] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number | 'All'>(10);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [paginationInfo, setPaginationInfo] = useState({
     totalCount: 0,
     totalPages: 0,
@@ -204,7 +204,7 @@ export default function OrdersPage() {
     ttl: 5 * 60 * 1000 // 5 minutes
   });
   
-  const itemsPerPageOptions = [10, 25, 50, 100, 'All'] as const;
+  const itemsPerPageOptions = [10, 25, 50, 100] as const;
   const [isInitialized, setIsInitialized] = useState(false);
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
   const [isValidating, setIsValidating] = useState(false);
@@ -538,7 +538,7 @@ export default function OrdersPage() {
       
       // Build URL with pagination and filter parameters
       const url = new URL('/api/orders', window.location.origin);
-      const limitValue = limit === 'All' ? 100 : Math.max(limit, 10); // Use server-side pagination
+      const limitValue = Math.max(limit, 10); // Use server-side pagination
       url.searchParams.append('limit', limitValue.toString());
       url.searchParams.append('page', page.toString());
       
@@ -631,9 +631,9 @@ export default function OrdersPage() {
           
           const fallbackPagination = {
             totalCount: totalCount,
-            totalPages: Math.max(1, Math.ceil(totalCount / (limitValue as number))),
+            totalPages: Math.max(1, Math.ceil(totalCount / limitValue)),
             currentPage: page,
-            hasNextPage: page < Math.ceil(totalCount / (limitValue as number)),
+            hasNextPage: page < Math.ceil(totalCount / limitValue),
             hasPrevPage: page > 1
           };
           console.log('📊 Setting fallback pagination info:', fallbackPagination);
@@ -727,7 +727,6 @@ export default function OrdersPage() {
     
     // Set loading states immediately
     setIsChangingPage(true);
-    setTableLoading(true);
     
     try {
       // Fetch new page data with timeout protection
@@ -743,20 +742,18 @@ export default function OrdersPage() {
     } finally {
       // Always clean up loading states
       setIsChangingPage(false);
-      setTableLoading(false);
     }
   }, [currentPage, isChangingPage, totalPages, fetchOrders, itemsPerPage, filters, searchTerm, showMessage]);
 
   // Professional items per page handler
-  const handleItemsPerPageChange = useCallback(async (newItemsPerPage: number | 'All') => {
+  const handleItemsPerPageChange = useCallback(async (newItemsPerPage: number) => {
     if (newItemsPerPage === itemsPerPage || isChangingPage) return;
     
     setIsChangingPage(true);
-    setTableLoading(true);
     
     try {
       // Fetch first page with new items per page
-    await fetchOrders(0, 1, newItemsPerPage, false, filters, searchTerm);
+      await fetchOrders(0, 1, newItemsPerPage, false, filters, searchTerm);
       
       // Update state after successful fetch
       setItemsPerPage(newItemsPerPage);
@@ -764,16 +761,15 @@ export default function OrdersPage() {
     } catch (error) {
       showMessage('error', 'Failed to change page size. Please try again.');
     } finally {
-    setIsChangingPage(false);
-      setTableLoading(false);
+      setIsChangingPage(false);
     }
   }, [itemsPerPage, isChangingPage, fetchOrders, filters, searchTerm, showMessage]);
 
   // Use server-side pagination display info with proper state synchronization
   const paginationDisplayInfo = useMemo(() => {
     const total = paginationInfo.totalCount || 0;
-    const currentPageNum = paginationInfo.currentPage || currentPage || 1;
-    const itemsPerPageValue = itemsPerPage === 'All' ? total : (itemsPerPage as number);
+    const currentPageNum = Number(paginationInfo.currentPage) || currentPage || 1;
+    const itemsPerPageValue = itemsPerPage;
     
     // Ensure we have valid data before calculating display info
     if (total === 0 || orders.length === 0) {
@@ -785,23 +781,14 @@ export default function OrdersPage() {
       };
     }
     
-    if (itemsPerPage === 'All') {
-      return {
-        showing: orders.length,
-        total: total,
-        start: total > 0 ? 1 : 0,
-        end: total
-      };
-    } else {
-      const start = total > 0 ? (currentPageNum - 1) * itemsPerPageValue + 1 : 0;
-      const end = Math.min(currentPageNum * itemsPerPageValue, total);
-      return {
-        showing: orders.length,
-        total: total,
-        start: start,
-        end: end
-      };
-    }
+    const start = total > 0 ? (currentPageNum - 1) * itemsPerPageValue + 1 : 0;
+    const end = Math.min(currentPageNum * itemsPerPageValue, total);
+    return {
+      showing: orders.length,
+      total: total,
+      start: start,
+      end: end
+    };
   }, [paginationInfo, itemsPerPage, orders.length, currentPage]);
 
   // Function to fetch existing mill inputs for an order
@@ -3517,7 +3504,7 @@ export default function OrdersPage() {
                   <select
                     value={itemsPerPage}
                     onChange={(e) => {
-                      const value = e.target.value === 'All' ? 'All' : parseInt(e.target.value);
+                      const value = parseInt(e.target.value);
                       handleItemsPerPageChange(value);
                     }}
                     disabled={isChangingPage || loading}
@@ -3534,13 +3521,13 @@ export default function OrdersPage() {
                 </div>
               </div>
 
-              {/* Navigation - Show when there are multiple pages */}
+              {/* Enhanced Navigation - Show when there are multiple pages */}
               {(totalPages > 1 || orders.length > 0) && (
-                <div className="flex items-center space-x-1 sm:space-x-2">
+                <div className="flex items-center space-x-2 sm:space-x-3">
                   <button
                     onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1 || isChangingPage || loading}
-                    className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-all duration-200 hover:scale-105 ${
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
                       currentPage === 1 || isChangingPage || loading
                         ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
@@ -3563,11 +3550,11 @@ export default function OrdersPage() {
                               key={i}
                               onClick={() => handlePageChange(i)}
                               disabled={isChangingPage || loading}
-                              className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-all duration-200 hover:scale-105 ${
-                                currentPage === i
-                                    ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
-                                    : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-                              } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
+                              currentPage === i
+                                  ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                  : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                            } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               {i}
                             </button>
@@ -3694,7 +3681,7 @@ export default function OrdersPage() {
                   <button
                     onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages || isChangingPage || loading}
-                    className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
                       currentPage === totalPages || isChangingPage || loading
                         ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
@@ -4497,8 +4484,8 @@ export default function OrdersPage() {
           </table>
         </div>
 
-          {/* Bottom Pagination Controls */}
-          {(totalPages > 1 || orders.length > 0) && (
+          {/* Bottom Pagination Controls removed - using top pagination only */}
+          {false && (
             <div className={`px-3 sm:px-4 py-2 sm:py-3 border-t flex justify-center items-center ${
               isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
             }`}>
@@ -4671,14 +4658,7 @@ export default function OrdersPage() {
           </div>
         )}
 
-        {/* Loading overlay for when data is being refreshed */}
-        {(loading || isChangingPage || sortLoading || filterLoading) && (
-          <div className="absolute inset-0 bg-black/5 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl">
-            <div className="w-full h-full p-6">
-              <TableSkeleton />
-            </div>
-          </div>
-        )}
+        {/* Loading overlay removed for better UX during page changes */}
 
         {shouldShowEmptyState && (
           <div className={`text-center py-12 ${
@@ -5266,8 +5246,8 @@ export default function OrdersPage() {
           ))
           )}
           
-          {/* Card Layout Pagination */}
-          {(totalPages > 1 || orders.length > 0) && (
+          {/* Card Layout Pagination removed - using top pagination only */}
+          {false && (
           <div className={`mt-8 px-3 sm:px-4 py-2 sm:py-3 border-t flex justify-center items-center ${
             isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
           }`}>
