@@ -42,8 +42,11 @@ export async function GET(request: NextRequest) {
     if (search) {
       query.$or = [
         { orderId: { $regex: search, $options: 'i' } },
-        { 'party.name': { $regex: search, $options: 'i' } },
-        { contactName: { $regex: search, $options: 'i' } }
+        { poNumber: { $regex: search, $options: 'i' } },
+        { styleNo: { $regex: search, $options: 'i' } },
+        { contactName: { $regex: search, $options: 'i' } },
+        { contactPhone: { $regex: search, $options: 'i' } },
+        { 'party.name': { $regex: search, $options: 'i' } }
       ];
     }
     

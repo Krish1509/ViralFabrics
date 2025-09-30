@@ -110,6 +110,7 @@ export default function OrdersPage() {
   const [processDataByQuality, setProcessDataByQuality] = useState<{[key: string]: string[]}>({});
   const [processDataLoading, setProcessDataLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [formParties, setFormParties] = useState<any[]>([]);
   const [formQualities, setFormQualities] = useState<any[]>([]);
@@ -282,14 +283,30 @@ export default function OrdersPage() {
     return errors;
   }, []);
 
-  // Server-side search handler
+  // Debounce timeout ref
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Server-side search handler with debounce
   const handleSearchChange = useCallback(async (value: string) => {
     const trimmedValue = value.trim();
     setSearchTerm(trimmedValue);
     setCurrentPage(1); // Reset to page 1 when searching
-    // Fetch search results from server
-    await fetchOrders(0, 1, itemsPerPage, false, filters);
-  }, [itemsPerPage]);
+    
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    // Set new timeout for debounced search
+    searchTimeoutRef.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        await fetchOrders(0, 1, itemsPerPage, false, filters, trimmedValue);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300); // 300ms debounce
+  }, [itemsPerPage, filters]);
 
   // Server-side filter handlers
   const handleFilterChange = useCallback(async (filterType: string, value: string) => {
@@ -305,7 +322,7 @@ export default function OrdersPage() {
     setFilters(newFilters);
     setCurrentPage(1); // Reset to page 1 when filtering
     // Fetch filtered results from server
-    await fetchOrders(0, 1, itemsPerPage, false, newFilters);
+    await fetchOrders(0, 1, itemsPerPage, false, newFilters, searchTerm);
   }, [filters, itemsPerPage, searchTerm]);
 
   const handleClearFilters = useCallback(async () => {
@@ -330,7 +347,7 @@ export default function OrdersPage() {
       startDate: '',
       endDate: ''
     };
-    await fetchOrders(0, 1, itemsPerPage, false, clearedFilters);
+    await fetchOrders(0, 1, itemsPerPage, false, clearedFilters, '');
   }, [itemsPerPage]);
 
    // Function to process mill input data and group by order and quality
@@ -437,7 +454,7 @@ export default function OrdersPage() {
   }, [processDataByQuality]);
 
   // ULTRA FAST fetch functions - 50ms target
-  const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage, forceRefresh = false, currentFilters = filters) => {
+  const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage, forceRefresh = false, currentFilters = filters, searchQuery = searchTerm) => {
     const maxRetries = 2; // Two retries for better reliability
     const baseTimeout = 3000; // 3 second timeout for better reliability
     const timeoutIncrement = 1000; // Add 1 second per retry
@@ -460,8 +477,8 @@ export default function OrdersPage() {
       url.searchParams.append('page', page.toString());
       
       // Add search and filter parameters for server-side filtering
-      if (searchTerm) {
-        url.searchParams.append('search', searchTerm);
+      if (searchQuery) {
+        url.searchParams.append('search', searchQuery);
       }
       if (currentFilters.orderType) {
         url.searchParams.append('orderType', currentFilters.orderType);
@@ -603,7 +620,7 @@ export default function OrdersPage() {
     setIsChangingPage(true);
     setCurrentPage(newPage);
     // Fetch new page from server
-    await fetchOrders(0, newPage, itemsPerPage, false, filters);
+    await fetchOrders(0, newPage, itemsPerPage, false, filters, searchTerm);
     setIsChangingPage(false);
   };
 
@@ -615,7 +632,7 @@ export default function OrdersPage() {
     setCurrentPage(1); // Reset to first page
     
     // Fetch first page with new items per page from server
-    await fetchOrders(0, 1, newItemsPerPage, false, filters);
+    await fetchOrders(0, 1, newItemsPerPage, false, filters, searchTerm);
     setIsChangingPage(false);
   };
 
@@ -1505,7 +1522,7 @@ export default function OrdersPage() {
     try {
       // Only refresh orders - super simple
       // Force refresh to get current page
-      await fetchOrders(0, currentPage, itemsPerPage, true, filters);
+      await fetchOrders(0, currentPage, itemsPerPage, true, filters, searchTerm);
       showMessage('success', 'Orders refreshed successfully', { 
         autoDismiss: true, 
         dismissTime: 2000 
@@ -2798,9 +2815,15 @@ export default function OrdersPage() {
             {/* Center - Search */}
             <div className="flex-1 order-2 md:order-2 min-w-0">
               <div className="relative">
-                <MagnifyingGlassIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
-                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                }`} />
+                {searchLoading ? (
+                  <ArrowPathIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin ${
+                    isDarkMode ? 'text-blue-400' : 'text-blue-500'
+                  }`} />
+                ) : (
+                  <MagnifyingGlassIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`} />
+                )}
                 <input
                   type="text"
                   placeholder="Search orders by ID, PO number, style, or party..."
@@ -2814,7 +2837,10 @@ export default function OrdersPage() {
                 />
                 {searchTerm && (
                   <button
-                    onClick={() => handleSearchChange('')}
+                    onClick={() => {
+                    setSearchLoading(false);
+                    handleSearchChange('');
+                  }}
                     className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors ${
                       isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
                     }`}
