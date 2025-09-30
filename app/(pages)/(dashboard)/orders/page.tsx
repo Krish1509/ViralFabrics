@@ -581,9 +581,9 @@ export default function OrdersPage() {
 
   // ULTRA FAST fetch functions - 50ms target
   const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage, forceRefresh = false, currentFilters = filters, searchQuery = searchTerm) => {
-    const maxRetries = 2; // Two retries for better reliability
-    const baseTimeout = 1500; // 1.5 second timeout for faster response
-    const timeoutIncrement = 500; // Add 0.5 second per retry
+    const maxRetries = 3; // Three retries for better reliability
+    const baseTimeout = 5000; // 5 second timeout for better reliability
+    const timeoutIncrement = 2000; // Add 2 seconds per retry
     
     try {
       const controller = new AbortController();
@@ -726,22 +726,41 @@ export default function OrdersPage() {
         throw new Error(data.message || 'Failed to fetch orders');
       }
     } catch (error: any) {
+      console.log('🔍 fetchOrders error:', {
+        error: error.message,
+        name: error.name,
+        retryCount,
+        maxRetries
+      });
+      
       if (error.name === 'AbortError') {
         if (retryCount < maxRetries) {
-          // Silent retry - no notification to avoid bad UX
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
-          return fetchOrders(retryCount + 1, page, limit);
+          console.log(`🔄 Retrying fetchOrders (attempt ${retryCount + 1}/${maxRetries})`);
+          // Exponential backoff with jitter
+          const delay = Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return fetchOrders(retryCount + 1, page, limit, forceRefresh, currentFilters, searchQuery);
         } else {
+          console.log('❌ Max retries reached, giving up');
           setLoading(false);
-          // Silent timeout - no notification to avoid bad UX
-          return; // Don't throw error, just return gracefully
+          setOrdersLoaded(true); // Mark as loaded to show empty state
+          return;
         }
-      } else if (error.message?.includes('Failed to fetch')) {
+      } else if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        if (retryCount < maxRetries) {
+          console.log(`🔄 Network error, retrying (attempt ${retryCount + 1}/${maxRetries})`);
+          const delay = Math.pow(2, retryCount) * 1000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return fetchOrders(retryCount + 1, page, limit, forceRefresh, currentFilters, searchQuery);
+        } else {
         setLoading(false);
+          setOrdersLoaded(true);
         showMessage('error', 'Network error. Please check your connection.', { autoDismiss: true, dismissTime: 4000 });
         return;
+        }
       } else {
         setLoading(false);
+        setOrdersLoaded(true);
         showMessage('error', error.message || 'Failed to fetch orders', { autoDismiss: true, dismissTime: 4000 });
         return;
       }
@@ -3607,7 +3626,7 @@ export default function OrdersPage() {
         </div>
       </div>
   
-
+  
             {/* Pagination Info Bar */}
             <div className={`px-3 sm:px-4 py-2 sm:py-3 border-b flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:justify-between ${
               isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
@@ -3870,7 +3889,7 @@ export default function OrdersPage() {
               isDarkMode ? 'divide-white/10' : 'divide-gray-200'
             }`}>
               {/* Loading skeleton rows */}
-              {((loading && !ordersLoaded) || orderCreating) && (
+              {((loading && !ordersLoaded) || orderCreating || (currentOrders.length === 0 && !ordersLoaded)) && (
                 Array.from({ length: 8 }).map((_, index) => (
                   <tr key={`loading-skeleton-${index}`} className="animate-pulse">
                     <td className="px-3 sm:px-4 lg:px-6 py-4">
@@ -3899,15 +3918,15 @@ export default function OrdersPage() {
                         <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded skeleton-shimmer"></div>
                         <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded skeleton-shimmer"></div>
                         <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded skeleton-shimmer"></div>
-                      </div>
-                    </td>
-                  </tr>
+                    </div>
+                  </td>
+                </tr>
                 ))
               )}
               
               {/* Rendering table with orders */}
               {/* Show skeleton rows during pagination/filtering */}
-              {(tableLoading || isChangingPage || refreshing || sortLoading || filterLoading) && (
+              {!loading && !orderCreating && (tableLoading || isChangingPage || refreshing || sortLoading || filterLoading) && (
                 Array.from({ length: 5 }).map((_, index) => (
                   <tr key={`pagination-skeleton-${index}`} className="animate-pulse">
                     <td className="px-3 sm:px-4 lg:px-6 py-4">
@@ -3936,18 +3955,17 @@ export default function OrdersPage() {
               )}
 
               {/* Show actual orders data */}
-              {!loading && !orderCreating && !tableLoading && !isChangingPage && !refreshing && !sortLoading && !filterLoading && (
-                (() => {
+              {(!loading && !orderCreating && !tableLoading && !isChangingPage && !refreshing && !sortLoading && !filterLoading && currentOrders.length > 0 && ordersLoaded) && 
+                currentOrders.map((order, index) => {
                   console.log('🔍 Table render check:', {
                     loading,
                     orderCreating,
                     currentOrdersLength: currentOrders.length,
                     ordersLength: orders.length,
                     ordersLoaded,
-                    shouldRender: !loading && !orderCreating
+                    shouldRender: !loading && !orderCreating && currentOrders.length > 0
                   });
-                  if (!loading && !orderCreating) {
-                    return currentOrders.map((order, index) => (
+                  return (
                   <tr 
                     key={order._id} 
                     className={`hover:${
@@ -4637,10 +4655,33 @@ export default function OrdersPage() {
                    </td>
 
                   </tr>
-                    ));
-                  }
-                  return null;
-                })()
+                  );
+                })
+              }
+
+              {/* Empty state message */}
+              {!loading && !orderCreating && !tableLoading && !isChangingPage && !refreshing && !sortLoading && !filterLoading && currentOrders.length === 0 && ordersLoaded && (
+                <tr>
+                  <td colSpan={3} className="px-3 sm:px-4 lg:px-6 py-12 text-center">
+                    <div className="flex flex-col items-center space-y-3">
+                      <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
+                        isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
+                      }`}>
+                        <svg className={`w-8 h-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className={`text-lg font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                          No orders found
+                        </h3>
+                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
+                          {searchTerm ? 'Try adjusting your search criteria' : 'No orders match your current filters'}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
