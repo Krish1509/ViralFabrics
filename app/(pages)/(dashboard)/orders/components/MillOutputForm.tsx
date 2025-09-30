@@ -795,9 +795,10 @@ export default function MillOutputForm({
             millOutputsLength: data.data?.millOutputs?.length || 0
           });
           setHasExistingData(false);
+          setLoadingData(false);
           
-          // Clear form data when no existing data
-          setFormData({
+          // Set empty form data when no existing data
+          const emptyFormData = {
             orderId: order.orderId || '',
             millOutputItems: [{
               id: '1',
@@ -806,17 +807,22 @@ export default function MillOutputForm({
               finishedMtr: '',
               quality: '',
               additionalFinishedMtr: []
-            }]
-          });
+            }],
+            _lastUpdated: Date.now()
+          };
+          
+          setFormData(emptyFormData);
+          console.log('✅ Empty form data set - ready for new mill output entry');
         }
       } else {
         console.log('❌ Failed to fetch mill outputs from API, status:', response.status);
         const errorText = await response.text();
         console.log('Error response:', errorText);
         setHasExistingData(false);
+        setLoadingData(false);
         
-        // Clear form data when API fails
-        setFormData({
+        // Set empty form data when API fails
+        const errorFormData = {
           orderId: order.orderId || '',
           millOutputItems: [{
             id: '1',
@@ -825,8 +831,12 @@ export default function MillOutputForm({
             finishedMtr: '',
             quality: '',
             additionalFinishedMtr: []
-          }]
-        });
+          }],
+          _lastUpdated: Date.now()
+        };
+        
+        setFormData(errorFormData);
+        console.log('✅ Error form data set - ready for new mill output entry');
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -835,9 +845,10 @@ export default function MillOutputForm({
         console.error('❌ Error fetching mill outputs from API:', error);
       }
       setHasExistingData(false);
+      setLoadingData(false);
       
-      // Clear form data when error occurs
-      setFormData({
+      // Set empty form data when error occurs
+      const catchFormData = {
         orderId: order.orderId || '',
         millOutputItems: [{
           id: '1',
@@ -846,8 +857,12 @@ export default function MillOutputForm({
           finishedMtr: '',
           quality: '',
           additionalFinishedMtr: []
-        }]
-      });
+        }],
+        _lastUpdated: Date.now()
+      };
+      
+      setFormData(catchFormData);
+      console.log('✅ Catch form data set - ready for new mill output entry');
     } finally {
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -1506,7 +1521,7 @@ export default function MillOutputForm({
     setShowDeleteConfirm(false);
   };
 
-  // Function to update existing mill outputs
+  // Function to update existing mill outputs (smart update - no duplicates)
   const updateExistingMillOutputs = async () => {
     // Get auth token
     const token = localStorage.getItem('token');
@@ -1514,7 +1529,7 @@ export default function MillOutputForm({
       throw new Error('No authentication token found');
     }
 
-    console.log('🔄 Starting mill output update process...');
+    console.log('🔄 Starting smart mill output update process...');
     
     // First fetch all existing mill outputs for this order from API
     const response = await fetch(`/api/mill-outputs?orderId=${order?.orderId}`, {
@@ -1527,31 +1542,204 @@ export default function MillOutputForm({
     if (response.ok) {
       const data = await response.json();
       if (data.success && data.data && data.data.millOutputs && data.data.millOutputs.length > 0) {
-        console.log('🗑️ Deleting existing mill outputs:', data.data.millOutputs.length, 'records');
+        const existingOutputs = data.data.millOutputs;
+        console.log('📋 Found existing mill outputs:', existingOutputs.length, 'records');
         
-        // Delete all existing mill outputs for this order
-        const deletePromises = data.data.millOutputs.map((output: any) =>
-          fetch(`/api/mill-outputs/${output._id}`, {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${token}`
+        // Group existing outputs by bill number and date for easier matching
+        const existingByBillAndDate = new Map();
+        existingOutputs.forEach((output: any) => {
+          const key = `${output.millBillNo}_${output.recdDate}`;
+          if (!existingByBillAndDate.has(key)) {
+            existingByBillAndDate.set(key, []);
+          }
+          existingByBillAndDate.get(key).push(output);
+        });
+        
+        console.log('📋 Existing outputs grouped by bill/date:', existingByBillAndDate.size, 'groups');
+        
+        // Process each form item
+        const updatePromises: Promise<any>[] = [];
+        const createPromises: Promise<any>[] = [];
+        const deletePromises: Promise<any>[] = [];
+        
+        // Track which existing records we've processed
+        const processedExistingIds = new Set();
+        
+        formData.millOutputItems.forEach((item) => {
+          const key = `${item.millBillNo}_${item.recdDate}`;
+          const existingGroup = existingByBillAndDate.get(key);
+          
+          if (existingGroup && existingGroup.length > 0) {
+            // Update existing records
+            console.log(`🔄 Updating existing mill output group: ${key}`);
+            
+            // Update main output (first record in group)
+            if (existingGroup[0]) {
+              const updateData = {
+                orderId: formData.orderId,
+                recdDate: item.recdDate,
+                millBillNo: item.millBillNo.trim(),
+                finishedMtr: parseFloat(item.finishedMtr),
+                quality: item.quality
+              };
+              
+              updatePromises.push(
+                fetch(`/api/mill-outputs/${existingGroup[0]._id}`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                  },
+                  body: JSON.stringify(updateData)
+                }).then(response => response.json())
+              );
+              
+              processedExistingIds.add(existingGroup[0]._id);
             }
-          })
-        );
-
-        // Wait for all deletions to complete
-        const deleteResults = await Promise.all(deletePromises);
-        console.log('✅ Deletion completed:', deleteResults.length, 'records deleted');
+            
+            // Update or create additional outputs
+            item.additionalFinishedMtr.forEach((additional, index) => {
+              const existingAdditional = existingGroup[index + 1];
+              
+              if (existingAdditional) {
+                // Update existing additional output
+                const updateData = {
+                  orderId: formData.orderId,
+                  recdDate: item.recdDate,
+                  millBillNo: item.millBillNo.trim(),
+                  finishedMtr: parseFloat(additional.meters),
+                  quality: additional.quality
+                };
+                
+                updatePromises.push(
+                  fetch(`/api/mill-outputs/${existingAdditional._id}`, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify(updateData)
+                  }).then(response => response.json())
+                );
+                
+                processedExistingIds.add(existingAdditional._id);
+              } else {
+                // Create new additional output
+                const createData = {
+                  orderId: formData.orderId,
+                  recdDate: item.recdDate,
+                  millBillNo: item.millBillNo.trim(),
+                  finishedMtr: parseFloat(additional.meters),
+                  quality: additional.quality
+                };
+                
+                createPromises.push(
+                  fetch('/api/mill-outputs', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify(createData)
+                  }).then(response => response.json())
+                );
+              }
+            });
+            
+            // Delete any extra existing records that are no longer needed
+            const remainingExisting = existingGroup.slice(1 + item.additionalFinishedMtr.length);
+            remainingExisting.forEach((output: any) => {
+              deletePromises.push(
+                fetch(`/api/mill-outputs/${output._id}`, {
+                  method: 'DELETE',
+                  headers: {
+                    'Authorization': `Bearer ${token}`
+                  }
+                })
+              );
+            });
+            
+          } else {
+            // Create new group (no existing records for this bill/date combination)
+            console.log(`➕ Creating new mill output group: ${key}`);
+            
+            // Create main output
+            const mainData = {
+              orderId: formData.orderId,
+              recdDate: item.recdDate,
+              millBillNo: item.millBillNo.trim(),
+              finishedMtr: parseFloat(item.finishedMtr),
+              quality: item.quality
+            };
+            
+            createPromises.push(
+              fetch('/api/mill-outputs', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify(mainData)
+              }).then(response => response.json())
+            );
+            
+            // Create additional outputs
+            item.additionalFinishedMtr.forEach((additional) => {
+              const additionalData = {
+                orderId: formData.orderId,
+                recdDate: item.recdDate,
+                millBillNo: item.millBillNo.trim(),
+                finishedMtr: parseFloat(additional.meters),
+                quality: additional.quality
+              };
+              
+              createPromises.push(
+                fetch('/api/mill-outputs', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                  },
+                  body: JSON.stringify(additionalData)
+                }).then(response => response.json())
+              );
+            });
+          }
+        });
         
-        // Add a small delay to ensure deletions are processed
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Delete any existing records that are no longer in the form
+        existingOutputs.forEach((output: any) => {
+          if (!processedExistingIds.has(output._id)) {
+            console.log(`🗑️ Deleting obsolete mill output: ${output._id}`);
+            deletePromises.push(
+              fetch(`/api/mill-outputs/${output._id}`, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              })
+            );
+          }
+        });
+        
+        // Execute all operations
+        console.log(`🔄 Executing ${updatePromises.length} updates, ${createPromises.length} creates, ${deletePromises.length} deletes`);
+        
+        const allPromises = [...updatePromises, ...createPromises, ...deletePromises];
+        const results = await Promise.all(allPromises);
+        
+        console.log('✅ Smart mill output update process completed');
+        
+      } else {
+        // No existing data, create new ones
+        console.log('➕ No existing mill outputs found, creating new ones...');
+        await createNewMillOutputs();
       }
+    } else {
+      // API error, fallback to create new
+      console.log('❌ Failed to fetch existing mill outputs, creating new ones...');
+      await createNewMillOutputs();
     }
-
-    // Then create new ones with updated data
-    console.log('➕ Creating new mill outputs with updated data...');
-    await createNewMillOutputs();
-    console.log('✅ Mill output update process completed');
   };
 
   // Don't block form opening - show form even if order is not immediately available

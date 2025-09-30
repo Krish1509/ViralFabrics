@@ -631,41 +631,34 @@ export default function DispatchForm({
   const [currentQualitySearch, setCurrentQualitySearch] = useState('');
   const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
 
-  // Load existing dispatch data when form opens (use props first, then fetch from API)
+  // Load existing dispatch data when form opens (optimized for immediate display)
   useEffect(() => {
-    console.log('DispatchForm useEffect triggered:', { isOpen, orderId: order?.orderId, existingDispatchesLength: existingDispatches?.length });
+    console.log('🔄 DispatchForm useEffect triggered:', { isOpen, orderId: order?.orderId, existingDispatchesLength: existingDispatches?.length });
     
     if (isOpen && order?.orderId) {
-      console.log('Form opened, loading existing dispatch data...');
-      // Reset form state first to avoid showing stale data
-      setHasExistingData(false); // Reset to false initially
+      console.log('📋 Form opened, starting data loading process...');
+      
+      // Reset states but don't reset form data yet - let API call determine what to show
       setErrors({});
       setSuccessMessage('');
       setShowDeleteConfirm(false);
       setItemToDelete(null);
       
-      // Reset form data to initial state
-      setFormData({
-        orderId: order.orderId || '',
-        dispatchItems: [{
-          id: '1',
-          dispatchDate: '',
-          billNo: '',
-          finishMtr: '',
-          quality: '',
-          subItems: [{
-            id: '1_1',
-            finishMtr: '',
-            quality: ''
-          }]
-        }]
-      });
+      // Start loading immediately
+      setLoadingExistingData(true);
+      setHasExistingData(false);
       
-      // Always fetch fresh data from API when form opens to avoid stale data
+      // Always fetch fresh data from API when form opens
       console.log('🔄 Form opened - fetching fresh dispatch data from API...');
       console.log('🔄 Order details:', { orderId: order.orderId, order: order });
-      setLoadingExistingData(true);
-      fetchExistingDispatchData();
+      
+      // Use setTimeout to ensure state updates are processed before API call
+      setTimeout(() => {
+        fetchExistingDispatchData();
+      }, 100);
+    } else if (!isOpen) {
+      // Reset loading state when form is closed
+      setLoadingExistingData(false);
     }
   }, [isOpen, order?.orderId]);
 
@@ -738,15 +731,21 @@ export default function DispatchForm({
     }
   };
 
-  // Function to fetch existing dispatch data from API (smooth pattern)
+  // Function to fetch existing dispatch data from API (optimized for immediate display)
   const fetchExistingDispatchData = async () => {
     if (!order?.orderId) {
       console.log('No order ID available for fetching dispatches');
       setHasExistingData(false);
+      setLoadingExistingData(false);
       return;
     }
 
-    // Show loading state while fetching data
+    console.log('🔄 Starting to fetch dispatch data for order:', order.orderId);
+    setLoadingExistingData(true);
+    
+    // Show form immediately with loading state
+    setHasExistingData(false);
+    
     let timeoutId: NodeJS.Timeout | null = null;
     
     try {
@@ -754,14 +753,15 @@ export default function DispatchForm({
       if (!token) {
         console.log('No authentication token available');
         setHasExistingData(false);
+        setLoadingExistingData(false);
         return;
       }
 
-      console.log('Fetching dispatches for order:', order.orderId);
+      console.log('📡 Fetching dispatches for order:', order.orderId);
       
-      // Create AbortController for timeout
+      // Create AbortController for timeout - increased timeout for reliability
       const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for faster response
+      timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for reliable response
       
       const response = await fetch(`/api/dispatch?orderId=${order.orderId}&t=${Date.now()}`, {
         headers: {
@@ -780,7 +780,8 @@ export default function DispatchForm({
           console.log('✅ Found existing dispatches:', data.data.dispatches.length, 'records');
           console.log('Dispatches data:', data.data.dispatches);
           setHasExistingData(true);
-          loadExistingDispatchesFromData(data.data.dispatches);
+          await loadExistingDispatchesFromData(data.data.dispatches);
+          console.log('✅ Dispatch data loaded successfully - form should now show data');
         } else {
           console.log('❌ No existing dispatches found in API response');
           console.log('Response structure:', {
@@ -790,9 +791,10 @@ export default function DispatchForm({
             dispatchesLength: data.data?.dispatches?.length || 0
           });
           setHasExistingData(false);
+          setLoadingExistingData(false);
           
-          // Clear form data when no existing data
-          setFormData({
+          // Set empty form data when no existing data
+          const emptyFormData = {
             orderId: order.orderId || '',
             dispatchItems: [{
               id: '1',
@@ -805,17 +807,22 @@ export default function DispatchForm({
                 finishMtr: '',
                 quality: ''
               }]
-            }]
-          });
+            }],
+            _lastUpdated: Date.now()
+          };
+          
+          setFormData(emptyFormData);
+          console.log('✅ Empty form data set - ready for new dispatch entry');
         }
       } else {
         console.log('❌ Failed to fetch dispatches from API, status:', response.status);
         const errorText = await response.text();
         console.log('Error response:', errorText);
         setHasExistingData(false);
+        setLoadingExistingData(false);
         
-        // Clear form data when API fails
-        setFormData({
+        // Set empty form data when API fails
+        const errorFormData = {
           orderId: order.orderId || '',
           dispatchItems: [{
             id: '1',
@@ -828,19 +835,24 @@ export default function DispatchForm({
               finishMtr: '',
               quality: ''
             }]
-          }]
-        });
+          }],
+          _lastUpdated: Date.now()
+        };
+        
+        setFormData(errorFormData);
+        console.log('✅ Error form data set - ready for new dispatch entry');
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('Dispatches fetch was aborted due to timeout');
+        console.log('❌ Dispatches fetch was aborted due to timeout');
       } else {
-        console.error('Error fetching dispatches from API:', error);
+        console.error('❌ Error fetching dispatches from API:', error);
       }
       setHasExistingData(false);
+      setLoadingExistingData(false);
       
-      // Clear form data when error occurs
-      setFormData({
+      // Set empty form data when error occurs
+      const catchFormData = {
         orderId: order.orderId || '',
         dispatchItems: [{
           id: '1',
@@ -853,14 +865,19 @@ export default function DispatchForm({
             finishMtr: '',
             quality: ''
           }]
-        }]
-      });
+        }],
+        _lastUpdated: Date.now()
+      };
+      
+      setFormData(catchFormData);
+      console.log('✅ Catch form data set - ready for new dispatch entry');
     } finally {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
       // Always stop loading when fetch completes (success or error)
       setLoadingExistingData(false);
+      console.log('🔄 Dispatch data fetch completed');
     }
   };
 
@@ -955,25 +972,47 @@ export default function DispatchForm({
       // Convert grouped data to individual dispatch items
       const newFormData = {
         orderId: order.orderId,
-        dispatchItems: Object.values(groupedDispatches).map((group: any, index: number) => ({
-          id: (index + 1).toString(),
-          dispatchDate: group.dispatchDate,
-          billNo: group.billNo,
-          finishMtr: '',
-          quality: '',
-          subItems: group.subItems
-        }))
+        dispatchItems: Object.values(groupedDispatches).map((group: any, index: number) => {
+          // Use the first sub-item's data for the main dispatch item
+          const firstSubItem = group.subItems[0];
+          return {
+            id: (index + 1).toString(),
+            dispatchDate: group.dispatchDate,
+            billNo: group.billNo,
+            finishMtr: firstSubItem ? firstSubItem.finishMtr : '',
+            quality: firstSubItem ? firstSubItem.quality : '',
+            subItems: group.subItems
+          };
+        })
       };
       
-      console.log('Setting form data from API:', newFormData);
-      console.log('Form data dispatch items:', newFormData.dispatchItems);
-      console.log('First dispatch item:', newFormData.dispatchItems[0]);
-      setFormData(newFormData);
+      console.log('🔄 Setting form data from API:', newFormData);
+      console.log('📋 Form data dispatch items:', newFormData.dispatchItems);
+      console.log('📋 First dispatch item:', newFormData.dispatchItems[0]);
+      
+      // Force re-render by adding timestamp
+      const formDataWithTimestamp = {
+        ...newFormData,
+        _lastUpdated: Date.now()
+      };
+      
+      setFormData(formDataWithTimestamp);
       setHasExistingData(true);
+      setLoadingExistingData(false); // Ensure loading state is cleared
+      
+      console.log('✅ Form data set successfully - form should now display the data');
       
       // Set quality search states for proper display
       const newQualitySearchStates: { [key: string]: string } = {};
       newFormData.dispatchItems.forEach((item) => {
+        // Set main item quality search state
+        if (item.quality) {
+          const qualityObj = qualities?.find(q => (q._id || q.id) === item.quality);
+          if (qualityObj) {
+            newQualitySearchStates[item.id] = qualityObj.name;
+          }
+        }
+        
         // Set sub-item quality search states
         item.subItems?.forEach((subItem: any) => {
           if (subItem.quality) {
@@ -1276,14 +1315,32 @@ export default function DispatchForm({
       
       setSuccessMessage('Dispatch data saved successfully!');
       
+      // Determine operation type before updating hasExistingData
+      const operationType = hasExistingData ? 'edit' : 'add';
+      
       // Immediately update local state for better UX
       setHasExistingData(true);
       
       // Refresh the local data to show updated state
-      await fetchExistingDispatchData();
+      console.log('🔄 Refreshing data after save...');
+      
+      // Add a small delay to ensure database is updated
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      try {
+        await fetchExistingDispatchData();
+        console.log('✅ Data refresh completed after save');
+      } catch (error) {
+        console.error('❌ Error refreshing data after save:', error);
+        // If refresh fails, at least ensure the form shows the data that was just saved
+        console.log('🔄 Fallback: Setting form data to show saved data');
+        setHasExistingData(true);
+        setLoadingExistingData(false);
+      }
       
       // Call onSuccess to update parent state
-      onSuccess(hasExistingData ? 'edit' : 'add');
+      console.log('🔄 Calling onSuccess with operation type:', operationType);
+      onSuccess(operationType);
       
       // Don't close automatically - let user see the updated data
       // setTimeout(() => {
@@ -1423,24 +1480,224 @@ export default function DispatchForm({
     setShowDeleteConfirm(false);
   };
 
-  // Function to update existing dispatches
+  // Function to update existing dispatches (smart update - no duplicates)
   const updateExistingDispatches = async () => {
     const token = localStorage.getItem('token');
-    
-    // First delete existing dispatches for this order
-    const deletePromises = existingDispatches.map((dispatch: any) =>
-      fetch(`/api/dispatch/${dispatch._id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        }
-      })
-    );
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
 
-    const deleteResults = await Promise.all(deletePromises);
-    // Then create new ones with updated data
-    await createNewDispatches();
+    console.log('🔄 Starting smart dispatch update process...');
+    
+    // First fetch all existing dispatches for this order from API
+    const response = await fetch(`/api/dispatch?orderId=${order?.orderId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success && data.data && data.data.dispatches && data.data.dispatches.length > 0) {
+        const existingDispatches = data.data.dispatches;
+        console.log('📋 Found existing dispatches:', existingDispatches.length, 'records');
+        
+        // Group existing dispatches by bill number and date for easier matching
+        const existingByBillAndDate = new Map();
+        existingDispatches.forEach((dispatch: any) => {
+          const key = `${dispatch.billNo}_${dispatch.dispatchDate}`;
+          if (!existingByBillAndDate.has(key)) {
+            existingByBillAndDate.set(key, []);
+          }
+          existingByBillAndDate.get(key).push(dispatch);
+        });
+        
+        console.log('📋 Existing dispatches grouped by bill/date:', existingByBillAndDate.size, 'groups');
+        
+        // Process each form item
+        const updatePromises: Promise<any>[] = [];
+        const createPromises: Promise<any>[] = [];
+        const deletePromises: Promise<any>[] = [];
+        
+        // Track which existing records we've processed
+        const processedExistingIds = new Set();
+        
+        formData.dispatchItems.forEach((item) => {
+          const key = `${item.billNo}_${item.dispatchDate}`;
+          const existingGroup = existingByBillAndDate.get(key);
+          
+          if (existingGroup && existingGroup.length > 0) {
+            // Update existing records
+            console.log(`🔄 Updating existing dispatch group: ${key}`);
+            
+            // Update main dispatch (first record in group)
+            if (existingGroup[0]) {
+              const updateData = {
+                orderId: formData.orderId,
+                dispatchDate: item.dispatchDate,
+                billNo: item.billNo.trim(),
+                finishMtr: parseFloat(item.finishMtr),
+                quality: item.quality
+              };
+              
+              updatePromises.push(
+                fetch(`/api/dispatch/${existingGroup[0]._id}`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                  },
+                  body: JSON.stringify(updateData)
+                }).then(response => response.json())
+              );
+              
+              processedExistingIds.add(existingGroup[0]._id);
+            }
+            
+            // Update or create additional dispatches (sub-items)
+            item.subItems?.forEach((subItem, index) => {
+              const existingSubItem = existingGroup[index + 1];
+              
+              if (existingSubItem) {
+                // Update existing sub-item
+                const updateData = {
+                  orderId: formData.orderId,
+                  dispatchDate: item.dispatchDate,
+                  billNo: item.billNo.trim(),
+                  finishMtr: parseFloat(subItem.finishMtr),
+                  quality: subItem.quality
+                };
+                
+                updatePromises.push(
+                  fetch(`/api/dispatch/${existingSubItem._id}`, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify(updateData)
+                  }).then(response => response.json())
+                );
+                
+                processedExistingIds.add(existingSubItem._id);
+              } else {
+                // Create new sub-item
+                const createData = {
+                  orderId: formData.orderId,
+                  dispatchDate: item.dispatchDate,
+                  billNo: item.billNo.trim(),
+                  finishMtr: parseFloat(subItem.finishMtr),
+                  quality: subItem.quality
+                };
+                
+                createPromises.push(
+                  fetch('/api/dispatch', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify(createData)
+                  }).then(response => response.json())
+                );
+              }
+            });
+            
+            // Delete any extra existing records that are no longer needed
+            const remainingExisting = existingGroup.slice(1 + (item.subItems?.length || 0));
+            remainingExisting.forEach((dispatch: any) => {
+              deletePromises.push(
+                fetch(`/api/dispatch/${dispatch._id}`, {
+                  method: 'DELETE',
+                  headers: {
+                    'Authorization': `Bearer ${token}`
+                  }
+                })
+              );
+            });
+            
+          } else {
+            // Create new group (no existing records for this bill/date combination)
+            console.log(`➕ Creating new dispatch group: ${key}`);
+            
+            // Create main dispatch
+            const mainData = {
+              orderId: formData.orderId,
+              dispatchDate: item.dispatchDate,
+              billNo: item.billNo.trim(),
+              finishMtr: parseFloat(item.finishMtr),
+              quality: item.quality
+            };
+            
+            createPromises.push(
+              fetch('/api/dispatch', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify(mainData)
+              }).then(response => response.json())
+            );
+            
+            // Create additional dispatches (sub-items)
+            item.subItems?.forEach((subItem) => {
+              const subItemData = {
+                orderId: formData.orderId,
+                dispatchDate: item.dispatchDate,
+                billNo: item.billNo.trim(),
+                finishMtr: parseFloat(subItem.finishMtr),
+                quality: subItem.quality
+              };
+              
+              createPromises.push(
+                fetch('/api/dispatch', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                  },
+                  body: JSON.stringify(subItemData)
+                }).then(response => response.json())
+              );
+            });
+          }
+        });
+        
+        // Delete any existing records that are no longer in the form
+        existingDispatches.forEach((dispatch: any) => {
+          if (!processedExistingIds.has(dispatch._id)) {
+            console.log(`🗑️ Deleting obsolete dispatch: ${dispatch._id}`);
+            deletePromises.push(
+              fetch(`/api/dispatch/${dispatch._id}`, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              })
+            );
+          }
+        });
+        
+        // Execute all operations
+        console.log(`🔄 Executing ${updatePromises.length} updates, ${createPromises.length} creates, ${deletePromises.length} deletes`);
+        
+        const allPromises = [...updatePromises, ...createPromises, ...deletePromises];
+        const results = await Promise.all(allPromises);
+        
+        console.log('✅ Smart dispatch update process completed');
+        
+      } else {
+        // No existing data, create new ones
+        console.log('➕ No existing dispatches found, creating new ones...');
+        await createNewDispatches();
+      }
+    } else {
+      // API error, fallback to create new
+      console.log('❌ Failed to fetch existing dispatches, creating new ones...');
+      await createNewDispatches();
+    }
   };
 
   // Don't block form opening - show form even if order is not immediately available
@@ -1461,6 +1718,15 @@ export default function DispatchForm({
       </div>
     );
   }
+
+  // Debug log to track form data changes
+  console.log('🔄 DispatchForm render - formData:', {
+    orderId: formData.orderId,
+    dispatchItemsCount: formData.dispatchItems?.length || 0,
+    hasExistingData,
+    loadingExistingData,
+    firstItem: formData.dispatchItems?.[0]
+  });
 
   return (
     <>

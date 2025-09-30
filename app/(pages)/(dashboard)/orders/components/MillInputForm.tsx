@@ -754,7 +754,8 @@ export default function MillInputForm({
     address: '',
     email: ''
   });
-  // Removed loadingExistingData state for instant opening
+  // Loading states for better UX
+  const [loadingExistingData, setLoadingExistingData] = useState(false);
   const [addingMill, setAddingMill] = useState(false);
   const [millsLoading, setMillsLoading] = useState(false);
   const [localMills, setLocalMills] = useState<Mill[]>([]);
@@ -825,9 +826,9 @@ export default function MillInputForm({
     }
   }, [mills, localMills.length]);
 
-  // Load existing data when form opens or when existingMillInputs prop changes
+  // Load existing data when form opens (optimized for immediate display)
   useEffect(() => {
-    console.log('MillInputForm useEffect triggered:', { 
+    console.log('🔄 MillInputForm useEffect triggered:', { 
       isOpen, 
       orderId: order?.orderId, 
       existingMillInputsCount: existingMillInputs?.length,
@@ -835,37 +836,32 @@ export default function MillInputForm({
     });
     
     if (isOpen && order?.orderId) {
-      console.log('Form opened, processing existing mill input data...');
+      console.log('📋 Form opened, starting data loading process...');
       console.log('Form mode from prop:', isEditing ? 'EDIT' : 'ADD');
       
-      // Reset form state first to avoid showing stale data
+      // Reset states but don't reset form data yet - let API call determine what to show
       setLocalMillInputs([]);
-      setHasExistingData(false); // Reset to false initially
       setErrors({});
       setSuccessMessage('');
       setShowDeleteConfirm(false);
       setItemToDelete(null);
       
-      // Reset form data to initial state
-      setFormData({
-        orderId: order.orderId || '',
-        mill: '',
-        millItems: [{
-          id: '1',
-          millDate: '',
-          chalanNo: '',
-          greighMtr: '',
-          pcs: '',
-          quality: '',
-          process: '',
-          additionalMeters: []
-        }]
-      });
+      // Start loading immediately
+      setHasExistingData(false);
+      setLoadingExistingData(true);
       
-      // Always fetch fresh data from API when form opens to avoid stale data
+      // Always fetch fresh data from API when form opens
       console.log('🔄 Form opened - fetching fresh mill input data from API...');
-      console.log('🔄 Form state reset complete, now fetching fresh data...');
-      fetchExistingMillInputData();
+      console.log('🔄 Order details:', { orderId: order.orderId, order: order });
+      
+      // Use setTimeout to ensure state updates are processed before API call
+      setTimeout(() => {
+        fetchExistingMillInputData();
+      }, 100);
+    } else if (!isOpen) {
+      // Reset loading state when form is closed
+      setHasExistingData(false);
+      setLoadingExistingData(false);
     }
   }, [isOpen, order?.orderId]);
 
@@ -1061,30 +1057,39 @@ export default function MillInputForm({
     console.log('🔄 Form data updated with existing mill inputs');
   };
 
-  // Function to fetch existing mill input data from API
+  // Function to fetch existing mill input data from API (optimized for immediate display)
   const fetchExistingMillInputData = async () => {
-    console.log('🔄 fetchExistingMillInputData called for order:', order?.orderId);
+    console.log('🔄 Starting to fetch mill input data for order:', order?.orderId);
     if (!order?.orderId) {
       console.log('No order ID available for fetching mill inputs');
       setHasExistingData(false);
+      setLoadingExistingData(false);
       return;
     }
 
-    // Fetch in background for instant opening
+    console.log('📡 Fetching mill inputs for order:', order.orderId);
+    
+    let timeoutId: NodeJS.Timeout | null = null;
+    
     try {
       const token = localStorage.getItem('token');
       if (!token) {
         console.log('No authentication token available');
         setHasExistingData(false);
+        setLoadingExistingData(false);
         return;
       }
 
-      console.log('Fetching mill inputs for order:', order.orderId);
+      // Create AbortController for timeout - increased timeout for reliability
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for reliable response
+      
       const response = await fetch(`/api/mill-inputs?orderId=${order.orderId}&t=${Date.now()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        signal: controller.signal
       });
 
       console.log('Response status:', response.status);
@@ -1097,6 +1102,8 @@ export default function MillInputForm({
           console.log('Mill inputs data:', data.data.millInputs);
           // Use the same processing function
           processExistingMillInputs(data.data.millInputs);
+          setLoadingExistingData(false);
+          console.log('✅ Mill input data loaded successfully - form should now show data');
         } else {
           console.log('❌ No existing mill inputs found in API response');
           console.log('Response structure:', {
@@ -1107,9 +1114,10 @@ export default function MillInputForm({
           });
           setLocalMillInputs([]);
           setHasExistingData(false);
+          setLoadingExistingData(false);
           
-          // Clear form data when no existing data
-          setFormData({
+          // Set empty form data when no existing data
+          const emptyFormData = {
             orderId: order.orderId || '',
             mill: '',
             millItems: [{
@@ -1121,17 +1129,22 @@ export default function MillInputForm({
               quality: '',
               process: '',
               additionalMeters: []
-            }]
-          });
+            }],
+            _lastUpdated: Date.now()
+          };
+          
+          setFormData(emptyFormData);
+          console.log('✅ Empty form data set - ready for new mill input entry');
         }
       } else {
         console.log('❌ Failed to fetch mill inputs from API, status:', response.status);
         const errorText = await response.text();
         console.log('Error response:', errorText);
         setHasExistingData(false);
+        setLoadingExistingData(false);
         
-        // Clear form data when API fails
-        setFormData({
+        // Set empty form data when API fails
+        const errorFormData = {
           orderId: order.orderId || '',
           mill: '',
           millItems: [{
@@ -1143,15 +1156,24 @@ export default function MillInputForm({
             quality: '',
             process: '',
             additionalMeters: []
-          }]
-        });
+          }],
+          _lastUpdated: Date.now()
+        };
+        
+        setFormData(errorFormData);
+        console.log('✅ Error form data set - ready for new mill input entry');
       }
     } catch (error) {
-      console.error('Error fetching mill inputs from API:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('❌ Mill inputs fetch was aborted due to timeout');
+      } else {
+        console.error('❌ Error fetching mill inputs from API:', error);
+      }
       setHasExistingData(false);
+      setLoadingExistingData(false);
       
-      // Clear form data when error occurs
-      setFormData({
+      // Set empty form data when error occurs
+      const catchFormData = {
         orderId: order.orderId || '',
         mill: '',
         millItems: [{
@@ -1163,10 +1185,19 @@ export default function MillInputForm({
           quality: '',
           process: '',
           additionalMeters: []
-        }]
-      });
+        }],
+        _lastUpdated: Date.now()
+      };
+      
+      setFormData(catchFormData);
+      console.log('✅ Catch form data set - ready for new mill input entry');
     } finally {
-      // Removed loading state
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      // Always stop loading when fetch completes (success or error)
+      setLoadingExistingData(false);
+      console.log('🔄 Mill input data fetch completed');
     }
   };
 
@@ -1910,11 +1941,11 @@ export default function MillInputForm({
     }
   };
 
-  // Function to update existing mill inputs
+  // Function to update existing mill inputs (smart update - no duplicates)
   const updateExistingMillInputs = async (token: string | null) => {
     if (!token) throw new Error('No authentication token');
     
-    console.log('🔄 Starting mill input update process...');
+    console.log('🔄 Starting smart mill input update process...');
     
     // First fetch all existing mill inputs for this order
     const response = await fetch(`/api/mill-inputs?orderId=${order?.orderId}`, {
@@ -1930,11 +1961,17 @@ export default function MillInputForm({
         const existingInputs = data.data.millInputs;
         console.log('📋 Found existing mill inputs:', existingInputs.length, 'records');
         
-        // Group existing inputs by chalan number for easier matching
-        const existingByChalan = new Map();
+        // Group existing inputs by chalan number and date for easier matching
+        const existingByChalanAndDate = new Map();
         existingInputs.forEach((input: any) => {
-          existingByChalan.set(input.chalanNo, input);
+          const key = `${input.chalanNo}_${input.millDate}`;
+          if (!existingByChalanAndDate.has(key)) {
+            existingByChalanAndDate.set(key, []);
+          }
+          existingByChalanAndDate.get(key).push(input);
         });
+        
+        console.log('📋 Existing inputs grouped by chalan/date:', existingByChalanAndDate.size, 'groups');
         
         // Process each form item
         const updatePromises: Promise<any>[] = [];
@@ -1946,7 +1983,9 @@ export default function MillInputForm({
         
         formData.millItems.forEach((item, index) => {
           const chalanNo = item.chalanNo.trim();
-          const existingInput = existingByChalan.get(chalanNo);
+          const key = `${chalanNo}_${item.millDate}`;
+          const existingGroup = existingByChalanAndDate.get(key);
+          const existingInput = existingGroup && existingGroup[0] ? existingGroup[0] : null;
           
           if (existingInput) {
             // Update existing record
@@ -2147,6 +2186,15 @@ export default function MillInputForm({
     );
   }
 
+  // Debug log to track form data changes
+  console.log('🔄 MillInputForm render - formData:', {
+    orderId: formData.orderId,
+    millItemsCount: formData.millItems?.length || 0,
+    hasExistingData,
+    loadingExistingData,
+    firstItem: formData.millItems?.[0]
+  });
+
   return (
     <>
       {/* Custom Scrollbar Styles */}
@@ -2171,7 +2219,17 @@ export default function MillInputForm({
         <div className={`relative w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
           isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
         }`}>
-          {/* Removed loading overlay for instant form opening */}
+          {/* Loading Overlay for Data Fetching */}
+          {loadingExistingData && (
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
+              <div className={`p-6 rounded-lg ${
+                isDarkMode ? 'bg-gray-800' : 'bg-white'
+              }`}>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-sm">Loading mill input data...</p>
+              </div>
+            </div>
+          )}
 
           {/* Loading Overlay for Saving */}
           {saving && (

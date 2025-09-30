@@ -104,6 +104,15 @@ export default function OrdersPage() {
   const [qualities, setQualities] = useState<Quality[]>([]);
   const [loading, setLoading] = useState(true);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState<'critical' | 'secondary' | 'complete'>('critical');
+  
+  // Simple cache to prevent redundant API calls
+  const [dataCache, setDataCache] = useState<{
+    orders?: { data: Order[], timestamp: number };
+    mills?: { data: any[], timestamp: number };
+    parties?: { data: any[], timestamp: number };
+    qualities?: { data: any[], timestamp: number };
+  }>({});
   const [orderCreating, setOrderCreating] = useState(false);
   const [orderMillInputs, setOrderMillInputs] = useState<{[key: string]: any[]}>({});
   const [processDataByQuality, setProcessDataByQuality] = useState<{[key: string]: string[]}>({});
@@ -957,7 +966,7 @@ export default function OrdersPage() {
     prefetchAll();
   }, []);
 
-  // ULTRA FAST initialization - Load orders first, then other data in background
+  // PRIORITIZED LOADING - Load critical data first, then secondary data in background
   useEffect(() => {
     if (isInitialized) return;
     
@@ -972,36 +981,49 @@ export default function OrdersPage() {
           return;
         }
 
-        // ULTRA FAST PARALLEL LOADING - All APIs at once
-        console.log('🚀 ULTRA FAST PARALLEL LOADING: Loading all APIs simultaneously...');
-        
         const startTime = Date.now();
+        console.log('🚀 PRIORITIZED LOADING: Loading critical data first...');
         
-        // Create abort controllers for all requests
-        const ordersController = new AbortController();
-        const partiesController = new AbortController();
-        const qualitiesController = new AbortController();
-        const millsController = new AbortController();
+        // Check cache first (5 minute cache validity)
+        const cacheValidity = 5 * 60 * 1000; // 5 minutes
+        const now = Date.now();
         
-        // Set timeouts for all requests
-        const ordersTimeoutId = setTimeout(() => ordersController.abort(), 10000);
-        const partiesTimeoutId = setTimeout(() => partiesController.abort(), 8000);
-        const qualitiesTimeoutId = setTimeout(() => qualitiesController.abort(), 8000);
-        const millsTimeoutId = setTimeout(() => millsController.abort(), 8000);
+        // PHASE 1: Load critical data first (Orders + Mills) - Show page immediately
+        console.log('📋 Phase 1: Loading critical data (Orders + Mills)...');
+        setLoadingPhase('critical');
+        const criticalStartTime = Date.now();
         
-        // Load ALL APIs in parallel
-        const [ordersResult, partiesResult, qualitiesResult, millsResult] = await Promise.allSettled([
-          // Orders API
+        // Check if we have cached data that's still valid
+        const hasValidOrdersCache = dataCache.orders && (now - dataCache.orders.timestamp) < cacheValidity;
+        const hasValidMillsCache = dataCache.mills && (now - dataCache.mills.timestamp) < cacheValidity;
+        
+        if (hasValidOrdersCache && hasValidMillsCache) {
+          console.log('⚡ Using cached data for critical resources');
+          setOrders(dataCache.orders!.data);
+          setMills(dataCache.mills!.data);
+          setOrdersLoaded(true);
+          setLoading(false);
+          setIsInitialized(true);
+          console.log('🎯 Page loaded instantly from cache!');
+          
+          // Still load fresh data in background
+          setTimeout(() => {
+            console.log('🔄 Refreshing cache in background...');
+            initializeAllData();
+          }, 1000);
+          return;
+        }
+        
+        const [ordersResult, millsResult] = await Promise.allSettled([
+          // Orders API - Most critical
           fetch('/api/orders?limit=50&page=1&force=true', {
             headers: { 
               'Authorization': `Bearer ${token}`,
               'Cache-Control': 'no-cache, no-store, must-revalidate',
               'Accept': 'application/json'
             },
-            signal: ordersController.signal,
             cache: 'no-store'
           }).then(async response => {
-            clearTimeout(ordersTimeoutId);
             if (response.ok) {
               const data = await response.json();
               console.log('✅ Orders API loaded successfully:', data.data?.length || 0, 'orders');
@@ -1012,59 +1034,15 @@ export default function OrdersPage() {
             }
           }),
           
-          // Parties API
-          fetch('/api/parties?limit=100&force=true', {
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Accept': 'application/json'
-            },
-            signal: partiesController.signal,
-            cache: 'no-store'
-          }).then(async response => {
-            clearTimeout(partiesTimeoutId);
-            if (response.ok) {
-              const data = await response.json();
-              console.log('✅ Parties API loaded successfully:', data.data?.length || 0, 'parties');
-              return { type: 'parties', data, success: true };
-            } else {
-              console.error('❌ Parties API failed:', response.status);
-              return { type: 'parties', data: null, success: false };
-            }
-          }),
-          
-          // Qualities API
-          fetch('/api/qualities?limit=100&force=true', {
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Accept': 'application/json'
-            },
-            signal: qualitiesController.signal,
-            cache: 'no-store'
-          }).then(async response => {
-            clearTimeout(qualitiesTimeoutId);
-            if (response.ok) {
-              const data = await response.json();
-              console.log('✅ Qualities API loaded successfully:', data.data?.length || 0, 'qualities');
-              return { type: 'qualities', data, success: true };
-            } else {
-              console.error('❌ Qualities API failed:', response.status);
-              return { type: 'qualities', data: null, success: false };
-            }
-          }),
-          
-          // Mills API
+          // Mills API - Critical for mill operations
           fetch('/api/mills?limit=100&force=true', {
             headers: { 
               'Authorization': `Bearer ${token}`,
               'Cache-Control': 'no-cache, no-store, must-revalidate',
               'Accept': 'application/json'
             },
-            signal: millsController.signal,
             cache: 'no-store'
           }).then(async response => {
-            clearTimeout(millsTimeoutId);
             if (response.ok) {
               const data = await response.json();
               console.log('✅ Mills API loaded successfully:', data.data?.length || 0, 'mills');
@@ -1076,34 +1054,127 @@ export default function OrdersPage() {
           })
         ]);
         
-        const endTime = Date.now();
-        console.log(`🚀 PARALLEL LOADING COMPLETED in ${endTime - startTime}ms`);
+        const criticalEndTime = Date.now();
+        console.log(`⚡ Phase 1 completed in ${criticalEndTime - criticalStartTime}ms`);
         
-        // Process results
-        ordersResult.status === 'fulfilled' && ordersResult.value.success && ordersResult.value.data?.success && ordersResult.value.data?.data && setOrders(Array.isArray(ordersResult.value.data.data) ? ordersResult.value.data.data : []);
-        ordersResult.status === 'fulfilled' && ordersResult.value.success && ordersResult.value.data?.pagination && setPaginationInfo(ordersResult.value.data.pagination);
-        setOrdersLoaded(true);
-        
-        partiesResult.status === 'fulfilled' && partiesResult.value.success && partiesResult.value.data?.success && partiesResult.value.data?.data && setParties(Array.isArray(partiesResult.value.data.data) ? partiesResult.value.data.data : []);
-        
-        qualitiesResult.status === 'fulfilled' && qualitiesResult.value.success && qualitiesResult.value.data?.success && qualitiesResult.value.data?.data && setQualities(Array.isArray(qualitiesResult.value.data.data) ? qualitiesResult.value.data.data : []);
-        
-        millsResult.status === 'fulfilled' && millsResult.value.success && millsResult.value.data?.success && millsResult.value.data?.data && setMills(Array.isArray(millsResult.value.data.data) ? millsResult.value.data.data : []);
-        
-        console.log('🎯 All data loaded and set successfully!');
-        
-        // Show success message with loading time
-        const totalTime = endTime - startTime;
-        if (totalTime < 1000) {
-          console.log(`🚀 ULTRA FAST LOADING: ${totalTime}ms - Target achieved!`);
-        } else {
-          console.log(`⚡ FAST LOADING: ${totalTime}ms - Good performance!`);
+        // Process critical results immediately - Show page with orders and mills
+        if (ordersResult.status === 'fulfilled' && ordersResult.value.success && ordersResult.value.data?.success && ordersResult.value.data?.data) {
+          const ordersData = Array.isArray(ordersResult.value.data.data) ? ordersResult.value.data.data : [];
+          setOrders(ordersData);
+          setOrdersLoaded(true);
+          
+          // Cache the orders data
+          setDataCache(prev => ({
+            ...prev,
+            orders: { data: ordersData, timestamp: now }
+          }));
+          
+          console.log('📋 Orders loaded - Page is now functional!');
         }
-
+        
+        if (ordersResult.status === 'fulfilled' && ordersResult.value.success && ordersResult.value.data?.pagination) {
+          setPaginationInfo(ordersResult.value.data.pagination);
+        }
+        
+        if (millsResult.status === 'fulfilled' && millsResult.value.success && millsResult.value.data?.success && millsResult.value.data?.data) {
+          const millsData = Array.isArray(millsResult.value.data.data) ? millsResult.value.data.data : [];
+          setMills(millsData);
+          
+          // Cache the mills data
+          setDataCache(prev => ({
+            ...prev,
+            mills: { data: millsData, timestamp: now }
+          }));
+          
+          console.log('🏭 Mills loaded - Mill operations ready!');
+        }
+        
+        // Show the page immediately after critical data loads
         setLoading(false);
+        setIsInitialized(true);
+        console.log('🎯 Page is now live with critical data!');
+        
+        // PHASE 2: Load secondary data in background (Parties + Qualities)
+        console.log('📋 Phase 2: Loading secondary data in background (Parties + Qualities)...');
+        setLoadingPhase('secondary');
+        const secondaryStartTime = Date.now();
+        
+        const [partiesResult, qualitiesResult] = await Promise.allSettled([
+          // Parties API - Secondary priority
+          fetch('/api/parties?limit=100&force=true', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Accept': 'application/json'
+            },
+            cache: 'no-store'
+          }).then(async response => {
+            if (response.ok) {
+              const data = await response.json();
+              console.log('✅ Parties API loaded successfully:', data.data?.length || 0, 'parties');
+              return { type: 'parties', data, success: true };
+            } else {
+              console.error('❌ Parties API failed:', response.status);
+              return { type: 'parties', data: null, success: false };
+            }
+          }),
+          
+          // Qualities API - Secondary priority
+          fetch('/api/qualities?limit=100&force=true', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Accept': 'application/json'
+            },
+            cache: 'no-store'
+          }).then(async response => {
+            if (response.ok) {
+              const data = await response.json();
+              console.log('✅ Qualities API loaded successfully:', data.data?.length || 0, 'qualities');
+              return { type: 'qualities', data, success: true };
+            } else {
+              console.error('❌ Qualities API failed:', response.status);
+              return { type: 'qualities', data: null, success: false };
+            }
+          })
+        ]);
+        
+        const secondaryEndTime = Date.now();
+        console.log(`⚡ Phase 2 completed in ${secondaryEndTime - secondaryStartTime}ms`);
+        
+        // Process secondary results
+        if (partiesResult.status === 'fulfilled' && partiesResult.value.success && partiesResult.value.data?.success && partiesResult.value.data?.data) {
+          const partiesData = Array.isArray(partiesResult.value.data.data) ? partiesResult.value.data.data : [];
+          setParties(partiesData);
+          
+          // Cache the parties data
+          setDataCache(prev => ({
+            ...prev,
+            parties: { data: partiesData, timestamp: now }
+          }));
+          
+          console.log('👥 Parties loaded - Form functionality enhanced!');
+        }
+        
+        if (qualitiesResult.status === 'fulfilled' && qualitiesResult.value.success && qualitiesResult.value.data?.success && qualitiesResult.value.data?.data) {
+          const qualitiesData = Array.isArray(qualitiesResult.value.data.data) ? qualitiesResult.value.data.data : [];
+          setQualities(qualitiesData);
+          
+          // Cache the qualities data
+          setDataCache(prev => ({
+            ...prev,
+            qualities: { data: qualitiesData, timestamp: now }
+          }));
+          
+          console.log('🏷️ Qualities loaded - Form functionality complete!');
+        }
+        
+        const totalEndTime = Date.now();
+        console.log(`🚀 PRIORITIZED LOADING COMPLETED - Total: ${totalEndTime - startTime}ms, Critical: ${criticalEndTime - criticalStartTime}ms`);
+        console.log('🎯 Page is fully functional with all data loaded!');
         
       } catch (error) {
-        console.error('Error during data initialization:', error);
+        console.error('Error during prioritized API loading:', error);
         setOrders([]);
         setLoading(false);
         setOrdersLoaded(true); // Mark as loaded even on error to show "No orders yet"
@@ -1113,7 +1184,7 @@ export default function OrdersPage() {
           console.log('Non-abort error during initialization:', error.message);
           showMessage('error', 'Failed to load orders. Please try again.', { autoDismiss: true, dismissTime: 3000 });
           
-          // Auto-retry after 5 seconds (increased from 3)
+          // Auto-retry after 5 seconds
           setTimeout(() => {
             console.log('Auto-retrying orders load...');
             if (!isInitialized) { // Only retry if not already initialized
@@ -1129,17 +1200,17 @@ export default function OrdersPage() {
     
     initializeAllData();
     
-    // ONE TIME timeout - 15 seconds max for reliable loading
+    // ONE TIME timeout - 10 seconds max for critical data loading
     const timeoutId = setTimeout(() => {
       if (!isInitialized) {
-        console.warn('Orders initialization timed out after 15 seconds');
+        console.warn('Orders initialization timed out after 10 seconds');
         setOrders([]);
         setLoading(false);
         setOrdersLoaded(true); // Mark as loaded even on timeout
         setIsInitialized(true);
         showMessage('warning', 'Loading is taking longer than expected. Please refresh if needed.', { autoDismiss: true, dismissTime: 5000 });
       }
-    }, 15000);
+    }, 10000);
     
     return () => clearTimeout(timeoutId);
   }, [showMessage, isInitialized]);
@@ -1923,24 +1994,26 @@ export default function OrdersPage() {
   };
 
   const handleDispatch = async (order: Order) => {
-    console.log('Opening Dispatch form for order:', order.orderId);
+    console.log('🚀 Opening Dispatch form for order:', order.orderId);
     
-    // Set order and show form immediately for faster UI response
+    // IMMEDIATE UI RESPONSE - Show form instantly
     setSelectedOrderForDispatch(order);
     setShowDispatchForm(true);
     
-    // Don't pass stale data - let the form fetch fresh data from API
-    // This ensures we always show the most current data
-    setIsEditingDispatch(false); // Will be updated by the form after API fetch
-    setExistingDispatches([]); // Start with empty array
+    // Reset states for fresh data loading
+    setIsEditingDispatch(false);
+    setExistingDispatches([]);
     
-    console.log('Dispatch form opened - will fetch fresh data from API');
+    console.log('✅ Dispatch form opened immediately - fetching fresh data from API in background');
     
-    // Load parties data in background (non-blocking)
+    // Load parties data in background (non-blocking) if not available
     if (parties.length === 0) {
+      console.log('👥 Loading parties in background for dispatch form...');
       loadPartiesData().catch(error => {
         console.error('Error loading parties for dispatch:', error);
       });
+    } else {
+      console.log('✅ Parties already available for dispatch form');
     }
   };
 
