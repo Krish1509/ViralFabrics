@@ -113,11 +113,16 @@ const PieChart: React.FC<PieChartProps> = ({ data, title, total, isDarkMode, ico
           </ResponsiveContainer>
         ) : (
           <div className="flex items-center justify-center h-full">
-            <p className={`text-xl ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-500'
-            }`}>
-              No data available
-            </p>
+            <div className="text-center space-y-4">
+              <div className={`animate-spin rounded-full h-12 w-12 border-b-2 mx-auto ${
+                isDarkMode ? 'border-blue-400' : 'border-blue-600'
+              }`}></div>
+              <p className={`text-lg ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                Loading chart data...
+              </p>
+            </div>
           </div>
         )}
         

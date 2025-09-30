@@ -64,7 +64,7 @@ interface NavbarProps {
 }
 
 export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleSidebar, onToggleCollapse, isCollapsed, updateUser, sessionStatus = 'active', isLoading = false, isInstalled = false, isInstalling = false, onInstallClick, onOpenInApp }: NavbarProps) {
-  const { isDarkMode, toggleDarkMode, setSystemTheme, mounted, isTransitioning } = useDarkMode();
+  const { isDarkMode, toggleDarkMode, setSystemTheme, mounted, isTransitioning, themeSwitchRef } = useDarkMode();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState(3);
@@ -388,6 +388,7 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
 
               {/* Theme Toggle */}
               <button
+                ref={themeSwitchRef}
                 onClick={handleThemeToggle}
                 disabled={isTransitioning}
                 className={`p-3 rounded-lg transition-all duration-500 cursor-pointer relative overflow-hidden ${
@@ -671,6 +672,7 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
 
               {/* Theme Toggle */}
               <button
+                ref={themeSwitchRef}
                 onClick={handleThemeToggle}
                 disabled={isTransitioning}
                 className={`p-2 rounded-lg transition-all duration-500 cursor-pointer relative overflow-hidden ${

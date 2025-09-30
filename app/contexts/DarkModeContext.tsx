@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useModeAnimation, ThemeAnimationType } from 'react-theme-switch-animation';
 
 interface DarkModeContextType {
   isDarkMode: boolean;
@@ -9,54 +10,49 @@ interface DarkModeContextType {
   getThemeMode: () => 'system' | 'dark' | 'light';
   mounted: boolean;
   isTransitioning: boolean;
+  themeSwitchRef: React.RefObject<HTMLButtonElement | null>;
 }
 
 const DarkModeContext = createContext<DarkModeContextType | undefined>(undefined);
 
 export function DarkModeProvider({ children }: { children: React.ReactNode }) {
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [mounted, setMounted] = useState<boolean>(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
-
-  // Apply theme to document with smooth transition
-  const applyTheme = useCallback((isDark: boolean) => {
-    // Add transition class for smooth change
-    document.documentElement.classList.add('theme-transitioning');
-    
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+  
+  // Use the theme animation hook with blur circle animation
+  const { ref: themeSwitchRef, toggleSwitchTheme } = useModeAnimation({
+    animationType: ThemeAnimationType.BLUR_CIRCLE,
+    duration: 750,
+    easing: "ease-in-out",
+    blurAmount: 3,
+    globalClassName: "dark",
+    isDarkMode: isDarkMode,
+    onDarkModeChange: (isDark: boolean) => {
+      setIsDarkMode(isDark);
+      // Store in localStorage for persistence
+      localStorage.setItem('darkMode', isDark.toString());
+      
+      // Dispatch custom event for other components
+      const customEvent = new CustomEvent('darkModeChange', { 
+        detail: { isDark, timestamp: Date.now() },
+        bubbles: true,
+        cancelable: true
+      });
+      window.dispatchEvent(customEvent);
     }
-    
-    // Remove transition class after animation
-    setTimeout(() => {
-      document.documentElement.classList.remove('theme-transitioning');
-    }, 300);
-  }, []);
+  });
 
-  // Enhanced theme toggle with loading state
-  const toggleTheme = useCallback((isDark: boolean) => {
+  // Enhanced theme toggle using animation hook
+  const toggleDarkMode = useCallback(() => {
     setIsTransitioning(true);
-    setIsDarkMode(isDark);
-    localStorage.setItem('darkMode', isDark.toString());
-    
-    // Apply theme with smooth transition
-    applyTheme(isDark);
-    
-    // Dispatch custom event for all components to listen
-    const customEvent = new CustomEvent('darkModeChange', { 
-      detail: { isDark, timestamp: Date.now() },
-      bubbles: true,
-      cancelable: true
-    });
-    window.dispatchEvent(customEvent);
+    toggleSwitchTheme();
     
     // Clear transition state after animation
     setTimeout(() => {
       setIsTransitioning(false);
-    }, 300);
-  }, [applyTheme]);
+    }, 750); // Match animation duration
+  }, [toggleSwitchTheme]);
 
   useEffect(() => {
     // Only run on client side to prevent hydration mismatch
@@ -68,14 +64,25 @@ export function DarkModeProvider({ children }: { children: React.ReactNode }) {
     const initialTheme = (window as any).__INITIAL_THEME__;
     if (initialTheme !== undefined) {
       setIsDarkMode(initialTheme);
-      applyTheme(initialTheme);
+      // Apply initial theme to document
+      if (initialTheme) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     } else {
       // Fallback to localStorage and system preference
       const savedMode = localStorage.getItem('darkMode');
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       const expectedMode = savedMode !== null ? savedMode === 'true' : prefersDark;
+      
       setIsDarkMode(expectedMode);
-      applyTheme(expectedMode);
+      // Apply initial theme to document
+      if (expectedMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     }
 
     // Listen for theme changes from other tabs/windows
@@ -83,7 +90,11 @@ export function DarkModeProvider({ children }: { children: React.ReactNode }) {
       if (event.key === 'darkMode' && event.newValue !== null) {
         const newMode = event.newValue === 'true';
         setIsDarkMode(newMode);
-        applyTheme(newMode);
+        if (newMode) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
       }
     };
 
@@ -93,38 +104,32 @@ export function DarkModeProvider({ children }: { children: React.ReactNode }) {
       const savedMode = localStorage.getItem('darkMode');
       if (savedMode === null) {
         setIsDarkMode(event.matches);
-        applyTheme(event.matches);
-      }
-    };
-
-    // Listen for custom dark mode events
-    const handleDarkModeChange = (event: CustomEvent) => {
-      if (event.detail && typeof event.detail.isDark === 'boolean') {
-        setIsDarkMode(event.detail.isDark);
-        applyTheme(event.detail.isDark);
+        if (event.matches) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
     mediaQuery.addEventListener('change', handleSystemChange);
-    window.addEventListener('darkModeChange', handleDarkModeChange as EventListener);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       mediaQuery.removeEventListener('change', handleSystemChange);
-      window.removeEventListener('darkModeChange', handleDarkModeChange as EventListener);
     };
-  }, [applyTheme]);
-
-  const toggleDarkMode = useCallback(() => {
-    toggleTheme(!isDarkMode);
-  }, [isDarkMode, toggleTheme]);
+  }, []);
 
   const setSystemTheme = useCallback(() => {
     localStorage.removeItem('darkMode');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    toggleTheme(prefersDark);
-  }, [toggleTheme]);
+    if (prefersDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
 
   const getThemeMode = useCallback(() => {
     const savedMode = localStorage.getItem('darkMode');
@@ -140,7 +145,8 @@ export function DarkModeProvider({ children }: { children: React.ReactNode }) {
         setSystemTheme,
         getThemeMode,
         mounted,
-        isTransitioning
+        isTransitioning,
+        themeSwitchRef
       }}
     >
       {children}

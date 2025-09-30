@@ -39,7 +39,7 @@ function LoginForm() {
   const [isPasswordShown, setIsPasswordShown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const { isDarkMode, toggleDarkMode, mounted: darkModeMounted, isTransitioning } = useDarkMode();
+  const { isDarkMode, toggleDarkMode, mounted: darkModeMounted, isTransitioning, themeSwitchRef } = useDarkMode();
   const [isCheckingSession, setIsCheckingSession] = useState(false);
   const [formData, setFormData] = useState<LoginFormData>({
     username: '',
@@ -332,6 +332,7 @@ function LoginForm() {
           {/* Dark Mode Toggle - Left Section (Mobile Only) */}
           <div className="lg:hidden absolute top-4 right-4 z-20">
             <button
+              ref={themeSwitchRef}
               onClick={toggleDarkMode}
               disabled={isTransitioning}
               className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
@@ -395,6 +396,7 @@ function LoginForm() {
           {/* Dark Mode Toggle - Top Right of Left Side (Mobile) */}
           <div className="absolute top-4 right-4 z-20">
             <button
+              ref={themeSwitchRef}
               onClick={toggleDarkMode}
               disabled={isTransitioning}
               className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
@@ -488,6 +490,7 @@ function LoginForm() {
           {/* Dark Mode Toggle - Right Section (Desktop Only) */}
           <div className="hidden lg:block absolute top-4 right-4 z-20">
             <button
+              ref={themeSwitchRef}
               onClick={toggleDarkMode}
               disabled={isTransitioning}
               className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${

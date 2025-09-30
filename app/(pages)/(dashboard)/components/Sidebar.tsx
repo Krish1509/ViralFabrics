@@ -65,7 +65,7 @@ export default function Sidebar({
   onOpenInApp
 }: SidebarProps) {
   const pathname = usePathname();
-  const { isDarkMode, mounted, toggleDarkMode, isTransitioning } = useDarkMode();
+  const { isDarkMode, mounted, toggleDarkMode, isTransitioning, themeSwitchRef } = useDarkMode();
   const [screenSize, setScreenSize] = useState<number>(0);
   const [hasSetInitialState, setHasSetInitialState] = useState<boolean>(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
@@ -448,6 +448,7 @@ export default function Sidebar({
                     
                     {/* Dark/White Mode Toggle Button */}
                     <button
+                      ref={themeSwitchRef}
                       disabled={isTransitioning}
                       className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
                         isDarkMode 

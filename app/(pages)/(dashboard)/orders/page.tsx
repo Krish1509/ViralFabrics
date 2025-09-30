@@ -99,6 +99,42 @@ export default function OrdersPage() {
   const { isDarkMode, mounted } = useDarkMode();
   const router = useRouter();
   const searchParams = useSearchParams();
+  
+  // Check if user is logged in
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    console.log('🔍 Orders page mount - token check:', {
+      hasToken: !!token,
+      tokenLength: token?.length
+    });
+    
+    if (!token) {
+      console.log('❌ No token found, redirecting to login');
+      router.push('/login');
+      return;
+    }
+    
+    // Validate token with server
+    fetch('/api/auth/validate-session', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log('🔍 Session validation result:', data);
+      if (!data.success) {
+        console.log('❌ Session invalid, redirecting to login');
+        localStorage.removeItem('token');
+        router.push('/login');
+      }
+    })
+    .catch(error => {
+      console.error('❌ Session validation failed:', error);
+      localStorage.removeItem('token');
+      router.push('/login');
+    });
+  }, [router]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [qualities, setQualities] = useState<Quality[]>([]);
@@ -106,11 +142,35 @@ export default function OrdersPage() {
   // Helper function to safely set orders (always ensure it's an array)
   const setOrdersSafe = useCallback((ordersData: any) => {
     const safeOrders = Array.isArray(ordersData) ? ordersData : [];
+    console.log('🔍 setOrdersSafe called with:', {
+      originalData: ordersData,
+      isArray: Array.isArray(ordersData),
+      safeOrdersLength: safeOrders.length,
+      firstOrder: safeOrders[0]
+    });
     setOrders(safeOrders);
+    console.log('🔍 setOrders called, orders state should update');
   }, []);
   const [loading, setLoading] = useState(true);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
+  const [initialLoadTime, setInitialLoadTime] = useState<number | null>(null);
   const [loadingPhase, setLoadingPhase] = useState<'critical' | 'secondary' | 'complete'>('critical');
+  
+  // Debug orders state changes
+  useEffect(() => {
+    console.log('🔍 Orders state changed:', {
+      ordersLength: orders.length,
+      firstOrder: orders[0],
+      ordersLoaded
+    });
+  }, [orders, ordersLoaded]);
+
+  // Set initial load time when component mounts
+  useEffect(() => {
+    if (!initialLoadTime) {
+      setInitialLoadTime(Date.now());
+    }
+  }, [initialLoadTime]);
   const [tableLoading, setTableLoading] = useState(true);
   const [progressiveLoading, setProgressiveLoading] = useState(false);
   const [orderCreating, setOrderCreating] = useState(false);
@@ -531,7 +591,13 @@ export default function OrdersPage() {
       const timeoutId = setTimeout(() => controller.abort(), timeout);
       
       const token = localStorage.getItem('token');
+      console.log('🔍 fetchOrders token check:', {
+        hasToken: !!token,
+        tokenLength: token?.length,
+        tokenStart: token?.substring(0, 20) + '...'
+      });
       if (!token) {
+        console.log('❌ No token found, showing login message');
         showMessage('error', 'Please login to view orders', { autoDismiss: true, dismissTime: 3000 });
         return;
       }
@@ -597,9 +663,19 @@ export default function OrdersPage() {
       
       const data = await response.json();
       
+      console.log('🔍 fetchOrders API response:', {
+        success: data.success,
+        hasData: !!data.data,
+        dataLength: data.data?.length,
+        pagination: data.pagination,
+        message: data.message,
+        responseStatus: response.status
+      });
+      
       if (data.success) {
         const ordersData = data.data || [];
         console.log('📊 Orders fetched:', ordersData.length, 'orders');
+        console.log('📊 First order sample:', ordersData[0]);
         console.log('📊 Pagination data:', data.pagination);
         
         // Update pagination info FIRST to ensure UI consistency
@@ -641,9 +717,12 @@ export default function OrdersPage() {
         }
         
         // Set orders data AFTER pagination info is updated
+        console.log('📊 About to set orders data:', ordersData.length, 'orders');
         setOrdersSafe(ordersData);
         setLastRefreshTime(new Date());
+        console.log('📊 Orders data set, checking state in next render...');
       } else {
+        console.log('❌ API returned success: false:', data.message);
         throw new Error(data.message || 'Failed to fetch orders');
       }
     } catch (error: any) {
@@ -669,27 +748,6 @@ export default function OrdersPage() {
     }
   }, [showMessage, currentPage, itemsPerPage, filters]);
 
-  // Initial fetch to populate orders and pagination on first load
-  useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      try {
-        console.log('🚀 Initial orders fetch starting...');
-        await fetchOrders(0, currentPage, itemsPerPage, false, filters, searchTerm);
-        console.log('✅ Initial orders fetch completed');
-      } catch (error) {
-        console.error('❌ Initial orders fetch failed:', error);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-          setOrdersLoaded(true);
-        }
-      }
-    })();
-    return () => {
-      isMounted = false;
-    };
-  }, []); // Remove dependencies to prevent infinite re-renders
 
   // Helper function for robust data refresh after operations
   const refreshOrdersWithRetry = useCallback(async (retries = 2) => {
@@ -713,57 +771,94 @@ export default function OrdersPage() {
     return paginationInfo.totalPages || 1;
   }, [paginationInfo.totalPages]);
 
-  // Professional pagination handler with bulletproof error handling
+  // Enhanced pagination handler with bulletproof error handling and loading states
   const handlePageChange = useCallback(async (newPage: number) => {
     // Prevent duplicate calls
-    if (newPage === currentPage || isChangingPage) return;
+    if (newPage === currentPage || isChangingPage) {
+      console.log('🚫 Page change blocked - duplicate call or already changing');
+      return;
+    }
     
     // Validate page number with strict bounds checking
     if (newPage < 1 || newPage > totalPages || totalPages === 0) {
+      console.log('🚫 Page change blocked - invalid page number:', newPage, 'totalPages:', totalPages);
       return;
     }
     
     console.log('🔄 Changing page from', currentPage, 'to', newPage);
     
-    // Set loading states immediately
+    // Set loading states immediately for smooth UX
     setIsChangingPage(true);
+    setTableLoading(true);
     
     try {
+      // Update current page state immediately for responsive UI
+    setCurrentPage(newPage);
+      
       // Fetch new page data with timeout protection
       await fetchOrders(0, newPage, itemsPerPage, true, filters, searchTerm);
       
-      // Update current page state - this will be synced by the fetchOrders function
-      setCurrentPage(newPage);
-      
       console.log('✅ Page change completed successfully');
     } catch (error) {
+      console.error('❌ Page change failed:', error);
+      
+      // Revert page state on error
+      setCurrentPage(currentPage);
+      
       // Professional error handling
-      showMessage('error', 'Failed to load page. Please try again.');
+      if (error instanceof Error && error.name === 'AbortError') {
+        showMessage('error', 'Request timed out. Please try again.', { autoDismiss: true, dismissTime: 3000 });
+      } else {
+        showMessage('error', 'Failed to load page. Please try again.', { autoDismiss: true, dismissTime: 3000 });
+      }
     } finally {
       // Always clean up loading states
-      setIsChangingPage(false);
+    setIsChangingPage(false);
+      setTableLoading(false);
     }
   }, [currentPage, isChangingPage, totalPages, fetchOrders, itemsPerPage, filters, searchTerm, showMessage]);
 
-  // Professional items per page handler
+  // Enhanced items per page handler with better loading states
   const handleItemsPerPageChange = useCallback(async (newItemsPerPage: number) => {
-    if (newItemsPerPage === itemsPerPage || isChangingPage) return;
+    if (newItemsPerPage === itemsPerPage || isChangingPage) {
+      console.log('🚫 Items per page change blocked - duplicate call or already changing');
+      return;
+    }
     
+    console.log('🔄 Changing items per page from', itemsPerPage, 'to', newItemsPerPage);
+    
+    // Set loading states immediately
     setIsChangingPage(true);
+    setTableLoading(true);
     
     try {
-      // Fetch first page with new items per page
-      await fetchOrders(0, 1, newItemsPerPage, false, filters, searchTerm);
-      
-      // Update state after successful fetch
-      setItemsPerPage(newItemsPerPage);
+      // Update state immediately for responsive UI
+    setItemsPerPage(newItemsPerPage);
       setCurrentPage(1);
+    
+      // Fetch first page with new items per page
+    await fetchOrders(0, 1, newItemsPerPage, false, filters, searchTerm);
+      
+      console.log('✅ Items per page change completed successfully');
     } catch (error) {
-      showMessage('error', 'Failed to change page size. Please try again.');
+      console.error('❌ Items per page change failed:', error);
+      
+      // Revert state on error
+      setItemsPerPage(itemsPerPage);
+      setCurrentPage(currentPage);
+      
+      // Professional error handling
+      if (error instanceof Error && error.name === 'AbortError') {
+        showMessage('error', 'Request timed out. Please try again.', { autoDismiss: true, dismissTime: 3000 });
+      } else {
+        showMessage('error', 'Failed to change page size. Please try again.', { autoDismiss: true, dismissTime: 3000 });
+      }
     } finally {
+      // Always clean up loading states
       setIsChangingPage(false);
+      setTableLoading(false);
     }
-  }, [itemsPerPage, isChangingPage, fetchOrders, filters, searchTerm, showMessage]);
+  }, [itemsPerPage, isChangingPage, fetchOrders, filters, searchTerm, showMessage, currentPage]);
 
   // Use server-side pagination display info with proper state synchronization
   const paginationDisplayInfo = useMemo(() => {
@@ -771,8 +866,16 @@ export default function OrdersPage() {
     const currentPageNum = Number(paginationInfo.currentPage) || currentPage || 1;
     const itemsPerPageValue = itemsPerPage;
     
-    // Ensure we have valid data before calculating display info
-    if (total === 0 || orders.length === 0) {
+    console.log('🔍 paginationDisplayInfo calc:', {
+      total,
+      currentPageNum,
+      itemsPerPageValue,
+      ordersLength: orders.length,
+      paginationInfo
+    });
+    
+    // Always calculate based on pagination info, even if orders array is temporarily empty
+    if (total === 0) {
       return {
         showing: 0,
         total: 0,
@@ -781,14 +884,14 @@ export default function OrdersPage() {
       };
     }
     
-    const start = total > 0 ? (currentPageNum - 1) * itemsPerPageValue + 1 : 0;
-    const end = Math.min(currentPageNum * itemsPerPageValue, total);
-    return {
-      showing: orders.length,
-      total: total,
-      start: start,
-      end: end
-    };
+      const start = total > 0 ? (currentPageNum - 1) * itemsPerPageValue + 1 : 0;
+      const end = Math.min(currentPageNum * itemsPerPageValue, total);
+      return {
+        showing: orders.length,
+        total: total,
+        start: start,
+        end: end
+      };
   }, [paginationInfo, itemsPerPage, orders.length, currentPage]);
 
   // Function to fetch existing mill inputs for an order
@@ -2385,19 +2488,22 @@ export default function OrdersPage() {
   const currentOrders = useMemo(() => {
     // If we have filtered orders, use them
     if (filteredOrders && filteredOrders.length > 0) {
+      console.log('🔍 Using filteredOrders:', filteredOrders.length);
       return filteredOrders;
     }
     
     // If we have orders in memory but no filtered orders, use the orders array
     if (orders && orders.length > 0) {
+      console.log('🔍 Using orders array:', orders.length);
       return orders;
     }
     
     // Otherwise return empty array
+    console.log('🔍 No orders available, returning empty array');
     return [];
   }, [filteredOrders, orders]);
   
-  // SIMPLE AND EFFECTIVE empty state logic - only show when truly no data exists
+  // Enhanced loading and empty state logic
   const shouldShowEmptyState = useMemo(() => {
     // NEVER show empty state if:
     // 1. Any loading operation is happening
@@ -2425,18 +2531,18 @@ export default function OrdersPage() {
       return false;
     }
     
-    // 5.5. We have any orders in the orders array (fallback check)
-    if (orders && orders.length > 0) {
-      return false;
-    }
-    
-    // 6. Orders are not yet loaded
+    // 6. Orders are not yet loaded (most important check)
     if (!ordersLoaded) {
       return false;
     }
     
     // 7. We have pagination info indicating there are orders
     if (paginationInfo.totalPages > 0) {
+      return false;
+    }
+    
+    // 8. We're still in initial loading phase (first 2 seconds)
+    if (Date.now() - (initialLoadTime || 0) < 2000) {
       return false;
     }
     
@@ -2447,6 +2553,7 @@ export default function OrdersPage() {
     // - No current orders to display (currentOrders.length === 0)
     // - We're on page 1
     // - No pagination data exists
+    // - Enough time has passed since initial load
     return ordersLoaded && 
            paginationInfo.totalCount === 0 && 
            orders.length === 0 && 
@@ -2456,8 +2563,20 @@ export default function OrdersPage() {
   }, [
     loading, orderCreating, isChangingPage, tableLoading, refreshing, 
     sortLoading, filterLoading, ordersLoaded, currentOrders.length, 
-    paginationInfo.totalCount, paginationInfo.totalPages, currentPage, orders.length
+    paginationInfo.totalCount, paginationInfo.totalPages, currentPage, orders.length, initialLoadTime
   ]);
+
+  // Show loading skeleton if we're in initial loading phase
+  const shouldShowInitialLoading = useMemo(() => {
+    const isInitialLoad = !ordersLoaded || (Date.now() - (initialLoadTime || 0) < 2000);
+    console.log('🔍 shouldShowInitialLoading:', {
+      ordersLoaded,
+      initialLoadTime,
+      timeSinceLoad: Date.now() - (initialLoadTime || 0),
+      isInitialLoad
+    });
+    return isInitialLoad;
+  }, [ordersLoaded, initialLoadTime]);
   
   // Pagination debug info removed for production
 
@@ -3488,6 +3607,7 @@ export default function OrdersPage() {
         </div>
       </div>
   
+
             {/* Pagination Info Bar */}
             <div className={`px-3 sm:px-4 py-2 sm:py-3 border-b flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:justify-between ${
               isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
@@ -3533,8 +3653,20 @@ export default function OrdersPage() {
                         : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
                     }`}
                   >
+                    {isChangingPage ? (
+                      <span className="flex items-center space-x-2">
+                        <div className={`animate-spin rounded-full h-3 w-3 border-b-2 ${
+                          isDarkMode ? 'border-gray-400' : 'border-gray-600'
+                        }`}></div>
+                        <span className="hidden sm:inline">Loading...</span>
+                        <span className="sm:hidden">...</span>
+                      </span>
+                    ) : (
+                      <>
                     <span className="hidden sm:inline">Previous</span>
                     <span className="sm:hidden">Prev</span>
+                      </>
+                    )}
                   </button>
                   
                   {/* Smart Page numbers */}
@@ -3551,10 +3683,10 @@ export default function OrdersPage() {
                               onClick={() => handlePageChange(i)}
                               disabled={isChangingPage || loading}
                             className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
-                              currentPage === i
-                                  ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
-                                  : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-                            } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                currentPage === i
+                                    ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                    : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                              } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               {i}
                             </button>
@@ -3687,7 +3819,16 @@ export default function OrdersPage() {
                         : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
                     }`}
                   >
-                    Next
+                    {isChangingPage ? (
+                      <span className="flex items-center space-x-2">
+                        <div className={`animate-spin rounded-full h-3 w-3 border-b-2 ${
+                          isDarkMode ? 'border-gray-400' : 'border-gray-600'
+                        }`}></div>
+                        <span>Loading...</span>
+                      </span>
+                    ) : (
+                      'Next'
+                    )}
                   </button>
                 </div>
               )}
@@ -3728,67 +3869,85 @@ export default function OrdersPage() {
             <tbody className={`divide-y ${
               isDarkMode ? 'divide-white/10' : 'divide-gray-200'
             }`}>
-              {/* Loading state inside table */}
+              {/* Loading skeleton rows */}
               {((loading && !ordersLoaded) || orderCreating) && (
-                <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-3">
-                      <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
-                        isDarkMode ? 'border-blue-400' : 'border-blue-600'
-                      }`}></div>
-                      <p className={`text-sm ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                      }`}>
-                        {orderCreating ? 'Creating order...' : 'Loading orders...'}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
+                Array.from({ length: 8 }).map((_, index) => (
+                  <tr key={`loading-skeleton-${index}`} className="animate-pulse">
+                    <td className="px-3 sm:px-4 lg:px-6 py-4">
+                      <div className="space-y-3">
+                        {/* Order ID skeleton */}
+                        <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-24 skeleton-shimmer"></div>
+                        {/* Party name skeleton */}
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-32 skeleton-shimmer"></div>
+                        {/* Date skeleton */}
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-20 skeleton-shimmer"></div>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-4 lg:px-6 py-4">
+                      <div className="space-y-2">
+                        {/* Item count skeleton */}
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-16 skeleton-shimmer"></div>
+                        {/* Quality skeleton */}
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-28 skeleton-shimmer"></div>
+                        {/* Status skeleton */}
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-20 skeleton-shimmer"></div>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-4 lg:px-6 py-4">
+                      <div className="flex space-x-2">
+                        {/* Action buttons skeleton */}
+                        <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded skeleton-shimmer"></div>
+                        <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded skeleton-shimmer"></div>
+                        <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded skeleton-shimmer"></div>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
               
               {/* Rendering table with orders */}
-              {(tableLoading || isChangingPage || refreshing || sortLoading || filterLoading || (currentOrders.length === 0 && !shouldShowEmptyState && ordersLoaded)) ? (
-                // Show professional table skeleton during loading or pagination
-                <tr>
-                  <td colSpan={12} className="px-6 py-8">
-                    <div className="space-y-4">
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                        <div 
-                          key={i} 
-                          className="grid grid-cols-12 gap-4 items-center py-3"
-                          style={{
-                            animationDelay: `${i * 100}ms`
-                          }}
-                        >
-                          {[
-                            { width: 'w-20', delay: 0 },    // Order ID
-                            { width: 'w-12', delay: 30 },   // Type
-                            { width: 'w-28', delay: 60 },   // Party
-                            { width: 'w-16', delay: 90 },   // Date
-                            { width: 'w-12', delay: 120 },  // Status
-                            { width: 'w-20', delay: 150 },  // Priority
-                            { width: 'w-16', delay: 180 },  // Items
-                            { width: 'w-12', delay: 210 },  // Quantity
-                            { width: 'w-16', delay: 240 },  // Progress
-                            { width: 'w-12', delay: 270 },  // Lab
-                            { width: 'w-16', delay: 300 },  // Mill
-                            { width: 'w-20', delay: 330 }   // Actions
-                          ].map((item, j) => (
-                            <div 
-                              key={j}
-                              className={`h-4 rounded-lg skeleton-shimmer skeleton-fade-in ${item.width}`}
-                              style={{
-                                animationDelay: `${(i * 100) + item.delay}ms`
-                              }}
-                            ></div>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                !loading && !orderCreating && currentOrders.map((order, index) => (
+              {/* Show skeleton rows during pagination/filtering */}
+              {(tableLoading || isChangingPage || refreshing || sortLoading || filterLoading) && (
+                Array.from({ length: 5 }).map((_, index) => (
+                  <tr key={`pagination-skeleton-${index}`} className="animate-pulse">
+                    <td className="px-3 sm:px-4 lg:px-6 py-4">
+                      <div className="space-y-3">
+                        <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-24 skeleton-shimmer"></div>
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-32 skeleton-shimmer"></div>
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-20 skeleton-shimmer"></div>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-4 lg:px-6 py-4">
+                      <div className="space-y-2">
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-16 skeleton-shimmer"></div>
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-28 skeleton-shimmer"></div>
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-20 skeleton-shimmer"></div>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-4 lg:px-6 py-4">
+                      <div className="flex space-x-2">
+                        <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded skeleton-shimmer"></div>
+                        <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded skeleton-shimmer"></div>
+                        <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded skeleton-shimmer"></div>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+
+              {/* Show actual orders data */}
+              {!loading && !orderCreating && !tableLoading && !isChangingPage && !refreshing && !sortLoading && !filterLoading && (
+                (() => {
+                  console.log('🔍 Table render check:', {
+                    loading,
+                    orderCreating,
+                    currentOrdersLength: currentOrders.length,
+                    ordersLength: orders.length,
+                    ordersLoaded,
+                    shouldRender: !loading && !orderCreating
+                  });
+                  if (!loading && !orderCreating) {
+                    return currentOrders.map((order, index) => (
                   <tr 
                     key={order._id} 
                     className={`hover:${
@@ -4478,7 +4637,10 @@ export default function OrdersPage() {
                    </td>
 
                   </tr>
-                ))
+                    ));
+                  }
+                  return null;
+                })()
               )}
             </tbody>
           </table>
