@@ -111,6 +111,8 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState<'critical' | 'secondary' | 'complete'>('critical');
+  const [tableLoading, setTableLoading] = useState(true);
+  const [progressiveLoading, setProgressiveLoading] = useState(false);
   const [orderCreating, setOrderCreating] = useState(false);
   const [orderMillInputs, setOrderMillInputs] = useState<{[key: string]: any[]}>({});
   const [processDataByQuality, setProcessDataByQuality] = useState<{[key: string]: string[]}>({});
@@ -326,6 +328,7 @@ export default function OrdersPage() {
     } else {
       setFilterLoading(true);
     }
+    setTableLoading(true); // Show table skeleton during filtering
     
     try {
       const newFilters = { ...filters, [filterType]: value };
@@ -361,6 +364,7 @@ export default function OrdersPage() {
       } else {
         setFilterLoading(false);
       }
+      setTableLoading(false); // Hide table skeleton
     }
   }, [filters, itemsPerPage, searchTerm, showMessage]);
 
@@ -498,8 +502,8 @@ export default function OrdersPage() {
   // ULTRA FAST fetch functions - 50ms target
   const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage, forceRefresh = false, currentFilters = filters, searchQuery = searchTerm) => {
     const maxRetries = 2; // Two retries for better reliability
-    const baseTimeout = 3000; // 3 second timeout for better reliability
-    const timeoutIncrement = 1000; // Add 1 second per retry
+    const baseTimeout = 1500; // 1.5 second timeout for faster response
+    const timeoutIncrement = 500; // Add 0.5 second per retry
     
     try {
       const controller = new AbortController();
@@ -685,10 +689,12 @@ export default function OrdersPage() {
     }
     
     setIsChangingPage(true);
+    setTableLoading(true); // Show table skeleton during pagination
     setCurrentPage(newPage);
     // Fetch new page from server
     await fetchOrders(0, newPage, itemsPerPage, false, filters, searchTerm);
     setIsChangingPage(false);
+    setTableLoading(false); // Hide table skeleton
   };
 
   const handleItemsPerPageChange = async (newItemsPerPage: number | 'All') => {
@@ -1163,6 +1169,7 @@ export default function OrdersPage() {
             setOrdersSafe(ordersArray);
             setOrdersLoaded(true);
             setLoading(false); // Show page immediately
+            setTableLoading(false); // Hide table skeleton
             setIsInitialized(true);
             
             // Cache the orders data
@@ -1658,6 +1665,7 @@ export default function OrdersPage() {
     }
     
     setRefreshing(true);
+    setTableLoading(true); // Show table skeleton during refresh
     console.log('🔄 Starting refresh...');
     
     try {
@@ -1677,6 +1685,7 @@ export default function OrdersPage() {
       });
     } finally {
       setRefreshing(false);
+      setTableLoading(false);
     }
   }, [fetchOrders, showMessage, refreshing, currentPage, itemsPerPage, filters, searchTerm]);
 
@@ -2371,7 +2380,97 @@ export default function OrdersPage() {
     return order.items.reduce((total: number, item: any) => total + (item.quantity || 0), 0);
   };
 
-  // Enhanced loading skeleton with proper table structure
+  // Premium table skeleton with smooth animations
+  const TableSkeleton = () => (
+    <>
+      <style jsx>{`
+        @keyframes shimmer {
+          0% {
+            background-position: -200px 0;
+          }
+          100% {
+            background-position: calc(200px + 100%) 0;
+          }
+        }
+        .skeleton-shimmer {
+          background: linear-gradient(
+            90deg,
+            ${isDarkMode ? 'rgba(148, 163, 184, 0.1)' : 'rgba(229, 231, 235, 0.3)'} 0px,
+            ${isDarkMode ? 'rgba(148, 163, 184, 0.2)' : 'rgba(229, 231, 235, 0.5)'} 40px,
+            ${isDarkMode ? 'rgba(148, 163, 184, 0.1)' : 'rgba(229, 231, 235, 0.3)'} 80px
+          );
+          background-size: 200px 100%;
+          animation: shimmer 1.5s infinite;
+        }
+        .skeleton-fade-in {
+          animation: fadeIn 0.6s ease-out forwards;
+          opacity: 0;
+        }
+        @keyframes fadeIn {
+          to {
+            opacity: 1;
+          }
+        }
+      `}</style>
+      <div className="mt-6">
+        <div className={`rounded-xl border shadow-sm ${
+          isDarkMode 
+            ? 'bg-white/5 border-white/10' 
+            : 'bg-white border-gray-200'
+        }`}>
+        {/* Table Header */}
+        <div className={`px-6 py-4 border-b ${
+          isDarkMode ? 'border-white/10' : 'border-gray-200'
+        }`}>
+          <div className="grid grid-cols-12 gap-4">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
+              <div 
+                key={i} 
+                className="h-4 rounded-lg skeleton-shimmer skeleton-fade-in"
+                style={{
+                  width: `${60 + (i * 8)}px`,
+                  animationDelay: `${i * 50}ms`
+                }}
+              ></div>
+            ))}
+          </div>
+        </div>
+        
+        {/* Table Rows Skeleton with staggered animation */}
+        <div className="divide-y divide-gray-200/50 dark:divide-white/5">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div 
+              key={i} 
+              className={`px-6 py-5 transition-all duration-300 ${
+                i % 2 === 0 
+                  ? (isDarkMode ? 'bg-white/2' : 'bg-gray-50/50') 
+                  : ''
+              }`}
+              style={{
+                animationDelay: `${i * 100}ms`
+              }}
+            >
+              <div className="grid grid-cols-12 gap-4 items-center">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((j) => (
+                  <div 
+                    key={j}
+                    className="h-4 rounded-lg skeleton-shimmer skeleton-fade-in"
+                    style={{
+                      width: `${40 + (j * 6)}px`,
+                      animationDelay: `${(i * 100) + (j * 30)}ms`
+                    }}
+                  ></div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+    </>
+  );
+
+  // Full page loading skeleton (only for initial load)
   const LoadingSkeleton = () => (
     <div className={`min-h-screen ${
       isDarkMode 
@@ -2561,9 +2660,34 @@ export default function OrdersPage() {
 
   if (!mounted) return null;
 
-  // Show loading skeleton during initial load or when refreshing
-  if (loading || (!ordersLoaded && !isInitialized) || isChangingPage) {
-    console.log('Showing loading skeleton:', { loading, ordersLoaded, isInitialized, isChangingPage });
+  // Add global animations
+  const globalStyles = `
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.6s ease-out forwards;
+    }
+    @keyframes shimmer {
+      0% { background-position: -200px 0; }
+      100% { background-position: calc(200px + 100%) 0; }
+    }
+    .skeleton-shimmer {
+      background: linear-gradient(
+        90deg,
+        ${isDarkMode ? 'rgba(148, 163, 184, 0.1)' : 'rgba(229, 231, 235, 0.3)'} 0px,
+        ${isDarkMode ? 'rgba(148, 163, 184, 0.2)' : 'rgba(229, 231, 235, 0.5)'} 40px,
+        ${isDarkMode ? 'rgba(148, 163, 184, 0.1)' : 'rgba(229, 231, 235, 0.3)'} 80px
+      );
+      background-size: 200px 100%;
+      animation: shimmer 1.5s infinite;
+    }
+  `;
+
+  // Show full page skeleton only on very first load
+  if (loading && !isInitialized) {
+    console.log('Showing full page loading skeleton for initial load');
     return <LoadingSkeleton />;
   }
 
@@ -3480,7 +3604,58 @@ export default function OrdersPage() {
               )}
               
               {/* Rendering table with orders */}
-              {!loading && !orderCreating && currentOrders.map((order) => (
+              {tableLoading ? (
+                // Show table skeleton during loading
+                <tr>
+                  <td colSpan={12} className="px-6 py-8">
+                    <div className="animate-pulse">
+                      <div className="space-y-4">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <div key={i} className="grid grid-cols-12 gap-4">
+                            <div className={`h-4 w-16 rounded ${
+                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                            }`}></div>
+                            <div className={`h-4 w-12 rounded ${
+                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                            }`}></div>
+                            <div className={`h-4 w-20 rounded ${
+                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                            }`}></div>
+                            <div className={`h-4 w-16 rounded ${
+                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                            }`}></div>
+                            <div className={`h-4 w-12 rounded ${
+                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                            }`}></div>
+                            <div className={`h-4 w-18 rounded ${
+                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                            }`}></div>
+                            <div className={`h-4 w-14 rounded ${
+                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                            }`}></div>
+                            <div className={`h-4 w-16 rounded ${
+                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                            }`}></div>
+                            <div className={`h-4 w-12 rounded ${
+                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                            }`}></div>
+                            <div className={`h-4 w-18 rounded ${
+                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                            }`}></div>
+                            <div className={`h-4 w-14 rounded ${
+                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                            }`}></div>
+                            <div className={`h-4 w-16 rounded ${
+                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                            }`}></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                !loading && !orderCreating && currentOrders.map((order) => (
                   <tr key={order._id} className={`hover:${
                     isDarkMode ? 'bg-white/5' : 'bg-gray-50'
                   } transition-colors duration-200`}>
@@ -4164,7 +4339,8 @@ export default function OrdersPage() {
                    </td>
 
                   </tr>
-                ))}
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -4351,9 +4527,9 @@ export default function OrdersPage() {
             }`}>
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
               <p className="mt-2 text-sm">
-                {sortLoading ? 'Sorting orders...' : 
-                 filterLoading ? 'Applying filters...' : 
-                 isChangingPage ? 'Changing page...' : 'Loading orders...'}
+                {sortLoading ? 'Sorting...' : 
+                 filterLoading ? 'Filtering...' : 
+                 'Loading...'}
               </p>
             </div>
           </div>
@@ -4365,22 +4541,24 @@ export default function OrdersPage() {
           }`}>
             {orders.length === 0 ? (
               <div className="space-y-4">
-                <div className={`mx-auto h-16 w-16 rounded-full flex items-center justify-center ${
-                  isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
-                }`}>
-                  <svg className={`h-8 w-8 ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-400'
+                <div className={`mx-auto h-20 w-20 rounded-2xl flex items-center justify-center ${
+                  isDarkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-gray-50 to-gray-100'
+                } shadow-lg animate-fade-in`}>
+                  <svg className={`h-10 w-10 ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
                   }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                   </svg>
                 </div>
-                <div>
-                  <h3 className={`text-lg font-medium ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-900'
+                <div className="space-y-2">
+                  <h3 className={`text-xl font-semibold ${
+                    isDarkMode ? 'text-gray-200' : 'text-gray-900'
                   }`}>
                     {orders.length === 0 ? 'No orders yet' : 'No orders match your filters'}
                   </h3>
-                  <p className="mt-2">
+                  <p className={`text-sm ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  } max-w-md mx-auto`}>
                     {orders.length === 0 
                       ? 'Get started by creating your first order' 
                       : `Try adjusting your search or filter criteria. Total orders: ${orders.length}`
