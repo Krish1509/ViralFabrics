@@ -318,6 +318,8 @@ export default function OrdersPage() {
 
   // Server-side filter handlers
   const handleFilterChange = useCallback(async (filterType: string, value: string) => {
+    console.log('🔧 Filter change:', filterType, '=', value);
+    
     // Set appropriate loading state
     if (filterType === 'orderFilter') {
       setSortLoading(true);
@@ -331,10 +333,17 @@ export default function OrdersPage() {
       // Map filter values to API parameters
       if (filterType === 'typeFilter') {
         newFilters.orderType = value === 'all' ? '' : value;
+        console.log('🔧 Mapped typeFilter to orderType:', newFilters.orderType);
       } else if (filterType === 'statusFilter') {
         newFilters.status = value === 'all' ? '' : value;
+        console.log('🔧 Mapped statusFilter to status:', newFilters.status);
+      } else if (filterType === 'orderFilter') {
+        console.log('🔧 Using orderFilter directly:', newFilters.orderFilter);
+        // orderFilter is already set in the main filter object
+        // No additional mapping needed
       }
       
+      console.log('🔧 New filters object:', newFilters);
       setFilters(newFilters);
       setCurrentPage(1); // Reset to page 1 when filtering
       // Fetch filtered results from server
@@ -506,9 +515,11 @@ export default function OrdersPage() {
       }
       if (currentFilters.orderType) {
         url.searchParams.append('orderType', currentFilters.orderType);
+        console.log('🔧 Adding orderType param:', currentFilters.orderType);
       }
       if (currentFilters.status) {
         url.searchParams.append('status', currentFilters.status);
+        console.log('🔧 Adding status param:', currentFilters.status);
       }
       if (currentFilters.startDate) {
         url.searchParams.append('startDate', currentFilters.startDate);
@@ -516,22 +527,17 @@ export default function OrdersPage() {
       if (currentFilters.endDate) {
         url.searchParams.append('endDate', currentFilters.endDate);
       }
+      if (currentFilters.orderFilter && currentFilters.orderFilter !== 'latest_first') {
+        url.searchParams.append('sort', currentFilters.orderFilter);
+        console.log('🔧 Adding sort param:', currentFilters.orderFilter);
+      }
+      
+      console.log('🔧 Final URL:', url.toString());
       
       // Add cache-busting parameter to ensure fresh data (especially after deletions)
       if (forceRefresh) {
         url.searchParams.append('t', Date.now().toString());
         url.searchParams.append('force', 'true');
-      }
-      
-      // Search is handled client-side for better performance
-      if (filters.typeFilter && filters.typeFilter !== 'all') {
-        url.searchParams.append('type', filters.typeFilter);
-      }
-      if (filters.statusFilter && filters.statusFilter !== 'all') {
-        url.searchParams.append('status', filters.statusFilter);
-      }
-      if (filters.orderFilter && filters.orderFilter !== 'latest_first') {
-        url.searchParams.append('sort', filters.orderFilter);
       }
       
       const response = await fetch(url.toString(), {
