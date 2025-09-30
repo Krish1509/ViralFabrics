@@ -38,14 +38,14 @@ const nextConfig: NextConfig = {
   }),
 
   // Enable Turbopack for faster development (now stable)
-  turbopack: {
-    rules: {
-      '*.svg': {
-        loaders: ['@svgr/webpack'],
-        as: '*.js',
-      },
-    },
-  },
+  // turbopack: {
+  //   rules: {
+  //     '*.svg': {
+  //       loaders: ['@svgr/webpack'],
+  //       as: '*.js',
+  //     },
+  //   },
+  // },
 
   // Optimize images
   images: {

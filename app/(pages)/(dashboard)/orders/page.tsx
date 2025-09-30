@@ -685,28 +685,50 @@ export default function OrdersPage() {
     
     // Validate page number
     if (newPage < 1 || newPage > totalPages) {
+      console.log('Invalid page number:', newPage, 'totalPages:', totalPages);
       return;
     }
     
+    console.log('🔄 Changing page from', currentPage, 'to', newPage);
     setIsChangingPage(true);
     setTableLoading(true); // Show table skeleton during pagination
-    setCurrentPage(newPage);
-    // Fetch new page from server
-    await fetchOrders(0, newPage, itemsPerPage, false, filters, searchTerm);
-    setIsChangingPage(false);
-    setTableLoading(false); // Hide table skeleton
+    
+    try {
+      // Fetch new page from server FIRST
+      console.log('📡 Fetching page', newPage, 'with filters:', filters, 'searchTerm:', searchTerm);
+      await fetchOrders(0, newPage, itemsPerPage, false, filters, searchTerm);
+      // Only update current page AFTER successful fetch
+      console.log('✅ Page', newPage, 'fetched successfully, updating currentPage');
+      setCurrentPage(newPage);
+    } catch (error) {
+      console.error('❌ Error changing page:', error);
+      showMessage('error', 'Failed to load page');
+    } finally {
+      console.log('🏁 Page change completed, hiding loading states');
+      setIsChangingPage(false);
+      setTableLoading(false); // Hide table skeleton
+    }
   };
 
   const handleItemsPerPageChange = async (newItemsPerPage: number | 'All') => {
     if (newItemsPerPage === itemsPerPage) return;
     
     setIsChangingPage(true);
-    setItemsPerPage(newItemsPerPage);
-    setCurrentPage(1); // Reset to first page
+    setTableLoading(true); // Show table skeleton during change
     
-    // Fetch first page with new items per page from server
+    try {
+      // Fetch first page with new items per page from server FIRST
     await fetchOrders(0, 1, newItemsPerPage, false, filters, searchTerm);
+      // Only update state AFTER successful fetch
+      setItemsPerPage(newItemsPerPage);
+      setCurrentPage(1); // Reset to first page
+    } catch (error) {
+      console.error('Error changing items per page:', error);
+      showMessage('error', 'Failed to change page size');
+    } finally {
     setIsChangingPage(false);
+      setTableLoading(false); // Hide table skeleton
+    }
   };
 
   // Use server-side pagination info
@@ -1151,12 +1173,12 @@ export default function OrdersPage() {
         
         // Load orders immediately and show page
         const ordersResponse = await fetch('/api/orders?limit=10&page=1&force=true', {
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Accept': 'application/json'
-          },
-          cache: 'no-store'
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Accept': 'application/json'
+            },
+            cache: 'no-store'
         });
         
         if (ordersResponse.ok) {
@@ -1188,7 +1210,7 @@ export default function OrdersPage() {
             
             console.log('🎯 Page is now functional with orders!');
           }
-        } else {
+            } else {
           console.error('❌ Orders API failed:', ordersResponse.status);
           showMessage('error', 'Failed to load orders. Please refresh the page.');
           setLoading(false);
@@ -1207,12 +1229,12 @@ export default function OrdersPage() {
           try {
             console.log('🏭 Loading mills in background...');
             const millsResponse = await fetch('/api/mills?limit=100&force=true', {
-              headers: { 
-                'Authorization': `Bearer ${token}`,
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Accept': 'application/json'
-              },
-              cache: 'no-store'
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Accept': 'application/json'
+            },
+            cache: 'no-store'
             });
             
             if (millsResponse.ok) {
@@ -2380,7 +2402,7 @@ export default function OrdersPage() {
     return order.items.reduce((total: number, item: any) => total + (item.quantity || 0), 0);
   };
 
-  // Premium table skeleton with smooth animations
+  // Professional table skeleton with perfect horizontal fit
   const TableSkeleton = () => (
     <>
       <style jsx>{`
@@ -2392,24 +2414,40 @@ export default function OrdersPage() {
             background-position: calc(200px + 100%) 0;
           }
         }
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
+        }
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateX(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
         .skeleton-shimmer {
           background: linear-gradient(
             90deg,
-            ${isDarkMode ? 'rgba(148, 163, 184, 0.1)' : 'rgba(229, 231, 235, 0.3)'} 0px,
-            ${isDarkMode ? 'rgba(148, 163, 184, 0.2)' : 'rgba(229, 231, 235, 0.5)'} 40px,
-            ${isDarkMode ? 'rgba(148, 163, 184, 0.1)' : 'rgba(229, 231, 235, 0.3)'} 80px
+            ${isDarkMode ? 'rgba(148, 163, 184, 0.08)' : 'rgba(229, 231, 235, 0.2)'} 0px,
+            ${isDarkMode ? 'rgba(148, 163, 184, 0.15)' : 'rgba(229, 231, 235, 0.4)'} 40px,
+            ${isDarkMode ? 'rgba(148, 163, 184, 0.08)' : 'rgba(229, 231, 235, 0.2)'} 80px
           );
           background-size: 200px 100%;
-          animation: shimmer 1.5s infinite;
+          animation: shimmer 2s infinite;
         }
         .skeleton-fade-in {
-          animation: fadeIn 0.6s ease-out forwards;
+          animation: slideIn 0.8s ease-out forwards;
           opacity: 0;
         }
-        @keyframes fadeIn {
-          to {
-            opacity: 1;
-          }
+        .skeleton-pulse {
+          animation: pulse 2s infinite;
         }
       `}</style>
       <div className="mt-6">
@@ -2423,41 +2461,65 @@ export default function OrdersPage() {
           isDarkMode ? 'border-white/10' : 'border-gray-200'
         }`}>
           <div className="grid grid-cols-12 gap-4">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
+            {[
+              { width: 'w-24', delay: 0 },    // Order ID
+              { width: 'w-16', delay: 50 },   // Type
+              { width: 'w-32', delay: 100 },  // Party
+              { width: 'w-20', delay: 150 },  // Date
+              { width: 'w-16', delay: 200 },  // Status
+              { width: 'w-24', delay: 250 },  // Priority
+              { width: 'w-20', delay: 300 },  // Items
+              { width: 'w-16', delay: 350 },  // Quantity
+              { width: 'w-20', delay: 400 },  // Progress
+              { width: 'w-16', delay: 450 },  // Lab
+              { width: 'w-20', delay: 500 },  // Mill
+              { width: 'w-24', delay: 550 }   // Actions
+            ].map((item, i) => (
               <div 
                 key={i} 
-                className="h-4 rounded-lg skeleton-shimmer skeleton-fade-in"
+                className={`h-4 rounded-lg skeleton-shimmer skeleton-fade-in ${item.width}`}
                 style={{
-                  width: `${60 + (i * 8)}px`,
-                  animationDelay: `${i * 50}ms`
+                  animationDelay: `${item.delay}ms`
                 }}
               ></div>
             ))}
           </div>
         </div>
         
-        {/* Table Rows Skeleton with staggered animation */}
-        <div className="divide-y divide-gray-200/50 dark:divide-white/5">
+        {/* Table Rows Skeleton with perfect fit */}
+        <div className="divide-y divide-gray-200/30 dark:divide-white/5">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <div 
               key={i} 
-              className={`px-6 py-5 transition-all duration-300 ${
+              className={`px-6 py-5 transition-all duration-500 ${
                 i % 2 === 0 
-                  ? (isDarkMode ? 'bg-white/2' : 'bg-gray-50/50') 
+                  ? (isDarkMode ? 'bg-white/2' : 'bg-gray-50/30') 
                   : ''
               }`}
               style={{
-                animationDelay: `${i * 100}ms`
+                animationDelay: `${i * 120}ms`
               }}
             >
               <div className="grid grid-cols-12 gap-4 items-center">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((j) => (
+                {[
+                  { width: 'w-20', delay: 0 },    // Order ID
+                  { width: 'w-12', delay: 30 },   // Type
+                  { width: 'w-28', delay: 60 },   // Party
+                  { width: 'w-16', delay: 90 },   // Date
+                  { width: 'w-12', delay: 120 },  // Status
+                  { width: 'w-20', delay: 150 },  // Priority
+                  { width: 'w-16', delay: 180 },  // Items
+                  { width: 'w-12', delay: 210 },  // Quantity
+                  { width: 'w-16', delay: 240 },  // Progress
+                  { width: 'w-12', delay: 270 },  // Lab
+                  { width: 'w-16', delay: 300 },  // Mill
+                  { width: 'w-20', delay: 330 }   // Actions
+                ].map((item, j) => (
                   <div 
                     key={j}
-                    className="h-4 rounded-lg skeleton-shimmer skeleton-fade-in"
+                    className={`h-4 rounded-lg skeleton-shimmer skeleton-fade-in ${item.width}`}
                     style={{
-                      width: `${40 + (j * 6)}px`,
-                      animationDelay: `${(i * 100) + (j * 30)}ms`
+                      animationDelay: `${(i * 120) + item.delay}ms`
                     }}
                   ></div>
                 ))}
@@ -2738,6 +2800,35 @@ export default function OrdersPage() {
   const hasLabData = (order: Order) => {
     return (order.labData && order.labData.length > 0) || order.items.some(item => item.labData?.sampleNumber);
   };
+
+  // Ensure we never show empty state during any loading operation
+  const shouldShowEmptyState = currentOrders.length === 0 && 
+    ordersLoaded && 
+    !loading && 
+    !orderCreating && 
+    !isChangingPage && 
+    !tableLoading && 
+    !refreshing && 
+    !sortLoading && 
+    !filterLoading &&
+    totalPages === 1 && 
+    paginationInfo.totalCount === 0; // Only show empty state if there are truly no orders in database
+  
+  // Debug empty state logic
+  console.log('🔍 Empty State Debug:', {
+    currentOrdersLength: currentOrders.length,
+    ordersLoaded,
+    loading,
+    orderCreating,
+    isChangingPage,
+    tableLoading,
+    refreshing,
+    sortLoading,
+    filterLoading,
+    totalPages,
+    totalCount: paginationInfo.totalCount,
+    shouldShowEmptyState
+  });
 
   return (
     <div className={`min-h-screen ${
@@ -3384,7 +3475,7 @@ export default function OrdersPage() {
                   <button
                     onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1 || isChangingPage || loading}
-                    className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                    className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-all duration-200 hover:scale-105 ${
                       currentPage === 1 || isChangingPage || loading
                         ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
@@ -3407,7 +3498,7 @@ export default function OrdersPage() {
                               key={i}
                               onClick={() => handlePageChange(i)}
                               disabled={isChangingPage || loading}
-                              className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                              className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-all duration-200 hover:scale-105 ${
                                 currentPage === i
                                     ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
                                     : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
@@ -3604,61 +3695,57 @@ export default function OrdersPage() {
               )}
               
               {/* Rendering table with orders */}
-              {tableLoading ? (
-                // Show table skeleton during loading
+              {(tableLoading || isChangingPage || (currentOrders.length === 0 && !shouldShowEmptyState && totalPages > 1)) ? (
+                // Show professional table skeleton during loading or pagination
                 <tr>
                   <td colSpan={12} className="px-6 py-8">
-                    <div className="animate-pulse">
-                      <div className="space-y-4">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <div key={i} className="grid grid-cols-12 gap-4">
-                            <div className={`h-4 w-16 rounded ${
-                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`h-4 w-12 rounded ${
-                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`h-4 w-20 rounded ${
-                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`h-4 w-16 rounded ${
-                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`h-4 w-12 rounded ${
-                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`h-4 w-18 rounded ${
-                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`h-4 w-14 rounded ${
-                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`h-4 w-16 rounded ${
-                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`h-4 w-12 rounded ${
-                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`h-4 w-18 rounded ${
-                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`h-4 w-14 rounded ${
-                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`h-4 w-16 rounded ${
-                              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-                            }`}></div>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="space-y-4">
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                        <div 
+                          key={i} 
+                          className="grid grid-cols-12 gap-4 items-center py-3"
+                          style={{
+                            animationDelay: `${i * 100}ms`
+                          }}
+                        >
+                          {[
+                            { width: 'w-20', delay: 0 },    // Order ID
+                            { width: 'w-12', delay: 30 },   // Type
+                            { width: 'w-28', delay: 60 },   // Party
+                            { width: 'w-16', delay: 90 },   // Date
+                            { width: 'w-12', delay: 120 },  // Status
+                            { width: 'w-20', delay: 150 },  // Priority
+                            { width: 'w-16', delay: 180 },  // Items
+                            { width: 'w-12', delay: 210 },  // Quantity
+                            { width: 'w-16', delay: 240 },  // Progress
+                            { width: 'w-12', delay: 270 },  // Lab
+                            { width: 'w-16', delay: 300 },  // Mill
+                            { width: 'w-20', delay: 330 }   // Actions
+                          ].map((item, j) => (
+                            <div 
+                              key={j}
+                              className={`h-4 rounded-lg skeleton-shimmer skeleton-fade-in ${item.width}`}
+                              style={{
+                                animationDelay: `${(i * 100) + item.delay}ms`
+                              }}
+                            ></div>
+                          ))}
+                        </div>
+                      ))}
                     </div>
                   </td>
                 </tr>
               ) : (
-                !loading && !orderCreating && currentOrders.map((order) => (
-                  <tr key={order._id} className={`hover:${
+                !loading && !orderCreating && currentOrders.map((order, index) => (
+                  <tr 
+                    key={order._id} 
+                    className={`hover:${
                     isDarkMode ? 'bg-white/5' : 'bg-gray-50'
-                  } transition-colors duration-200`}>
+                    } transition-all duration-300 animate-fade-in`}
+                    style={{
+                      animationDelay: `${index * 50}ms`
+                    }}
+                  >
                    {/* Order Information Column */}
                    <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5">
                       <div className="space-y-3">
@@ -4520,22 +4607,15 @@ export default function OrdersPage() {
         )}
 
         {/* Loading overlay for when data is being refreshed */}
-        {(loading || isChangingPage || sortLoading || filterLoading) && orders.length > 0 && (
-          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl">
-            <div className={`p-4 rounded-lg ${
-              isDarkMode ? 'bg-gray-800' : 'bg-white'
-            }`}>
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-              <p className="mt-2 text-sm">
-                {sortLoading ? 'Sorting...' : 
-                 filterLoading ? 'Filtering...' : 
-                 'Loading...'}
-              </p>
+        {(loading || isChangingPage || sortLoading || filterLoading) && (
+          <div className="absolute inset-0 bg-black/5 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl">
+            <div className="w-full h-full p-6">
+              <TableSkeleton />
             </div>
           </div>
         )}
 
-        {currentOrders.length === 0 && ordersLoaded && !loading && !orderCreating && (
+        {shouldShowEmptyState && totalPages === 1 && (
           <div className={`text-center py-12 ${
             isDarkMode ? 'text-gray-400' : 'text-gray-500'
           }`}>
