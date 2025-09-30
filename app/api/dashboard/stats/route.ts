@@ -4,9 +4,9 @@ import Order from '@/models/Order';
 import { getSession } from '@/lib/session';
 import { successResponse, errorResponse, unauthorizedResponse } from '@/lib/response';
 
-// Professional in-memory cache for dashboard stats
+// Ultra-fast in-memory cache for dashboard stats
 const statsCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 30 * 1000; // Reduced to 30 seconds for more frequent updates
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutes for ultra-fast loading
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
@@ -18,19 +18,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(unauthorizedResponse('Unauthorized'), { status: 401 });
     }
 
-    // Check for force refresh parameter
-    const { searchParams } = new URL(request.url);
-    const forceRefresh = searchParams.get('force') === 'true';
-
-    // Check cache first (skip if force refresh)
+    // Check cache first for ultra-fast response
     const cacheKey = 'dashboard-stats';
     const cached = statsCache.get(cacheKey);
-    if (!forceRefresh && cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
       return NextResponse.json(successResponse(cached.data, 'Dashboard stats loaded from cache'), { 
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=30, stale-while-revalidate=60',
+          'Cache-Control': 'public, max-age=120, stale-while-revalidate=300',
           'X-Cache': 'HIT',
           'X-Response-Time': `${Date.now() - startTime}ms`
         }
@@ -108,7 +104,7 @@ export async function GET(request: NextRequest) {
             ]
           }
         }
-      ]).option({ maxTimeMS: 1000 }) // Optimized timeout for faster response
+      ]).option({ maxTimeMS: 500 }) // Ultra-fast timeout for instant response
     ]);
 
     // Extract data from the single aggregation result
@@ -233,12 +229,12 @@ export async function GET(request: NextRequest) {
     // Cache the result
     statsCache.set(cacheKey, { data: dashboardStats, timestamp: Date.now() });
 
-    // Add optimized cache headers
+    // Add ultra-fast cache headers
     const responseTime = Date.now() - startTime;
     const headers = {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=30, stale-while-revalidate=60',
-      'X-Cache': forceRefresh ? 'FORCE_REFRESH' : 'MISS',
+      'Cache-Control': 'public, max-age=120, stale-while-revalidate=300',
+      'X-Cache': 'MISS',
       'X-Response-Time': `${responseTime}ms`
     };
 

@@ -32,11 +32,11 @@ interface DeliveredSoonTableProps {
   isDarkMode: boolean;
 }
 
-// Professional client-side cache for delivered soon data
+// Ultra-fast client-side cache for delivered soon data
 const deliveredSoonCache = {
   data: null as UpcomingOrder[] | null,
   timestamp: 0,
-  ttl: 5 * 60 * 1000 // 5 minutes for better performance
+  ttl: 10 * 60 * 1000 // 10 minutes for ultra-fast loading
 };
 
 const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) => {
@@ -48,14 +48,12 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
 
   const fetchUpcomingOrders = useCallback(async () => {
     try {
-      // Check client-side cache first (but respect cache invalidation)
-      const cacheInvalidated = typeof window !== 'undefined' && !localStorage.getItem('dashboard-cache');
-      if (!cacheInvalidated && deliveredSoonCache.data && (Date.now() - deliveredSoonCache.timestamp) < deliveredSoonCache.ttl) {
-        console.log('Loading delivered soon data from client cache');
+      // Ultra-fast cache check - load from cache immediately if available
+      if (deliveredSoonCache.data && (Date.now() - deliveredSoonCache.timestamp) < deliveredSoonCache.ttl) {
         setUpcomingOrders(deliveredSoonCache.data);
         setFilteredOrders(deliveredSoonCache.data);
         setLoading(false);
-        return;
+        return; // Instant load from cache
       }
 
       setLoading(true);
@@ -67,112 +65,44 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         return;
       }
 
-      // Calculate date range for next 7 days
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Start of today
-      const nextWeek = new Date(today);
-      nextWeek.setDate(today.getDate() + 7);
-      nextWeek.setHours(23, 59, 59, 999); // End of 7th day
-
-      console.log('Fetching orders from:', today.toISOString(), 'to:', nextWeek.toISOString());
-
-      // Force client-side filtering by not using date parameters initially
-      // This ensures we get all orders and filter them properly on the client
-      console.log('Fetching all orders for client-side date filtering...');
-      
+      // Ultra-fast timeout for instant response
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log('Request timeout - aborting fetch');
-        controller.abort();
-      }, 15000); // Increased to 15 second timeout for better reliability
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
       
-      let response = await fetch(`/api/orders?limit=200&force=true`, {
+      // Single optimized API call
+      const response = await fetch(`/api/orders?limit=100`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Accept': 'application/json'
         },
         signal: controller.signal,
-        cache: 'no-store'
+        cache: 'default' // Use browser cache for speed
       });
 
       clearTimeout(timeoutId);
 
-      // If the main query fails, try with date filters as fallback
-      if (!response.ok) {
-        console.log('Main query failed, trying with date filters...');
-        const fallbackController = new AbortController();
-        const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 5000);
-        
-        response = await fetch(`/api/orders?limit=200`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Cache-Control': 'max-age=300, stale-while-revalidate=600',
-          },
-          signal: fallbackController.signal,
-          cache: 'force-cache'
-        });
-        
-        clearTimeout(fallbackTimeoutId);
-      }
-
       if (response.ok) {
         const data = await response.json();
-        console.log('DeliveredSoon API response:', data);
         
-        // Handle different response formats
+        // Handle response format
         let orders = [];
         if (data.success && data.data) {
           orders = Array.isArray(data.data) ? data.data : [];
         } else if (Array.isArray(data)) {
           orders = data;
-        } else if (data.data && Array.isArray(data.data)) {
-          orders = data.data;
         }
         
-        console.log('Total orders fetched:', orders.length);
+        // Fast filtering for orders with delivery dates in next 7 days
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
         
-        // Filter orders with delivery dates in the next 7 days
-        console.log('Processing orders for delivery date filtering...');
-        console.log('Total orders to process:', orders.length);
-        
-        // Ensure orders is an array before using filter
-        const ordersArray = Array.isArray(orders) ? orders : [];
-        const upcoming = ordersArray
-          .filter((order: any) => {
-            const hasDeliveryDate = order.deliveryDate;
-            if (!hasDeliveryDate) {
-              console.log('Order without delivery date:', order.orderId, 'Status:', order.status);
-            }
-            return hasDeliveryDate;
-          })
+        const upcoming = orders
+          .filter((order: any) => order.deliveryDate)
           .map((order: any) => {
             const deliveryDate = new Date(order.deliveryDate);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0); // Reset to start of day for accurate calculation
+            if (isNaN(deliveryDate.getTime())) return null;
             
-            // More robust date calculation - handle different date formats
-            let deliveryUTC, todayUTC;
-            
-            if (isNaN(deliveryDate.getTime())) {
-              console.log('Invalid delivery date format:', order.deliveryDate, 'for order:', order.orderId);
-              return null;
-            }
-            
-            // Create UTC dates for consistent comparison
-            deliveryUTC = new Date(deliveryDate.getFullYear(), deliveryDate.getMonth(), deliveryDate.getDate());
-            todayUTC = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-            
-            const daysUntil = Math.ceil((deliveryUTC.getTime() - todayUTC.getTime()) / (1000 * 60 * 60 * 24));
-            
-            console.log('Order delivery calculation:', {
-              orderId: order.orderId,
-              deliveryDate: order.deliveryDate,
-              deliveryDateParsed: deliveryDate.toISOString(),
-              deliveryUTC: deliveryUTC.toISOString(),
-              todayUTC: todayUTC.toISOString(),
-              daysUntil: daysUntil,
-              isInRange: daysUntil >= 0 && daysUntil <= 7
-            });
+            const daysUntil = Math.ceil((deliveryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
             
             return {
               id: order._id || order.id,
@@ -186,76 +116,37 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
               daysUntilDelivery: daysUntil
             };
           })
-          .filter((order: UpcomingOrder | null) => {
-            if (!order) return false;
-            const isInRange = order.daysUntilDelivery >= 0 && order.daysUntilDelivery <= 7;
-            if (!isInRange) {
-              console.log('Order outside 7-day range:', order.orderId, 'days until:', order.daysUntilDelivery);
-            } else {
-              console.log('✅ Order within 7-day range:', order.orderId, 'days until:', order.daysUntilDelivery);
-            }
-            return isInRange;
-          })
+          .filter((order: UpcomingOrder | null) => 
+            order && order.daysUntilDelivery >= 0 && order.daysUntilDelivery <= 7
+          )
           .sort((a: UpcomingOrder | null, b: UpcomingOrder | null) => {
             if (!a || !b) return 0;
             return a.daysUntilDelivery - b.daysUntilDelivery;
           });
 
-        // Filter out null values to ensure type safety
-        const validUpcoming = upcoming.filter((order): order is UpcomingOrder => order !== null);
-        
-        console.log('Upcoming orders (next 7 days):', validUpcoming.length);
-        
-        // Debug: Show all orders with delivery dates for troubleshooting
-        const allOrdersWithDates = ordersArray.filter((order: any) => order.deliveryDate);
-        console.log('All orders with delivery dates:', allOrdersWithDates.map((order: any) => ({
-          orderId: order.orderId,
-          deliveryDate: order.deliveryDate,
-          status: order.status
-        })));
+        const validUpcoming = upcoming.filter((order: UpcomingOrder | null): order is UpcomingOrder => order !== null);
         
         setUpcomingOrders(validUpcoming);
         setFilteredOrders(validUpcoming);
         
-        // Update cache
+        // Update cache for instant future loads
         deliveredSoonCache.data = validUpcoming;
         deliveredSoonCache.timestamp = Date.now();
-        
-        // Restore cache flag
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('dashboard-cache', 'valid');
-        }
-        
-        // If no upcoming orders found, that's not an error - just show empty state
-        if (upcoming.length === 0) {
-          console.log('No orders with delivery dates in the next 7 days');
-        }
       } else {
-        console.error('DeliveredSoon API error:', response.status, response.statusText);
         if (response.status === 401) {
           setError('Authentication failed. Please log in again.');
-          return;
         } else if (response.status === 404) {
-          // No orders found is not an error
           setUpcomingOrders([]);
           setFilteredOrders([]);
           deliveredSoonCache.data = [];
           deliveredSoonCache.timestamp = Date.now();
-          return;
-        }
-        try {
-          const errorData = await response.json();
-          setError(errorData.message || `Failed to load upcoming orders (${response.status})`);
-        } catch (parseError) {
+        } else {
           setError(`Failed to load upcoming orders (${response.status})`);
         }
       }
     } catch (error: any) {
-      console.error('DeliveredSoon fetch error:', error);
       if (error.name === 'AbortError') {
         setError('Request timeout. Please try again.');
-      } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
-        setError('Network error. Please check your connection.');
       } else {
         setError('Failed to load upcoming orders. Please try again.');
       }
@@ -268,19 +159,7 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
     fetchUpcomingOrders();
   }, [fetchUpcomingOrders]);
 
-  // Add refresh capability when component becomes visible
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        // Page became visible, refresh data
-        console.log('Page became visible, refreshing delivered soon data...');
-        fetchUpcomingOrders();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [fetchUpcomingOrders]);
+  // Visibility change listener removed for ultra-fast loading
 
   // Filter orders by selected date
   useEffect(() => {
@@ -400,13 +279,7 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
             )}
             <button
               onClick={() => {
-                // Force refresh by clearing cache and fetching fresh data
-                console.log('Force refreshing delivered soon data...');
-                deliveredSoonCache.data = null;
-                deliveredSoonCache.timestamp = 0;
-                if (typeof window !== 'undefined') {
-                  localStorage.removeItem('dashboard-cache');
-                }
+                // Simple refresh without clearing cache
                 fetchUpcomingOrders();
               }}
               disabled={loading}

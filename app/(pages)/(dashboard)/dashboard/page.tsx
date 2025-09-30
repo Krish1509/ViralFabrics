@@ -56,11 +56,11 @@ interface DashboardFilters {
   financialYear: string;
 }
 
-// Professional client-side cache for dashboard data
+// Ultra-fast client-side cache for dashboard data
 const dashboardCache = {
   data: null as DashboardStats | null,
   timestamp: 0,
-  ttl: 30 * 1000 // Reduced to 30 seconds for more frequent updates
+  ttl: 5 * 60 * 1000 // 5 minutes for ultra-fast loading
 };
 
 export default function DashboardPage() {
@@ -80,17 +80,15 @@ export default function DashboardPage() {
 
   const fetchDashboardData = useCallback(async (isRetry = false) => {
     try {
-      // Check client-side cache first (but respect cache invalidation)
-      const cacheInvalidated = typeof window !== 'undefined' && !localStorage.getItem('dashboard-cache');
-      if (!isRetry && !cacheInvalidated && dashboardCache.data && (Date.now() - dashboardCache.timestamp) < dashboardCache.ttl) {
+      // Ultra-fast cache check - load from cache immediately if available
+      if (!isRetry && dashboardCache.data && (Date.now() - dashboardCache.timestamp) < dashboardCache.ttl) {
         setStats(dashboardCache.data);
         setHasAttemptedFetch(true);
         setLoading(false);
-        // Success message removed - no validation messages shown
-        return;
+        return; // Instant load from cache
       }
 
-      // Only show loading spinner on initial load, not on retries
+      // Only show loading on initial load
       if (!isRetry) {
         setLoading(true);
       }
@@ -102,19 +100,18 @@ export default function DashboardPage() {
         return;
       }
 
-      // Professional dashboard with optimized timeout and caching
+      // Ultra-fast timeout for instant response
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // Optimized 3 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for instant response
 
-      // Fetch only dashboard stats API with optimized headers
-      const statsResponse = await fetch('/api/dashboard/stats?force=true', {
+      // Single optimized API call
+      const statsResponse = await fetch('/api/dashboard/stats', {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Accept': 'application/json'
         },
         signal: controller.signal,
-        cache: 'no-store' // No caching for fresh data
+        cache: 'default' // Use browser cache for speed
       });
 
       clearTimeout(timeoutId);
@@ -122,95 +119,51 @@ export default function DashboardPage() {
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
         if (statsData.success && statsData.data) {
-          // Cache the data
+          // Cache the data for instant future loads
           dashboardCache.data = statsData.data;
           dashboardCache.timestamp = Date.now();
           
-          // Restore cache flag
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('dashboard-cache', 'valid');
-          }
-          
           setStats(statsData.data);
           setHasAttemptedFetch(true);
-          // Success message removed - no validation messages shown
         } else {
-          setError(statsData.message || 'Invalid response format from server');
+          setError('Invalid response format from server');
         }
       } else {
         if (statsResponse.status === 401) {
           setError('Authentication failed. Please log in again.');
-          // Redirect to login after 2 seconds
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 2000);
+          setTimeout(() => window.location.href = '/login', 1000);
           return;
-        } else if (statsResponse.status === 500) {
-          setError('Server error. Please try again in a moment.');
         } else {
-          const errorData = await statsResponse.json().catch(() => ({}));
-          setError(errorData.message || `Server returned status ${statsResponse.status}`);
+          setError(`Server error: ${statsResponse.status}`);
         }
       }
 
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        // Don't show timeout error immediately, try to load with fallback data
+        // Instant fallback data for timeout
         setStats({
           totalOrders: 0,
-          statusStats: {
-            pending: 0,
-            in_progress: 0,
-            completed: 0,
-            delivered: 0,
-            cancelled: 0,
-            not_set: 0
-          },
-          typeStats: {
-            Dying: 0,
-            Printing: 0,
-            not_set: 0
-          },
-          pendingTypeStats: {
-            Dying: 0,
-            Printing: 0,
-            not_set: 0
-          },
-          deliveredTypeStats: {
-            Dying: 0,
-            Printing: 0,
-            not_set: 0
-          },
+          statusStats: { pending: 0, in_progress: 0, completed: 0, delivered: 0, cancelled: 0, not_set: 0 },
+          typeStats: { Dying: 0, Printing: 0, not_set: 0 },
+          pendingTypeStats: { Dying: 0, Printing: 0, not_set: 0 },
+          deliveredTypeStats: { Dying: 0, Printing: 0, not_set: 0 },
           monthlyTrends: [],
           recentOrders: []
         });
         setHasAttemptedFetch(true);
-        // setSuccessMessage('Dashboard loaded with basic data. Some features may be limited.');
-        // setTimeout(() => setSuccessMessage(null), 5000);
         
-        // Only retry once in background if we haven't already attempted
+        // Single background retry
         if (!isBackgroundRetry) {
           setIsBackgroundRetry(true);
-          setTimeout(() => {
-            fetchDashboardData(true);
-          }, 2000); // Reduced retry delay
+          setTimeout(() => fetchDashboardData(true), 1000);
         }
-      } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
-        setError('Network error. Please check your internet connection and try again.');
-      } else if (error.message?.includes('timeout')) {
-        setError('Request timeout. The server is taking too long to respond. Please try again.');
-      } else if (error.message?.includes('401') || error.message?.includes('unauthorized')) {
-        setError('Authentication failed. Please log in again.');
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 2000);
       } else {
         setError('Failed to load dashboard data. Please try again.');
       }
     } finally {
       setLoading(false);
     }
-  }, [filters, isBackgroundRetry]);
+  }, [isBackgroundRetry]);
 
   useEffect(() => {
     if (mounted && !hasAttemptedFetch) {
@@ -219,20 +172,7 @@ export default function DashboardPage() {
     }
   }, [mounted, hasAttemptedFetch, fetchDashboardData]);
 
-  // Refresh dashboard when user navigates to it (focus event)
-  useEffect(() => {
-    const handleFocus = () => {
-      // Check if cache was invalidated
-      const cacheInvalidated = typeof window !== 'undefined' && !localStorage.getItem('dashboard-cache');
-      if (cacheInvalidated) {
-        console.log('Dashboard cache invalidated, refreshing data...');
-        fetchDashboardData();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [fetchDashboardData]);
+  // Focus event listener removed for ultra-fast loading
 
   const handleFiltersChange = useCallback((newFilters: DashboardFilters) => {
     setFilters(newFilters);
