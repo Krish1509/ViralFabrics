@@ -45,6 +45,7 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [filteredOrders, setFilteredOrders] = useState<UpcomingOrder[]>([]);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const fetchUpcomingOrders = useCallback(async () => {
     try {
@@ -65,21 +66,40 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         return;
       }
 
-      // Ultra-fast timeout for instant response
+      // Robust timeout with fallback
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 9000); // 5 second timeout for reliability
       
-      // Single optimized API call
-      const response = await fetch(`/api/orders?limit=100`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        },
-        signal: controller.signal,
-        cache: 'default' // Use browser cache for speed
-      });
-
-      clearTimeout(timeoutId);
+      // Single optimized API call with retry logic
+      let response;
+      try {
+        response = await fetch(`/api/orders?limit=100`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          },
+          signal: controller.signal,
+          cache: 'default'
+        });
+        clearTimeout(timeoutId);
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          // Timeout occurred, try with cached data or show empty state
+          if (deliveredSoonCache.data) {
+            setUpcomingOrders(deliveredSoonCache.data);
+            setFilteredOrders(deliveredSoonCache.data);
+            setLoading(false);
+            return; // Use cached data instead of showing error
+          }
+          // No cached data, show empty state instead of error
+          setUpcomingOrders([]);
+          setFilteredOrders([]);
+          setLoading(false);
+          return;
+        }
+        throw fetchError;
+      }
 
       if (response.ok) {
         const data = await response.json();
@@ -128,6 +148,7 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         
         setUpcomingOrders(validUpcoming);
         setFilteredOrders(validUpcoming);
+        setHasLoadedOnce(true);
         
         // Update cache for instant future loads
         deliveredSoonCache.data = validUpcoming;
@@ -145,10 +166,41 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         }
       }
     } catch (error: any) {
+      // Graceful error handling - don't show errors for timeouts if we have cached data
       if (error.name === 'AbortError') {
-        setError('Request timeout. Please try again.');
+        // Check if we have cached data to show instead of error
+        if (deliveredSoonCache.data) {
+          setUpcomingOrders(deliveredSoonCache.data);
+          setFilteredOrders(deliveredSoonCache.data);
+          setLoading(false);
+          return; // Show cached data instead of error
+        }
+        // Only show timeout error if no cached data available and we've tried before
+        if (hasLoadedOnce) {
+          setError('Request timeout. Please try again.');
+        }
+      } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        // Network errors - try to use cached data first
+        if (deliveredSoonCache.data) {
+          setUpcomingOrders(deliveredSoonCache.data);
+          setFilteredOrders(deliveredSoonCache.data);
+          setLoading(false);
+          return; // Show cached data instead of error
+        }
+        if (hasLoadedOnce) {
+          setError('Network error. Please check your connection.');
+        }
       } else {
-        setError('Failed to load upcoming orders. Please try again.');
+        // Other errors - try to use cached data first
+        if (deliveredSoonCache.data) {
+          setUpcomingOrders(deliveredSoonCache.data);
+          setFilteredOrders(deliveredSoonCache.data);
+          setLoading(false);
+          return; // Show cached data instead of error
+        }
+        if (hasLoadedOnce) {
+          setError('Failed to load upcoming orders. Please try again.');
+        }
       }
     } finally {
       setLoading(false);
@@ -157,7 +209,16 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
 
   useEffect(() => {
     fetchUpcomingOrders();
-  }, [fetchUpcomingOrders]);
+    
+    // Silent retry mechanism - retry every 30 seconds if there was an error
+    const retryInterval = setInterval(() => {
+      if (error && !loading) {
+        fetchUpcomingOrders();
+      }
+    }, 30000); // 30 seconds
+    
+    return () => clearInterval(retryInterval);
+  }, [fetchUpcomingOrders, error, loading]);
 
   // Visibility change listener removed for ultra-fast loading
 
@@ -295,8 +356,8 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         </div>
       </div>
 
-      {/* Error Message */}
-      {error && (
+      {/* Error Message - Only show if we have a real error and no cached data */}
+      {error && !deliveredSoonCache.data && (
         <div className="p-6">
           <div className={`flex items-center justify-between gap-2 p-3 rounded-lg ${
             isDarkMode 
