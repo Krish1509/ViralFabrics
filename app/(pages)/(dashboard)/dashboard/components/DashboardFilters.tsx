@@ -8,7 +8,6 @@ interface DashboardFiltersProps {
   onFiltersChange: (filters: {
     startDate: string;
     endDate: string;
-    orderType: string;
     financialYear: string;
   }) => void;
   loading?: boolean;
@@ -18,7 +17,6 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
   const { isDarkMode } = useDarkMode();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [orderType, setOrderType] = useState('all');
   const [financialYear, setFinancialYear] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
 
@@ -58,7 +56,6 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
     onFiltersChange({
       startDate: finalStartDate,
       endDate: finalEndDate,
-      orderType,
       financialYear
     });
   };
@@ -66,17 +63,15 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
   const handleClearFilters = () => {
     setStartDate('');
     setEndDate('');
-    setOrderType('all');
     setFinancialYear('all');
     onFiltersChange({
       startDate: '',
       endDate: '',
-      orderType: 'all',
       financialYear: 'all'
     });
   };
 
-  const hasActiveFilters = startDate || endDate || orderType !== 'all' || financialYear !== 'all';
+  const hasActiveFilters = startDate || endDate || financialYear !== 'all';
 
   return (
     <div className={`rounded-xl border shadow-lg p-2 sm:p-3 mb-2 sm:mb-3 transition-all duration-500 ${
@@ -122,7 +117,7 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
       </div>
 
       {showFilters && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
           {/* Date Range */}
           <div className="space-y-2">
             <label className={`block text-sm font-medium transition-colors duration-300 ${
@@ -170,27 +165,6 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
             </div>
           </div>
 
-          {/* Order Type */}
-          <div className="space-y-2">
-            <label className={`block text-sm font-medium transition-colors duration-300 ${
-              isDarkMode ? 'text-gray-300' : 'text-gray-700'
-            }`}>
-              Order Type
-            </label>
-            <select
-              value={orderType}
-              onChange={(e) => setOrderType(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-300 ${
-                isDarkMode 
-                  ? 'bg-slate-700 border-slate-500 text-gray-100' 
-                  : 'bg-white border-gray-300 text-gray-900'
-              }`}
-            >
-              <option value="all">All Types</option>
-              <option value="Dying">Dying</option>
-              <option value="Printing">Printing</option>
-            </select>
-          </div>
 
           {/* Financial Year */}
           <div className="space-y-2">
@@ -244,11 +218,6 @@ export default function DashboardFilters({ onFiltersChange, loading = false }: D
             {endDate && (
               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                 To: {new Date(endDate).toLocaleDateString()}
-              </span>
-            )}
-            {orderType !== 'all' && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                Type: {orderType}
               </span>
             )}
           </div>

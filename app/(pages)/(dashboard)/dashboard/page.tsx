@@ -13,6 +13,8 @@ import DashboardFilters from './components/DashboardFilters';
 import PieChart from './components/PieChart';
 import DeliveredSoonTable from './components/DeliveredSoonTable';
 import ErrorBoundary from '../components/ErrorBoundary';
+import MetricsCardSkeleton from './components/MetricsCardSkeleton';
+import PieChartSkeleton from './components/PieChartSkeleton';
 
 // Removed heavy components for super fast loading
 import { Order } from '@/types';
@@ -52,7 +54,6 @@ interface DashboardStats {
 interface DashboardFilters {
   startDate: string;
   endDate: string;
-  orderType: string;
   financialYear: string;
 }
 
@@ -71,14 +72,14 @@ export default function DashboardPage() {
   // Success message state removed - no validation messages shown
   const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
   const [isBackgroundRetry, setIsBackgroundRetry] = useState(false);
+  const [isFilterLoading, setIsFilterLoading] = useState(false);
   const [filters, setFilters] = useState<DashboardFilters>({
     startDate: '',
     endDate: '',
-    orderType: 'all',
     financialYear: 'all'
   });
 
-  const fetchDashboardData = useCallback(async (isRetry = false) => {
+  const fetchDashboardData = useCallback(async (isRetry = false, currentFilters = filters) => {
     try {
       // Ultra-fast cache check - load from cache immediately if available
       if (!isRetry && dashboardCache.data && (Date.now() - dashboardCache.timestamp) < dashboardCache.ttl) {
@@ -104,8 +105,17 @@ export default function DashboardPage() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for instant response
 
-      // Single optimized API call
-      const statsResponse = await fetch('/api/dashboard/stats', {
+      // Build query parameters for filters
+      const queryParams = new URLSearchParams();
+      if (currentFilters.startDate) queryParams.append('startDate', currentFilters.startDate);
+      if (currentFilters.endDate) queryParams.append('endDate', currentFilters.endDate);
+      if (currentFilters.financialYear && currentFilters.financialYear !== 'all') {
+        queryParams.append('financialYear', currentFilters.financialYear);
+      }
+
+      // Single optimized API call with filters
+      const apiUrl = `/api/dashboard/stats${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const statsResponse = await fetch(apiUrl, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json'
@@ -163,7 +173,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [isBackgroundRetry]);
+  }, [filters]);
 
   useEffect(() => {
     if (mounted && !hasAttemptedFetch) {
@@ -174,9 +184,18 @@ export default function DashboardPage() {
 
   // Focus event listener removed for ultra-fast loading
 
-  const handleFiltersChange = useCallback((newFilters: DashboardFilters) => {
+  const handleFiltersChange = useCallback(async (newFilters: DashboardFilters) => {
     setFilters(newFilters);
-  }, []);
+    setIsFilterLoading(true);
+    // Clear cache and fetch new data with filters
+    dashboardCache.data = null;
+    dashboardCache.timestamp = 0;
+    try {
+      await fetchDashboardData(false, newFilters);
+    } finally {
+      setIsFilterLoading(false);
+    }
+  }, [fetchDashboardData]);
 
   if (!mounted) {
     return (
@@ -257,35 +276,49 @@ export default function DashboardPage() {
         {/* Filters */}
         <DashboardFilters 
           onFiltersChange={handleFiltersChange}
-          loading={loading}
+          loading={isFilterLoading}
         />
 
         {/* Metrics Cards - Updated */}
-        {stats && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-            <MetricsCard
-              title="Total Orders"
-              value={stats.totalOrders || 0}
-              icon={ShoppingBagIcon}
-              color="blue"
-              subtitle="All time orders"
-            />
-            <MetricsCard
-              title="Pending Orders"
-              value={(stats.statusStats?.pending || 0) + (stats.statusStats?.not_set || 0)}
-              icon={ClockIcon}
-              color="yellow"
-              subtitle="Awaiting processing"
-            />
-            <MetricsCard
-              title="Delivered Orders"
-              value={(stats.statusStats?.completed || 0) + (stats.statusStats?.delivered || 0)}
-              icon={CheckCircleIcon}
-              color="green"
-              subtitle="Successfully delivered"
-            />
-          </div>
-        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          {loading || isFilterLoading ? (
+            <>
+              <MetricsCardSkeleton />
+              <MetricsCardSkeleton />
+              <MetricsCardSkeleton />
+            </>
+          ) : stats ? (
+            <>
+              <div className="animate-fade-in">
+                <MetricsCard
+                  title="Total Orders"
+                  value={stats.totalOrders || 0}
+                  icon={ShoppingBagIcon}
+                  color="blue"
+                  subtitle="All time orders"
+                />
+              </div>
+              <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
+                <MetricsCard
+                  title="Pending Orders"
+                  value={(stats.statusStats?.pending || 0) + (stats.statusStats?.not_set || 0)}
+                  icon={ClockIcon}
+                  color="yellow"
+                  subtitle="Awaiting processing"
+                />
+              </div>
+              <div className="animate-fade-in" style={{ animationDelay: '0.2s' }}>
+                <MetricsCard
+                  title="Delivered Orders"
+                  value={(stats.statusStats?.completed || 0) + (stats.statusStats?.delivered || 0)}
+                  icon={CheckCircleIcon}
+                  color="green"
+                  subtitle="Successfully delivered"
+                />
+              </div>
+            </>
+          ) : null}
+        </div>
 
         {/* No Data State */}
         {!loading && !stats && !error && (
@@ -310,58 +343,71 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Pie Charts Section */}
-        {stats && stats.pendingTypeStats && stats.deliveredTypeStats && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8">
-            {/* Pending Orders Pie Chart */}
-            <PieChart
-              data={[
-                {
-                  name: 'Dying',
-                  value: stats.pendingTypeStats.Dying || 0,
-                  color: '#F97316' // Orange
-                },
-                {
-                  name: 'Printing',
-                  value: stats.pendingTypeStats.Printing || 0,
-                  color: '#3B82F6' // Blue
-                },
-                {
-                  name: 'Not Set',
-                  value: stats.pendingTypeStats.not_set || 0,
-                  color: '#6B7280' // Gray
-                }
-              ]}
-              title="Pending Orders by Type"
-              total={(stats.pendingTypeStats.Dying || 0) + (stats.pendingTypeStats.Printing || 0) + (stats.pendingTypeStats.not_set || 0)}
-              isDarkMode={isDarkMode}
-            />
+        {/* Enhanced Pie Charts Section */}
+        <div className="mb-12">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
+            {loading || isFilterLoading ? (
+              <>
+                <PieChartSkeleton />
+                <PieChartSkeleton />
+              </>
+            ) : stats && stats.pendingTypeStats && stats.deliveredTypeStats ? (
+              <>
+                {/* Pending Orders Pie Chart */}
+                <div className="transform hover:scale-105 transition-transform duration-300 animate-fade-in">
+                  <PieChart
+                    data={[
+                      {
+                        name: 'Dying',
+                        value: stats.pendingTypeStats.Dying || 0,
+                        color: '#F97316' // Orange
+                      },
+                      {
+                        name: 'Printing',
+                        value: stats.pendingTypeStats.Printing || 0,
+                        color: '#3B82F6' // Blue
+                      },
+                      {
+                        name: 'Not Set',
+                        value: stats.pendingTypeStats.not_set || 0,
+                        color: '#6B7280' // Gray
+                      }
+                    ]}
+                    title="⏳ Pending Orders by Type"
+                    total={(stats.pendingTypeStats.Dying || 0) + (stats.pendingTypeStats.Printing || 0) + (stats.pendingTypeStats.not_set || 0)}
+                    isDarkMode={isDarkMode}
+                  />
+                </div>
 
-            {/* Delivered Orders Pie Chart */}
-            <PieChart
-              data={[
-                {
-                  name: 'Dying',
-                  value: stats.deliveredTypeStats.Dying || 0,
-                  color: '#F97316' // Orange
-                },
-                {
-                  name: 'Printing',
-                  value: stats.deliveredTypeStats.Printing || 0,
-                  color: '#3B82F6' // Blue
-                },
-                {
-                  name: 'Not Set',
-                  value: stats.deliveredTypeStats.not_set || 0,
-                  color: '#6B7280' // Gray
-                }
-              ]}
-              title="Delivered Orders by Type"
-              total={(stats.deliveredTypeStats.Dying || 0) + (stats.deliveredTypeStats.Printing || 0) + (stats.deliveredTypeStats.not_set || 0)}
-              isDarkMode={isDarkMode}
-            />
+                {/* Delivered Orders Pie Chart */}
+                <div className="transform hover:scale-105 transition-transform duration-300 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+                  <PieChart
+                    data={[
+                      {
+                        name: 'Dying',
+                        value: stats.deliveredTypeStats.Dying || 0,
+                        color: '#F97316' // Orange
+                      },
+                      {
+                        name: 'Printing',
+                        value: stats.deliveredTypeStats.Printing || 0,
+                        color: '#3B82F6' // Blue
+                      },
+                      {
+                        name: 'Not Set',
+                        value: stats.deliveredTypeStats.not_set || 0,
+                        color: '#6B7280' // Gray
+                      }
+                    ]}
+                    title="✅ Delivered Orders by Type"
+                    total={(stats.deliveredTypeStats.Dying || 0) + (stats.deliveredTypeStats.Printing || 0) + (stats.deliveredTypeStats.not_set || 0)}
+                    isDarkMode={isDarkMode}
+                  />
+                </div>
+              </>
+            ) : null}
           </div>
-        )}
+        </div>
 
         {/* Delivered Soon Table */}
         <div className="mb-6 sm:mb-8">

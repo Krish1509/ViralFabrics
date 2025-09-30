@@ -18,8 +18,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(unauthorizedResponse('Unauthorized'), { status: 401 });
     }
 
-    // Check cache first for ultra-fast response
-    const cacheKey = 'dashboard-stats';
+    // Get filter parameters from URL
+    const { searchParams } = new URL(request.url);
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const financialYear = searchParams.get('financialYear');
+
+    // Create cache key based on filters
+    const cacheKey = `dashboard-stats-${startDate || 'all'}-${endDate || 'all'}-${financialYear || 'all'}`;
     const cached = statsCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
       return NextResponse.json(successResponse(cached.data, 'Dashboard stats loaded from cache'), { 
@@ -36,16 +42,43 @@ export async function GET(request: NextRequest) {
     // Connect to database with optimized settings
     await dbConnect();
 
-    // Super fast single aggregation query instead of multiple queries
+    // Build match conditions based on filters
+    const matchConditions: any = {
+      $or: [
+        { softDeleted: false },
+        { softDeleted: { $exists: false } }
+      ]
+    };
+
+    // Add date filters
+    if (startDate || endDate) {
+      matchConditions.createdAt = {};
+      if (startDate) {
+        matchConditions.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        matchConditions.createdAt.$lte = new Date(endDate + 'T23:59:59.999Z');
+      }
+    }
+
+    // Add financial year filter
+    if (financialYear && financialYear !== 'all') {
+      const [startYear, endYear] = financialYear.split('-');
+      const fyStartDate = new Date(`${startYear}-04-01`);
+      const fyEndDate = new Date(`${endYear}-03-31T23:59:59.999Z`);
+      
+      if (!matchConditions.createdAt) {
+        matchConditions.createdAt = {};
+      }
+      matchConditions.createdAt.$gte = fyStartDate;
+      matchConditions.createdAt.$lte = fyEndDate;
+    }
+
+    // Super fast single aggregation query with filters
     const [statsResult] = await Promise.all([
       Order.aggregate([
         {
-          $match: {
-            $or: [
-              { softDeleted: false },
-              { softDeleted: { $exists: false } }
-            ]
-          }
+          $match: matchConditions
         },
         {
           $facet: {
