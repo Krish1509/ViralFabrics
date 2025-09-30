@@ -214,7 +214,11 @@ export default function OrdersPage() {
   const [filters, setFilters] = useState({
     orderFilter: 'latest_first', // latest_first, oldest_first - default to latest first (by creation date)
     typeFilter: 'all', // all, Dying, Printing
-    statusFilter: 'all' // all, pending, delivered
+    statusFilter: 'all', // all, pending, delivered
+    orderType: '', // For API compatibility
+    status: '', // For API compatibility
+    startDate: '', // For API compatibility
+    endDate: '' // For API compatibility
   });
 
   // Track screen size
@@ -278,15 +282,56 @@ export default function OrdersPage() {
     return errors;
   }, []);
 
-  // Simple search without validation messages
-  const handleSearchChange = useCallback((value: string) => {
+  // Server-side search handler
+  const handleSearchChange = useCallback(async (value: string) => {
     const trimmedValue = value.trim();
     setSearchTerm(trimmedValue);
-    // Reset to page 1 when searching to show search results
-    if (currentPage !== 1) {
-      setCurrentPage(1);
+    setCurrentPage(1); // Reset to page 1 when searching
+    // Fetch search results from server
+    await fetchOrders(0, 1, itemsPerPage, false, filters);
+  }, [itemsPerPage]);
+
+  // Server-side filter handlers
+  const handleFilterChange = useCallback(async (filterType: string, value: string) => {
+    const newFilters = { ...filters, [filterType]: value };
+    
+    // Map filter values to API parameters
+    if (filterType === 'typeFilter') {
+      newFilters.orderType = value === 'all' ? '' : value;
+    } else if (filterType === 'statusFilter') {
+      newFilters.status = value === 'all' ? '' : value;
     }
-  }, [currentPage]);
+    
+    setFilters(newFilters);
+    setCurrentPage(1); // Reset to page 1 when filtering
+    // Fetch filtered results from server
+    await fetchOrders(0, 1, itemsPerPage, false, newFilters);
+  }, [filters, itemsPerPage, searchTerm]);
+
+  const handleClearFilters = useCallback(async () => {
+    setSearchTerm('');
+    setFilters({
+      orderFilter: 'latest_first',
+      typeFilter: 'all',
+      statusFilter: 'all',
+      orderType: '',
+      status: '',
+      startDate: '',
+      endDate: ''
+    });
+    setCurrentPage(1);
+    // Fetch all orders from server
+    const clearedFilters = {
+      orderFilter: 'latest_first',
+      typeFilter: 'all',
+      statusFilter: 'all',
+      orderType: '',
+      status: '',
+      startDate: '',
+      endDate: ''
+    };
+    await fetchOrders(0, 1, itemsPerPage, false, clearedFilters);
+  }, [itemsPerPage]);
 
    // Function to process mill input data and group by order and quality
   const processMillInputDataByQuality = useCallback((millInputs: any[]) => {
@@ -392,7 +437,7 @@ export default function OrdersPage() {
   }, [processDataByQuality]);
 
   // ULTRA FAST fetch functions - 50ms target
-  const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage, forceRefresh = false) => {
+  const fetchOrders = useCallback(async (retryCount = 0, page = currentPage, limit = itemsPerPage, forceRefresh = false, currentFilters = filters) => {
     const maxRetries = 2; // Two retries for better reliability
     const baseTimeout = 3000; // 3 second timeout for better reliability
     const timeoutIncrement = 1000; // Add 1 second per retry
@@ -410,9 +455,26 @@ export default function OrdersPage() {
       
       // Build URL with pagination and filter parameters
       const url = new URL('/api/orders', window.location.origin);
-      const limitValue = limit === 'All' ? 1000 : Math.max(limit, 50); // Increased limit to handle all orders
+      const limitValue = limit === 'All' ? 100 : Math.max(limit, 10); // Use server-side pagination
       url.searchParams.append('limit', limitValue.toString());
       url.searchParams.append('page', page.toString());
+      
+      // Add search and filter parameters for server-side filtering
+      if (searchTerm) {
+        url.searchParams.append('search', searchTerm);
+      }
+      if (currentFilters.orderType) {
+        url.searchParams.append('orderType', currentFilters.orderType);
+      }
+      if (currentFilters.status) {
+        url.searchParams.append('status', currentFilters.status);
+      }
+      if (currentFilters.startDate) {
+        url.searchParams.append('startDate', currentFilters.startDate);
+      }
+      if (currentFilters.endDate) {
+        url.searchParams.append('endDate', currentFilters.endDate);
+      }
       
       // Add cache-busting parameter to ensure fresh data (especially after deletions)
       if (forceRefresh) {
@@ -540,7 +602,8 @@ export default function OrdersPage() {
     
     setIsChangingPage(true);
     setCurrentPage(newPage);
-    // No need to fetch from server - client-side pagination handles this
+    // Fetch new page from server
+    await fetchOrders(0, newPage, itemsPerPage, false, filters);
     setIsChangingPage(false);
   };
 
@@ -551,95 +614,40 @@ export default function OrdersPage() {
     setItemsPerPage(newItemsPerPage);
     setCurrentPage(1); // Reset to first page
     
-    // For better UX, fetch all orders and use client-side pagination
-    await fetchOrders(0, 1, 'All', true);
+    // Fetch first page with new items per page from server
+    await fetchOrders(0, 1, newItemsPerPage, false, filters);
     setIsChangingPage(false);
   };
 
-  // Calculate total pages based on filtered orders (client-side pagination)
+  // Use server-side pagination info
   const totalPages = useMemo(() => {
-    // Get total filtered orders count
-    const filteredCount = orders.filter(order => {
-      const matchesSearch = searchTerm === '' || (
-        (order.orderId && order.orderId.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (order.poNumber && order.poNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (order.styleNo && order.styleNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (order.party && typeof order.party === 'object' && order.party.name && order.party.name.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
+    return paginationInfo.totalPages || 1;
+  }, [paginationInfo.totalPages]);
 
-      const matchesType = filters.typeFilter === 'all' || order.orderType === filters.typeFilter;
-      
-      // Enhanced status logic - if no status set or status is not 'delivered', default to pending
-      const orderStatus = order.status;
-      let normalizedStatus = 'pending'; // Default to pending
-      
-      if (orderStatus === 'delivered') {
-        normalizedStatus = 'delivered';
-      } else {
-        // Any other status (including null, undefined, 'pending', etc.) is treated as pending
-        normalizedStatus = 'pending';
-      }
-      
-      const matchesStatus = filters.statusFilter === 'all' || normalizedStatus === filters.statusFilter;
-
-      return matchesSearch && matchesType && matchesStatus;
-    }).length;
-    
-    // If "All" selected, show all on one page
-    if (itemsPerPage === 'All') return 1;
-    
-    const itemsPerPageValue = itemsPerPage as number;
-    const calculatedPages = Math.ceil(filteredCount / itemsPerPageValue);
-    return Math.max(1, calculatedPages);
-  }, [orders, searchTerm, filters, itemsPerPage]);
-
-  // Calculate pagination display info for client-side pagination
+  // Use server-side pagination display info
   const paginationDisplayInfo = useMemo(() => {
-    const filteredCount = orders.filter(order => {
-      const matchesSearch = searchTerm === '' || (
-        (order.orderId && order.orderId.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (order.poNumber && order.poNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (order.styleNo && order.styleNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (order.party && typeof order.party === 'object' && order.party.name && order.party.name.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-
-      const matchesType = filters.typeFilter === 'all' || order.orderType === filters.typeFilter;
-      
-      // Enhanced status logic - if no status set or status is not 'delivered', default to pending
-      const orderStatus = order.status;
-      let normalizedStatus = 'pending'; // Default to pending
-      
-      if (orderStatus === 'delivered') {
-        normalizedStatus = 'delivered';
-      } else {
-        // Any other status (including null, undefined, 'pending', etc.) is treated as pending
-        normalizedStatus = 'pending';
-      }
-      
-      const matchesStatus = filters.statusFilter === 'all' || normalizedStatus === filters.statusFilter;
-
-      return matchesSearch && matchesType && matchesStatus;
-    }).length;
-
-    // If "All" selected, show all on one page
+    const total = paginationInfo.totalCount || 0;
+    const currentPageNum = paginationInfo.currentPage || 1;
+    const itemsPerPageValue = itemsPerPage === 'All' ? total : (itemsPerPage as number);
+    
     if (itemsPerPage === 'All') {
       return {
-        showing: filteredCount,
-        total: filteredCount,
-        start: filteredCount > 0 ? 1 : 0,
-        end: filteredCount
+        showing: orders.length,
+        total: total,
+        start: total > 0 ? 1 : 0,
+        end: total
       };
     } else {
-      const start = filteredCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
-      const end = Math.min(currentPage * itemsPerPage, filteredCount);
+      const start = total > 0 ? (currentPageNum - 1) * itemsPerPageValue + 1 : 0;
+      const end = Math.min(currentPageNum * itemsPerPageValue, total);
       return {
-        showing: end - start + 1,
-        total: filteredCount,
+        showing: orders.length,
+        total: total,
         start: start,
         end: end
       };
     }
-  }, [orders, searchTerm, filters, itemsPerPage, currentPage]);
+  }, [paginationInfo, itemsPerPage, orders.length]);
 
   // Function to fetch existing mill inputs for an order
   const fetchExistingMillInputs = useCallback(async (orderId: string) => {
@@ -1050,7 +1058,7 @@ export default function OrdersPage() {
         
         const [ordersResult, millsResult] = await Promise.allSettled([
           // Orders API - Most critical
-          fetch('/api/orders?limit=1000&page=1&force=true', {
+          fetch('/api/orders?limit=10&page=1&force=true', {
             headers: { 
               'Authorization': `Bearer ${token}`,
               'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -1496,8 +1504,8 @@ export default function OrdersPage() {
     
     try {
       // Only refresh orders - super simple
-      // Force refresh to get all orders
-      await fetchOrders(0, 1, 'All', true);
+      // Force refresh to get current page
+      await fetchOrders(0, currentPage, itemsPerPage, true, filters);
       showMessage('success', 'Orders refreshed successfully', { 
         autoDismiss: true, 
         dismissTime: 2000 
@@ -1734,99 +1742,8 @@ export default function OrdersPage() {
     return { total, pending, arrived, delivered };
   }, [orders]);
 
-  // Memoized filtered and sorted orders
-  const filteredOrders = useMemo(() => {
-    console.log('Filtering orders:', {
-      totalOrders: orders.length,
-      searchTerm,
-      filters,
-      orders: orders.map(o => ({ id: o.orderId, status: o.status, type: o.orderType }))
-    });
-    
-    // Filtering orders
-    let filtered = orders
-      .filter(order => {
-        const matchesSearch = searchTerm === '' || (
-          (order.orderId && order.orderId.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (order.poNumber && order.poNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (order.styleNo && order.styleNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (order.party && typeof order.party === 'object' && order.party.name && order.party.name.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
-
-        const matchesType = filters.typeFilter === 'all' || order.orderType === filters.typeFilter;
-        
-        // Enhanced status logic - if no status set or status is not 'delivered', default to pending
-        const orderStatus = order.status;
-        let normalizedStatus = 'pending'; // Default to pending
-        
-        if (orderStatus === 'delivered') {
-          normalizedStatus = 'delivered';
-        } else {
-          // Any other status (including null, undefined, 'pending', etc.) is treated as pending
-          normalizedStatus = 'pending';
-        }
-        
-        const matchesStatus = filters.statusFilter === 'all' || normalizedStatus === filters.statusFilter;
-
-        const passes = matchesSearch && matchesType && matchesStatus;
-        
-        if (!passes) {
-          console.log('Order filtered out:', {
-            orderId: order.orderId,
-            matchesSearch,
-            matchesType,
-            matchesStatus,
-            orderStatus,
-            normalizedStatus,
-            searchTerm,
-            typeFilter: filters.typeFilter,
-            statusFilter: filters.statusFilter
-          });
-        }
-
-        return passes;
-      });
-
-    // Apply order filter
-    if (filters.orderFilter === 'latest_first') {
-      // Sort by newest first (latest orders at top) - use createdAt as primary, arrivalDate as fallback
-      filtered = filtered.sort((a, b) => {
-        const dateA = new Date(a.createdAt || a.arrivalDate || '').getTime();
-        const dateB = new Date(b.createdAt || b.arrivalDate || '').getTime();
-        return dateB - dateA; // Latest first
-      });
-    } else if (filters.orderFilter === 'oldest_first') {
-      // Sort by order ID ascending (001, 002, 003, etc.)
-      filtered = filtered.sort((a, b) => {
-        const orderIdA = parseInt(a.orderId || '0');
-        const orderIdB = parseInt(b.orderId || '0');
-        return orderIdA - orderIdB;
-      });
-    }
-
-    // No search results handling
-
-    // Apply client-side pagination
-    let result;
-    if (itemsPerPage === 'All') {
-      result = filtered; // Show all orders only when "All" is selected
-    } else {
-      const startIndex = (currentPage - 1) * itemsPerPage;
-      const endIndex = startIndex + itemsPerPage;
-      result = filtered.slice(startIndex, endIndex);
-    }
-    
-    console.log('Filtered orders result:', {
-      filteredCount: filtered.length,
-      resultCount: result.length,
-      currentPage,
-      itemsPerPage,
-      startIndex: itemsPerPage === 'All' ? 0 : (currentPage - 1) * itemsPerPage,
-      endIndex: itemsPerPage === 'All' ? filtered.length : (currentPage - 1) * itemsPerPage + itemsPerPage
-    });
-    
-    return result;
-  }, [orders, searchTerm, filters, itemsPerPage, currentPage]);
+  // Use server-side filtered orders directly
+  const filteredOrders = orders;
 
   const handleDeleteClick = useCallback((order: Order) => {
     setOrderToDelete(order);
@@ -2965,7 +2882,7 @@ export default function OrdersPage() {
                 isDarkMode ? 'border-gray-600' : 'border-gray-300'
               } overflow-hidden`}>
                 <button
-                  onClick={() => setFilters({ ...filters, orderFilter: 'latest_first' })}
+                  onClick={() => handleFilterChange('orderFilter', 'latest_first')}
                   className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all duration-200 ${
                     filters.orderFilter === 'latest_first'
                       ? isDarkMode
@@ -2979,7 +2896,7 @@ export default function OrdersPage() {
                   Latest
                 </button>
                 <button
-                  onClick={() => setFilters({ ...filters, orderFilter: 'oldest_first' })}
+                  onClick={() => handleFilterChange('orderFilter', 'oldest_first')}
                   className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all duration-200 ${
                     filters.orderFilter === 'oldest_first'
                       ? isDarkMode
@@ -3004,7 +2921,7 @@ export default function OrdersPage() {
               </span>
               <select
                 value={filters.statusFilter}
-                onChange={(e) => setFilters({ ...filters, statusFilter: e.target.value })}
+                onChange={(e) => handleFilterChange('statusFilter', e.target.value)}
                 className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg border transition-colors ${
                   isDarkMode
                     ? 'bg-gray-700 border-gray-600 text-white hover:bg-gray-600'
@@ -3024,7 +2941,7 @@ export default function OrdersPage() {
               </span>
               <select
                 value={filters.typeFilter}
-                onChange={(e) => setFilters({ ...filters, typeFilter: e.target.value })}
+                onChange={(e) => handleFilterChange('typeFilter', e.target.value)}
                 className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg border transition-colors ${
                   isDarkMode
                     ? 'bg-gray-700 border-gray-600 text-white hover:bg-gray-600'
@@ -4282,14 +4199,7 @@ export default function OrdersPage() {
                   </button>
                 ) : (
                   <button
-                    onClick={() => {
-                      setSearchTerm('');
-                      setFilters({
-                        orderFilter: 'latest_first',
-                        typeFilter: 'all',
-                        statusFilter: 'all'
-                      });
-                    }}
+                    onClick={handleClearFilters}
                     className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-colors ${
                       isDarkMode
                         ? 'bg-blue-600 hover:bg-blue-700 text-white'
@@ -4339,10 +4249,7 @@ export default function OrdersPage() {
                   <p className="mt-2">Try adjusting your search criteria or filters</p>
                 </div>
                 <button
-                  onClick={() => {
-                    setSearchTerm('');
-                    setFilters({ orderFilter: 'oldest_first', typeFilter: 'all', statusFilter: 'all' });
-                  }}
+                  onClick={handleClearFilters}
                   className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-colors ${
                     isDarkMode
                       ? 'bg-gray-600 hover:bg-gray-700 text-white'
