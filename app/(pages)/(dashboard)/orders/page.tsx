@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { debounce } from 'lodash';
 import { 
   PlusIcon,
   MagnifyingGlassIcon,
@@ -719,6 +720,7 @@ export default function OrdersPage() {
         // Set orders data AFTER pagination info is updated
         console.log('📊 About to set orders data:', ordersData.length, 'orders');
         setOrdersSafe(ordersData);
+        setOrdersLoaded(true); // Mark as loaded to show data
         setLastRefreshTime(new Date());
         console.log('📊 Orders data set, checking state in next render...');
       } else {
@@ -839,8 +841,15 @@ export default function OrdersPage() {
 
   // Enhanced items per page handler with better loading states
   const handleItemsPerPageChange = useCallback(async (newItemsPerPage: number) => {
-    if (newItemsPerPage === itemsPerPage || isChangingPage) {
-      console.log('🚫 Items per page change blocked - duplicate call or already changing');
+    if (newItemsPerPage === itemsPerPage) {
+      console.log('🚫 Items per page change blocked - same value');
+      return;
+    }
+    
+    if (isChangingPage) {
+      console.log('🚫 Items per page change blocked - already changing, will retry');
+      // Don't return, just wait a bit and try again
+      setTimeout(() => handleItemsPerPageChange(newItemsPerPage), 100);
       return;
     }
     
@@ -849,14 +858,15 @@ export default function OrdersPage() {
     // Set loading states immediately
     setIsChangingPage(true);
     setTableLoading(true);
+    setOrdersLoaded(false); // Reset loaded state to show skeleton
     
     try {
       // Update state immediately for responsive UI
     setItemsPerPage(newItemsPerPage);
       setCurrentPage(1);
     
-      // Fetch first page with new items per page
-    await fetchOrders(0, 1, newItemsPerPage, false, filters, searchTerm);
+      // Fetch first page with new items per page - force refresh to ensure fresh data
+    await fetchOrders(0, 1, newItemsPerPage, true, filters, searchTerm);
       
       console.log('✅ Items per page change completed successfully');
     } catch (error) {
@@ -878,6 +888,14 @@ export default function OrdersPage() {
       setTableLoading(false);
     }
   }, [itemsPerPage, isChangingPage, fetchOrders, filters, searchTerm, showMessage, currentPage]);
+
+  // Debounced version to prevent rapid clicking
+  const debouncedHandleItemsPerPageChange = useCallback(
+    debounce((newItemsPerPage: number) => {
+      handleItemsPerPageChange(newItemsPerPage);
+    }, 150),
+    [handleItemsPerPageChange]
+  );
 
   // Use server-side pagination display info with proper state synchronization
   const paginationDisplayInfo = useMemo(() => {
@@ -3644,7 +3662,7 @@ export default function OrdersPage() {
                     value={itemsPerPage}
                     onChange={(e) => {
                       const value = parseInt(e.target.value);
-                      handleItemsPerPageChange(value);
+                      debouncedHandleItemsPerPageChange(value);
                     }}
                     disabled={isChangingPage || loading}
                     className={`px-2 sm:px-3 py-1 rounded-lg border text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
