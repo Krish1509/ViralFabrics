@@ -104,11 +104,13 @@ export default function CreateFabricPage() {
         }
       }, 1000);
       
+      const token = localStorage.getItem('token');
       const response = await fetch(`/api/fabrics/${editId}`, {
         signal: controller.signal,
         headers: {
           'Cache-Control': 'no-cache', // Prevent caching issues
-          'Pragma': 'no-cache'
+          'Pragma': 'no-cache',
+          ...(token && { 'Authorization': `Bearer ${token}` })
         }
       });
       
@@ -274,8 +276,12 @@ export default function CreateFabricPage() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
       
+      const token = localStorage.getItem('token');
       const response = await fetch(`/api/fabrics?qualityCode=${encodeURIComponent(qualityCode.trim())}&exact=true`, {
-        signal: controller.signal
+        signal: controller.signal,
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
       });
       
       clearTimeout(timeoutId);

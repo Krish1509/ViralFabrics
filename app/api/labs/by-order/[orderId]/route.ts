@@ -34,7 +34,7 @@ export async function GET(
     .select('_id orderItemId status labSendDate labSendNumber labSendData remarks createdAt')
     .sort({ createdAt: -1 })
     .lean()
-    .maxTimeMS(2000); // Reduced timeout to 2 seconds
+    .maxTimeMS(500); // Ultra-fast timeout for instant loading
 
     if (labs.length > 0) {
       }

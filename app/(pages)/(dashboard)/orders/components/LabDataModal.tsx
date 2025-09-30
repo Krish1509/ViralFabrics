@@ -427,17 +427,23 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
-  // Function to fetch existing lab data from API
+  // Function to fetch existing lab data from API - ULTRA FAST
   const fetchExistingLabData = async () => {
     setLoadingData(true);
     try {
       const token = localStorage.getItem('token');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout
+      
       const response = await fetch(`/api/labs/by-order/${order._id}?t=${Date.now()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
@@ -478,8 +484,13 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
         }));
         setLocalItems(updatedItems);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching lab data:', error);
+      if (error.name === 'AbortError') {
+        console.log('Lab data fetch timed out, using cached data');
+        // Use existing order data as fallback
+        setLocalItems(order.items);
+      }
     } finally {
       setLoadingData(false);
     }
@@ -772,14 +783,54 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       <div className={`relative w-full max-w-6xl max-h-[95vh] overflow-hidden rounded-xl shadow-2xl ${
         isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
       }`}>
-        {/* Loading Overlay for Data Fetching */}
+        {/* Loading Skeleton for Data Fetching */}
         {loadingData && (
-          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
-            <div className={`p-6 rounded-lg ${
-              isDarkMode ? 'bg-gray-800' : 'bg-white'
-            }`}>
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-              <p className="mt-2 text-sm">Loading lab data...</p>
+          <div className="absolute inset-0 bg-black/10 backdrop-blur-sm z-10">
+            <div className="p-6 space-y-6">
+              {/* Header Skeleton */}
+              <div className="flex items-center space-x-4 animate-pulse">
+                <div className="h-12 w-32 bg-gray-300 dark:bg-gray-600 rounded-lg skeleton-shimmer"></div>
+                <div className="h-12 w-48 bg-gray-300 dark:bg-gray-600 rounded-lg skeleton-shimmer"></div>
+                <div className="h-12 w-24 bg-gray-300 dark:bg-gray-600 rounded-lg skeleton-shimmer"></div>
+              </div>
+              
+              {/* Items Skeleton */}
+              <div className="space-y-4">
+                {[1, 2, 3].map((index) => (
+                  <div key={index} className={`p-4 rounded-lg border animate-pulse ${
+                    isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                  }`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="h-6 w-48 bg-gray-300 dark:bg-gray-600 rounded skeleton-shimmer"></div>
+                      <div className="h-8 w-20 bg-gray-300 dark:bg-gray-600 rounded skeleton-shimmer"></div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-3">
+                        <div className="h-4 w-20 bg-gray-300 dark:bg-gray-600 rounded skeleton-shimmer"></div>
+                        <div className="h-10 w-full bg-gray-300 dark:bg-gray-600 rounded skeleton-shimmer"></div>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="h-4 w-20 bg-gray-300 dark:bg-gray-600 rounded skeleton-shimmer"></div>
+                        <div className="h-10 w-full bg-gray-300 dark:bg-gray-600 rounded skeleton-shimmer"></div>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="h-4 w-20 bg-gray-300 dark:bg-gray-600 rounded skeleton-shimmer"></div>
+                        <div className="h-10 w-full bg-gray-300 dark:bg-gray-600 rounded skeleton-shimmer"></div>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="h-4 w-20 bg-gray-300 dark:bg-gray-600 rounded skeleton-shimmer"></div>
+                        <div className="h-10 w-full bg-gray-300 dark:bg-gray-600 rounded skeleton-shimmer"></div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 flex space-x-2">
+                      <div className="h-8 w-16 bg-gray-300 dark:bg-gray-600 rounded skeleton-shimmer"></div>
+                      <div className="h-8 w-16 bg-gray-300 dark:bg-gray-600 rounded skeleton-shimmer"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

@@ -5737,6 +5737,8 @@ export default function OrdersPage() {
             const orderId = selectedOrderForLab?._id;
             
             if (orderId) {
+              console.log('🔄 Lab data update:', operationType, 'for order:', orderId);
+              
               // Immediate UI update based on operation type
               setOrders(prevOrders => 
                 prevOrders.map(order => {
@@ -5761,6 +5763,11 @@ export default function OrdersPage() {
                   return order;
                 })
               );
+              
+              // Trigger a quick refresh of orders data to get latest lab data
+              setTimeout(() => {
+                fetchOrders(0, currentPage, itemsPerPage, true);
+              }, 100);
             }
             
             // Optional: Fetch fresh data in background (non-blocking)
@@ -6297,6 +6304,8 @@ export default function OrdersPage() {
             const orderId = selectedOrderForLabData?._id;
             
             if (orderId) {
+              console.log('🔄 Lab data update (view):', operationType, 'for order:', orderId);
+              
               // Immediate UI update based on operation type
               setOrders(prevOrders => 
                 prevOrders.map(order => {
@@ -6321,6 +6330,11 @@ export default function OrdersPage() {
                   return order;
                 })
               );
+              
+              // Trigger a quick refresh of orders data to get latest lab data
+              setTimeout(() => {
+                fetchOrders(0, currentPage, itemsPerPage, true);
+              }, 100);
             }
             
             // Optional: Fetch fresh data in background (non-blocking)

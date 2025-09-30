@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Authentication</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Authentication Debug Tool</h1>
+    
+    <div class="section info">
+        <h3>Current Status</h3>
+        <div id="status">Checking...</div>
+    </div>
+    
+    <div class="section">
+        <h3>Login</h3>
+        <input type="text" id="username" placeholder="Username" value="admin">
+        <input type="password" id="password" placeholder="Password" value="admin123">
+        <button onclick="login()">Login</button>
+        <div id="loginResult"></div>
+    </div>
+    
+    <div class="section">
+        <h3>Test Fabrics API</h3>
+        <button onclick="testFabricsAPI()">Test Fabrics API</button>
+        <div id="apiResult"></div>
+    </div>
+    
+    <div class="section">
+        <h3>Local Storage</h3>
+        <button onclick="showLocalStorage()">Show Local Storage</button>
+        <button onclick="clearLocalStorage()">Clear Local Storage</button>
+        <div id="localStorageResult"></div>
+    </div>
+
+    <script>
+        function updateStatus() {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            const statusDiv = document.getElementById('status');
+            
+            if (token && user) {
+                statusDiv.innerHTML = `
+                    <div class="success">
+                        <strong>✅ Logged In</strong><br>
+                        Token: ${token.substring(0, 20)}...<br>
+                        User: ${JSON.parse(user).name} (${JSON.parse(user).role})
+                    </div>
+                `;
+            } else {
+                statusDiv.innerHTML = `
+                    <div class="error">
+                        <strong>❌ Not Logged In</strong><br>
+                        Token: ${token ? 'Present' : 'Missing'}<br>
+                        User: ${user ? 'Present' : 'Missing'}
+                    </div>
+                `;
+            }
+        }
+        
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('loginResult');
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <strong>✅ Login Successful</strong><br>
+                            User: ${data.user.name} (${data.user.role})
+                        </div>
+                    `;
+                    updateStatus();
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <strong>❌ Login Failed</strong><br>
+                            ${data.message}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <strong>❌ Error</strong><br>
+                        ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        async function testFabricsAPI() {
+            const token = localStorage.getItem('token');
+            const resultDiv = document.getElementById('apiResult');
+            
+            if (!token) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <strong>❌ No Token</strong><br>
+                        Please login first
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/fabrics?sortBy=createdAt&sortOrder=desc&limit=10&page=1', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <strong>✅ API Success</strong><br>
+                            Found ${data.data.length} fabrics<br>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <strong>❌ API Error</strong><br>
+                            Status: ${response.status}<br>
+                            Message: ${data.message}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <strong>❌ Network Error</strong><br>
+                        ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        function showLocalStorage() {
+            const resultDiv = document.getElementById('localStorageResult');
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            resultDiv.innerHTML = `
+                <div class="info">
+                    <strong>Local Storage Contents:</strong><br>
+                    <pre>Token: ${token || 'Not found'}</pre>
+                    <pre>User: ${user || 'Not found'}</pre>
+                </div>
+            `;
+        }
+        
+        function clearLocalStorage() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            updateStatus();
+            document.getElementById('localStorageResult').innerHTML = `
+                <div class="info">Local storage cleared</div>
+            `;
+        }
+        
+        // Initialize
+        updateStatus();
+    </script>
+</body>
+</html>

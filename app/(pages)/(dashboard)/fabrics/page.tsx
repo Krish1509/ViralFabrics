@@ -212,10 +212,12 @@ export default function FabricsPage() {
       params.append('limit', limitValue.toString());
       params.append('page', page.toString());
       
+      const token = localStorage.getItem('token');
       const response = await fetch(`/api/fabrics?${params}`, {
         headers: {
           'Cache-Control': forceRefresh ? 'no-cache' : 'max-age=120', // Cache for 2 minutes
           'Accept': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
           'Content-Type': 'application/json'
         },
         signal: controller.signal
@@ -315,9 +317,11 @@ export default function FabricsPage() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
       
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/fabrics/quality-names?limit=100', { // Limit for faster loading
         headers: {
-          'Cache-Control': 'max-age=60' // Cache for 60 seconds
+          'Cache-Control': 'max-age=60', // Cache for 60 seconds
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
         signal: controller.signal
       });
@@ -348,9 +352,11 @@ export default function FabricsPage() {
       const params = new URLSearchParams();
       if (filters.qualityName) params.append('qualityName', filters.qualityName);
       
+      const token = localStorage.getItem('token');
       const response = await fetch(`/api/fabrics/weavers?${params}&limit=100`, { // Limit for faster loading
         headers: {
-          'Cache-Control': 'max-age=60' // Cache for 60 seconds
+          'Cache-Control': 'max-age=60', // Cache for 60 seconds
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
         signal: controller.signal
       });
@@ -381,9 +387,11 @@ export default function FabricsPage() {
       const params = new URLSearchParams();
       if (filters.weaver) params.append('weaver', filters.weaver);
       
+      const token = localStorage.getItem('token');
       const response = await fetch(`/api/fabrics/weaver-quality-names?${params}&limit=100`, { // Limit for faster loading
         headers: {
-          'Cache-Control': 'max-age=60' // Cache for 60 seconds
+          'Cache-Control': 'max-age=60', // Cache for 60 seconds
+          ...(token && { 'Authorization': `Bearer ${token}` })
         },
         signal: controller.signal
       });
@@ -489,7 +497,11 @@ export default function FabricsPage() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
       
+      const token = localStorage.getItem('token');
       const dependencyResponse = await fetch(`/api/fabrics/${fabric._id}/dependencies`, {
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
         signal: controller.signal
       });
       const dependencyData = await dependencyResponse.json();
@@ -513,8 +525,12 @@ export default function FabricsPage() {
     
     setIsDeleting(true);
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch(`/api/fabrics/${deletingFabric._id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
       });
       const data = await response.json();
       
@@ -591,17 +607,23 @@ export default function FabricsPage() {
       // If it's selected fabrics (qualityCode is 'Multiple'), delete by IDs
       if (bulkDeleteGroup.qualityCode === 'Multiple') {
         const fabricIds = bulkDeleteGroup.items.map(fabric => fabric._id);
+        const token = localStorage.getItem('token');
         response = await fetch('/api/fabrics', {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
           },
           body: JSON.stringify({ fabricIds })
         });
       } else {
         // If it's a group delete, use the quality-based delete (faster)
+        const token = localStorage.getItem('token');
         response = await fetch(`/api/fabrics?qualityCode=${encodeURIComponent(bulkDeleteGroup.qualityCode)}&qualityName=${encodeURIComponent(bulkDeleteGroup.qualityName)}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          headers: {
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          }
         });
       }
       
