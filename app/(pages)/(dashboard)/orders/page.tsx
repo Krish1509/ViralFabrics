@@ -216,6 +216,26 @@ export default function OrdersPage() {
     return 'table';
   });
 
+  // Professional helper functions for button states - declared early to maintain hooks order
+  const hasMillInputs = useCallback((order: Order) => {
+    const millInputs = (order as any).millInputs;
+    return Array.isArray(millInputs) && millInputs.length > 0;
+  }, []);
+
+  const hasMillOutputs = useCallback((order: Order) => {
+    const millOutputs = (order as any).millOutputs;
+    return Array.isArray(millOutputs) && millOutputs.length > 0;
+  }, []);
+
+  const hasDispatches = useCallback((order: Order) => {
+    const dispatches = (order as any).dispatches;
+    return Array.isArray(dispatches) && dispatches.length > 0;
+  }, []);
+
+  const hasLabData = useCallback((order: Order) => {
+    return (order.labData && order.labData.length > 0) || order.items.some(item => item.labData?.sampleNumber);
+  }, []);
+
   const handleViewModeChange = useCallback((newMode: 'table' | 'cards') => {
     setViewMode(newMode);
     localStorage.setItem('ordersViewMode', newMode);
@@ -581,20 +601,25 @@ export default function OrdersPage() {
         const ordersData = data.data || [];
         console.log('📊 Orders fetched:', ordersData.length, 'orders');
         console.log('📊 Pagination data:', data.pagination);
-        setOrdersSafe(ordersData);
-        setLastRefreshTime(new Date());
         
-        // Update pagination info if available, otherwise use fallback
+        // Update pagination info FIRST to ensure UI consistency
         if (data.pagination) {
+          const serverPage = data.pagination.page || page;
           const paginationData = {
             totalCount: data.pagination.total || 0,
             totalPages: data.pagination.pages || 1,
-            currentPage: data.pagination.page || 1,
-            hasNextPage: (data.pagination.page || 1) < (data.pagination.pages || 1),
-            hasPrevPage: (data.pagination.page || 1) > 1
+            currentPage: serverPage,
+            hasNextPage: serverPage < (data.pagination.pages || 1),
+            hasPrevPage: serverPage > 1
           };
           console.log('📊 Setting pagination info:', paginationData);
           setPaginationInfo(paginationData);
+          
+          // Ensure currentPage state matches server response
+          if (serverPage !== currentPage) {
+            console.log('📊 Syncing currentPage state:', currentPage, '->', serverPage);
+            setCurrentPage(serverPage);
+          }
         } else {
           // Fallback pagination info based on orders length
           const ordersLength = ordersData.length;
@@ -614,6 +639,10 @@ export default function OrdersPage() {
           console.log('📊 Setting fallback pagination info:', fallbackPagination);
           setPaginationInfo(fallbackPagination);
         }
+        
+        // Set orders data AFTER pagination info is updated
+        setOrdersSafe(ordersData);
+        setLastRefreshTime(new Date());
       } else {
         throw new Error(data.message || 'Failed to fetch orders');
       }
@@ -679,68 +708,82 @@ export default function OrdersPage() {
     console.error('All refresh attempts failed');
   }, [fetchOrders, currentPage, itemsPerPage]);
 
-  // Pagination handlers
-  const handlePageChange = async (newPage: number) => {
-    if (newPage === currentPage) return;
-    
-    // Validate page number
-    if (newPage < 1 || newPage > totalPages) {
-      console.log('Invalid page number:', newPage, 'totalPages:', totalPages);
-      return;
-    }
-    
-    console.log('🔄 Changing page from', currentPage, 'to', newPage);
-    setIsChangingPage(true);
-    setTableLoading(true); // Show table skeleton during pagination
-    
-    try {
-      // Fetch new page from server FIRST
-      console.log('📡 Fetching page', newPage, 'with filters:', filters, 'searchTerm:', searchTerm);
-      await fetchOrders(0, newPage, itemsPerPage, false, filters, searchTerm);
-      // Only update current page AFTER successful fetch
-      console.log('✅ Page', newPage, 'fetched successfully, updating currentPage');
-      setCurrentPage(newPage);
-    } catch (error) {
-      console.error('❌ Error changing page:', error);
-      showMessage('error', 'Failed to load page');
-    } finally {
-      console.log('🏁 Page change completed, hiding loading states');
-      setIsChangingPage(false);
-      setTableLoading(false); // Hide table skeleton
-    }
-  };
-
-  const handleItemsPerPageChange = async (newItemsPerPage: number | 'All') => {
-    if (newItemsPerPage === itemsPerPage) return;
-    
-    setIsChangingPage(true);
-    setTableLoading(true); // Show table skeleton during change
-    
-    try {
-      // Fetch first page with new items per page from server FIRST
-    await fetchOrders(0, 1, newItemsPerPage, false, filters, searchTerm);
-      // Only update state AFTER successful fetch
-      setItemsPerPage(newItemsPerPage);
-      setCurrentPage(1); // Reset to first page
-    } catch (error) {
-      console.error('Error changing items per page:', error);
-      showMessage('error', 'Failed to change page size');
-    } finally {
-    setIsChangingPage(false);
-      setTableLoading(false); // Hide table skeleton
-    }
-  };
-
   // Use server-side pagination info
   const totalPages = useMemo(() => {
     return paginationInfo.totalPages || 1;
   }, [paginationInfo.totalPages]);
 
-  // Use server-side pagination display info
+  // Professional pagination handler with bulletproof error handling
+  const handlePageChange = useCallback(async (newPage: number) => {
+    // Prevent duplicate calls
+    if (newPage === currentPage || isChangingPage) return;
+    
+    // Validate page number with strict bounds checking
+    if (newPage < 1 || newPage > totalPages || totalPages === 0) {
+      return;
+    }
+    
+    console.log('🔄 Changing page from', currentPage, 'to', newPage);
+    
+    // Set loading states immediately
+    setIsChangingPage(true);
+    setTableLoading(true);
+    
+    try {
+      // Fetch new page data with timeout protection
+      await fetchOrders(0, newPage, itemsPerPage, true, filters, searchTerm);
+      
+      // Update current page state - this will be synced by the fetchOrders function
+      setCurrentPage(newPage);
+      
+      console.log('✅ Page change completed successfully');
+    } catch (error) {
+      // Professional error handling
+      showMessage('error', 'Failed to load page. Please try again.');
+    } finally {
+      // Always clean up loading states
+      setIsChangingPage(false);
+      setTableLoading(false);
+    }
+  }, [currentPage, isChangingPage, totalPages, fetchOrders, itemsPerPage, filters, searchTerm, showMessage]);
+
+  // Professional items per page handler
+  const handleItemsPerPageChange = useCallback(async (newItemsPerPage: number | 'All') => {
+    if (newItemsPerPage === itemsPerPage || isChangingPage) return;
+    
+    setIsChangingPage(true);
+    setTableLoading(true);
+    
+    try {
+      // Fetch first page with new items per page
+    await fetchOrders(0, 1, newItemsPerPage, false, filters, searchTerm);
+      
+      // Update state after successful fetch
+      setItemsPerPage(newItemsPerPage);
+      setCurrentPage(1);
+    } catch (error) {
+      showMessage('error', 'Failed to change page size. Please try again.');
+    } finally {
+    setIsChangingPage(false);
+      setTableLoading(false);
+    }
+  }, [itemsPerPage, isChangingPage, fetchOrders, filters, searchTerm, showMessage]);
+
+  // Use server-side pagination display info with proper state synchronization
   const paginationDisplayInfo = useMemo(() => {
     const total = paginationInfo.totalCount || 0;
-    const currentPageNum = paginationInfo.currentPage || 1;
+    const currentPageNum = paginationInfo.currentPage || currentPage || 1;
     const itemsPerPageValue = itemsPerPage === 'All' ? total : (itemsPerPage as number);
+    
+    // Ensure we have valid data before calculating display info
+    if (total === 0 || orders.length === 0) {
+      return {
+        showing: 0,
+        total: 0,
+        start: 0,
+        end: 0
+      };
+    }
     
     if (itemsPerPage === 'All') {
       return {
@@ -759,7 +802,7 @@ export default function OrdersPage() {
         end: end
       };
     }
-  }, [paginationInfo, itemsPerPage, orders.length]);
+  }, [paginationInfo, itemsPerPage, orders.length, currentPage]);
 
   // Function to fetch existing mill inputs for an order
   const fetchExistingMillInputs = useCallback(async (orderId: string) => {
@@ -2351,7 +2394,83 @@ export default function OrdersPage() {
   };
 
   // Use filtered and paginated data for both table and card views
-  const currentOrders = filteredOrders;
+  // Ensure we always have data to display if orders exist in memory
+  const currentOrders = useMemo(() => {
+    // If we have filtered orders, use them
+    if (filteredOrders && filteredOrders.length > 0) {
+      return filteredOrders;
+    }
+    
+    // If we have orders in memory but no filtered orders, use the orders array
+    if (orders && orders.length > 0) {
+      return orders;
+    }
+    
+    // Otherwise return empty array
+    return [];
+  }, [filteredOrders, orders]);
+  
+  // SIMPLE AND EFFECTIVE empty state logic - only show when truly no data exists
+  const shouldShowEmptyState = useMemo(() => {
+    // NEVER show empty state if:
+    // 1. Any loading operation is happening
+    if (loading || orderCreating || isChangingPage || tableLoading || refreshing || sortLoading || filterLoading) {
+      return false;
+    }
+    
+    // 2. We have orders in the database
+    if (paginationInfo.totalCount > 0) {
+      return false;
+    }
+    
+    // 3. We're on any page other than 1
+    if (currentPage > 1) {
+      return false;
+    }
+    
+    // 4. We have any orders loaded in memory
+    if (orders && orders.length > 0) {
+      return false;
+    }
+    
+    // 5. We have any current orders to display
+    if (currentOrders && currentOrders.length > 0) {
+      return false;
+    }
+    
+    // 5.5. We have any orders in the orders array (fallback check)
+    if (orders && orders.length > 0) {
+      return false;
+    }
+    
+    // 6. Orders are not yet loaded
+    if (!ordersLoaded) {
+      return false;
+    }
+    
+    // 7. We have pagination info indicating there are orders
+    if (paginationInfo.totalPages > 0) {
+      return false;
+    }
+    
+    // ONLY show empty state if ALL of these are true:
+    // - Orders are loaded
+    // - No orders in database (totalCount === 0)
+    // - No orders in memory (orders.length === 0)
+    // - No current orders to display (currentOrders.length === 0)
+    // - We're on page 1
+    // - No pagination data exists
+    return ordersLoaded && 
+           paginationInfo.totalCount === 0 && 
+           orders.length === 0 && 
+           currentOrders.length === 0 && 
+           currentPage === 1 &&
+           paginationInfo.totalPages === 0;
+  }, [
+    loading, orderCreating, isChangingPage, tableLoading, refreshing, 
+    sortLoading, filterLoading, ordersLoaded, currentOrders.length, 
+    paginationInfo.totalCount, paginationInfo.totalPages, currentPage, orders.length
+  ]);
   
   // Pagination debug info removed for production
 
@@ -2366,6 +2485,18 @@ export default function OrdersPage() {
       setCurrentPage(totalPages);
     }
   }, [totalPages, currentPage, itemsPerPage]);
+
+  // Critical fix: Ensure pagination state consistency when navigating between pages
+  useEffect(() => {
+    // If we have orders but pagination shows 0, or vice versa, force a refresh
+    if (ordersLoaded && orders.length > 0 && paginationInfo.totalCount === 0) {
+      console.log('🔄 Detected pagination inconsistency, refreshing...');
+      fetchOrders(0, currentPage, itemsPerPage, true, filters, searchTerm);
+    } else if (ordersLoaded && orders.length === 0 && paginationInfo.totalCount > 0) {
+      console.log('🔄 Detected data inconsistency, refreshing...');
+      fetchOrders(0, currentPage, itemsPerPage, true, filters, searchTerm);
+    }
+  }, [orders.length, paginationInfo.totalCount, ordersLoaded, currentPage, itemsPerPage, filters, searchTerm, fetchOrders]);
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -2762,72 +2893,6 @@ export default function OrdersPage() {
     currentOrdersCount: currentOrders.length,
     searchTerm,
     filters
-  });
-
-  // Debug button states for first few orders
-  if (orders.length > 0) {
-    console.log('Button states for first 3 orders:', orders.slice(0, 3).map(order => ({
-      orderId: order.orderId,
-      millInputs: (order as any).millInputs?.length || 0,
-      millOutputs: (order as any).millOutputs?.length || 0,
-      dispatches: (order as any).dispatches?.length || 0,
-      labData: order.labData?.length || 0
-    })));
-  }
-
-  // Helper functions for button states - super clean and fast
-  const hasMillInputs = (order: Order) => {
-    const millInputs = (order as any).millInputs;
-    const hasData = Array.isArray(millInputs) && millInputs.length > 0;
-    console.log('🔍 hasMillInputs check for order:', order.orderId, 'millInputs:', millInputs, 'hasData:', hasData);
-    return hasData;
-  };
-
-  const hasMillOutputs = (order: Order) => {
-    const millOutputs = (order as any).millOutputs;
-    const hasData = Array.isArray(millOutputs) && millOutputs.length > 0;
-    console.log('🔍 hasMillOutputs check for order:', order.orderId, 'millOutputs:', millOutputs, 'hasData:', hasData);
-    return hasData;
-  };
-
-  const hasDispatches = (order: Order) => {
-    const dispatches = (order as any).dispatches;
-    const hasData = Array.isArray(dispatches) && dispatches.length > 0;
-    console.log('🔍 hasDispatches check for order:', order.orderId, 'dispatches:', dispatches, 'hasData:', hasData);
-    return hasData;
-  };
-
-  const hasLabData = (order: Order) => {
-    return (order.labData && order.labData.length > 0) || order.items.some(item => item.labData?.sampleNumber);
-  };
-
-  // Ensure we never show empty state during any loading operation
-  const shouldShowEmptyState = currentOrders.length === 0 && 
-    ordersLoaded && 
-    !loading && 
-    !orderCreating && 
-    !isChangingPage && 
-    !tableLoading && 
-    !refreshing && 
-    !sortLoading && 
-    !filterLoading &&
-    totalPages === 1 && 
-    paginationInfo.totalCount === 0; // Only show empty state if there are truly no orders in database
-  
-  // Debug empty state logic
-  console.log('🔍 Empty State Debug:', {
-    currentOrdersLength: currentOrders.length,
-    ordersLoaded,
-    loading,
-    orderCreating,
-    isChangingPage,
-    tableLoading,
-    refreshing,
-    sortLoading,
-    filterLoading,
-    totalPages,
-    totalCount: paginationInfo.totalCount,
-    shouldShowEmptyState
   });
 
   return (
@@ -3695,7 +3760,7 @@ export default function OrdersPage() {
               )}
               
               {/* Rendering table with orders */}
-              {(tableLoading || isChangingPage || (currentOrders.length === 0 && !shouldShowEmptyState && totalPages > 1)) ? (
+              {(tableLoading || isChangingPage || refreshing || sortLoading || filterLoading || (currentOrders.length === 0 && !shouldShowEmptyState && ordersLoaded)) ? (
                 // Show professional table skeleton during loading or pagination
                 <tr>
                   <td colSpan={12} className="px-6 py-8">
@@ -4615,7 +4680,7 @@ export default function OrdersPage() {
           </div>
         )}
 
-        {shouldShowEmptyState && totalPages === 1 && (
+        {shouldShowEmptyState && (
           <div className={`text-center py-12 ${
             isDarkMode ? 'text-gray-400' : 'text-gray-500'
           }`}>
