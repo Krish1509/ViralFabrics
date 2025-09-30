@@ -196,9 +196,12 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
             }
             return isInRange;
           })
-          .sort((a: UpcomingOrder, b: UpcomingOrder) => a.daysUntilDelivery - b.daysUntilDelivery);
+          .sort((a, b) => (a?.daysUntilDelivery || 0) - (b?.daysUntilDelivery || 0));
 
-        console.log('Upcoming orders (next 7 days):', upcoming.length);
+        // Filter out null values to ensure type safety
+        const validUpcoming = upcoming.filter((order): order is UpcomingOrder => order !== null);
+        
+        console.log('Upcoming orders (next 7 days):', validUpcoming.length);
         
         // Debug: Show all orders with delivery dates for troubleshooting
         const allOrdersWithDates = ordersArray.filter((order: any) => order.deliveryDate);
@@ -208,11 +211,11 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
           status: order.status
         })));
         
-        setUpcomingOrders(upcoming);
-        setFilteredOrders(upcoming);
+        setUpcomingOrders(validUpcoming);
+        setFilteredOrders(validUpcoming);
         
         // Update cache
-        deliveredSoonCache.data = upcoming;
+        deliveredSoonCache.data = validUpcoming;
         deliveredSoonCache.timestamp = Date.now();
         
         // Restore cache flag

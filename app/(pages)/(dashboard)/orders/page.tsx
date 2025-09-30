@@ -621,6 +621,24 @@ export default function OrdersPage() {
     }
   }, [showMessage, currentPage, itemsPerPage, filters]);
 
+  // Initial fetch to populate orders and pagination on first load
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        await fetchOrders(0, currentPage, itemsPerPage, false, filters, searchTerm);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+          setOrdersLoaded(true);
+        }
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchOrders, currentPage, itemsPerPage, filters, searchTerm]);
+
   // Helper function for robust data refresh after operations
   const refreshOrdersWithRetry = useCallback(async (retries = 2) => {
     for (let i = 0; i < retries; i++) {
