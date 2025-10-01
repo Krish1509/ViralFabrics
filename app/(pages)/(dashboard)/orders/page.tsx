@@ -2819,16 +2819,16 @@ export default function OrdersPage() {
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <div className={`h-10 w-40 rounded-lg animate-pulse ${
-              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-            }`}></div>
-          </div>
+          isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+          }`}></div>
+            </div>
           <div className="flex items-center gap-3">
             <div className={`h-10 w-64 rounded-lg animate-pulse ${
-              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-            }`}></div>
+          isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+        }`}></div>
             <div className={`h-10 w-24 rounded-lg animate-pulse ${
-              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-            }`}></div>
+        isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+        }`}></div>
           </div>
         </div>
 
@@ -2840,17 +2840,17 @@ export default function OrdersPage() {
             }`}>
               <div className={`h-4 w-20 rounded mb-2 ${
                 isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-              }`}></div>
+          }`}></div>
               <div className={`h-8 w-16 rounded ${
                 isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-              }`}></div>
+          }`}></div>
             </div>
           ))}
         </div>
 
         {/* Table Skeleton */}
-        <div className={`rounded-xl border overflow-hidden shadow-lg ${
-          isDarkMode
+          <div className={`rounded-xl border overflow-hidden shadow-lg ${
+            isDarkMode
             ? 'bg-slate-800/50 border-slate-700'
             : 'bg-white border-gray-200'
         }`}>
@@ -2861,16 +2861,16 @@ export default function OrdersPage() {
             <div className="grid grid-cols-3 gap-4">
               <div className={`h-4 w-32 rounded animate-pulse ${
                 isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-              }`}></div>
+                                }`}></div>
               <div className={`h-4 w-24 rounded animate-pulse ${
                 isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
               }`}></div>
               <div className={`h-4 w-20 rounded animate-pulse ${
                 isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-              }`}></div>
-            </div>
-          </div>
-
+                                }`}></div>
+                              </div>
+                            </div>
+                            
           {/* Table Rows */}
           <div className="divide-y divide-gray-200 dark:divide-slate-700">
             {[...Array(8)].map((_, i) => (
@@ -2881,44 +2881,44 @@ export default function OrdersPage() {
                     <div className="flex gap-2">
                       <div className={`h-6 w-16 rounded animate-pulse ${
                         isDarkMode ? 'bg-green-500/20' : 'bg-green-100'
-                      }`}></div>
+                                }`}></div>
                       <div className={`h-6 w-12 rounded animate-pulse ${
                         isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
-                      }`}></div>
-                    </div>
+                                }`}></div>
+                              </div>
                     <div className={`h-3 w-24 rounded animate-pulse ${
                       isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
                     }`}></div>
                     <div className={`h-3 w-20 rounded animate-pulse ${
                       isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
                     }`}></div>
-                  </div>
-
+                          </div>
+                          
                   {/* Items */}
                   <div className="space-y-2">
                     <div className={`h-3 w-32 rounded animate-pulse ${
                       isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                    }`}></div>
+                            }`}></div>
                     <div className={`h-3 w-24 rounded animate-pulse ${
                       isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                    }`}></div>
-                  </div>
+                            }`}></div>
+                          </div>
 
                   {/* Actions */}
                   <div className="flex gap-2">
                     <div className={`h-8 w-8 rounded animate-pulse ${
                       isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                    }`}></div>
+                          }`}></div>
                     <div className={`h-8 w-8 rounded animate-pulse ${
                       isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                    }`}></div>
+                            }`}></div>
                     <div className={`h-8 w-8 rounded animate-pulse ${
                       isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-                    }`}></div>
-                  </div>
-                </div>
-              </div>
-            ))}
+                            }`}></div>
+                          </div>
+                        </div>
+                        </div>
+              ))}
           </div>
         </div>
 
@@ -2931,7 +2931,7 @@ export default function OrdersPage() {
             {[...Array(3)].map((_, i) => (
               <div key={i} className={`h-8 w-8 rounded animate-pulse ${
                 isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
-              }`}></div>
+            }`}></div>
             ))}
           </div>
         </div>
@@ -4975,7 +4975,7 @@ export default function OrdersPage() {
                       <div className={`h-4 w-24 rounded ${
                         isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
                       }`}></div>
-                    </div>
+                  </div>
                     <div className="flex items-center gap-2">
                       <div className={`h-6 w-16 rounded ${
                         isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
@@ -5030,7 +5030,7 @@ export default function OrdersPage() {
                     <div className={`h-4 w-16 rounded mb-3 ${
                       isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
                     }`}></div>
-                    <div className="space-y-2">
+                  <div className="space-y-2">
                       {[...Array(3)].map((_, i) => (
                         <div key={i} className={`p-2 rounded ${
                           isDarkMode ? 'bg-gray-800/50' : 'bg-white'
@@ -5041,7 +5041,7 @@ export default function OrdersPage() {
                           <div className={`h-4 w-16 rounded ${
                             isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
                           }`}></div>
-                        </div>
+                  </div>
                       ))}
                     </div>
                   </div>
@@ -5769,12 +5769,41 @@ export default function OrdersPage() {
       {showQualityModal && (
         <QualityModal
           onClose={() => setShowQualityModal(false)}
-          onSuccess={(newQualityName?: string, newQualityData?: any) => {
+          onSuccess={async (newQualityName?: string, newQualityData?: any) => {
             setShowQualityModal(false);
+            
+            // Immediately update both qualities states for instant UI update
             if (newQualityData) {
               setQualities(prev => [...prev, newQualityData]);
+              setFormQualities(prev => [...prev, newQualityData]);
             }
-            fetchQualities();
+            
+            // Refresh qualities from API to ensure consistency
+            await fetchQualities();
+            
+            // Also refresh form qualities to ensure OrderForm gets updated
+            try {
+              const token = localStorage.getItem('token');
+              if (token) {
+                const response = await fetch('/api/qualities?limit=100&force=true', {
+                  headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Cache-Control': 'no-cache, no-store, must-revalidate'
+                  }
+                });
+                
+                if (response.ok) {
+                  const data = await response.json();
+                  if (data.success && data.data) {
+                    const qualitiesArray = Array.isArray(data.data) ? data.data : [];
+                    setFormQualities(qualitiesArray);
+                    console.log('✅ Form qualities refreshed after new quality creation');
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('❌ Failed to refresh form qualities:', error);
+            }
           }}
         />
       )}
@@ -6489,27 +6518,27 @@ export default function OrdersPage() {
                 } catch (error) {
                   console.error('❌ Error refreshing mill input data:', error);
                   // Fallback: try to fetch individual order data
-                  try {
-                    const response = await fetch(`/api/orders/${selectedOrderForMillInputForm?._id}`, {
-                      headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                        'Content-Type': 'application/json'
-                      }
-                    });
-                    
-                    if (response.ok) {
-                      const updatedOrder = await response.json();
-                      if (updatedOrder.success) {
-                        // Update with real data from API
-                        setOrders(prevOrders => 
-                          prevOrders.map(order => 
-                            order.orderId === orderId 
-                              ? { ...order, ...updatedOrder.data }
-                              : order
-                          )
-                        );
-                      }
+                try {
+                  const response = await fetch(`/api/orders/${selectedOrderForMillInputForm?._id}`, {
+                    headers: {
+                      'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                      'Content-Type': 'application/json'
                     }
+                  });
+                  
+                  if (response.ok) {
+                    const updatedOrder = await response.json();
+                    if (updatedOrder.success) {
+                      // Update with real data from API
+                      setOrders(prevOrders => 
+                        prevOrders.map(order => 
+                          order.orderId === orderId 
+                            ? { ...order, ...updatedOrder.data }
+                            : order
+                        )
+                      );
+                    }
+                  }
                   } catch (fallbackError) {
                     console.log('❌ Fallback refresh also failed:', fallbackError);
                   }
@@ -6540,6 +6569,7 @@ export default function OrdersPage() {
           isOpen={showMillOutputForm}
           isEditing={isEditingMillOutput}
           existingMillOutputs={existingMillOutputs}
+          onRefreshQualities={fetchQualities}
           onClose={() => {
             setShowMillOutputForm(false);
             setSelectedOrderForMillOutput(null);
@@ -6618,6 +6648,7 @@ export default function OrdersPage() {
           isOpen={showDispatchForm}
           isEditing={isEditingDispatch}
           existingDispatches={existingDispatches}
+          onRefreshQualities={fetchQualities}
           onClose={() => {
             setShowDispatchForm(false);
             setSelectedOrderForDispatch(null);

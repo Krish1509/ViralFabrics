@@ -351,7 +351,7 @@ export default function DashboardPage() {
                 <PieChartSkeleton />
                 <PieChartSkeleton />
               </>
-            ) : stats && stats.pendingTypeStats && stats.deliveredTypeStats ? (
+            ) : (
               <>
                 {/* Pending Orders Pie Chart */}
                 <div className="transform hover:scale-105 transition-transform duration-300 animate-fade-in">
@@ -359,23 +359,23 @@ export default function DashboardPage() {
                     data={[
                       {
                         name: 'Dying',
-                        value: stats.pendingTypeStats.Dying || 0,
+                        value: stats?.pendingTypeStats?.Dying || 0,
                         color: '#F97316' // Orange
                       },
                       {
                         name: 'Printing',
-                        value: stats.pendingTypeStats.Printing || 0,
+                        value: stats?.pendingTypeStats?.Printing || 0,
                         color: '#3B82F6' // Blue
                       },
                       {
                         name: 'Not Set',
-                        value: stats.pendingTypeStats.not_set || 0,
+                        value: stats?.pendingTypeStats?.not_set || 0,
                         color: '#6B7280' // Gray
                       }
                     ]}
                     title="Pending Orders by Type"
                     icon={ClockIcon}
-                    total={(stats.pendingTypeStats.Dying || 0) + (stats.pendingTypeStats.Printing || 0) + (stats.pendingTypeStats.not_set || 0)}
+                    total={(stats?.pendingTypeStats?.Dying || 0) + (stats?.pendingTypeStats?.Printing || 0) + (stats?.pendingTypeStats?.not_set || 0)}
                     isDarkMode={isDarkMode}
                   />
                 </div>
@@ -386,28 +386,28 @@ export default function DashboardPage() {
                     data={[
                       {
                         name: 'Dying',
-                        value: stats.deliveredTypeStats.Dying || 0,
+                        value: stats?.deliveredTypeStats?.Dying || 0,
                         color: '#F97316' // Orange
                       },
                       {
                         name: 'Printing',
-                        value: stats.deliveredTypeStats.Printing || 0,
+                        value: stats?.deliveredTypeStats?.Printing || 0,
                         color: '#3B82F6' // Blue
                       },
                       {
                         name: 'Not Set',
-                        value: stats.deliveredTypeStats.not_set || 0,
+                        value: stats?.deliveredTypeStats?.not_set || 0,
                         color: '#6B7280' // Gray
                       }
                     ]}
                     title="Delivered Orders by Type"
                     icon={CheckCircleIcon}
-                    total={(stats.deliveredTypeStats.Dying || 0) + (stats.deliveredTypeStats.Printing || 0) + (stats.deliveredTypeStats.not_set || 0)}
+                    total={(stats?.deliveredTypeStats?.Dying || 0) + (stats?.deliveredTypeStats?.Printing || 0) + (stats?.deliveredTypeStats?.not_set || 0)}
                     isDarkMode={isDarkMode}
                   />
                 </div>
               </>
-            ) : null}
+            )}
           </div>
         </div>
 

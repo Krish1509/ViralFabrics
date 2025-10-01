@@ -36,6 +36,7 @@ interface MillOutputFormProps {
   qualities: any[]; // Add qualities prop
   onClose: () => void;
   onSuccess: (operationType?: 'add' | 'edit' | 'delete') => void;
+  onRefreshQualities?: () => void; // Add quality refresh function
   isOpen?: boolean; // Add isOpen prop like LabDataModal
   isEditing?: boolean;
   existingMillOutputs?: any[];
@@ -606,6 +607,7 @@ export default function MillOutputForm({
   qualities,
   onClose, 
   onSuccess,
+  onRefreshQualities,
   isOpen = true, // Default to true for backward compatibility
   isEditing = false,
   existingMillOutputs = []
@@ -618,6 +620,14 @@ export default function MillOutputForm({
     isEditing, 
     existingMillOutputs: existingMillOutputs?.length 
   });
+
+  // Refresh qualities when form is opened
+  useEffect(() => {
+    if (isOpen && onRefreshQualities) {
+      console.log('MillOutputForm: Refreshing qualities on form open');
+      onRefreshQualities();
+    }
+  }, [isOpen, onRefreshQualities]);
   
   // Debug logging for qualities prop
   const [formData, setFormData] = useState<MillOutputFormData>({

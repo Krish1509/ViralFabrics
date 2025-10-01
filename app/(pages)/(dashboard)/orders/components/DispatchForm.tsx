@@ -186,6 +186,7 @@ interface DispatchFormProps {
   order: Order | null;
   onClose: () => void;
   onSuccess: (operationType?: 'add' | 'edit' | 'delete') => void;
+  onRefreshQualities?: () => void; // Add quality refresh function
   isOpen?: boolean; // Add isOpen prop like LabDataModal
   isEditing?: boolean;
   existingDispatches?: any[];
@@ -594,12 +595,22 @@ export default function DispatchForm({
   order, 
   onClose, 
   onSuccess,
+  onRefreshQualities,
   isOpen = true, // Default to true for backward compatibility
   isEditing = false,
   existingDispatches = [],
   qualities = []
 }: DispatchFormProps) {
   const { isDarkMode, mounted } = useDarkMode();
+  
+  // Refresh qualities when form is opened
+  useEffect(() => {
+    if (isOpen && onRefreshQualities) {
+      console.log('DispatchForm: Refreshing qualities on form open');
+      onRefreshQualities();
+    }
+  }, [isOpen, onRefreshQualities]);
+  
   const [formData, setFormData] = useState<DispatchFormData>({
     orderId: order?.orderId || '',
     dispatchItems: [{

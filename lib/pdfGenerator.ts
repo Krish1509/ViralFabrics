@@ -723,24 +723,19 @@ export const generateOrderPDF = (order: OrderData): void => {
     
     // Note: Horizontal lines between rows are handled in the main table loop below
     
-    // REC FROM MILL columns - percentage-based spacing for 40% width
-    const dateWidth = section2Width * 0.20; // 10%
-    const chNoWidth = section2Width * 0.15; // 15%
-    const ltNoWidth = section2Width * 0.15; // 15%
-    const gmtWidth = section2Width * 0.20; // 20%
-    const fmtWidth = section2Width * 0.20; // 20%
-    const shtWidth = section2Width * 0.10; // 10%
+    // REC FROM MILL columns - percentage-based spacing for 40% width (removed L.T NO and G.MT)
+    const dateWidth = section2Width * 0.30; // 30% (increased from 20%)
+    const chNoWidth = section2Width * 0.30; // 30% (increased from 15%)
+    const fmtWidth = section2Width * 0.25; // 25% (increased from 20%)
+    const shtWidth = section2Width * 0.15; // 15% (increased from 10%)
     
     doc.setFont('helvetica', 'bold');
     doc.text('DATE', 8 + section1Width, headerY);
     doc.text('CH', 8 + section1Width + dateWidth, headerY);
     doc.text('NO', 8 + section1Width + dateWidth, headerY + 4);
-    doc.text('L.T', 8 + section1Width + dateWidth + chNoWidth, headerY);
-    doc.text('NO', 8 + section1Width + dateWidth + chNoWidth, headerY + 4);
-    doc.text('G.MT', 8 + section1Width + dateWidth + chNoWidth + ltNoWidth, headerY);
-    doc.text('F.MT', 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth, headerY);
-    doc.text('SH', 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth + fmtWidth, headerY);
-    doc.text('T', 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth + fmtWidth, headerY + 4);
+    doc.text('F.MT', 8 + section1Width + dateWidth + chNoWidth, headerY);
+    doc.text('SH', 8 + section1Width + dateWidth + chNoWidth + fmtWidth, headerY);
+    doc.text('T', 8 + section1Width + dateWidth + chNoWidth + fmtWidth, headerY + 4);
     
     // SALES columns - percentage-based spacing for 30% width
     const salesDateWidth = section3Width * 0.30; // 30%
@@ -798,16 +793,11 @@ export const generateOrderPDF = (order: OrderData): void => {
           doc.text(formatDate(millOutput.recdDate), 8 + section1Width, currentDataRowY - 3);
           // CH NO - Mill Bill Number (millBillNo)
           doc.text(millOutput.millBillNo || '', 8 + section1Width + dateWidth, currentDataRowY - 3);
-          // L.T NO - Lot Number (empty for now)
-          doc.text('', 8 + section1Width + dateWidth + chNoWidth, currentDataRowY - 3);
-          // G.MT - Greigh Meters (same as MTR - using greigh meters from mill inputs)
-          const correspondingMillInput = order.millInputs?.[i];
-          const greighMtrValue = correspondingMillInput ? (Number(correspondingMillInput.greighMtr) || 0) : 0;
-          doc.text(greighMtrValue.toString(), 8 + section1Width + dateWidth + chNoWidth + ltNoWidth, currentDataRowY - 3);
           // F.MT - Finished Meters (finishedMtr)
-          doc.text((Number(millOutput.finishedMtr) || 0).toString(), 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth, currentDataRowY - 3);
-          // SHT - Shirt/Piece count (empty for now)
-          doc.text('', 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth + fmtWidth, currentDataRowY - 3);
+          doc.text((Number(millOutput.finishedMtr) || 0).toString(), 8 + section1Width + dateWidth + chNoWidth, currentDataRowY - 3);
+          
+          // SHT - Leave empty for individual rows, only show percentage in TOTAL row
+          doc.text('', 8 + section1Width + dateWidth + chNoWidth + fmtWidth, currentDataRowY - 3);
         }
       }
       
@@ -864,10 +854,15 @@ export const generateOrderPDF = (order: OrderData): void => {
     
     // TOTAL in REC FROM MILL section
     doc.text('TOTAL:', 8 + section1Width, currentDataRowY - 3);
-    // G.MT total - total greigh meters (same as MTR total)
-    doc.text(totals.totalGreighMtr.toString().toUpperCase(), 8 + section1Width + dateWidth + chNoWidth + ltNoWidth, currentDataRowY - 3);
     // F.MT total - total finished meters
-    doc.text(totals.totalFinishedMtr.toString().toUpperCase(), 8 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth, currentDataRowY - 3);
+    doc.text(totals.totalFinishedMtr.toString().toUpperCase(), 8 + section1Width + dateWidth + chNoWidth, currentDataRowY - 3);
+    
+    // SHT total - Show percentage (manual calculation: MTR - F.MT = difference, then show as %)
+    const mtrTotal = totals.totalGreighMtr;
+    const fmtTotal = totals.totalFinishedMtr;
+    const totalDifference = mtrTotal - fmtTotal;
+    const totalPercentage = mtrTotal > 0 ? ((totalDifference / mtrTotal) * 100) : 0;
+    doc.text(`${totalPercentage.toFixed(1)}%`, 8 + section1Width + dateWidth + chNoWidth + fmtWidth, currentDataRowY - 3);
     
     // TOTAL in SALES section
     doc.text('TOTAL:', 8 + section1Width + section2Width, currentDataRowY - 3);
@@ -884,12 +879,10 @@ export const generateOrderPDF = (order: OrderData): void => {
     // Add internal vertical borders for each section
     // ISSUE TO MILL section - separate table created above with proper borders
     
-    // REC FROM MILL section internal borders - percentage-based spacing
+    // REC FROM MILL section internal borders - percentage-based spacing (removed L.T NO and G.MT columns)
     doc.line(5 + section1Width + dateWidth, tableY, 5 + section1Width + dateWidth, tableY + tableHeight);
     doc.line(5 + section1Width + dateWidth + chNoWidth, tableY, 5 + section1Width + dateWidth + chNoWidth, tableY + tableHeight);
-    doc.line(5 + section1Width + dateWidth + chNoWidth + ltNoWidth, tableY, 5 + section1Width + dateWidth + chNoWidth + ltNoWidth, tableY + tableHeight);
-    doc.line(5 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth, tableY, 5 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth, tableY + tableHeight);
-    doc.line(5 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth + fmtWidth, tableY, 5 + section1Width + dateWidth + chNoWidth + ltNoWidth + gmtWidth + fmtWidth, tableY + tableHeight);
+    doc.line(5 + section1Width + dateWidth + chNoWidth + fmtWidth, tableY, 5 + section1Width + dateWidth + chNoWidth + fmtWidth, tableY + tableHeight);
     
     // SALES section internal borders - percentage-based spacing
     doc.line(5 + section1Width + section2Width + salesDateWidth, tableY, 5 + section1Width + section2Width + salesDateWidth, tableY + tableHeight);
