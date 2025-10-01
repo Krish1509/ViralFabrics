@@ -63,7 +63,7 @@ async function performLogin(req: Request) {
     if (!user) {
       // Log in background - don't wait for it
       logLogin(username, false, req as any, 'User not found').catch(() => {});
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+      return NextResponse.json({ message: "User not exist" }, { status: 401 });
     }
 
     // Check if account is locked (non-blocking)
@@ -78,7 +78,7 @@ async function performLogin(req: Request) {
       // Record failed login attempt in background - don't wait
       user.recordFailedLogin().catch(() => {});
       logLogin(username, false, req as any, 'Invalid password').catch(() => {});
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+      return NextResponse.json({ message: "Wrong password" }, { status: 401 });
     }
 
     // Prepare JWT token and user data in parallel
