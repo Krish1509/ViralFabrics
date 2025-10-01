@@ -57,9 +57,6 @@ export default async function dbConnectProduction(): Promise<Mongoose> {
       heartbeatFrequencyMS: 2000, // Frequent heartbeats
       maxConnecting: 1, // Single connection
       directConnection: false,
-      // Additional optimizations for Vercel
-      compressors: ['zlib'],
-      zlibCompressionLevel: 1,
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts);
