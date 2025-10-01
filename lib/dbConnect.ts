@@ -46,14 +46,16 @@ export default async function dbConnect(): Promise<Mongoose> {
   if (!cached.promise) {
     const opts = {
       bufferCommands: true, // Enable buffering to prevent connection errors
-      maxPoolSize: 20, // Increased to 20 socket connections
-      serverSelectionTimeoutMS: 15000, // Increased to 15 seconds
-      socketTimeoutMS: 90000, // Increased to 90 seconds
+      maxPoolSize: 10, // Reduced for Vercel (serverless functions)
+      serverSelectionTimeoutMS: 30000, // Increased to 30 seconds for Vercel
+      socketTimeoutMS: 120000, // Increased to 120 seconds
       family: 4, // Use IPv4, skip trying IPv6
       retryWrites: true,
       retryReads: true,
-      connectTimeoutMS: 15000, // Increased connection timeout
-      maxIdleTimeMS: 30000, // Keep connections alive longer
+      connectTimeoutMS: 30000, // Increased connection timeout for Vercel
+      maxIdleTimeMS: 60000, // Keep connections alive longer
+      heartbeatFrequencyMS: 10000, // More frequent heartbeats
+      maxConnecting: 2, // Limit concurrent connections
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts);

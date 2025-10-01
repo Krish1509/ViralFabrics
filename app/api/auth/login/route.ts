@@ -7,6 +7,25 @@ import Log, { ILogModel } from "@/models/Log";
 import { logLogin } from "@/lib/logger";
 
 export async function POST(req: Request) {
+  // Set a timeout for the entire login process
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Login timeout')), 25000); // 25 seconds timeout
+  });
+
+  try {
+    return await Promise.race([
+      performLogin(req),
+      timeoutPromise
+    ]) as NextResponse;
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Login timeout') {
+      return NextResponse.json({ message: "Login is taking longer than expected. Please try again." }, { status: 408 });
+    }
+    throw error;
+  }
+}
+
+async function performLogin(req: Request) {
   try {
     // Parse request body first
     const { username, password, rememberMe } = await req.json();
@@ -15,8 +34,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Username and password are required" }, { status: 400 });
     }
 
-    // Connect to database first, then find user
-    await dbConnect();
+    // Connect to database with retry logic
+    let dbConnected = false;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (!dbConnected && retryCount < maxRetries) {
+      try {
+        await dbConnect();
+        dbConnected = true;
+      } catch (error) {
+        retryCount++;
+        if (retryCount >= maxRetries) {
+          console.error('Database connection failed after', maxRetries, 'attempts:', error);
+          return NextResponse.json({ message: "Database connection failed. Please try again." }, { status: 503 });
+        }
+        // Wait before retry (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+      }
+    }
     
     // Try username first, then name if not found
     let user = await User.findOne({ username: username.trim() }).select('+password');
@@ -112,7 +148,8 @@ export async function POST(req: Request) {
     
     // Return immediately - don't wait for background tasks
     return NextResponse.json({ token, user: userSafe }, { status: 200 });
-  } catch (err) {
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+  } catch (error) {
+    console.error('Login error:', error);
+    return NextResponse.json({ message: "Login failed" }, { status: 500 });
   }
 }

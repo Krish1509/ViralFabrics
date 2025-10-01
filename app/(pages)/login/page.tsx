@@ -164,9 +164,9 @@ function LoginForm() {
     setErrors({});
     
     try {
-      // Optimized timeout - 15 seconds for reliability
+      // Increased timeout for Vercel deployment - 30 seconds for reliability
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
       
       // Start login API call and dashboard prefetch in parallel
       const [response] = await Promise.all([
@@ -208,9 +208,11 @@ function LoginForm() {
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        setErrors({ general: 'Login is taking longer than expected. Please try again.' });
+        setErrors({ general: 'Login is taking longer than expected. This may be due to server load. Please try again in a moment.' });
+      } else if (error instanceof Error && error.message.includes('fetch')) {
+        setErrors({ general: 'Unable to connect to the server. Please check your internet connection and try again.' });
       } else {
-        setErrors({ general: 'Network error. Please check your connection and try again.' });
+        setErrors({ general: 'Login failed. Please check your credentials and try again.' });
       }
     } finally {
       setIsLoading(false);
