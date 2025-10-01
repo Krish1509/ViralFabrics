@@ -9,7 +9,7 @@ import { logLogin } from "@/lib/logger";
 export async function POST(req: Request) {
   // Set a timeout for the entire login process
   const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Login timeout')), 25000); // 25 seconds timeout
+    setTimeout(() => reject(new Error('Login timeout')), 20000); // 20 seconds timeout for Vercel
   });
 
   try {
@@ -34,10 +34,10 @@ async function performLogin(req: Request) {
       return NextResponse.json({ message: "Username and password are required" }, { status: 400 });
     }
 
-    // Connect to database with retry logic
+    // Connect to database with minimal retry for production
     let dbConnected = false;
     let retryCount = 0;
-    const maxRetries = 3;
+    const maxRetries = 2; // Reduced retries for faster failure
     
     while (!dbConnected && retryCount < maxRetries) {
       try {
@@ -49,8 +49,8 @@ async function performLogin(req: Request) {
           console.error('Database connection failed after', maxRetries, 'attempts:', error);
           return NextResponse.json({ message: "Database connection failed. Please try again." }, { status: 503 });
         }
-        // Wait before retry (exponential backoff)
-        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+        // Shorter wait before retry
+        await new Promise(resolve => setTimeout(resolve, 500 * retryCount));
       }
     }
     

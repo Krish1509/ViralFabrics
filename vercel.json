@@ -4,5 +4,8 @@
       "maxDuration": 30
     }
   },
-  "regions": ["iad1"]
+  "regions": ["iad1"],
+  "env": {
+    "MONGODB_URI": "mongodb+srv://krish1506soni_db_user:IwowMjDghFUAt5cZ@cluster0.qtppcus.mongodb.net/CRM_AdminPanel?retryWrites=true&w=majority&appName=Cluster0"
+  }
 }
