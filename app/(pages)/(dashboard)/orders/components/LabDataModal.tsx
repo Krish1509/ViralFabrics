@@ -433,7 +433,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
     try {
       const token = localStorage.getItem('token');
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10 seconds for better reliability
       
       const response = await fetch(`/api/labs/by-order/${order._id}?t=${Date.now()}`, {
         headers: {

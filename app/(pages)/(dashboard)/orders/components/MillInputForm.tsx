@@ -930,9 +930,9 @@ export default function MillInputForm({
         return;
       }
 
-      // Create AbortController for faster timeout
+      // Create AbortController for timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1000); // Reduced to 1 second for faster response
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10 seconds for better reliability
 
       // API call to get fresh mills data
       console.log('Making API call to /api/mills...');
@@ -1082,7 +1082,7 @@ export default function MillInputForm({
 
       // Create AbortController for timeout - increased timeout for reliability
       const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for reliable response
+      timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10 seconds for better reliability
       
       const response = await fetch(`/api/mill-inputs?orderId=${order.orderId}&t=${Date.now()}`, {
         headers: {
@@ -1898,7 +1898,7 @@ export default function MillInputForm({
 
       // Create AbortController for timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout for faster response
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10 seconds for better reliability
 
       const response = await fetch('/api/mill-inputs', {
         method: 'POST',

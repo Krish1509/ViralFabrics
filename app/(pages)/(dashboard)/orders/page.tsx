@@ -2807,187 +2807,132 @@ export default function OrdersPage() {
   );
 
   // Full page loading skeleton (only for initial load)
+  // Simple and clean loading skeleton
   const LoadingSkeleton = () => (
     <div className={`min-h-screen ${
       isDarkMode 
-        ? 'bg-gray-900 text-white' 
-        : 'bg-gray-50 text-gray-900'
+        ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900' 
+        : 'bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50'
     }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header Skeleton */}
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
-            {/* Create Order Button Skeleton */}
-            <div className="flex items-center order-1 md:order-1">
-              <div className={`h-10 w-32 rounded-lg ${
-          isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-          }`}></div>
-            </div>
-            
-            {/* Search Bar Skeleton */}
-            <div className="flex-1 order-2 md:order-2">
-              <div className={`h-10 rounded-lg ${
-          isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-        }`}></div>
-      </div>
-
-            {/* Quick Actions Button Skeleton */}
-            <div className="flex items-center order-3 md:order-3">
-              <div className={`h-10 w-24 rounded-lg ${
-        isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-        }`}></div>
-            </div>
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className={`h-10 w-40 rounded-lg animate-pulse ${
+              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+            }`}></div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className={`h-10 w-64 rounded-lg animate-pulse ${
+              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+            }`}></div>
+            <div className={`h-10 w-24 rounded-lg animate-pulse ${
+              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+            }`}></div>
           </div>
         </div>
 
-        {/* Pagination Info Skeleton */}
-        <div className="mt-6 flex items-center justify-between">
-          <div className={`h-4 w-32 rounded ${
-            isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-          }`}></div>
-          <div className={`h-8 w-20 rounded ${
-            isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-          }`}></div>
+        {/* Stats Skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className={`p-4 rounded-lg animate-pulse ${
+              isDarkMode ? 'bg-slate-800/50' : 'bg-white'
+            }`}>
+              <div className={`h-4 w-20 rounded mb-2 ${
+                isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+              }`}></div>
+              <div className={`h-8 w-16 rounded ${
+                isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+              }`}></div>
+            </div>
+          ))}
         </div>
 
-        {/* Table Skeleton with proper structure - EXACTLY matching the real table */}
-        <div className="mt-6">
-          <div className={`rounded-xl border overflow-hidden shadow-lg ${
-            isDarkMode
-              ? 'bg-white/5 border-white/10 shadow-2xl'
-              : 'bg-white border-gray-200 shadow-xl'
-      }`}>
-        <div className="overflow-x-auto">
-          <table className="w-full" style={{ minWidth: '900px' }}>
-            <thead className={`${
-              isDarkMode ? 'bg-gradient-to-r from-slate-800/80 to-slate-700/80 border-b border-slate-600' : 'bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-300'
-            }`}>
-              <tr>
-                    <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[280px] ${
-                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black/50 bg-blue-50'
-                    }`}>
-                      Order Information
-                    </th>
-                    <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[320px] ${
-                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
-                    }`}>
-                      Items
-                    </th>
-                    <th className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 min-w-[180px] ${
-                      isDarkMode ? 'text-white border-slate-500 bg-slate-700/50' : 'text-black border-black bg-blue-50'
-                    }`}>
-                      Actions
-                    </th>
-              </tr>
-            </thead>
-            <tbody className={`divide-y ${
-              isDarkMode ? 'divide-white/10' : 'divide-gray-200'
-            }`}>
-                  {[...Array(3)].map((_, i) => (
-                <tr key={i} className={`hover:${
-                  isDarkMode ? 'bg-white/5' : 'bg-gray-50'
-                } transition-colors duration-200`}>
-                      {/* Order Information Column Skeleton - Compact */}
-                      <td className="px-2 sm:px-3 py-2 sm:py-3">
-                        <div className="space-y-2">
-                          {/* Order ID and Type - Very compact layout */}
-                          <div className="flex gap-2">
-                            {/* Order ID Skeleton */}
-                            <div className={`p-1.5 rounded border animate-pulse ${
-                              isDarkMode 
-                                ? 'bg-green-500/8 border-green-500/15' 
-                                : 'bg-green-50 border-green-200'
-                            }`}>
-                              <div className="flex items-center gap-1">
-                                <div className={`h-2.5 w-10 rounded ${
-                                  isDarkMode ? 'bg-green-400/30' : 'bg-green-300'
-                                }`}></div>
-                                <div className={`h-3 w-6 rounded ${
-                                  isDarkMode ? 'bg-white/30' : 'bg-gray-300'
-                                }`}></div>
-                              </div>
-                            </div>
-                            
-                            {/* Order Type Skeleton */}
-                            <div className={`p-1.5 rounded border animate-pulse ${
-                              isDarkMode 
-                                ? 'bg-purple-500/8 border-purple-500/15' 
-                                : 'bg-purple-50 border-purple-200'
-                            }`}>
-                              <div className="flex items-center gap-1">
-                                <div className={`h-2.5 w-12 rounded ${
-                                  isDarkMode ? 'bg-purple-400/30' : 'bg-purple-300'
-                                }`}></div>
-                                <div className={`h-3 w-8 rounded ${
-                                  isDarkMode ? 'bg-white/30' : 'bg-gray-300'
-                                }`}></div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* Party and Date - Very compact */}
-                          <div className="flex gap-2">
-                            <div className={`h-2.5 w-20 rounded animate-pulse ${
-                              isDarkMode ? 'bg-white/15' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`h-2.5 w-14 rounded animate-pulse ${
-                              isDarkMode ? 'bg-white/15' : 'bg-gray-200'
-                            }`}></div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Items Column Skeleton - Very Compact */}
-                      <td className="px-2 sm:px-3 py-2 sm:py-3">
-                        <div className="space-y-1.5">
-                          <div className={`h-3 w-14 rounded animate-pulse ${
-                            isDarkMode ? 'bg-white/15' : 'bg-gray-200'
-                          }`}></div>
-                          <div className="flex flex-col gap-1">
-                            <div className={`h-2.5 w-16 rounded animate-pulse ${
-                              isDarkMode ? 'bg-white/15' : 'bg-gray-200'
-                            }`}></div>
-                            <div className={`h-2.5 w-12 rounded animate-pulse ${
-                              isDarkMode ? 'bg-white/15' : 'bg-gray-200'
-                            }`}></div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Actions Column Skeleton - Very Compact */}
-                      <td className="px-2 sm:px-3 py-2 sm:py-3">
-                        <div className="flex flex-col gap-1">
-                          <div className={`h-6 w-full rounded animate-pulse ${
-                            isDarkMode ? 'bg-blue-500/12' : 'bg-blue-100'
-                          }`}></div>
-                          <div className={`h-6 w-full rounded animate-pulse ${
-                            isDarkMode ? 'bg-green-500/12' : 'bg-green-100'
-                          }`}></div>
-                        </div>
-                      </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Table Skeleton */}
+        <div className={`rounded-xl border overflow-hidden shadow-lg ${
+          isDarkMode
+            ? 'bg-slate-800/50 border-slate-700'
+            : 'bg-white border-gray-200'
+        }`}>
+          {/* Table Header */}
+          <div className={`px-6 py-4 border-b ${
+            isDarkMode ? 'border-slate-700' : 'border-gray-200'
+          }`}>
+            <div className="grid grid-cols-3 gap-4">
+              <div className={`h-4 w-32 rounded animate-pulse ${
+                isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+              }`}></div>
+              <div className={`h-4 w-24 rounded animate-pulse ${
+                isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+              }`}></div>
+              <div className={`h-4 w-20 rounded animate-pulse ${
+                isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+              }`}></div>
             </div>
+          </div>
+
+          {/* Table Rows */}
+          <div className="divide-y divide-gray-200 dark:divide-slate-700">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="px-6 py-4">
+                <div className="grid grid-cols-3 gap-4 items-center">
+                  {/* Order Info */}
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <div className={`h-6 w-16 rounded animate-pulse ${
+                        isDarkMode ? 'bg-green-500/20' : 'bg-green-100'
+                      }`}></div>
+                      <div className={`h-6 w-12 rounded animate-pulse ${
+                        isDarkMode ? 'bg-purple-500/20' : 'bg-purple-100'
+                      }`}></div>
+                    </div>
+                    <div className={`h-3 w-24 rounded animate-pulse ${
+                      isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                    }`}></div>
+                    <div className={`h-3 w-20 rounded animate-pulse ${
+                      isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                    }`}></div>
+                  </div>
+
+                  {/* Items */}
+                  <div className="space-y-2">
+                    <div className={`h-3 w-32 rounded animate-pulse ${
+                      isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                    }`}></div>
+                    <div className={`h-3 w-24 rounded animate-pulse ${
+                      isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                    }`}></div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <div className={`h-8 w-8 rounded animate-pulse ${
+                      isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                    }`}></div>
+                    <div className={`h-8 w-8 rounded animate-pulse ${
+                      isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                    }`}></div>
+                    <div className={`h-8 w-8 rounded animate-pulse ${
+                      isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                    }`}></div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Bottom Pagination Skeleton */}
+        {/* Pagination Skeleton */}
         <div className="mt-6 flex items-center justify-between">
-          <div className={`h-4 w-32 rounded ${
-            isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+          <div className={`h-4 w-32 rounded animate-pulse ${
+            isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
           }`}></div>
-          <div className="flex space-x-2">
-            <div className={`h-8 w-8 rounded ${
-              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-            }`}></div>
-            <div className={`h-8 w-8 rounded ${
-              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-            }`}></div>
-            <div className={`h-8 w-8 rounded ${
-              isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
-            }`}></div>
+          <div className="flex gap-2">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className={`h-8 w-8 rounded animate-pulse ${
+                isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+              }`}></div>
+            ))}
           </div>
         </div>
       </div>
@@ -3021,10 +2966,29 @@ export default function OrdersPage() {
     }
   `;
 
-  // Show full page skeleton only on very first load
-  if (loading && !isInitialized) {
-    console.log('Showing full page loading skeleton for initial load');
-    return <LoadingSkeleton />;
+  // Show full page skeleton during loading
+  if (loading || !isInitialized) {
+    console.log('Showing full page loading skeleton');
+    return (
+      <>
+        <style jsx>{`
+          .skeleton-shimmer {
+            background: linear-gradient(90deg, 
+              ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} 25%, 
+              ${isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'} 50%, 
+              ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} 75%
+            );
+            background-size: 200px 100%;
+            animation: shimmer 1.5s infinite;
+          }
+          @keyframes shimmer {
+            0% { background-position: -200px 0; }
+            100% { background-position: calc(200px + 100%) 0; }
+          }
+        `}</style>
+        <LoadingSkeleton />
+      </>
+    );
   }
 
   // Debug logging for troubleshooting
@@ -4993,25 +4957,115 @@ export default function OrdersPage() {
       ) : (
         /* Enhanced Card Layout - Complete Order Information */
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {(loading && !ordersLoaded) || orderCreating ? (
-            // Loading skeleton cards
+          {(loading && !ordersLoaded) || orderCreating || tableLoading || isChangingPage || refreshing || sortLoading || filterLoading ? (
+            // Enhanced loading skeleton cards
             Array.from({ length: 6 }).map((_, index) => (
               <div key={index} className={`rounded-xl border shadow-lg animate-pulse ${
                 isDarkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-white border-gray-200'
               }`}>
-                <div className="p-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="w-24 h-6 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    <div className="w-16 h-5 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                {/* Header Skeleton */}
+                <div className={`p-3 border-b ${
+                  isDarkMode ? 'border-gray-600 bg-gray-700/30' : 'border-gray-200 bg-gray-50'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className={`h-5 w-32 rounded mb-2 ${
+                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                      }`}></div>
+                      <div className={`h-4 w-24 rounded ${
+                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                      }`}></div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`h-6 w-16 rounded ${
+                        isDarkMode ? 'bg-blue-500/20' : 'bg-blue-100'
+                      }`}></div>
+                      <div className={`h-6 w-12 rounded ${
+                        isDarkMode ? 'bg-green-500/20' : 'bg-green-100'
+                      }`}></div>
+                      <div className={`h-6 w-16 rounded ${
+                        isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                      }`}></div>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <div className="w-full h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    <div className="w-3/4 h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    <div className="w-1/2 h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                </div>
+
+                {/* Content Skeleton */}
+                <div className="p-3 space-y-3">
+                  {/* Order Details Section */}
+                  <div className={`p-3 rounded-lg border ${
+                    isDarkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className={`h-4 w-24 rounded mb-3 ${
+                      isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                    }`}></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className={`p-2 rounded ${
+                        isDarkMode ? 'bg-gray-800/50' : 'bg-white'
+                      }`}>
+                        <div className={`h-3 w-16 rounded mb-1 ${
+                          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                        }`}></div>
+                        <div className={`h-4 w-20 rounded ${
+                          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                        }`}></div>
+                      </div>
+                      <div className={`p-2 rounded ${
+                        isDarkMode ? 'bg-gray-800/50' : 'bg-white'
+                      }`}>
+                        <div className={`h-3 w-16 rounded mb-1 ${
+                          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                        }`}></div>
+                        <div className={`h-4 w-20 rounded ${
+                          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                        }`}></div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-4 flex justify-between">
-                    <div className="w-20 h-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    <div className="w-16 h-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
+
+                  {/* Items Section */}
+                  <div className={`p-3 rounded-lg border ${
+                    isDarkMode ? 'bg-gray-700/30 border-gray-600' : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className={`h-4 w-16 rounded mb-3 ${
+                      isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                    }`}></div>
+                    <div className="space-y-2">
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className={`p-2 rounded ${
+                          isDarkMode ? 'bg-gray-800/50' : 'bg-white'
+                        }`}>
+                          <div className={`h-3 w-24 rounded mb-1 ${
+                            isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                          }`}></div>
+                          <div className={`h-4 w-16 rounded ${
+                            isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                          }`}></div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons Skeleton */}
+                <div className={`p-3 border-t ${
+                  isDarkMode ? 'border-gray-600 bg-gray-700/30' : 'border-gray-200 bg-gray-50'
+                }`}>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className={`h-8 w-full rounded ${
+                          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                        }`}></div>
+                      ))}
+                    </div>
+                    <div className="space-y-2">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className={`h-8 w-full rounded ${
+                          isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                        }`}></div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -6420,31 +6474,45 @@ export default function OrdersPage() {
                 );
               }
               
-              // Optional: Fetch fresh data in background (non-blocking)
+              // Refresh mill input data specifically for this order
               if (orderId) {
                 try {
-                  const response = await fetch(`/api/orders/${selectedOrderForMillInputForm?._id}`, {
-                    headers: {
-                      'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                      'Content-Type': 'application/json'
-                    }
-                  });
+                  // Add a small delay to ensure database is updated
+                  await new Promise(resolve => setTimeout(resolve, 500));
                   
-                  if (response.ok) {
-                    const updatedOrder = await response.json();
-                    if (updatedOrder.success) {
-                      // Update with real data from API
-                      setOrders(prevOrders => 
-                        prevOrders.map(order => 
-                          order.orderId === orderId 
-                            ? { ...order, ...updatedOrder.data }
-                            : order
-                        )
-                      );
-                    }
-                  }
+                  console.log('🔄 Refreshing mill input data for order:', orderId);
+                  await fetchMillInputsForOrder(orderId);
+                  
+                  // Also refresh the full orders list to ensure consistency
+                  console.log('🔄 Refreshing full orders list for consistency');
+                  await refreshOrdersWithRetry();
                 } catch (error) {
-                  console.log('Background refresh failed, but UI already updated:', error);
+                  console.error('❌ Error refreshing mill input data:', error);
+                  // Fallback: try to fetch individual order data
+                  try {
+                    const response = await fetch(`/api/orders/${selectedOrderForMillInputForm?._id}`, {
+                      headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json'
+                      }
+                    });
+                    
+                    if (response.ok) {
+                      const updatedOrder = await response.json();
+                      if (updatedOrder.success) {
+                        // Update with real data from API
+                        setOrders(prevOrders => 
+                          prevOrders.map(order => 
+                            order.orderId === orderId 
+                              ? { ...order, ...updatedOrder.data }
+                              : order
+                          )
+                        );
+                      }
+                    }
+                  } catch (fallbackError) {
+                    console.log('❌ Fallback refresh also failed:', fallbackError);
+                  }
                 }
               }
               
