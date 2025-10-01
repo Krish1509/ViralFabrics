@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import dbConnect from "@/lib/dbConnect";
+import dbConnectProduction from "@/lib/dbConnectProduction";
 import User from "@/models/User";
 import Log, { ILogModel } from "@/models/Log";
 import { logLogin } from "@/lib/logger";
@@ -41,7 +42,12 @@ async function performLogin(req: Request) {
     
     while (!dbConnected && retryCount < maxRetries) {
       try {
-        await dbConnect();
+        // Use production-optimized connection for better performance
+        if (process.env.NODE_ENV === 'production') {
+          await dbConnectProduction();
+        } else {
+          await dbConnect();
+        }
         dbConnected = true;
       } catch (error) {
         retryCount++;
