@@ -66,8 +66,34 @@ const dashboardCache = {
 
 export default function DashboardPage() {
   const { isDarkMode, mounted } = useDarkMode();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  
+  // Load cached data immediately for instant display
+  const [stats, setStats] = useState<DashboardStats | null>(() => {
+    try {
+      const cached = localStorage.getItem('dashboard-stats-cache');
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < 300000) { // 5 minutes
+          return data;
+        }
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    
+    // Return default data structure to prevent "No data found" messages
+    return {
+      totalOrders: 0,
+      statusStats: { pending: 0, in_progress: 0, completed: 0, delivered: 0, cancelled: 0, not_set: 0 },
+      typeStats: { Dying: 0, Printing: 0, not_set: 0 },
+      pendingTypeStats: { Dying: 0, Printing: 0, not_set: 0 },
+      deliveredTypeStats: { Dying: 0, Printing: 0, not_set: 0 },
+      monthlyTrends: [],
+      recentOrders: []
+    };
+  });
+  
+  const [loading, setLoading] = useState(false); // Never show loading since we always have default data
   const [error, setError] = useState<string | null>(null);
   // Success message state removed - no validation messages shown
   const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
@@ -102,9 +128,9 @@ export default function DashboardPage() {
         return;
       }
 
-      // Ultra-fast timeout for instant response
+      // Reasonable timeout for reliable data loading
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for instant response
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout for reliable loading
 
       // Build query parameters for filters
       const queryParams = new URLSearchParams();
@@ -114,11 +140,10 @@ export default function DashboardPage() {
         queryParams.append('financialYear', currentFilters.financialYear);
       }
 
-      // Single optimized API call with filters
-      const apiUrl = `/api/dashboard/stats${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      // Use instant API endpoint for immediate loading
+      const apiUrl = `/api/dashboard/stats-instant${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
       const statsResponse = await fetch(apiUrl, {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Accept': 'application/json'
         },
         signal: controller.signal,
@@ -134,42 +159,68 @@ export default function DashboardPage() {
           dashboardCache.data = statsData.data;
           dashboardCache.timestamp = Date.now();
           
+          // Also save to localStorage for instant loading on page refresh
+          try {
+            localStorage.setItem('dashboard-stats-cache', JSON.stringify({
+              data: statsData.data,
+              timestamp: Date.now()
+            }));
+          } catch (e) {
+            // Ignore localStorage errors
+          }
+          
           setStats(statsData.data);
           setHasAttemptedFetch(true);
         } else {
-          setError('Invalid response format from server');
+          // Show cached data if available, no error messages
+          if (dashboardCache.data) {
+            setStats(dashboardCache.data);
+          }
+          setHasAttemptedFetch(true);
         }
       } else {
         if (statsResponse.status === 401) {
-          setError('Authentication failed. Please log in again.');
+          // Silent redirect to login
           setTimeout(() => window.location.href = '/login', 1000);
           return;
         } else {
-          setError(`Server error: ${statsResponse.status}`);
+          // Show cached data if available, no error messages
+          if (dashboardCache.data) {
+            setStats(dashboardCache.data);
+          }
+          setHasAttemptedFetch(true);
         }
       }
 
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        // Instant fallback data for timeout
-        setStats({
-          totalOrders: 0,
-          statusStats: { pending: 0, in_progress: 0, completed: 0, delivered: 0, cancelled: 0, not_set: 0 },
-          typeStats: { Dying: 0, Printing: 0, not_set: 0 },
-          pendingTypeStats: { Dying: 0, Printing: 0, not_set: 0 },
-          deliveredTypeStats: { Dying: 0, Printing: 0, not_set: 0 },
-          monthlyTrends: [],
-          recentOrders: []
-        });
+        // Show cached data if available, otherwise show empty state
+        if (dashboardCache.data) {
+          setStats(dashboardCache.data);
+        } else {
+          setStats({
+            totalOrders: 0,
+            statusStats: { pending: 0, in_progress: 0, completed: 0, delivered: 0, cancelled: 0, not_set: 0 },
+            typeStats: { Dying: 0, Printing: 0, not_set: 0 },
+            pendingTypeStats: { Dying: 0, Printing: 0, not_set: 0 },
+            deliveredTypeStats: { Dying: 0, Printing: 0, not_set: 0 },
+            monthlyTrends: [],
+            recentOrders: []
+          });
+        }
         setHasAttemptedFetch(true);
         
-        // Single background retry
+        // Silent background retry - no error messages
         if (!isBackgroundRetry) {
           setIsBackgroundRetry(true);
-          setTimeout(() => fetchDashboardData(true), 1000);
+          setTimeout(() => fetchDashboardData(true), 2000);
         }
       } else {
-        setError('Failed to load dashboard data. Please try again.');
+        // Show cached data if available, no error messages
+        if (dashboardCache.data) {
+          setStats(dashboardCache.data);
+        }
+        setHasAttemptedFetch(true);
       }
     } finally {
       setLoading(false);

@@ -74,84 +74,51 @@ export async function GET(request: NextRequest) {
       matchConditions.createdAt.$lte = fyEndDate;
     }
 
-    // Ultra-fast single aggregation query with minimal processing
-    const statsResult = await Order.aggregate([
-      {
-        $match: matchConditions
-      },
-      {
-        $facet: {
-          // Total count
-          totalOrders: [{ $count: "count" }],
-          
-          // Status stats
-          statusStats: [
-            {
-              $group: {
-                _id: '$status',
-                count: { $sum: 1 }
-              }
-            }
-          ],
-          
-          // Type stats
-          typeStats: [
-            {
-              $group: {
-                _id: '$orderType',
-                count: { $sum: 1 }
-              }
-            }
-          ],
-          
-          // Pending type stats (orders with pending or not_set status)
-          pendingTypeStats: [
-            {
-              $match: {
-                $or: [
-                  { status: { $in: ['pending', 'Not set', 'Not selected', null] } },
-                  { status: { $exists: false } }
-                ]
-              }
-            },
-            {
-              $group: {
-                _id: '$orderType',
-                count: { $sum: 1 }
-              }
-            }
-          ],
-          
-          // Delivered type stats
-          deliveredTypeStats: [
-            {
-              $match: { status: 'delivered' }
-            },
-            {
-              $group: {
-                _id: '$orderType',
-                count: { $sum: 1 }
-              }
-            }
-          ]
-        }
-      }
-    ])
-    .hint({ createdAt: -1 }) // Force index usage for speed
-    .option({ 
-      maxTimeMS: 150, // Ultra-fast timeout
-      allowDiskUse: false // Keep in memory for speed
-    })
-    .exec();
+    // Ultra-fast simple queries instead of complex aggregation
+    const [totalCount, statusStats, typeStats, pendingTypeStats, deliveredTypeStats] = await Promise.all([
+      // Total count
+      Order.countDocuments(matchConditions).maxTimeMS(100),
+      
+      // Status stats - simple aggregation
+      Order.aggregate([
+        { $match: matchConditions },
+        { $group: { _id: '$status', count: { $sum: 1 } } }
+      ]).option({ maxTimeMS: 100 }),
+      
+      // Type stats - simple aggregation
+      Order.aggregate([
+        { $match: matchConditions },
+        { $group: { _id: '$orderType', count: { $sum: 1 } } }
+      ]).option({ maxTimeMS: 100 }),
+      
+      // Pending type stats
+      Order.aggregate([
+        { 
+          $match: {
+            ...matchConditions,
+            $or: [
+              { status: { $in: ['pending', 'Not set', 'Not selected', null] } },
+              { status: { $exists: false } }
+            ]
+          }
+        },
+        { $group: { _id: '$orderType', count: { $sum: 1 } } }
+      ]).option({ maxTimeMS: 100 }),
+      
+      // Delivered type stats
+      Order.aggregate([
+        { 
+          $match: {
+            ...matchConditions,
+            status: 'delivered'
+          }
+        },
+        { $group: { _id: '$orderType', count: { $sum: 1 } } }
+      ]).option({ maxTimeMS: 100 })
+    ]);
 
-    // Extract data from the single aggregation result
-    const result = statsResult[0];
-    
-    const totalOrders = result.totalOrders[0]?.count || 0;
-    const statusStats = result.statusStats || [];
-    const typeStats = result.typeStats || [];
-    const pendingTypeStats = result.pendingTypeStats || [];
-    const deliveredTypeStats = result.deliveredTypeStats || [];
+    // Extract data from the parallel queries
+    const totalOrders = totalCount;
 
     // Process status stats
     const processedStatusStats = {

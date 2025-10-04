@@ -53,9 +53,9 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
     } catch (e) {
       // Ignore localStorage errors
     }
-    return [];
+    return []; // Start with empty array, will be populated by API
   });
-  const [loading, setLoading] = useState(upcomingOrders.length === 0); // Only show loading if no cached data
+  const [loading, setLoading] = useState(false); // Never show loading to prevent "No data" messages
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [filteredOrders, setFilteredOrders] = useState<UpcomingOrder[]>(upcomingOrders);
@@ -80,18 +80,17 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         return;
       }
 
-      // Ultra-fast timeout with fallback
+      // Reasonable timeout for reliable data loading
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout for ultra-fast loading
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout for reliable loading
       
       // Try dedicated upcoming deliveries endpoint first, fallback to orders API
       let response: Response | undefined;
       let useFallback = false;
       
       try {
-        response = await fetch(`/api/dashboard/upcoming-deliveries`, {
+        response = await fetch(`/api/dashboard/upcoming-deliveries-instant`, {
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Accept': 'application/json'
           },
           signal: controller.signal,

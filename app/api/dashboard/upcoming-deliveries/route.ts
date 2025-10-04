@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     .select('orderId orderType deliveryDate party status priority items')
     .sort({ deliveryDate: 1 })
     .lean()
-    .maxTimeMS(100) // Ultra-fast timeout
+    .maxTimeMS(200) // Slightly longer timeout for reliability
     .hint({ deliveryDate: 1 }); // Use existing deliveryDate index
 
     // Process and format the data

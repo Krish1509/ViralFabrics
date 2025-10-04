@@ -46,16 +46,16 @@ export default async function dbConnect(): Promise<Mongoose> {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false, // Disable buffering for faster responses
-      maxPoolSize: 3, // Minimal pool for speed
-      serverSelectionTimeoutMS: 500, // Ultra-fast timeout
-      socketTimeoutMS: 1000, // Ultra-fast socket timeout
+      maxPoolSize: 5, // Increased pool for better reliability
+      serverSelectionTimeoutMS: 2000, // More reasonable timeout
+      socketTimeoutMS: 5000, // More reasonable socket timeout
       family: 4, // Use IPv4, skip trying IPv6
-      retryWrites: false, // Disable retries for speed
-      retryReads: false, // Disable retries for speed
-      connectTimeoutMS: 500, // Ultra-fast connection
-      maxIdleTimeMS: 3000, // Faster cleanup
-      heartbeatFrequencyMS: 1000, // Faster heartbeat
-      maxConnecting: 1, // Single connection for speed
+      retryWrites: true, // Enable retries for reliability
+      retryReads: true, // Enable retries for reliability
+      connectTimeoutMS: 2000, // More reasonable connection timeout
+      maxIdleTimeMS: 10000, // Longer idle time for stability
+      heartbeatFrequencyMS: 2000, // More reasonable heartbeat
+      maxConnecting: 2, // Allow 2 connections for reliability
       directConnection: false, // Use connection pooling
       compressors: ['zlib'] as ('zlib' | 'none' | 'snappy' | 'zstd')[], // Enable compression
     };
