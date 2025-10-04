@@ -36,15 +36,29 @@ interface DeliveredSoonTableProps {
 const deliveredSoonCache = {
   data: null as UpcomingOrder[] | null,
   timestamp: 0,
-  ttl: 10 * 60 * 1000 // 10 minutes for ultra-fast loading
+  ttl: 30 * 1000 // 30 seconds for ultra-fast loading
 };
 
 const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) => {
-  const [upcomingOrders, setUpcomingOrders] = useState<UpcomingOrder[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Load from localStorage for instant display
+  const [upcomingOrders, setUpcomingOrders] = useState<UpcomingOrder[]>(() => {
+    try {
+      const cached = localStorage.getItem('upcoming-deliveries-cache');
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < 30000) { // 30 seconds
+          return data || [];
+        }
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(upcomingOrders.length === 0); // Only show loading if no cached data
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [filteredOrders, setFilteredOrders] = useState<UpcomingOrder[]>([]);
+  const [filteredOrders, setFilteredOrders] = useState<UpcomingOrder[]>(upcomingOrders);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const fetchUpcomingOrders = useCallback(async () => {
@@ -66,14 +80,16 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         return;
       }
 
-      // Robust timeout with fallback
+      // Ultra-fast timeout with fallback
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 9000); // 5 second timeout for reliability
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout for ultra-fast loading
       
-      // Single optimized API call with retry logic
-      let response;
+      // Try dedicated upcoming deliveries endpoint first, fallback to orders API
+      let response: Response | undefined;
+      let useFallback = false;
+      
       try {
-        response = await fetch(`/api/orders?limit=100`, {
+        response = await fetch(`/api/dashboard/upcoming-deliveries`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json'
@@ -98,10 +114,39 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
           setLoading(false);
           return;
         }
-        throw fetchError;
+        // If dedicated endpoint fails, try fallback
+        useFallback = true;
+      }
+      
+      // If dedicated endpoint failed or returned error, try fallback
+      if (useFallback || !response || !response.ok) {
+        try {
+          response = await fetch(`/api/orders?limit=1000`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json'
+            },
+            signal: controller.signal,
+            cache: 'default'
+          });
+        } catch (fallbackError: any) {
+          if (fallbackError.name === 'AbortError') {
+            if (deliveredSoonCache.data) {
+              setUpcomingOrders(deliveredSoonCache.data);
+              setFilteredOrders(deliveredSoonCache.data);
+              setLoading(false);
+              return;
+            }
+            setUpcomingOrders([]);
+            setFilteredOrders([]);
+            setLoading(false);
+            return;
+          }
+          throw fallbackError;
+        }
       }
 
-      if (response.ok) {
+      if (response && response.ok) {
         const data = await response.json();
         
         // Handle response format
@@ -112,39 +157,58 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
           orders = data;
         }
         
-        // Fast filtering for orders with delivery dates in next 7 days
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        let validUpcoming;
         
-        const upcoming = orders
-          .filter((order: any) => order.deliveryDate)
-          .map((order: any) => {
-            const deliveryDate = new Date(order.deliveryDate);
-            if (isNaN(deliveryDate.getTime())) return null;
-            
-            const daysUntil = Math.ceil((deliveryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            
-            return {
-              id: order._id || order.id,
-              orderId: order.orderId,
-              orderType: order.orderType || 'Not Set',
-              deliveryDate: order.deliveryDate,
-              party: order.party || { name: 'Unknown Party' },
-              status: order.status,
-              priority: order.priority || 5,
-              items: order.items || [],
-              daysUntilDelivery: daysUntil
-            };
-          })
-          .filter((order: UpcomingOrder | null) => 
-            order && order.daysUntilDelivery >= 0 && order.daysUntilDelivery <= 7
-          )
-          .sort((a: UpcomingOrder | null, b: UpcomingOrder | null) => {
-            if (!a || !b) return 0;
-            return a.daysUntilDelivery - b.daysUntilDelivery;
-          });
+        // Check if this is from the dedicated endpoint (pre-processed) or fallback (needs processing)
+        if (orders.length > 0 && orders[0].daysUntilDelivery !== undefined) {
+          // Data is already processed by the dedicated API, just use it directly
+          validUpcoming = orders.filter((order: any) => order && order.orderId);
+          
+        } else {
+          // Fallback: process orders from the general orders API
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          // Start from yesterday to catch any timezone issues
+          const startDate = new Date(today);
+          startDate.setDate(today.getDate() - 1);
+          startDate.setHours(0, 0, 0, 0);
+          
+          const upcoming = orders
+            .filter((order: any) => order.deliveryDate)
+            .map((order: any) => {
+              const deliveryDate = new Date(order.deliveryDate);
+              if (isNaN(deliveryDate.getTime())) return null;
+              
+              // Normalize delivery date to start of day for accurate comparison
+              deliveryDate.setHours(0, 0, 0, 0);
+              
+              const daysUntil = Math.ceil((deliveryDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+              
+              return {
+                id: order._id || order.id,
+                orderId: order.orderId,
+                orderType: order.orderType || 'Not Set',
+                deliveryDate: order.deliveryDate,
+                party: order.party || { name: 'Unknown Party' },
+                status: order.status,
+                priority: order.priority || 5,
+                items: order.items || [],
+                daysUntilDelivery: daysUntil
+              };
+            })
+            .filter((order: UpcomingOrder | null) => {
+              if (!order) return false;
+              // Include orders from yesterday (-1 day) to 7 days from now to handle timezone issues
+              return order.daysUntilDelivery >= -1 && order.daysUntilDelivery <= 7;
+            })
+            .sort((a: UpcomingOrder | null, b: UpcomingOrder | null) => {
+              if (!a || !b) return 0;
+              return a.daysUntilDelivery - b.daysUntilDelivery;
+            });
 
-        const validUpcoming = upcoming.filter((order: UpcomingOrder | null): order is UpcomingOrder => order !== null);
+          validUpcoming = upcoming.filter((order: UpcomingOrder | null): order is UpcomingOrder => order !== null);
+        }
         
         setUpcomingOrders(validUpcoming);
         setFilteredOrders(validUpcoming);
@@ -153,16 +217,26 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
         // Update cache for instant future loads
         deliveredSoonCache.data = validUpcoming;
         deliveredSoonCache.timestamp = Date.now();
+        
+        // Also save to localStorage for instant loading on page refresh
+        try {
+          localStorage.setItem('upcoming-deliveries-cache', JSON.stringify({
+            data: validUpcoming,
+            timestamp: Date.now()
+          }));
+        } catch (e) {
+          // Ignore localStorage errors
+        }
       } else {
-        if (response.status === 401) {
+        if (response && response.status === 401) {
           setError('Authentication failed. Please log in again.');
-        } else if (response.status === 404) {
+        } else if (response && response.status === 404) {
           setUpcomingOrders([]);
           setFilteredOrders([]);
           deliveredSoonCache.data = [];
           deliveredSoonCache.timestamp = Date.now();
         } else {
-          setError(`Failed to load upcoming orders (${response.status})`);
+          setError(`Failed to load upcoming orders (${response?.status || 'unknown'})`);
         }
       }
     } catch (error: any) {
@@ -210,14 +284,25 @@ const DeliveredSoonTable: React.FC<DeliveredSoonTableProps> = ({ isDarkMode }) =
   useEffect(() => {
     fetchUpcomingOrders();
     
-    // Silent retry mechanism - retry every 30 seconds if there was an error
+    // Aggressive background refresh for ultra-fast loading
+    const refreshInterval = setInterval(() => {
+      // Refresh data in background every 25 seconds (before cache expires)
+      if (!loading) {
+        fetchUpcomingOrders();
+      }
+    }, 25000); // 25 seconds - refresh before cache expires
+    
+    // Silent retry mechanism - retry every 5 seconds if there was an error
     const retryInterval = setInterval(() => {
       if (error && !loading) {
         fetchUpcomingOrders();
       }
-    }, 30000); // 30 seconds
+    }, 5000); // 5 seconds for faster recovery
     
-    return () => clearInterval(retryInterval);
+    return () => {
+      clearInterval(refreshInterval);
+      clearInterval(retryInterval);
+    };
   }, [fetchUpcomingOrders, error, loading]);
 
   // Visibility change listener removed for ultra-fast loading

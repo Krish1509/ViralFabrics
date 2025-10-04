@@ -34,11 +34,9 @@ export async function GET(
     .select('_id orderItemId status labSendDate labSendNumber labSendData remarks createdAt')
     .sort({ createdAt: -1 })
     .lean()
-    .maxTimeMS(500); // Ultra-fast timeout for instant loading
+    .hint({ order: 1, softDeleted: 1 }) // Force index usage
+    .maxTimeMS(200); // Ultra-fast timeout
 
-    if (labs.length > 0) {
-      }
-    
     return NextResponse.json(successResponse(labs, 'Labs fetched successfully'));
     
   } catch (error: any) {

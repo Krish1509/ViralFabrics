@@ -73,6 +73,7 @@ export default function DashboardPage() {
   const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
   const [isBackgroundRetry, setIsBackgroundRetry] = useState(false);
   const [isFilterLoading, setIsFilterLoading] = useState(false);
+  const [filterProcessingDelay, setFilterProcessingDelay] = useState(false);
   const [filters, setFilters] = useState<DashboardFilters>({
     startDate: '',
     endDate: '',
@@ -187,13 +188,24 @@ export default function DashboardPage() {
   const handleFiltersChange = useCallback(async (newFilters: DashboardFilters) => {
     setFilters(newFilters);
     setIsFilterLoading(true);
+    setFilterProcessingDelay(true);
+    
     // Clear cache and fetch new data with filters
     dashboardCache.data = null;
     dashboardCache.timestamp = 0;
+    
     try {
-      await fetchDashboardData(false, newFilters);
+      // Add a minimum delay to show loading state
+      const [dataResult] = await Promise.all([
+        fetchDashboardData(false, newFilters),
+        new Promise(resolve => setTimeout(resolve, 2000)) // Minimum 2 second delay
+      ]);
     } finally {
       setIsFilterLoading(false);
+      // Keep the processing delay for a bit longer to show loading in pie charts
+      setTimeout(() => {
+        setFilterProcessingDelay(false);
+      }, 3000); // Additional 3 seconds for pie charts
     }
   }, [fetchDashboardData]);
 
@@ -377,6 +389,8 @@ export default function DashboardPage() {
                     icon={ClockIcon}
                     total={(stats?.pendingTypeStats?.Dying || 0) + (stats?.pendingTypeStats?.Printing || 0) + (stats?.pendingTypeStats?.not_set || 0)}
                     isDarkMode={isDarkMode}
+                    isLoading={loading || isFilterLoading || filterProcessingDelay}
+                    showEmptyStateDelay={7000} // 7 seconds delay
                   />
                 </div>
 
@@ -404,6 +418,8 @@ export default function DashboardPage() {
                     icon={CheckCircleIcon}
                     total={(stats?.deliveredTypeStats?.Dying || 0) + (stats?.deliveredTypeStats?.Printing || 0) + (stats?.deliveredTypeStats?.not_set || 0)}
                     isDarkMode={isDarkMode}
+                    isLoading={loading || isFilterLoading || filterProcessingDelay}
+                    showEmptyStateDelay={7000} // 7 seconds delay
                   />
                 </div>
               </>

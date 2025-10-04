@@ -294,7 +294,23 @@ export default function OrdersPage() {
   }, []);
 
   const hasLabData = useCallback((order: Order) => {
-    return (order.labData && order.labData.length > 0) || order.items.some(item => item.labData?.sampleNumber);
+    // Check if order has labData array with items
+    if (order.labData && Array.isArray(order.labData) && order.labData.length > 0) {
+      return true;
+    }
+    
+    // Check if any item has lab data (check for labSendDate as it's the primary field)
+    if (order.items && Array.isArray(order.items)) {
+      return order.items.some(item => 
+        item.labData && (
+          item.labData.labSendDate || 
+          item.labData.sampleNumber || 
+          item.labData.approvalDate
+        )
+      );
+    }
+    
+    return false;
   }, []);
 
   const handleViewModeChange = useCallback((newMode: 'table' | 'cards') => {
@@ -1839,6 +1855,63 @@ export default function OrdersPage() {
     }
   }, [orders, refreshOrdersWithRetry]);
 
+  // Function to refresh lab data for a specific order
+  const refreshOrderLabData = useCallback(async (orderId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(`/api/labs/by-order/${orderId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const labData = await response.json();
+        if (labData.success && labData.data) {
+          // Update the specific order with fresh lab data
+          setOrders(prevOrders => 
+            prevOrders.map(order => {
+              if (order._id === orderId) {
+                const updatedOrder = { ...order };
+                
+                // Update items with lab data
+                updatedOrder.items = updatedOrder.items.map(item => {
+                  const itemLabData = labData.data.find((lab: any) => lab.orderItemId === item._id);
+                  return {
+                    ...item,
+                    labData: itemLabData ? {
+                      labSendDate: itemLabData.labSendDate,
+                      approvalDate: itemLabData.labSendData?.approvalDate,
+                      sampleNumber: itemLabData.labSendData?.sampleNumber,
+                      color: itemLabData.labSendData?.color,
+                      shade: itemLabData.labSendData?.shade,
+                      notes: itemLabData.labSendData?.notes,
+                      imageUrl: itemLabData.labSendData?.imageUrl,
+                      labSendNumber: itemLabData.labSendNumber,
+                      status: itemLabData.status,
+                      remarks: itemLabData.remarks
+                    } : undefined
+                  };
+                });
+
+                // Update order lab data array
+                updatedOrder.labData = labData.data.length > 0 ? labData.data : [];
+                
+                return updatedOrder;
+              }
+              return order;
+            })
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing order lab data:', error);
+    }
+  }, []);
+
   // Keyboard navigation for image preview
   useEffect(() => {
     if (showImagePreview) {
@@ -2544,7 +2617,7 @@ export default function OrdersPage() {
   const shouldShowEmptyState = useMemo(() => {
     // NEVER show empty state if:
     // 1. Any loading operation is happening
-    if (loading || orderCreating || isChangingPage || tableLoading || refreshing || sortLoading || filterLoading) {
+    if (loading || orderCreating || isChangingPage || tableLoading || refreshing || sortLoading || filterLoading || searchLoading) {
       return false;
     }
     
@@ -2599,7 +2672,7 @@ export default function OrdersPage() {
            paginationInfo.totalPages === 0;
   }, [
     loading, orderCreating, isChangingPage, tableLoading, refreshing, 
-    sortLoading, filterLoading, ordersLoaded, currentOrders.length, 
+    sortLoading, filterLoading, searchLoading, ordersLoaded, currentOrders.length, 
     paginationInfo.totalCount, paginationInfo.totalPages, currentPage, orders.length, initialLoadTime
   ]);
 
@@ -3871,7 +3944,7 @@ export default function OrdersPage() {
               isDarkMode ? 'divide-white/10' : 'divide-gray-200'
             }`}>
               {/* Loading skeleton rows */}
-              {((loading && !ordersLoaded) || orderCreating || (currentOrders.length === 0 && !ordersLoaded)) && (
+              {((loading && !ordersLoaded) || orderCreating || searchLoading || (currentOrders.length === 0 && !ordersLoaded)) && (
                 Array.from({ length: 8 }).map((_, index) => (
                   <tr key={`loading-skeleton-${index}`} className="animate-pulse">
                     <td className="px-3 sm:px-4 lg:px-6 py-4">
@@ -3937,7 +4010,7 @@ export default function OrdersPage() {
               )}
 
               {/* Show actual orders data */}
-              {(!loading && !orderCreating && !tableLoading && !isChangingPage && !refreshing && !sortLoading && !filterLoading && currentOrders.length > 0 && ordersLoaded) && 
+              {(!loading && !orderCreating && !tableLoading && !isChangingPage && !refreshing && !sortLoading && !filterLoading && !searchLoading && currentOrders.length > 0 && ordersLoaded) && 
                 currentOrders.map((order, index) => {
                   console.log('🔍 Table render check:', {
                     loading,
@@ -4642,7 +4715,7 @@ export default function OrdersPage() {
               }
 
               {/* Empty state message */}
-              {!loading && !orderCreating && !tableLoading && !isChangingPage && !refreshing && !sortLoading && !filterLoading && currentOrders.length === 0 && ordersLoaded && (
+              {!loading && !orderCreating && !tableLoading && !isChangingPage && !refreshing && !sortLoading && !filterLoading && !searchLoading && currentOrders.length === 0 && ordersLoaded && (
                 <tr>
                   <td colSpan={3} className="px-3 sm:px-4 lg:px-6 py-12 text-center">
                     <div className="flex flex-col items-center space-y-3">
@@ -4957,7 +5030,7 @@ export default function OrdersPage() {
       ) : (
         /* Enhanced Card Layout - Complete Order Information */
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {(loading && !ordersLoaded) || orderCreating || tableLoading || isChangingPage || refreshing || sortLoading || filterLoading ? (
+          {(loading && !ordersLoaded) || orderCreating || tableLoading || isChangingPage || refreshing || sortLoading || filterLoading || searchLoading ? (
             // Enhanced loading skeleton cards
             Array.from({ length: 6 }).map((_, index) => (
               <div key={index} className={`rounded-xl border shadow-lg animate-pulse ${
@@ -5071,7 +5144,7 @@ export default function OrdersPage() {
               </div>
             ))
           ) : (
-            !orderCreating && currentOrders.map((order) => (
+            !orderCreating && !searchLoading && currentOrders.map((order) => (
             <div key={order._id} className={`rounded-xl border shadow-lg ${
               isDarkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-white border-gray-200'
             }`}>
@@ -5385,12 +5458,20 @@ export default function OrdersPage() {
                         setSelectedOrderForLabData(order);
                         setShowLabDataModal(true);
                       }}
-                      className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedOrderForLabData(order);
+                          setShowLabDataModal(true);
+                        }
+                      }}
+                      className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center space-x-2 relative ${
                         isDarkMode
-                          ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+                          ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30 focus:ring-offset-gray-800'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 focus:ring-offset-white'
                       }`}
                       title={hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}
+                      aria-label={hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}
                     >
                       <BeakerIcon className="h-4 w-4" />
                       <span>{hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}</span>
@@ -5825,7 +5906,7 @@ export default function OrdersPage() {
               // Immediate UI update based on operation type
               setOrders(prevOrders => 
                 prevOrders.map(order => {
-                  if (order.orderId === orderId) {
+                  if (order._id === orderId) {
                     const updatedOrder = { ...order };
                     
                     if (operationType === 'delete' || operationType === 'deleteAll') {
@@ -5839,6 +5920,15 @@ export default function OrdersPage() {
                     } else if (operationType === 'add' || operationType === 'edit') {
                       // Mark as having lab data (will be updated with real data from API)
                       updatedOrder.labData = [{ _id: 'temp', order: orderId, createdAt: new Date() }];
+                      // Also mark items as having lab data for immediate UI update
+                      updatedOrder.items = updatedOrder.items.map(item => ({
+                        ...item,
+                        labData: item.labData || {
+                          labSendDate: new Date().toISOString().split('T')[0],
+                          sampleNumber: '',
+                          approvalDate: ''
+                        }
+                      }));
                     }
                     
                     return updatedOrder;
@@ -5847,38 +5937,10 @@ export default function OrdersPage() {
                 })
               );
               
-              // Trigger a quick refresh of orders data to get latest lab data
+              // Refresh lab data in background to get the latest state
               setTimeout(() => {
-                fetchOrders(0, currentPage, itemsPerPage, true);
-              }, 100);
-            }
-            
-            // Optional: Fetch fresh data in background (non-blocking)
-            if (orderId) {
-              try {
-                const response = await fetch(`/api/orders/${orderId}`, {
-                  headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                  }
-                });
-                
-                if (response.ok) {
-                  const updatedOrder = await response.json();
-                  if (updatedOrder.success) {
-                    // Update with real data from API
-                    setOrders(prevOrders => 
-                      prevOrders.map(order => 
-                        order.orderId === orderId 
-                          ? { ...order, ...updatedOrder.data }
-                          : order
-                      )
-                    );
-                  }
-                }
-              } catch (error) {
-                console.log('Background refresh failed, but UI already updated:', error);
-              }
+                refreshOrderLabData(orderId);
+              }, 1000); // 1 second delay to allow the modal to close
             }
               
              setShowLabAddModal(false);
@@ -6392,7 +6454,7 @@ export default function OrdersPage() {
               // Immediate UI update based on operation type
               setOrders(prevOrders => 
                 prevOrders.map(order => {
-                  if (order.orderId === orderId) {
+                  if (order._id === orderId) {
                     const updatedOrder = { ...order };
                     
                     if (operationType === 'delete' || operationType === 'deleteAll') {
@@ -6406,6 +6468,15 @@ export default function OrdersPage() {
                     } else if (operationType === 'add' || operationType === 'edit') {
                       // Mark as having lab data (will be updated with real data from API)
                       updatedOrder.labData = [{ _id: 'temp', order: orderId, createdAt: new Date() }];
+                      // Also mark items as having lab data for immediate UI update
+                      updatedOrder.items = updatedOrder.items.map(item => ({
+                        ...item,
+                        labData: item.labData || {
+                          labSendDate: new Date().toISOString().split('T')[0],
+                          sampleNumber: '',
+                          approvalDate: ''
+                        }
+                      }));
                     }
                     
                     return updatedOrder;
@@ -6414,38 +6485,10 @@ export default function OrdersPage() {
                 })
               );
               
-              // Trigger a quick refresh of orders data to get latest lab data
+              // Refresh lab data in background to get the latest state
               setTimeout(() => {
-                fetchOrders(0, currentPage, itemsPerPage, true);
-              }, 100);
-            }
-            
-            // Optional: Fetch fresh data in background (non-blocking)
-            if (orderId) {
-              try {
-                const response = await fetch(`/api/orders/${orderId}`, {
-                  headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                  }
-                });
-                
-                if (response.ok) {
-                  const updatedOrder = await response.json();
-                  if (updatedOrder.success) {
-                    // Update with real data from API
-                    setOrders(prevOrders => 
-                      prevOrders.map(order => 
-                        order.orderId === orderId 
-                          ? { ...order, ...updatedOrder.data }
-                          : order
-                      )
-                    );
-                  }
-                }
-              } catch (error) {
-                console.log('Background refresh failed, but UI already updated:', error);
-              }
+                refreshOrderLabData(orderId);
+              }, 1000); // 1 second delay to allow the modal to close
             }
               
             showMessage('success', 'Lab data updated successfully!');

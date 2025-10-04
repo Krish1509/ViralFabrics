@@ -427,13 +427,26 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
+  // Cache invalidation function for instant updates
+  const invalidateLabCache = () => {
+    const cacheKey = `lab_data_${order._id}`;
+    localStorage.removeItem(cacheKey);
+    console.log('🗑️ Lab cache invalidated for instant refresh');
+  };
+
   // Function to fetch existing lab data from API - ULTRA FAST
-  const fetchExistingLabData = async () => {
+  const fetchExistingLabData = async (forceRefresh = false) => {
     setLoadingData(true);
+    setError(''); // Clear any previous errors
+    
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10 seconds for better reliability
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
       
       const response = await fetch(`/api/labs/by-order/${order._id}?t=${Date.now()}`, {
         headers: {
@@ -447,7 +460,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
 
       if (response.ok) {
         const data = await response.json();
-        if (data.success) {
+        if (data.success && data.data) {
           // Update local items with fresh lab data from API
           const updatedItems = order.items.map(item => {
             const labData = data.data?.find((lab: any) => lab.orderItemId === item._id);
@@ -464,33 +477,45 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                 labSendNumber: labData.labSendNumber,
                 status: labData.status,
                 remarks: labData.remarks
-              } : undefined // Always use fresh data from API, don't fall back to stale data
+              } : undefined
             };
           });
           setLocalItems(updatedItems);
         } else {
-          // If API call fails or returns no data, clear all lab data
+          // No lab data found - initialize with clean items
           const updatedItems = order.items.map(item => ({
             ...item,
             labData: undefined
           }));
           setLocalItems(updatedItems);
         }
-      } else {
-        // If API call fails, clear all lab data
+      } else if (response.status === 401) {
+        throw new Error('Session expired. Please login again.');
+      } else if (response.status === 404) {
+        // No lab data found - this is normal for new orders
         const updatedItems = order.items.map(item => ({
           ...item,
           labData: undefined
         }));
         setLocalItems(updatedItems);
+      } else {
+        throw new Error(`Server error: ${response.status}`);
       }
     } catch (error: any) {
       console.error('Error fetching lab data:', error);
+      
       if (error.name === 'AbortError') {
-        console.log('Lab data fetch timed out, using cached data');
-        // Use existing order data as fallback
-        setLocalItems(order.items);
+        setError('Request timed out. Please try again.');
+      } else if (error.message.includes('Session expired')) {
+        setError('Session expired. Please login again.');
+      } else if (error.message.includes('Server error')) {
+        setError('Server error. Please try again later.');
+      } else {
+        setError('Failed to load lab data. Please try again.');
       }
+      
+      // Use existing order data as fallback
+      setLocalItems(order.items);
     } finally {
       setLoadingData(false);
     }
@@ -551,27 +576,71 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
 
   // Save lab data with immediate UI update
   const handleSave = async () => {
-    if (!editingItemId) return;
+    if (!editingItemId) {
+      setError('No item selected for editing');
+      return;
+    }
+
+    // Validate required fields
+    if (!labData.labSendDate) {
+      setError('Lab Send Date is required');
+      return;
+    }
+
+    // Validate date format
+    const labSendDate = new Date(labData.labSendDate);
+    if (isNaN(labSendDate.getTime())) {
+      setError('Invalid lab send date format');
+      return;
+    }
+
+    // Validate approval date if provided
+    if (labData.approvalDate) {
+      const approvalDate = new Date(labData.approvalDate);
+      if (isNaN(approvalDate.getTime())) {
+        setError('Invalid approval date format');
+        return;
+      }
+      if (approvalDate < labSendDate) {
+        setError('Approval date cannot be before lab send date');
+        return;
+      }
+    }
 
     setIsLoading(true);
     setError('');
     setSuccessMessage('');
 
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
       const response = await fetch(`/api/labs/${order._id}/${editingItemId || 'item_0'}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           labSendDate: labData.labSendDate,
           approvalDate: labData.approvalDate || null,
-          sampleNumber: labData.sampleNumber
+          sampleNumber: labData.sampleNumber?.trim() || ''
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.status === 401) {
+          throw new Error('Session expired. Please login again.');
+        } else if (response.status === 400) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Invalid data provided');
+        } else if (response.status === 404) {
+          throw new Error('Order or item not found');
+        } else {
+          throw new Error(`Server error: ${response.status}`);
+        }
       }
 
       const result = await response.json();
@@ -579,6 +648,12 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       if (result.success) {
         // Show success message
         setSuccessMessage('Lab data saved successfully!');
+        
+        // Invalidate cache for instant refresh
+        invalidateLabCache();
+        
+        // Force refresh to get latest data
+        setTimeout(() => fetchExistingLabData(true), 100);
         
         // Immediately update local state for better UX
         setLocalItems(prevItems => 
@@ -619,8 +694,9 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       } else {
         setError(result.message || 'Failed to save lab data');
       }
-    } catch (err) {
-      setError('Failed to save lab data. Please try again.');
+    } catch (err: any) {
+      console.error('Error saving lab data:', err);
+      setError(err.message || 'Failed to save lab data. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -634,7 +710,10 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
 
   // Delete lab data with immediate UI update
   const handleDelete = async () => {
-    if (!itemToDelete) return;
+    if (!itemToDelete) {
+      setError('No item selected for deletion');
+      return;
+    }
 
     setIsLoading(true);
     setError('');
@@ -642,18 +721,36 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
     setShowDeleteConfirm(false);
 
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
       const response = await fetch(`/api/labs/${order._id}/${itemToDelete || 'item_0'}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.status === 401) {
+          throw new Error('Session expired. Please login again.');
+        } else if (response.status === 404) {
+          throw new Error('Lab data not found');
+        } else {
+          throw new Error(`Server error: ${response.status}`);
+        }
       }
 
       const result = await response.json();
 
       if (result.success) {
-        // Immediately update local state
+        // Invalidate cache for instant refresh
+        invalidateLabCache();
+        
+        // Immediately update local state to show "Edit Lab Data" button
         setLocalItems(prevItems => 
           prevItems.map(item => 
             item._id === itemToDelete 
@@ -681,8 +778,9 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       } else {
         setError(result.message || 'Failed to delete lab data');
       }
-    } catch (err) {
-      setError('Failed to delete lab data. Please try again.');
+    } catch (err: any) {
+      console.error('Error deleting lab data:', err);
+      setError(err.message || 'Failed to delete lab data. Please try again.');
     } finally {
       setIsLoading(false);
       setItemToDelete(null);
@@ -722,7 +820,10 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       const result = await response.json();
 
       if (result.success) {
-        // Immediately update local state - remove all lab data
+        // Invalidate cache for instant refresh
+        invalidateLabCache();
+        
+        // Immediately update local state - remove all lab data to show "Edit Lab Data" buttons
         setLocalItems(prevItems => 
           prevItems.map(item => ({ ...item, labData: undefined }))
         );
@@ -904,9 +1005,24 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
               ? 'bg-red-900/20 border-red-500/30 text-red-400' 
               : 'bg-red-50 border-red-200 text-red-800'
           }`}>
-            <div className="flex items-center">
-              <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
-              {error}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+                {error}
+              </div>
+              {error.includes('Failed to load lab data') && (
+                <button
+                  onClick={() => fetchExistingLabData(true)}
+                  disabled={loadingData}
+                  className={`ml-4 px-3 py-1 rounded text-sm font-medium transition-colors ${
+                    isDarkMode
+                      ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30'
+                      : 'bg-red-100 text-red-700 hover:bg-red-200'
+                  } disabled:opacity-50`}
+                >
+                  {loadingData ? 'Retrying...' : 'Retry'}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -946,7 +1062,48 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
               </div>
             
             <div className="grid gap-4">
-              {localItems.map((item, index) => (
+              {loadingData ? (
+                // Skeleton loader for lab data
+                Array.from({ length: order.items.length }).map((_, index) => (
+                  <div key={`skeleton-${index}`} className={`rounded-xl border overflow-hidden shadow-sm ${
+                    isDarkMode 
+                      ? 'bg-white/5 border-white/20' 
+                      : 'bg-white border-gray-200'
+                  }`}>
+                    <div className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          {/* Skeleton for item title */}
+                          <div className={`h-5 bg-gray-300 rounded mb-3 animate-pulse ${
+                            isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                          }`} style={{ width: '60%' }}></div>
+                          
+                          {/* Skeleton for lab data info */}
+                          <div className="space-y-2">
+                            <div className={`h-4 bg-gray-300 rounded animate-pulse ${
+                              isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                            }`} style={{ width: '40%' }}></div>
+                            <div className={`h-4 bg-gray-300 rounded animate-pulse ${
+                              isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                            }`} style={{ width: '35%' }}></div>
+                            <div className={`h-4 bg-gray-300 rounded animate-pulse ${
+                              isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                            }`} style={{ width: '45%' }}></div>
+                          </div>
+                        </div>
+                        
+                        {/* Skeleton for buttons */}
+                        <div className="flex items-center space-x-2 ml-4">
+                          <div className={`h-10 w-24 bg-gray-300 rounded-lg animate-pulse ${
+                            isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                          }`}></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                localItems.map((item, index) => (
                 <div key={item._id} className={`rounded-xl border overflow-hidden shadow-sm ${
                   isDarkMode 
                     ? 'bg-white/5 border-white/20' 
@@ -988,28 +1145,36 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                         {localItems.find(li => li._id === item._id)?.labData?.labSendDate ? (
                           <button
                             onClick={() => handleEditLabData(item)}
-                            disabled={isLoading}
+                            disabled={isLoading || loadingData}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
                               isDarkMode
                                 ? 'bg-amber-600/20 border border-amber-500/30 text-amber-400 hover:bg-amber-600/30 hover:border-amber-500/50'
                                 : 'bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-300'
                             }`}
                           >
-                            <BeakerIcon className="h-4 w-4" />
-                            Edit Lab
+                            {isLoading ? (
+                              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <BeakerIcon className="h-4 w-4" />
+                            )}
+                            {isLoading ? 'Loading...' : 'Edit Lab'}
                           </button>
                         ) : (
                           <button
                             onClick={() => handleEditLabData(item)}
-                            disabled={isLoading}
+                            disabled={isLoading || loadingData}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
                               isDarkMode
                                 ? 'bg-amber-600/20 border border-amber-500/30 text-amber-400 hover:bg-amber-600/30 hover:border-amber-500/50'
                                 : 'bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-300'
                             }`}
                           >
-                            <BeakerIcon className="h-4 w-4" />
-                            Add Lab
+                            {isLoading ? (
+                              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <BeakerIcon className="h-4 w-4" />
+                            )}
+                            {isLoading ? 'Loading...' : 'Add Lab'}
                           </button>
                         )}
                       </div>
@@ -1212,7 +1377,8 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                     </div>
                   )}
                 </div>
-              ))}
+              ))
+              )}
             </div>
           </div>
         </div>

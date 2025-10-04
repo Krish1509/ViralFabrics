@@ -35,36 +35,28 @@ async function performLogin(req: Request) {
       return NextResponse.json({ message: "Username and password are required" }, { status: 400 });
     }
 
-    // Connect to database with minimal retry for production
-    let dbConnected = false;
-    let retryCount = 0;
-    const maxRetries = 2; // Reduced retries for faster failure
-    
-    while (!dbConnected && retryCount < maxRetries) {
-      try {
-        // Use production-optimized connection for better performance
-        if (process.env.NODE_ENV === 'production') {
-          await dbConnectProduction();
-        } else {
-          await dbConnect();
-        }
-        dbConnected = true;
-      } catch (error) {
-        retryCount++;
-        if (retryCount >= maxRetries) {
-          console.error('Database connection failed after', maxRetries, 'attempts:', error);
-          return NextResponse.json({ message: "Database connection failed. Please try again." }, { status: 503 });
-        }
-        // Shorter wait before retry
-        await new Promise(resolve => setTimeout(resolve, 500 * retryCount));
+    // Ultra-fast database connection - single attempt
+    try {
+      // Use production-optimized connection for better performance
+      if (process.env.NODE_ENV === 'production') {
+        await dbConnectProduction();
+      } else {
+        await dbConnect();
       }
+    } catch (error) {
+      console.error('Database connection failed:', error);
+      return NextResponse.json({ message: "Database connection failed. Please try again." }, { status: 503 });
     }
     
-    // Try username first, then name if not found
-    let user = await User.findOne({ username: username.trim() }).select('+password');
-    if (!user) {
-      user = await User.findOne({ name: username.trim() }).select('+password');
-    }
+    // Ultra-fast user lookup with optimized query - single query with $or
+    const user = await User.findOne({
+      $or: [
+        { username: username.trim() },
+        { name: username.trim() }
+      ]
+    })
+    .select('+password')
+    .maxTimeMS(100); // Ultra-fast timeout
 
     if (!user) {
       // Log in background - don't wait for it
@@ -122,19 +114,17 @@ async function performLogin(req: Request) {
 
     // Start all background tasks in parallel - don't wait for any
     Promise.all([
-      // Reset failed login attempts
-      user.incrementLoginCount ? 
-        user.incrementLoginCount() : 
-        User.findByIdAndUpdate(user._id, {
-          $inc: { loginCount: 1 },
-          $set: { 
-            lastLogin: new Date(),
-            failedLoginAttempts: 0,
-            accountLocked: false
-          },
-          $unset: { lockExpiresAt: 1 }
-        }),
-      // Log successful login
+      // Reset failed login attempts - ultra-fast update
+      User.findByIdAndUpdate(user._id, {
+        $inc: { loginCount: 1 },
+        $set: { 
+          lastLogin: new Date(),
+          failedLoginAttempts: 0,
+          accountLocked: false
+        },
+        $unset: { lockExpiresAt: 1 }
+      }).maxTimeMS(50), // Ultra-fast timeout
+      // Log successful login - non-blocking
       (Log as ILogModel).logUserAction({
         userId: user._id.toString(),
         username: user.username || user.name,
@@ -149,7 +139,7 @@ async function performLogin(req: Request) {
         severity: 'info',
         ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown',
         userAgent: req.headers.get('user-agent') || 'unknown'
-      })
+      }).catch(() => {}) // Silent fail for logging
     ]).catch(() => {}); // Silent fail for all background tasks
     
     // Return immediately - don't wait for background tasks

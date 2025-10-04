@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
     serverActions: {
       allowedOrigins: ['localhost:3000'],
     },
+    // Reduce compilation overhead
+    serverComponentsExternalPackages: ['mongoose'],
+    // Optimize CSS
+    optimizeCss: true,
   },
 
   // Reduce logging output

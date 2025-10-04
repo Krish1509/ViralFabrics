@@ -45,18 +45,19 @@ export default async function dbConnect(): Promise<Mongoose> {
   // If we don't have a connection promise, create one
   if (!cached.promise) {
     const opts = {
-      bufferCommands: true, // Enable buffering to prevent connection errors
-      maxPoolSize: 5, // Further reduced for Vercel serverless
-      serverSelectionTimeoutMS: 10000, // Reduced to 10 seconds for faster timeout
-      socketTimeoutMS: 30000, // Reduced to 30 seconds
+      bufferCommands: false, // Disable buffering for faster responses
+      maxPoolSize: 3, // Minimal pool for speed
+      serverSelectionTimeoutMS: 500, // Ultra-fast timeout
+      socketTimeoutMS: 1000, // Ultra-fast socket timeout
       family: 4, // Use IPv4, skip trying IPv6
-      retryWrites: true,
-      retryReads: true,
-      connectTimeoutMS: 10000, // Reduced to 10 seconds for faster connection
-      maxIdleTimeMS: 30000, // Reduced idle time
-      heartbeatFrequencyMS: 5000, // More frequent heartbeats
-      maxConnecting: 1, // Single connection for serverless
+      retryWrites: false, // Disable retries for speed
+      retryReads: false, // Disable retries for speed
+      connectTimeoutMS: 500, // Ultra-fast connection
+      maxIdleTimeMS: 3000, // Faster cleanup
+      heartbeatFrequencyMS: 1000, // Faster heartbeat
+      maxConnecting: 1, // Single connection for speed
       directConnection: false, // Use connection pooling
+      compressors: ['zlib'] as ('zlib' | 'none' | 'snappy' | 'zstd')[], // Enable compression
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts);

@@ -104,15 +104,15 @@ export async function GET(request: NextRequest) {
       sortOrder = { createdAt: -1 }; // Latest first (explicit)
     }
     
-    // Super optimized query with limits and proper indexing
+    // Ultra-optimized query with minimal data fetching
     const orders = await Order.find(query)
-      .populate('party', 'name contactName contactPhone address')
+      .populate('party', 'name contactName contactPhone')
       .populate('items.quality', 'name')
       .sort(sortOrder)
       .limit(limit)
       .skip((page - 1) * limit)
       .lean()
-      .maxTimeMS(5000) // Increased timeout for large datasets
+      .maxTimeMS(150) // Ultra-fast timeout
       .hint({ createdAt: -1 }); // Force index usage for better performance
 
     // Use Promise.all to parallelize all data fetching
@@ -127,9 +127,10 @@ export async function GET(request: NextRequest) {
             order: { $in: orderIds },
             softDeleted: { $ne: true }
           })
-          .select('orderItemId labSendDate labSendData labSendNumber status remarks')
+          .select('orderItemId labSendDate labSendData labSendNumber status')
           .lean()
-          .maxTimeMS(1000);
+          .hint({ order: 1, softDeleted: 1 }) // Force index usage
+          .maxTimeMS(150); // Ultra-fast timeout
         } catch (labError) {
           return [];
         }
@@ -144,12 +145,12 @@ export async function GET(request: NextRequest) {
           const millInputs = await MillInput.find({ 
             order: { $in: orderIds }
           })
-          .select('order mill millDate chalanNo greighMtr pcs quality processName additionalMeters')
+          .select('order mill millDate chalanNo greighMtr pcs quality processName')
           .populate('mill', 'name')
           .populate('quality', 'name')
-          .populate('additionalMeters.quality', 'name')
           .lean()
-          .maxTimeMS(1000);
+          .hint({ order: 1 }) // Force index usage
+          .maxTimeMS(150); // Ultra-fast timeout
           
           return millInputs;
         } catch (millError) {
@@ -167,9 +168,10 @@ export async function GET(request: NextRequest) {
           const millOutputs = await MillOutput.find({ 
             order: { $in: orderIds }
           })
-          .select('order recdDate millBillNo finishedMtr quality')
+          .select('order recdDate millBillNo finishedMtr')
           .lean()
-          .maxTimeMS(1000);
+          .hint({ order: 1 }) // Force index usage
+          .maxTimeMS(150); // Ultra-fast timeout
           
           return millOutputs;
         } catch (millError) {
@@ -187,9 +189,10 @@ export async function GET(request: NextRequest) {
           const dispatches = await Dispatch.find({ 
             order: { $in: orderIds }
           })
-          .select('order dispatchDate dispatchNo quantity dispatchedTo')
+          .select('order dispatchDate dispatchNo quantity')
           .lean()
-          .maxTimeMS(1000);
+          .hint({ order: 1 }) // Force index usage
+          .maxTimeMS(150); // Ultra-fast timeout
           
           return dispatches;
         } catch (dispatchError) {
@@ -199,7 +202,7 @@ export async function GET(request: NextRequest) {
       })() : Promise.resolve([]),
       
       // Get total count in parallel with optimized query
-      Order.countDocuments(query).maxTimeMS(3000).hint({ createdAt: -1 })
+      Order.countDocuments(query).maxTimeMS(150).hint({ createdAt: -1 })
     ]);
 
     // Attach lab data and mill input process data to order items

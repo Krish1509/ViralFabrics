@@ -15,11 +15,46 @@ interface PieChartProps {
   total: number;
   isDarkMode: boolean;
   icon?: any;
+  isLoading?: boolean;
+  showEmptyStateDelay?: number; // Delay in milliseconds before showing empty state
 }
 
-const PieChart: React.FC<PieChartProps> = ({ data, title, total, isDarkMode, icon: Icon }) => {
+const PieChart: React.FC<PieChartProps> = ({ 
+  data, 
+  title, 
+  total, 
+  isDarkMode, 
+  icon: Icon, 
+  isLoading = false,
+  showEmptyStateDelay = 6000 // 6 seconds default delay
+}) => {
+  const [showEmptyState, setShowEmptyState] = React.useState(false);
+  const [hasData, setHasData] = React.useState(false);
+  
   // Filter out "Not Set" entries
   const filteredData = data.filter(item => item.name !== 'Not Set' && item.value > 0);
+  
+  // Handle empty state delay
+  React.useEffect(() => {
+    if (isLoading) {
+      setShowEmptyState(false);
+      setHasData(false);
+      return;
+    }
+    
+    if (filteredData.length > 0) {
+      setHasData(true);
+      setShowEmptyState(false);
+    } else {
+      setHasData(false);
+      // Delay showing empty state
+      const timer = setTimeout(() => {
+        setShowEmptyState(true);
+      }, showEmptyStateDelay);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [filteredData.length, isLoading, showEmptyStateDelay]);
   
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
     if (percent < 0.05) return null; // Don't show labels for slices smaller than 5%
@@ -88,7 +123,50 @@ const PieChart: React.FC<PieChartProps> = ({ data, title, total, isDarkMode, ico
       </h3>
       
       <div className="h-96 w-full relative">
-        {filteredData.length > 0 ? (
+        {isLoading ? (
+          // Enhanced loading skeleton with spinning animation
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center space-y-6">
+              {/* Spinning pie chart skeleton */}
+              <div className="relative w-48 h-48 mx-auto">
+                <div className={`absolute inset-0 rounded-full border-8 border-transparent border-t-blue-500 border-r-orange-500 border-b-green-500 border-l-purple-500 animate-spin ${
+                  isDarkMode ? 'opacity-60' : 'opacity-40'
+                }`}></div>
+                <div className={`absolute inset-4 rounded-full border-4 border-transparent border-t-blue-300 border-r-orange-300 border-b-green-300 border-l-purple-300 animate-spin ${
+                  isDarkMode ? 'opacity-40' : 'opacity-30'
+                }`} style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
+                <div className={`absolute inset-8 rounded-full border-2 border-transparent border-t-blue-200 border-r-orange-200 border-b-green-200 border-l-purple-200 animate-spin ${
+                  isDarkMode ? 'opacity-30' : 'opacity-20'
+                }`} style={{ animationDuration: '2s' }}></div>
+              </div>
+              
+              {/* Loading text with dots animation */}
+              <div className="space-y-2">
+                <div className={`h-4 w-40 rounded mx-auto animate-pulse ${
+                  isDarkMode ? 'bg-slate-700' : 'bg-gray-300'
+                }`}></div>
+                <div className="flex items-center justify-center space-x-1">
+                  <span className={`text-sm font-medium ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    Loading data
+                  </span>
+                  <div className="flex space-x-1">
+                    <div className={`w-1 h-1 rounded-full animate-bounce ${
+                      isDarkMode ? 'bg-gray-400' : 'bg-gray-500'
+                    }`} style={{ animationDelay: '0ms' }}></div>
+                    <div className={`w-1 h-1 rounded-full animate-bounce ${
+                      isDarkMode ? 'bg-gray-400' : 'bg-gray-500'
+                    }`} style={{ animationDelay: '150ms' }}></div>
+                    <div className={`w-1 h-1 rounded-full animate-bounce ${
+                      isDarkMode ? 'bg-gray-400' : 'bg-gray-500'
+                    }`} style={{ animationDelay: '300ms' }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : hasData ? (
           <ResponsiveContainer width="100%" height="100%">
             <RechartsPieChart>
               <Pie
@@ -111,7 +189,7 @@ const PieChart: React.FC<PieChartProps> = ({ data, title, total, isDarkMode, ico
               <Tooltip content={<CustomTooltip />} />
             </RechartsPieChart>
           </ResponsiveContainer>
-        ) : (
+        ) : showEmptyState ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center space-y-4">
               <div className={`p-4 rounded-full mx-auto ${
@@ -131,6 +209,23 @@ const PieChart: React.FC<PieChartProps> = ({ data, title, total, isDarkMode, ico
               }`}>
                 No orders match the current criteria
               </p>
+            </div>
+          </div>
+        ) : (
+          // Still loading - show a subtle loading indicator
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center space-y-4">
+              <div className={`w-12 h-12 rounded-full mx-auto animate-pulse ${
+                isDarkMode ? 'bg-slate-700' : 'bg-gray-300'
+              }`}></div>
+              <div className="space-y-2">
+                <div className={`h-4 w-24 rounded mx-auto animate-pulse ${
+                  isDarkMode ? 'bg-slate-700' : 'bg-gray-300'
+                }`}></div>
+                <div className={`h-3 w-16 rounded mx-auto animate-pulse ${
+                  isDarkMode ? 'bg-slate-700' : 'bg-gray-300'
+                }`}></div>
+              </div>
             </div>
           </div>
         )}

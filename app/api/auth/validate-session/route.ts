@@ -15,11 +15,11 @@ export async function GET(
 
     const token = authHeader.substring(7);
     
-    // Verify the token with timeout
+    // Ultra-fast token verification with minimal timeout
     const decoded = await Promise.race([
       verifyToken(token),
       new Promise<null>((_, reject) => 
-        setTimeout(() => reject(new Error('Token verification timeout')), 500)
+        setTimeout(() => reject(new Error('Token verification timeout')), 200) // 200ms timeout
       )
     ]) as TokenPayload | null;
     
@@ -39,7 +39,7 @@ export async function GET(
       status: 200, 
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+        'Cache-Control': 'public, max-age=30, stale-while-revalidate=60',
       }
     });
 

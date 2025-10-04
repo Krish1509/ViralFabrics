@@ -68,23 +68,15 @@ function LoginForm() {
     }
   }, [darkModeMounted]);
 
-  // Aggressive preloading for super fast navigation
+  // Minimal preloading - only when user is about to login
   useEffect(() => {
-    const preloadEverything = () => {
-      // Preload only essential routes (removed dashboard prefetch to prevent API compilation)
-      Promise.all([
-        router.prefetch('/orders'),
-        router.prefetch('/users'),
-        router.prefetch('/fabrics')
-      ]).catch(() => {}); // Silent fail
-    };
-    
-    // Start preloading immediately
-    const timer = setTimeout(preloadEverything, 300);
-    return () => clearTimeout(timer);
-  }, [router]);
+    // Only preload when user starts typing (indicating they're about to login)
+    if (formData.username.length > 2) {
+      router.prefetch('/dashboard'); // No catch needed - prefetch returns void
+    }
+  }, [formData.username, router]);
 
-  // Auto-login check for active session
+  // Ultra-fast session check - only once on mount
   useEffect(() => {
     const checkActiveSession = async () => {
       const token = localStorage.getItem('token');
@@ -97,25 +89,30 @@ function LoginForm() {
       setIsCheckingSession(true);
       
       try {
+        // Ultra-fast session validation with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+        
         const response = await fetch('/api/auth/validate-session', {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Cache-Control': 'no-cache' // Force fresh validation
-          }
+            'Cache-Control': 'no-cache'
+          },
+          signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         if (response.ok) {
           const data = await response.json();
           if (data.success) {
             // Active session found, auto-login successful
-            // Auto-redirect to dashboard
             router.push('/dashboard');
             return;
           }
         }
         
         // Session is invalid, clear stored data
-        // Session validation failed, clearing stored data
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         
@@ -128,8 +125,9 @@ function LoginForm() {
       }
     };
 
+    // Only check once on mount
     checkActiveSession();
-  }, [router]);
+  }, []); // Empty dependency array - only run once
 
   useEffect(() => {
     if (searchParams?.get('registered') === 'true') {
@@ -164,27 +162,23 @@ function LoginForm() {
     setErrors({});
     
     try {
-      // Increased timeout for Vercel deployment - 30 seconds for reliability
+      // Ultra-fast timeout for login
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds max
       
-      // Start login API call and dashboard prefetch in parallel
-      const [response] = await Promise.all([
-        fetch('/api/auth/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            username: formData.username,
-            password: formData.password,
-            rememberMe: formData.rememberMe
-          }),
-          signal: controller.signal
+      // Single login API call - no parallel prefetch
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: formData.username,
+          password: formData.password,
+          rememberMe: formData.rememberMe
         }),
-        // Prefetch dashboard in parallel with login
-        router.prefetch('/dashboard')
-      ]);
+        signal: controller.signal
+      });
       
       clearTimeout(timeoutId);
 
