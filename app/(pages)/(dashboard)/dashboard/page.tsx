@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '@/app/contexts/DarkModeContext';
 import MetricsCard from './components/MetricsCard';
+import MetricsCardSkeleton from './components/MetricsCardSkeleton';
 import DashboardFilters from './components/DashboardFilters';
 import PieChart from './components/PieChart';
 import DeliveredSoonTable from './components/DeliveredSoonTable';
@@ -95,6 +96,21 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   // Success message state removed - no validation messages shown
   const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
+  const [isInitialDataFetch, setIsInitialDataFetch] = useState(() => {
+    // If we have cached data, don't show skeleton
+    try {
+      const cached = localStorage.getItem('dashboard-stats-cache');
+      if (cached) {
+        const { timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < 300000) { // 5 minutes
+          return false; // We have valid cached data, no skeleton needed
+        }
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    return true; // No cached data, show skeleton
+  }); // Track initial data fetch for pie chart skeletons
   const [isBackgroundRetry, setIsBackgroundRetry] = useState(false);
   const [isFilterLoading, setIsFilterLoading] = useState(false);
   const [filterProcessingDelay, setFilterProcessingDelay] = useState(false);
@@ -110,14 +126,15 @@ export default function DashboardPage() {
       if (!isRetry && dashboardCache.data && (Date.now() - dashboardCache.timestamp) < dashboardCache.ttl) {
         setStats(dashboardCache.data);
         setHasAttemptedFetch(true);
+        setIsInitialDataFetch(false); // Data loaded from cache, no skeleton needed
         setLoading(false);
         return; // Instant load from cache
       }
 
-      // Only show loading on initial load
-      if (!isRetry) {
-        setLoading(true);
-      }
+      // Never show loading since we always have default data
+      // if (!isRetry) {
+      //   setLoading(true);
+      // }
       setError(null);
       
       // No authentication needed for instant API
@@ -165,6 +182,7 @@ export default function DashboardPage() {
           
           setStats(statsData.data);
           setHasAttemptedFetch(true);
+          setIsInitialDataFetch(false); // Data has been fetched, no more skeleton needed
         } else {
           // Show cached data if available, no error messages
           if (dashboardCache.data) {
@@ -312,12 +330,20 @@ export default function DashboardPage() {
 
         {/* Metrics Cards - Updated */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          {stats ? (
+          {isInitialDataFetch ? (
+            // Show skeleton loaders during initial data fetch
+            <>
+              <MetricsCardSkeleton />
+              <MetricsCardSkeleton />
+              <MetricsCardSkeleton />
+            </>
+          ) : (
+            // Show actual data once loaded
             <>
               <div className="animate-fade-in">
                 <MetricsCard
                   title="Total Orders"
-                  value={stats.totalOrders || 0}
+                  value={stats?.totalOrders || 0}
                   icon={ShoppingBagIcon}
                   color="blue"
                   subtitle="All time orders"
@@ -326,7 +352,7 @@ export default function DashboardPage() {
               <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
                 <MetricsCard
                   title="Pending Orders"
-                  value={(stats.statusStats?.pending || 0) + (stats.statusStats?.not_set || 0)}
+                  value={(stats?.statusStats?.pending || 0) + (stats?.statusStats?.not_set || 0)}
                   icon={ClockIcon}
                   color="yellow"
                   subtitle="Awaiting processing"
@@ -335,38 +361,16 @@ export default function DashboardPage() {
               <div className="animate-fade-in" style={{ animationDelay: '0.2s' }}>
                 <MetricsCard
                   title="Delivered Orders"
-                  value={(stats.statusStats?.completed || 0) + (stats.statusStats?.delivered || 0)}
+                  value={(stats?.statusStats?.completed || 0) + (stats?.statusStats?.delivered || 0)}
                   icon={CheckCircleIcon}
                   color="green"
                   subtitle="Successfully delivered"
                 />
               </div>
             </>
-          ) : null}
+          )}
         </div>
 
-        {/* No Data State */}
-        {!loading && !stats && !error && (
-          <div className={`mb-6 rounded-lg p-8 text-center border ${
-            isDarkMode 
-              ? 'bg-gray-800/50 border-gray-700' 
-              : 'bg-gray-50 border-gray-200'
-          }`}>
-            <ShoppingBagIcon className={`w-12 h-12 mx-auto mb-4 ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-500'
-            }`} />
-            <h3 className={`text-lg font-medium mb-2 ${
-              isDarkMode ? 'text-gray-300' : 'text-gray-900'
-            }`}>
-              No Dashboard Data Available
-            </h3>
-            <p className={`text-sm ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>
-              There are no orders in the system yet. Create your first order to see dashboard statistics.
-            </p>
-          </div>
-        )}
 
         {/* Enhanced Pie Charts Section */}
         <div className="mb-12">
@@ -395,8 +399,8 @@ export default function DashboardPage() {
                 icon={ClockIcon}
                 total={(stats?.pendingTypeStats?.Dying || 0) + (stats?.pendingTypeStats?.Printing || 0) + (stats?.pendingTypeStats?.not_set || 0)}
                 isDarkMode={isDarkMode}
-                isLoading={loading || isFilterLoading || filterProcessingDelay}
-                showEmptyStateDelay={3000} // 3 seconds delay for faster UX
+                isLoading={isInitialDataFetch || isFilterLoading || filterProcessingDelay}
+                showEmptyStateDelay={1000} // 1 second delay for faster UX
               />
             </div>
 
@@ -424,8 +428,8 @@ export default function DashboardPage() {
                 icon={CheckCircleIcon}
                 total={(stats?.deliveredTypeStats?.Dying || 0) + (stats?.deliveredTypeStats?.Printing || 0) + (stats?.deliveredTypeStats?.not_set || 0)}
                 isDarkMode={isDarkMode}
-                isLoading={loading || isFilterLoading || filterProcessingDelay}
-                showEmptyStateDelay={3000} // 3 seconds delay for faster UX
+                isLoading={isInitialDataFetch || isFilterLoading || filterProcessingDelay}
+                showEmptyStateDelay={1000} // 1 second delay for faster UX
               />
             </div>
           </div>

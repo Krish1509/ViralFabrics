@@ -50,7 +50,7 @@ const PieChart: React.FC<PieChartProps> = ({
       setShowEmptyState(false);
     } else {
       setHasData(false);
-      // Delay showing empty state
+      // Delay showing empty state - only if we have attempted to load data
       const timer = setTimeout(() => {
         setShowEmptyState(true);
       }, showEmptyStateDelay);
@@ -233,8 +233,8 @@ const PieChart: React.FC<PieChartProps> = ({
           </div>
         )}
         
-        {/* Center Content - Smaller Total Count */}
-        {filteredData.length > 0 && (
+        {/* Center Content - Only show when there's meaningful data */}
+        {hasData && filteredData.length > 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-center">
               <div className={`text-4xl font-bold ${
