@@ -31,10 +31,10 @@ const PieChart: React.FC<PieChartProps> = ({
   const [showEmptyState, setShowEmptyState] = React.useState(false);
   const [hasData, setHasData] = React.useState(false);
   
-  // Filter out "Not Set" entries and entries with value 0 for clean display
-  const filteredData = data.filter(item => item.name !== 'Not Set' && item.value > 0);
+  // Filter out "Not Set" entries but keep zero values for consistent display
+  const filteredData = data.filter(item => item.name !== 'Not Set');
   
-  // Handle empty state delay
+  // Always show chart, but track if there's meaningful data
   React.useEffect(() => {
     if (isLoading) {
       setShowEmptyState(false);
@@ -42,22 +42,12 @@ const PieChart: React.FC<PieChartProps> = ({
       return;
     }
     
-    // Check if there's any meaningful data (not all zeros)
-    const hasMeaningfulData = filteredData.length > 0;
+    // Always show the chart, but track if there's meaningful data
+    const hasMeaningfulData = filteredData.length > 0 && filteredData.some(item => item.value > 0);
     
-    if (hasMeaningfulData) {
-      setHasData(true);
-      setShowEmptyState(false);
-    } else {
-      setHasData(false);
-      // Delay showing empty state - only if we have attempted to load data
-      const timer = setTimeout(() => {
-        setShowEmptyState(true);
-      }, showEmptyStateDelay);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [filteredData.length, isLoading, showEmptyStateDelay]);
+    setHasData(true); // Always show chart
+    setShowEmptyState(false); // Never show "No data found"
+  }, [filteredData.length, isLoading]);
   
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
     if (percent < 0.05) return null; // Don't show labels for slices smaller than 5%
@@ -169,7 +159,7 @@ const PieChart: React.FC<PieChartProps> = ({
               </div>
             </div>
           </div>
-        ) : !showEmptyState && filteredData.length > 0 ? (
+        ) : !isLoading ? (
           <ResponsiveContainer width="100%" height="100%">
             <RechartsPieChart>
               <Pie
@@ -186,34 +176,15 @@ const PieChart: React.FC<PieChartProps> = ({
                 strokeWidth={3}
               >
                 {filteredData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={entry.value > 0 ? entry.color : '#9CA3AF'} // Grey for zero values
+                  />
                 ))}
               </Pie>
               <Tooltip content={<CustomTooltip />} />
             </RechartsPieChart>
           </ResponsiveContainer>
-        ) : showEmptyState ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center space-y-4">
-              <div className={`p-4 rounded-full mx-auto ${
-                isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
-              }`}>
-                <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <p className={`text-lg font-medium ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-              }`}>
-                No data found
-              </p>
-              <p className={`text-sm ${
-                isDarkMode ? 'text-gray-500' : 'text-gray-400'
-              }`}>
-                No orders match the current criteria
-              </p>
-            </div>
-          </div>
         ) : (
           // Still loading - show a subtle loading indicator
           <div className="flex items-center justify-center h-full">
@@ -233,8 +204,8 @@ const PieChart: React.FC<PieChartProps> = ({
           </div>
         )}
         
-        {/* Center Content - Only show when there's meaningful data */}
-        {!isLoading && !showEmptyState && filteredData.length > 0 && (
+        {/* Center Content - Always show */}
+        {!isLoading && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-center">
               <div className={`text-4xl font-bold ${
@@ -248,7 +219,7 @@ const PieChart: React.FC<PieChartProps> = ({
       </div>
       
       {/* Detailed Breakdown Below Chart */}
-      {!isLoading && !showEmptyState && filteredData.length > 0 && (
+      {!isLoading && (
         <div className="mt-6 grid grid-cols-1 gap-4">
           {filteredData.map((item, index) => {
             const total = filteredData.reduce((sum, data) => sum + data.value, 0);
@@ -263,7 +234,7 @@ const PieChart: React.FC<PieChartProps> = ({
                 <div className="flex items-center gap-3">
                   <div 
                     className="w-5 h-5 rounded-full"
-                    style={{ backgroundColor: item.color }}
+                    style={{ backgroundColor: item.value > 0 ? item.color : '#9CA3AF' }}
                   ></div>
                   <span className={`text-xl font-semibold ${
                     isDarkMode ? 'text-white' : 'text-gray-900'
