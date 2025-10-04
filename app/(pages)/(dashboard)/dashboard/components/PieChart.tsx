@@ -31,7 +31,7 @@ const PieChart: React.FC<PieChartProps> = ({
   const [showEmptyState, setShowEmptyState] = React.useState(false);
   const [hasData, setHasData] = React.useState(false);
   
-  // Filter out "Not Set" entries
+  // Filter out "Not Set" entries and entries with value 0 for clean display
   const filteredData = data.filter(item => item.name !== 'Not Set' && item.value > 0);
   
   // Handle empty state delay
@@ -42,7 +42,10 @@ const PieChart: React.FC<PieChartProps> = ({
       return;
     }
     
-    if (filteredData.length > 0) {
+    // Check if there's any meaningful data (not all zeros)
+    const hasMeaningfulData = filteredData.some(item => item.value > 0);
+    
+    if (hasMeaningfulData) {
       setHasData(true);
       setShowEmptyState(false);
     } else {

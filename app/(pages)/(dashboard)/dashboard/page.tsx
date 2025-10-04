@@ -13,8 +13,6 @@ import DashboardFilters from './components/DashboardFilters';
 import PieChart from './components/PieChart';
 import DeliveredSoonTable from './components/DeliveredSoonTable';
 import ErrorBoundary from '../components/ErrorBoundary';
-import MetricsCardSkeleton from './components/MetricsCardSkeleton';
-import PieChartSkeleton from './components/PieChartSkeleton';
 
 // Removed heavy components for super fast loading
 import { Order } from '@/types';
@@ -122,15 +120,11 @@ export default function DashboardPage() {
       }
       setError(null);
       
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('Please log in to view the dashboard');
-        return;
-      }
+      // No authentication needed for instant API
 
-      // Reasonable timeout for reliable data loading
+      // Fast timeout for quick loading
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout for reliable loading
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout for fast loading
 
       // Build query parameters for filters
       const queryParams = new URLSearchParams();
@@ -268,33 +262,7 @@ export default function DashboardPage() {
     );
   }
 
-  // Show loading skeleton for initial load
-  if (loading && !stats) {
-    return (
-      <div className="min-h-screen">
-        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-          {/* Header Skeleton */}
-          <div className="mb-6 sm:mb-8">
-            <div className={`h-8 animate-pulse rounded-lg w-32 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>
-          </div>
-          
-          {/* Metrics Cards Skeleton */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className={`h-24 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>
-            ))}
-          </div>
-          
-          {/* Tables Skeleton */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8">
-            {[1, 2].map((i) => (
-              <div key={i} className={`h-64 animate-pulse rounded-lg ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // No main loading skeleton - components handle their own loading states
 
   return (
     <ErrorBoundary>
@@ -344,13 +312,7 @@ export default function DashboardPage() {
 
         {/* Metrics Cards - Updated */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          {loading || isFilterLoading ? (
-            <>
-              <MetricsCardSkeleton />
-              <MetricsCardSkeleton />
-              <MetricsCardSkeleton />
-            </>
-          ) : stats ? (
+          {stats ? (
             <>
               <div className="animate-fade-in">
                 <MetricsCard
@@ -409,72 +371,63 @@ export default function DashboardPage() {
         {/* Enhanced Pie Charts Section */}
         <div className="mb-12">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
-            {loading || isFilterLoading ? (
-              <>
-                <PieChartSkeleton />
-                <PieChartSkeleton />
-              </>
-            ) : (
-              <>
-                {/* Pending Orders Pie Chart */}
-                <div className="transform hover:scale-105 transition-transform duration-300 animate-fade-in">
-                  <PieChart
-                    data={[
-                      {
-                        name: 'Dying',
-                        value: stats?.pendingTypeStats?.Dying || 0,
-                        color: '#F97316' // Orange
-                      },
-                      {
-                        name: 'Printing',
-                        value: stats?.pendingTypeStats?.Printing || 0,
-                        color: '#3B82F6' // Blue
-                      },
-                      {
-                        name: 'Not Set',
-                        value: stats?.pendingTypeStats?.not_set || 0,
-                        color: '#6B7280' // Gray
-                      }
-                    ]}
-                    title="Pending Orders by Type"
-                    icon={ClockIcon}
-                    total={(stats?.pendingTypeStats?.Dying || 0) + (stats?.pendingTypeStats?.Printing || 0) + (stats?.pendingTypeStats?.not_set || 0)}
-                    isDarkMode={isDarkMode}
-                    isLoading={loading || isFilterLoading || filterProcessingDelay}
-                    showEmptyStateDelay={7000} // 7 seconds delay
-                  />
-                </div>
+            {/* Pending Orders Pie Chart */}
+            <div className="transform hover:scale-105 transition-transform duration-300 animate-fade-in">
+              <PieChart
+                data={[
+                  {
+                    name: 'Dying',
+                    value: stats?.pendingTypeStats?.Dying || 0,
+                    color: '#F97316' // Orange
+                  },
+                  {
+                    name: 'Printing',
+                    value: stats?.pendingTypeStats?.Printing || 0,
+                    color: '#3B82F6' // Blue
+                  },
+                  {
+                    name: 'Not Set',
+                    value: stats?.pendingTypeStats?.not_set || 0,
+                    color: '#6B7280' // Gray
+                  }
+                ]}
+                title="Pending Orders by Type"
+                icon={ClockIcon}
+                total={(stats?.pendingTypeStats?.Dying || 0) + (stats?.pendingTypeStats?.Printing || 0) + (stats?.pendingTypeStats?.not_set || 0)}
+                isDarkMode={isDarkMode}
+                isLoading={loading || isFilterLoading || filterProcessingDelay}
+                showEmptyStateDelay={3000} // 3 seconds delay for faster UX
+              />
+            </div>
 
-                {/* Delivered Orders Pie Chart */}
-                <div className="transform hover:scale-105 transition-transform duration-300 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-                  <PieChart
-                    data={[
-                      {
-                        name: 'Dying',
-                        value: stats?.deliveredTypeStats?.Dying || 0,
-                        color: '#F97316' // Orange
-                      },
-                      {
-                        name: 'Printing',
-                        value: stats?.deliveredTypeStats?.Printing || 0,
-                        color: '#3B82F6' // Blue
-                      },
-                      {
-                        name: 'Not Set',
-                        value: stats?.deliveredTypeStats?.not_set || 0,
-                        color: '#6B7280' // Gray
-                      }
-                    ]}
-                    title="Delivered Orders by Type"
-                    icon={CheckCircleIcon}
-                    total={(stats?.deliveredTypeStats?.Dying || 0) + (stats?.deliveredTypeStats?.Printing || 0) + (stats?.deliveredTypeStats?.not_set || 0)}
-                    isDarkMode={isDarkMode}
-                    isLoading={loading || isFilterLoading || filterProcessingDelay}
-                    showEmptyStateDelay={7000} // 7 seconds delay
-                  />
-                </div>
-              </>
-            )}
+            {/* Delivered Orders Pie Chart */}
+            <div className="transform hover:scale-105 transition-transform duration-300 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+              <PieChart
+                data={[
+                  {
+                    name: 'Dying',
+                    value: stats?.deliveredTypeStats?.Dying || 0,
+                    color: '#F97316' // Orange
+                  },
+                  {
+                    name: 'Printing',
+                    value: stats?.deliveredTypeStats?.Printing || 0,
+                    color: '#3B82F6' // Blue
+                  },
+                  {
+                    name: 'Not Set',
+                    value: stats?.deliveredTypeStats?.not_set || 0,
+                    color: '#6B7280' // Gray
+                  }
+                ]}
+                title="Delivered Orders by Type"
+                icon={CheckCircleIcon}
+                total={(stats?.deliveredTypeStats?.Dying || 0) + (stats?.deliveredTypeStats?.Printing || 0) + (stats?.deliveredTypeStats?.not_set || 0)}
+                isDarkMode={isDarkMode}
+                isLoading={loading || isFilterLoading || filterProcessingDelay}
+                showEmptyStateDelay={3000} // 3 seconds delay for faster UX
+              />
+            </div>
           </div>
         </div>
 
