@@ -169,7 +169,7 @@ const PieChart: React.FC<PieChartProps> = ({
               </div>
             </div>
           </div>
-        ) : hasData ? (
+        ) : !showEmptyState && filteredData.length > 0 && filteredData.some(item => item.value > 0) ? (
           <ResponsiveContainer width="100%" height="100%">
             <RechartsPieChart>
               <Pie
@@ -234,7 +234,7 @@ const PieChart: React.FC<PieChartProps> = ({
         )}
         
         {/* Center Content - Only show when there's meaningful data */}
-        {hasData && filteredData.length > 0 && (
+        {!isLoading && !showEmptyState && filteredData.length > 0 && filteredData.some(item => item.value > 0) && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-center">
               <div className={`text-4xl font-bold ${
@@ -248,7 +248,7 @@ const PieChart: React.FC<PieChartProps> = ({
       </div>
       
       {/* Detailed Breakdown Below Chart */}
-      {filteredData.length > 0 && (
+      {!isLoading && !showEmptyState && filteredData.length > 0 && filteredData.some(item => item.value > 0) && (
         <div className="mt-6 grid grid-cols-1 gap-4">
           {filteredData.map((item, index) => {
             const total = filteredData.reduce((sum, data) => sum + data.value, 0);

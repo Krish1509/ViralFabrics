@@ -400,7 +400,7 @@ export default function DashboardPage() {
                 total={(stats?.pendingTypeStats?.Dying || 0) + (stats?.pendingTypeStats?.Printing || 0) + (stats?.pendingTypeStats?.not_set || 0)}
                 isDarkMode={isDarkMode}
                 isLoading={isInitialDataFetch || isFilterLoading || filterProcessingDelay}
-                showEmptyStateDelay={1000} // 1 second delay for faster UX
+                showEmptyStateDelay={500} // 0.5 second delay for faster UX
               />
             </div>
 
@@ -429,7 +429,7 @@ export default function DashboardPage() {
                 total={(stats?.deliveredTypeStats?.Dying || 0) + (stats?.deliveredTypeStats?.Printing || 0) + (stats?.deliveredTypeStats?.not_set || 0)}
                 isDarkMode={isDarkMode}
                 isLoading={isInitialDataFetch || isFilterLoading || filterProcessingDelay}
-                showEmptyStateDelay={1000} // 1 second delay for faster UX
+                showEmptyStateDelay={500} // 0.5 second delay for faster UX
               />
             </div>
           </div>
