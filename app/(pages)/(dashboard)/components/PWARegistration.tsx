@@ -20,7 +20,7 @@ export default function PWARegistration() {
           // Listen for beforeinstallprompt event
           window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
-            (window as any).deferredPrompt = e;
+            (window as Record<string, unknown>).deferredPrompt = e;
             // PWA install prompt available (debug disabled)
           });
 

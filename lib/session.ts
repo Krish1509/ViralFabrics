@@ -26,12 +26,12 @@ export async function getSession(req: NextRequest): Promise<SessionUser | null> 
     if (!payload || typeof payload !== "object") return null;
 
     const sessionUser: SessionUser = {
-      id: (payload as any).id,
-      name: (payload as any).name,
-      username: (payload as any).username,
-      role: (payload as any).role,
-      phoneNumber: (payload as any).phoneNumber,
-      address: (payload as any).address,
+      id: (payload as Record<string, unknown>).id as string,
+      name: (payload as Record<string, unknown>).name as string,
+      username: (payload as Record<string, unknown>).username as string,
+      role: (payload as Record<string, unknown>).role as string,
+      phoneNumber: (payload as Record<string, unknown>).phoneNumber as string | undefined,
+      address: (payload as Record<string, unknown>).address as string | undefined,
     };
 
     return sessionUser;

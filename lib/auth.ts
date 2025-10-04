@@ -25,12 +25,12 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
     }
 
     return {
-      id: (payload as any).id,
-      username: (payload as any).username,
-      role: (payload as any).role,
-      name: (payload as any).name,
-      phoneNumber: (payload as any).phoneNumber,
-      address: (payload as any).address,
+      id: (payload as Record<string, unknown>).id as string,
+      username: (payload as Record<string, unknown>).username as string,
+      role: (payload as Record<string, unknown>).role as string,
+      name: (payload as Record<string, unknown>).name as string | undefined,
+      phoneNumber: (payload as Record<string, unknown>).phoneNumber as string | undefined,
+      address: (payload as Record<string, unknown>).address as string | undefined,
     };
   } catch (error) {
     return null;

@@ -32,7 +32,7 @@ function AccessDeniedContent() {
         {/* Message */}
         <div className="text-center mb-8 text-gray-600 dark:text-gray-300">
           <p className="mb-4">
-            You don't have permission to access this page. This area is restricted to superadmin users only.
+            You don&apos;t have permission to access this page. This area is restricted to superadmin users only.
           </p>
         </div>
 

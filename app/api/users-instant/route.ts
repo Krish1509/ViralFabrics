@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { successResponse } from '@/lib/response';
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
-import { requireSuperAdmin, getSession } from "@/lib/session";
+import { getSession } from "@/lib/session";
 
 // Professional in-memory cache for users data
-const usersCache = new Map<string, { data: any; timestamp: number }>();
+const usersCache = new Map<string, { data: unknown; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for better performance
 
 export async function GET(request: NextRequest) {
@@ -13,9 +13,8 @@ export async function GET(request: NextRequest) {
   
   try {
     // Try to get session, but don't require it for now to debug
-    let session = null;
     try {
-      session = await getSession(request);
+      await getSession(request);
     } catch (error) {
       console.log('Session error:', error);
     }
