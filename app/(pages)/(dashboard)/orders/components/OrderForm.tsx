@@ -33,6 +33,10 @@ interface OrderFormProps {
   onAddParty: () => void;
   onRefreshParties: () => void;
   onAddQuality: (newQualityData?: any) => void;
+  onRemoveParty?: (partyId: string) => void;
+  onRemoveQuality?: (qualityId: string) => void;
+  onSetRecentlyAddedParty?: (partyId: string | null) => void;
+  onSetRecentlyAddedQuality?: (qualityId: string | null) => void;
 }
 
 interface ValidationErrors {
@@ -480,7 +484,8 @@ function EnhancedDropdown({
   onDelete,
   itemIndex,
   recentlyAddedId,
-  isLoading
+  isLoading,
+  deletingItems
 }: {
   options: any[];
   value: string;
@@ -498,6 +503,7 @@ function EnhancedDropdown({
   itemIndex?: number;
   recentlyAddedId?: string | null;
   isLoading?: boolean;
+  deletingItems?: string[];
 }) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -656,16 +662,28 @@ function EnhancedDropdown({
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
+                          const itemId = option._id || option.id;
+                          if (deletingItems?.includes(itemId)) {
+                            return; // Prevent clicks while deleting
+                          }
                           onDelete(option);
                         }}
-                        className={`p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors cursor-pointer ${
+                        className={`p-2 rounded-lg transition-colors ${
+                          deletingItems?.includes(option._id || option.id)
+                            ? 'cursor-not-allowed opacity-50'
+                            : 'cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/20'
+                        } ${
                           isDarkMode 
                             ? 'text-gray-400 hover:text-red-400' 
                             : 'text-gray-500 hover:text-red-600'
                         }`}
-                        title="Delete"
+                        title={deletingItems?.includes(option._id || option.id) ? "Deleting..." : "Delete"}
                       >
-                        <TrashIcon className="h-4 w-4" />
+                        {deletingItems?.includes(option._id || option.id) ? (
+                          <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <TrashIcon className="h-4 w-4" />
+                        )}
                       </div>
                     )}
                   </div>
@@ -1251,7 +1269,7 @@ function ImageUploadSection({
   );
 }
 
-export default function OrderForm({ order, parties, qualities, onClose, onSuccess, onError, onStart, onFormOpen, onAddParty, onRefreshParties, onAddQuality }: OrderFormProps) {
+export default function OrderForm({ order, parties, qualities, onClose, onSuccess, onError, onStart, onFormOpen, onAddParty, onRefreshParties, onAddQuality, onRemoveParty, onRemoveQuality, onSetRecentlyAddedParty, onSetRecentlyAddedQuality }: OrderFormProps) {
   const { isDarkMode, mounted } = useDarkMode();
   const [formData, setFormData] = useState<OrderFormData>({
     orderType: undefined,
@@ -1299,6 +1317,9 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   const [recentlyAddedParty, setRecentlyAddedParty] = useState<string | null>(null);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [currentQualitySearch, setCurrentQualitySearch] = useState('');
+  const [deletingParty, setDeletingParty] = useState<string | null>(null);
+  const [deletingQuality, setDeletingQuality] = useState<string | null>(null);
+  const [deleteCounter, setDeleteCounter] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
 
   // Load parties and qualities when form opens
@@ -1318,6 +1339,38 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     
     onFormOpen?.();
   }, [onFormOpen, parties.length, qualities.length]);
+
+  // Handle newly added parties - auto-select and highlight
+  useEffect(() => {
+    if (parties.length > 0 && recentlyAddedParty) {
+      const newParty = parties.find(party => party._id === recentlyAddedParty);
+      if (newParty) {
+        // Auto-select the newly added party
+        handleFieldChange('party', newParty._id);
+        setSelectedPartyName(newParty.name);
+        setPartySearch(newParty.name);
+        setRecentlyAddedParty(null); // Clear the flag
+        onSetRecentlyAddedParty?.(null); // Clear the parent state
+      }
+    }
+  }, [parties, recentlyAddedParty, onSetRecentlyAddedParty]);
+
+  // Handle newly added qualities - auto-select and highlight
+  useEffect(() => {
+    if (qualities.length > 0 && recentlyAddedQuality) {
+      const newQuality = qualities.find(quality => quality._id === recentlyAddedQuality);
+      if (newQuality) {
+        // Find the first empty quality field and auto-fill it
+        const emptyItemIndex = formData.items.findIndex(item => !item.quality);
+        if (emptyItemIndex !== -1) {
+          handleItemChange(emptyItemIndex, 'quality', newQuality._id);
+          setQualitySearchStates(prev => ({ ...prev, [emptyItemIndex]: newQuality.name }));
+        }
+        setRecentlyAddedQuality(null); // Clear the flag
+        onSetRecentlyAddedQuality?.(null); // Clear the parent state
+      }
+    }
+  }, [qualities, recentlyAddedQuality, onSetRecentlyAddedQuality]);
 
   // Clear loading state when parties are loaded or after timeout
   useEffect(() => {
@@ -1357,15 +1410,32 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
     return party._id || party.id || '';
   };
 
+  // Helper function to validate if a party still exists
+  const validatePartyExists = (partyId: string) => {
+    return parties.some(party => party._id === partyId);
+  };
+
+  // Helper function to validate if a quality still exists
+  const validateQualityExists = (qualityId: string) => {
+    return qualities.some(quality => quality._id === qualityId);
+  };
+
   // Delete functions
   const handleDeleteParty = async (party: Party) => {
-    try {
-      const partyId = getPartyId(party);
-      if (!partyId) {
-        setValidationMessage({ type: 'error', text: 'Invalid party ID' });
-        return;
-      }
+    const partyId = getPartyId(party);
+    if (!partyId) {
+      setValidationMessage({ type: 'error', text: 'Invalid party ID' });
+      return;
+    }
 
+    // Prevent multiple clicks
+    if (deletingParty === partyId) {
+      return;
+    }
+
+    setDeletingParty(partyId);
+    
+    try {
       const response = await fetch(`/api/parties/${partyId}`, {
         method: 'DELETE',
         headers: {
@@ -1374,26 +1444,66 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       });
 
       const data = await response.json();
+      console.log('🗑️ Party delete response:', data);
+      
       if (data.success) {
-        // Refresh parties list
-        onRefreshParties();
+        console.log('✅ Party deleted successfully, updating UI...');
+        
+        // Immediately remove from local state for instant UI update
+        onRemoveParty?.(partyId);
+        console.log('🔄 Called onRemoveParty with ID:', partyId);
+        
+        // If the deleted party was selected, clear the selection
+        if (formData.party === partyId) {
+          console.log('🧹 Clearing selected party');
+          handleFieldChange('party', '');
+          setSelectedPartyName('');
+          setPartySearch('');
+        }
+        
+        // Increment delete counter to force re-render
+        setDeleteCounter(prev => {
+          const newCount = prev + 1;
+          console.log('🔢 Delete counter incremented to:', newCount);
+          return newCount;
+        });
+        
         setValidationMessage({ type: 'success', text: 'Party deleted successfully!' });
+        
+        // Close dropdown and clear search to show the change immediately
+        setShowPartyDropdown(false);
+        setPartySearch('');
+        
+        // Refresh parties list from server
+        console.log('🔄 Refreshing parties from server...');
+        await onRefreshParties();
+        console.log('✅ Party refresh completed');
       } else {
+        console.log('❌ Party delete failed:', data.message);
         setValidationMessage({ type: 'error', text: data.message || 'Failed to delete party' });
       }
     } catch (error) {
       setValidationMessage({ type: 'error', text: 'Failed to delete party' });
+    } finally {
+      setDeletingParty(null);
     }
   };
 
   const handleDeleteQuality = async (quality: Quality) => {
-    try {
-      const qualityId = getQualityId(quality);
-      if (!qualityId) {
-        setValidationMessage({ type: 'error', text: 'Invalid quality ID' });
-        return;
-      }
+    const qualityId = getQualityId(quality);
+    if (!qualityId) {
+      setValidationMessage({ type: 'error', text: 'Invalid quality ID' });
+      return;
+    }
 
+    // Prevent multiple clicks
+    if (deletingQuality === qualityId) {
+      return;
+    }
+
+    setDeletingQuality(qualityId);
+    
+    try {
       const response = await fetch(`/api/qualities/${qualityId}`, {
         method: 'DELETE',
         headers: {
@@ -1402,15 +1512,54 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       });
 
       const data = await response.json();
+      console.log('🗑️ Quality delete response:', data);
+      
       if (data.success) {
-        // Refresh qualities list
-        onAddQuality(null); // This will trigger a refresh
+        console.log('✅ Quality deleted successfully, updating UI...');
+        
+        // Immediately remove from local state for instant UI update
+        onRemoveQuality?.(qualityId);
+        console.log('🔄 Called onRemoveQuality with ID:', qualityId);
+        
+        // If the deleted quality was selected in any item, clear those selections
+        const updatedItems = formData.items.map(item => {
+          if (item.quality === qualityId) {
+            return { ...item, quality: '' };
+          }
+          return item;
+        });
+        setFormData(prev => ({ ...prev, items: updatedItems }));
+        
+        // Clear quality search states for items that had this quality
+        setQualitySearchStates(prev => {
+          const newStates: { [key: number]: string } = { ...prev };
+          Object.keys(newStates).forEach(key => {
+            const index = parseInt(key);
+            if (!isNaN(index) && newStates[index] === quality.name) {
+              newStates[index] = '';
+            }
+          });
+          return newStates;
+        });
+        
+        // Increment delete counter to force re-render
+        setDeleteCounter(prev => prev + 1);
+        
         setValidationMessage({ type: 'success', text: 'Quality deleted successfully!' });
+        
+        // Close dropdown and clear search to show the change immediately
+        setActiveQualityDropdown(null);
+        setCurrentQualitySearch('');
+        
+        // Refresh qualities list from server
+        await onAddQuality(null); // This will trigger a refresh
       } else {
         setValidationMessage({ type: 'error', text: data.message || 'Failed to delete quality' });
       }
     } catch (error) {
       setValidationMessage({ type: 'error', text: 'Failed to delete quality' });
+    } finally {
+      setDeletingQuality(null);
     }
   };
 
@@ -2102,6 +2251,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
               <div>
                 <label className="block text-sm font-medium mb-3">Party</label>
                 <EnhancedDropdown
+                  key={`party-dropdown-${parties.length}-${deleteCounter}`}
                   options={filteredParties}
                   value={formData.party || ''}
                   onChange={(value) => handleFieldChange('party', value)}
@@ -2112,7 +2262,12 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                   onToggleDropdown={() => setShowPartyDropdown(!showPartyDropdown)}
                   isLoading={partiesLoading}
                                      onSelect={(party) => {
-                     handleFieldChange('party', party._id || '');
+                     const partyId = party._id || '';
+                     if (!validatePartyExists(partyId)) {
+                       setValidationMessage({ type: 'error', text: 'Party not found' });
+                       return;
+                     }
+                     handleFieldChange('party', partyId);
                      setSelectedPartyName(party.name);
                      setPartySearch(party.name);
                      setShowPartyDropdown(false);
@@ -2121,6 +2276,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                   onAddNew={() => setShowPartyModal(true)}
                   onDelete={(party) => handleDeleteParty(party)}
                   recentlyAddedId={recentlyAddedParty}
+                  deletingItems={deletingParty ? [deletingParty] : []}
                 />
               </div>
 
@@ -2272,6 +2428,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                           Quality <span className="text-red-500">*</span>
                         </label>
                                                  <EnhancedDropdown
+                          key={`quality-dropdown-${index}-${qualities.length}-${deleteCounter}`}
                           options={getFilteredQualities(index)}
                            value={item.quality as string}
                            onChange={(value) => handleItemChange(index, 'quality', value)}
@@ -2296,7 +2453,12 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                           }}
                           isLoading={qualitiesLoading}
                                                        onSelect={(quality) => {
-                            handleItemChange(index, 'quality', getQualityId(quality));
+                            const qualityId = getQualityId(quality);
+                            if (!validateQualityExists(qualityId)) {
+                              setValidationMessage({ type: 'error', text: 'Quality not found' });
+                              return;
+                            }
+                            handleItemChange(index, 'quality', qualityId);
                             setQualitySearchStates(prev => ({ ...prev, [index]: quality.name }));
                             setCurrentQualitySearch(quality.name);
                               setActiveQualityDropdown(null);
@@ -2310,6 +2472,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                           onDelete={(quality) => handleDeleteQuality(quality)}
                           itemIndex={index}
                           recentlyAddedId={recentlyAddedQuality}
+                          deletingItems={deletingQuality ? [deletingQuality] : []}
                          />
                       </div>
 

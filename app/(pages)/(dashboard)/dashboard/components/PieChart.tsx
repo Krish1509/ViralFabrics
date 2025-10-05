@@ -30,6 +30,36 @@ const PieChart: React.FC<PieChartProps> = ({
 }) => {
   const [showEmptyState, setShowEmptyState] = React.useState(false);
   const [hasData, setHasData] = React.useState(false);
+  const [screenWidth, setScreenWidth] = React.useState(0);
+
+  // Hook to detect screen size
+  React.useEffect(() => {
+    const updateScreenWidth = () => {
+      setScreenWidth(window.innerWidth);
+    };
+
+    // Set initial width
+    updateScreenWidth();
+
+    // Add event listener
+    window.addEventListener('resize', updateScreenWidth);
+
+    // Cleanup
+    return () => window.removeEventListener('resize', updateScreenWidth);
+  }, []);
+
+  // Calculate responsive radius values
+  const getResponsiveRadius = () => {
+    if (screenWidth < 400) {
+      return { outerRadius: 80, innerRadius: 30 };
+    } else if (screenWidth < 600) {
+      return { outerRadius: 130, innerRadius: 50 };
+    } else {
+      return { outerRadius: 160, innerRadius: 60 };
+    }
+  };
+
+  const { outerRadius, innerRadius } = getResponsiveRadius();
   
   // Filter out "Not Set" entries but keep zero values for consistent display
   const filteredData = data.filter(item => item.name !== 'Not Set');
@@ -121,7 +151,11 @@ const PieChart: React.FC<PieChartProps> = ({
           <div className="flex items-center justify-center h-full">
             <div className="text-center space-y-6">
               {/* Spinning pie chart skeleton */}
-              <div className="relative w-48 h-48 mx-auto">
+              <div className={`relative mx-auto ${
+                screenWidth < 400 ? 'w-32 h-32' : 
+                screenWidth < 600 ? 'w-40 h-40' : 
+                'w-48 h-48'
+              }`}>
                 <div className={`absolute inset-0 rounded-full border-8 border-transparent border-t-blue-500 border-r-orange-500 border-b-green-500 border-l-purple-500 animate-spin ${
                   isDarkMode ? 'opacity-60' : 'opacity-40'
                 }`}></div>
@@ -168,8 +202,8 @@ const PieChart: React.FC<PieChartProps> = ({
                 cy="50%"
                 labelLine={false}
                 label={renderCustomizedLabel}
-                outerRadius={160}
-                innerRadius={60}
+                outerRadius={outerRadius}
+                innerRadius={innerRadius}
                 fill="#8884d8"
                 dataKey="value"
                 stroke={isDarkMode ? '#374151' : '#e5e7eb'}
@@ -208,9 +242,11 @@ const PieChart: React.FC<PieChartProps> = ({
         {!isLoading && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-center">
-              <div className={`text-4xl font-bold ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
+              <div className={`font-bold ${
+                screenWidth < 400 ? 'text-2xl' : 
+                screenWidth < 600 ? 'text-3xl' : 
+                'text-4xl'
+              } ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                 {filteredData.reduce((sum, item) => sum + item.value, 0)}
               </div>
             </div>
@@ -236,16 +272,16 @@ const PieChart: React.FC<PieChartProps> = ({
                     className="w-5 h-5 rounded-full"
                     style={{ backgroundColor: item.value > 0 ? item.color : '#9CA3AF' }}
                   ></div>
-                  <span className={`text-xl font-semibold ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}>
+                  <span className={`font-semibold ${
+                    screenWidth < 400 ? 'text-lg' : 'text-xl'
+                  } ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {item.name}
                   </span>
                 </div>
                 <div className="text-right">
-                  <div className={`text-3xl font-bold ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}>
+                  <div className={`font-bold ${
+                    screenWidth < 400 ? 'text-2xl' : 'text-3xl'
+                  } ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {item.value}
                   </div>
                   <div className={`text-sm font-medium ${

@@ -185,6 +185,8 @@ export default function OrdersPage() {
   const [showForm, setShowForm] = useState(false);
   const [formParties, setFormParties] = useState<any[]>([]);
   const [formQualities, setFormQualities] = useState<any[]>([]);
+  const [recentlyAddedPartyId, setRecentlyAddedPartyId] = useState<string | null>(null);
+  const [recentlyAddedQualityId, setRecentlyAddedQualityId] = useState<string | null>(null);
   const [showPartyModal, setShowPartyModal] = useState(false);
   const [showQualityModal, setShowQualityModal] = useState(false);
   const [showLabAddModal, setShowLabAddModal] = useState(false);
@@ -1204,8 +1206,17 @@ export default function OrdersPage() {
       }
       
       const data = await response.json();
+      console.log('🔄 fetchParties response:', data);
+      
       if (data.success) {
-        setParties(data.data || []);
+        const partiesData = data.data || [];
+        console.log('📊 Parties data received:', partiesData.length, 'parties');
+        setParties(partiesData);
+        // Also update form parties if form is open
+        if (showForm) {
+          console.log('📊 Updating formParties with', partiesData.length, 'parties');
+          setFormParties(partiesData);
+        }
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -1215,7 +1226,7 @@ export default function OrdersPage() {
         console.warn('Parties fetch failed:', error.message);
       }
     }
-  }, []);
+  }, [showForm]);
 
   const fetchQualities = useCallback(async () => {
     try {
@@ -1241,8 +1252,17 @@ export default function OrdersPage() {
       }
       
       const data = await response.json();
+      console.log('🔄 fetchQualities response:', data);
+      
       if (data.success) {
-        setQualities(data.data || []);
+        const qualitiesData = data.data || [];
+        console.log('📊 Qualities data received:', qualitiesData.length, 'qualities');
+        setQualities(qualitiesData);
+        // Also update form qualities if form is open
+        if (showForm) {
+          console.log('📊 Updating formQualities with', qualitiesData.length, 'qualities');
+          setFormQualities(qualitiesData);
+        }
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -1251,7 +1271,7 @@ export default function OrdersPage() {
         // Silent error for qualities - not critical for main functionality
       }
     }
-  }, []);
+  }, [showForm]);
 
   // Mills fetching function for MillInputForm
   const fetchMills = useCallback(async () => {
@@ -1431,6 +1451,7 @@ export default function OrdersPage() {
                 dataCache.current.mills = { data: millsArray, timestamp: Date.now() };
                 console.log('✅ Mills loaded in background:', millsArray.length, 'mills');
               }
+
             }
           } catch (error) {
             console.error('❌ Failed to load mills in background:', error);
@@ -1459,6 +1480,7 @@ export default function OrdersPage() {
                 dataCache.current.parties = { data: partiesArray, timestamp: Date.now() };
                 console.log('✅ Parties loaded in background:', partiesArray.length, 'parties');
               }
+
             }
           } catch (error) {
             console.error('❌ Failed to load parties in background:', error);
@@ -4381,7 +4403,7 @@ export default function OrdersPage() {
                                          }
 
                                          const qualityName = typeof item.quality === 'string' ? item.quality : item.quality?.name || 'N/A';
-                                         const qualityId = typeof item.quality === 'object' ? item.quality._id : item.quality;
+                                         const qualityId = typeof item.quality === 'object' && item.quality ? item.quality._id : item.quality;
                                          
                                          // Debug logging
                                          console.log('🔍 Process data debug:', {
@@ -4406,6 +4428,9 @@ export default function OrdersPage() {
                                            
                                            // Look for process data in mill inputs for this quality
                                            const relevantMillInputs = orderMillInputsData.filter((input: any) => {
+                                             // Add null checks for input.quality
+                                             if (!input.quality) return false;
+                                             
                                              const inputQualityId = typeof input.quality === 'object' ? input.quality._id : input.quality;
                                              const itemQualityId = typeof item.quality === 'object' ? item.quality._id : item.quality;
                                              return inputQualityId === itemQualityId && input.processName;
@@ -5830,19 +5855,66 @@ export default function OrdersPage() {
           onAddQuality={(newQualityData?: any) => {
             if (newQualityData) {
               setQualities(prev => [...prev, newQualityData]);
+              setFormQualities(prev => [...prev, newQualityData]);
             } else {
               fetchQualities();
             }
           }}
+          onRemoveParty={(partyId: string) => {
+            console.log('🔄 onRemoveParty called with ID:', partyId);
+            console.log('📊 Current parties count:', parties.length);
+            console.log('📊 Current formParties count:', formParties.length);
+            
+            // Immediately remove from both main and form states
+            setParties(prev => {
+              const filtered = prev.filter(party => party._id !== partyId);
+              console.log('📊 Parties after filter:', filtered.length);
+              return filtered;
+            });
+            setFormParties(prev => {
+              const filtered = prev.filter(party => party._id !== partyId);
+              console.log('📊 FormParties after filter:', filtered.length);
+              return filtered;
+            });
+          }}
+          onRemoveQuality={(qualityId: string) => {
+            console.log('🔄 onRemoveQuality called with ID:', qualityId);
+            console.log('📊 Current qualities count:', qualities.length);
+            console.log('📊 Current formQualities count:', formQualities.length);
+            
+            // Immediately remove from both main and form states
+            setQualities(prev => {
+              const filtered = prev.filter(quality => quality._id !== qualityId);
+              console.log('📊 Qualities after filter:', filtered.length);
+              return filtered;
+            });
+            setFormQualities(prev => {
+              const filtered = prev.filter(quality => quality._id !== qualityId);
+              console.log('📊 FormQualities after filter:', filtered.length);
+              return filtered;
+            });
+          }}
+          onSetRecentlyAddedParty={setRecentlyAddedPartyId}
+          onSetRecentlyAddedQuality={setRecentlyAddedQualityId}
         />
       )}
 
       {showPartyModal && (
         <PartyModal
           onClose={() => setShowPartyModal(false)}
-          onSuccess={() => {
+          onSuccess={async (newPartyData?: any) => {
             setShowPartyModal(false);
-            fetchParties();
+            
+            // Immediately update both parties states for instant UI update
+            if (newPartyData) {
+              setParties(prev => [...prev, newPartyData]);
+              setFormParties(prev => [...prev, newPartyData]);
+              // Set the recently added party ID for auto-selection
+              setRecentlyAddedPartyId(newPartyData._id);
+            }
+            
+            // Refresh parties from API to ensure consistency
+            await fetchParties();
           }}
         />
       )}
@@ -5857,6 +5929,8 @@ export default function OrdersPage() {
             if (newQualityData) {
               setQualities(prev => [...prev, newQualityData]);
               setFormQualities(prev => [...prev, newQualityData]);
+              // Set the recently added quality ID for auto-selection
+              setRecentlyAddedQualityId(newQualityData._id);
             }
             
             // Refresh qualities from API to ensure consistency
@@ -6765,3 +6839,4 @@ export default function OrdersPage() {
     </div>
   );
 }
+
