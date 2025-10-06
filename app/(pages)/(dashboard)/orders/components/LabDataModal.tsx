@@ -31,6 +31,7 @@ interface LabDataModalProps {
     items: OrderItem[];
   };
   onLabDataUpdate: (operationType?: 'add' | 'edit' | 'delete' | 'deleteAll') => void;
+  skipInitialFetch?: boolean; // New prop to skip initial API call for new lab entries
 }
 
 // Custom Date Picker Component (from OrderForm)
@@ -410,7 +411,7 @@ function CustomDatePicker({
   );
 }
 
-export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }: LabDataModalProps) {
+export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate, skipInitialFetch = false }: LabDataModalProps) {
   const { isDarkMode, mounted } = useDarkMode();
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [labData, setLabData] = useState<LabData>({
@@ -436,6 +437,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
 
   // Function to fetch existing lab data from API - ULTRA FAST
   const fetchExistingLabData = async (forceRefresh = false) => {
+    console.log('📡 Fetching existing lab data for order:', order._id, 'forceRefresh:', forceRefresh);
     setLoadingData(true);
     setError(''); // Clear any previous errors
     
@@ -524,6 +526,18 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
   // Initialize local items when modal opens
   useEffect(() => {
     if (isOpen) {
+      // Check if any items already have lab data or if order has labData array
+      const hasExistingLabData = order.items.some(item => 
+        item.labData && item.labData.labSendDate && item.labData.labSendDate !== null
+      ) || (order as any).labData && (order as any).labData.length > 0;
+      
+      console.log('🔍 Lab Modal Optimization:', {
+        skipInitialFetch,
+        hasExistingLabData,
+        willFetchData: !skipInitialFetch && hasExistingLabData,
+        orderId: order._id
+      });
+      
       // Start with clean items (no lab data) to avoid showing stale data
       const cleanItems = order.items.map(item => ({
         ...item,
@@ -542,10 +556,15 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       setItemToDelete(null);
       setShowDeleteAllConfirm(false);
       
-      // Fetch existing lab data from API
-      fetchExistingLabData();
+      // Only fetch existing lab data if:
+      // 1. Not skipping initial fetch AND
+      // 2. There's existing lab data in the order items
+      // This optimization avoids unnecessary API calls when adding new labs
+      if (!skipInitialFetch && hasExistingLabData) {
+        fetchExistingLabData();
+      }
     }
-  }, [isOpen, order.items]);
+  }, [isOpen, order.items, skipInitialFetch]);
 
   // Load lab data when item is selected for editing
   const handleEditLabData = async (item: OrderItem) => {
@@ -1044,6 +1063,26 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                   Order Items ({localItems.length})
                 </h3>
                 
+                {/* Load Existing Data Button - Show when we skipped initial fetch but there might be existing data */}
+                {skipInitialFetch && !loadingData && (
+                  <button
+                    onClick={() => fetchExistingLabData()}
+                    disabled={loadingData}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                      isDarkMode
+                        ? 'bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/30 hover:border-blue-500/50'
+                        : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300'
+                    }`}
+                  >
+                    {loadingData ? (
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <FileText className="h-4 w-4" />
+                    )}
+                    {loadingData ? 'Loading...' : 'Load Existing Data'}
+                  </button>
+                )}
+                
                 {/* Delete All Lab Data Button */}
                 {localItems.some(item => item.labData?.labSendDate) && (
                   <button
@@ -1063,45 +1102,15 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
             
             <div className="grid gap-4">
               {loadingData ? (
-                // Skeleton loader for lab data
-                Array.from({ length: order.items.length }).map((_, index) => (
-                  <div key={`skeleton-${index}`} className={`rounded-xl border overflow-hidden shadow-sm ${
-                    isDarkMode 
-                      ? 'bg-white/5 border-white/20' 
-                      : 'bg-white border-gray-200'
-                  }`}>
-                    <div className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          {/* Skeleton for item title */}
-                          <div className={`h-5 bg-gray-300 rounded mb-3 animate-pulse ${
-                            isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                          }`} style={{ width: '60%' }}></div>
-                          
-                          {/* Skeleton for lab data info */}
-                          <div className="space-y-2">
-                            <div className={`h-4 bg-gray-300 rounded animate-pulse ${
-                              isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                            }`} style={{ width: '40%' }}></div>
-                            <div className={`h-4 bg-gray-300 rounded animate-pulse ${
-                              isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                            }`} style={{ width: '35%' }}></div>
-                            <div className={`h-4 bg-gray-300 rounded animate-pulse ${
-                              isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                            }`} style={{ width: '45%' }}></div>
-                          </div>
-                        </div>
-                        
-                        {/* Skeleton for buttons */}
-                        <div className="flex items-center space-x-2 ml-4">
-                          <div className={`h-10 w-24 bg-gray-300 rounded-lg animate-pulse ${
-                            isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
-                          }`}></div>
-                        </div>
-                      </div>
-                    </div>
+                // Simple loading state
+                <div className={`text-center py-12 ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  <div className="flex items-center justify-center gap-2 mb-4">
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm font-medium">Loading lab data...</span>
                   </div>
-                ))
+                </div>
               ) : (
                 localItems.map((item, index) => (
                 <div key={item._id} className={`rounded-xl border overflow-hidden shadow-sm ${

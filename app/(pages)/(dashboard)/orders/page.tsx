@@ -5967,6 +5967,7 @@ export default function OrdersPage() {
          <LabAddModal
            isOpen={showLabAddModal}
            order={selectedOrderForLab}
+           skipInitialFetch={true} // Skip initial API call for new lab entries
            onClose={() => {
              setShowLabAddModal(false);
              setSelectedOrderForLab(null);
