@@ -398,14 +398,15 @@ export default function FabricsPage() {
   // Fetch weavers for filter
   const fetchWeavers = async () => {
     try {
+      setFiltersLoading(true);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
       
       const params = new URLSearchParams();
       if (filters.qualityName) params.append('qualityName', filters.qualityName);
       
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/fabrics/weavers?${params}&limit=100`, { // Limit for faster loading
+      const response = await fetch(`/api/fabrics/weavers?${params}&limit=100`, {
         headers: {
           'Cache-Control': 'max-age=60', // Cache for 60 seconds
           ...(token && { 'Authorization': `Bearer ${token}` })
@@ -421,26 +422,34 @@ export default function FabricsPage() {
       
       const data = await response.json();
       if (data.success) {
-        setWeavers(data.data);
+        setWeavers(data.data || []);
+      } else {
+        setWeavers([]);
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        } else {
-        }
+        console.log('Weavers fetch aborted');
+      } else {
+        console.error('Error fetching weavers:', error);
+        setWeavers([]);
+      }
+    } finally {
+      setFiltersLoading(false);
     }
   };
 
   // Fetch weaver quality names for filter
   const fetchWeaverQualityNames = async () => {
     try {
+      setFiltersLoading(true);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
       
       const params = new URLSearchParams();
       if (filters.weaver) params.append('weaver', filters.weaver);
       
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/fabrics/weaver-quality-names?${params}&limit=100`, { // Limit for faster loading
+      const response = await fetch(`/api/fabrics/weaver-quality-names?${params}&limit=100`, {
         headers: {
           'Cache-Control': 'max-age=60', // Cache for 60 seconds
           ...(token && { 'Authorization': `Bearer ${token}` })
@@ -456,12 +465,19 @@ export default function FabricsPage() {
       
       const data = await response.json();
       if (data.success) {
-        setWeaverQualityNames(data.data);
+        setWeaverQualityNames(data.data || []);
+      } else {
+        setWeaverQualityNames([]);
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        } else {
-        }
+        console.log('Weaver quality names fetch aborted');
+      } else {
+        console.error('Error fetching weaver quality names:', error);
+        setWeaverQualityNames([]);
+      }
+    } finally {
+      setFiltersLoading(false);
     }
   };
 
@@ -476,44 +492,17 @@ export default function FabricsPage() {
     if (shouldRefresh === 'true') {
       sessionStorage.removeItem('fabricsPageShouldRefresh');
     }
+    // Clean up edited fabric data to prevent conflicts
+    if (editedFabricData) {
+      sessionStorage.removeItem('editedFabricData');
+    }
     if (forceRefresh) {
       const newUrl = window.location.pathname;
       window.history.replaceState({}, '', newUrl);
     }
     
-    // If we have edited fabric data, update the specific fabric in state
-    if (editedFabricData) {
-      try {
-        const fabricData = JSON.parse(editedFabricData);
-        sessionStorage.removeItem('editedFabricData');
-        
-        // Update the specific fabric in the local state
-        setFabrics(prev => {
-          const updated = prev.map(fabric => 
-            fabric._id === fabricData._id ? { ...fabric, ...fabricData, updatedAt: new Date().toISOString() } : fabric
-          );
-          
-          // Re-sort the list based on current sort criteria
-          return sortFabrics(updated, filters.sortBy, filters.sortOrder);
-        });
-        
-        // Update pagination info if needed
-        setPaginationInfo(prev => ({
-          ...prev,
-          totalCount: prev.totalCount // Keep same count since we're just updating
-        }));
-        
-        // Load filter data
-        setTimeout(() => {
-          fetchQualityNames();
-        }, 1000);
-        
-        return; // Don't fetch from server since we updated locally
-      } catch (error) {
-        console.error('Error parsing edited fabric data:', error);
-        // Fall through to normal fetch if parsing fails
-      }
-    }
+    // Always force refresh from server when returning from edit page to ensure fresh data
+    // Don't rely on local state updates as they can cause inconsistencies
     
     // Force refresh from server if we have refresh flags OR if this is a new page load
     if (shouldRefresh === 'true' || forceRefresh || fabrics.length === 0) {
@@ -575,8 +564,9 @@ export default function FabricsPage() {
         if (shouldRefresh === 'true') {
           sessionStorage.removeItem('fabricsPageShouldRefresh');
           
-          // Show appropriate message based on whether it's an edit or create
+          // Clean up edited fabric data to prevent conflicts
           if (editedFabricData) {
+            sessionStorage.removeItem('editedFabricData');
             setRefreshMessage('🔄 Loading updated fabric data...');
           } else {
             setRefreshMessage('🔄 Loading new fabric data...');
@@ -645,7 +635,8 @@ export default function FabricsPage() {
 
   const handleEdit = (fabric: Fabric) => {
     // Navigate to create page with fabric ID for editing
-    router.push(`/fabrics/create?edit=${fabric._id}`);
+    // Add refresh parameter to ensure fresh data is loaded
+    router.push(`/fabrics/create?edit=${fabric._id}&refresh=true`);
   };
 
   const handleView = (fabric: Fabric) => {

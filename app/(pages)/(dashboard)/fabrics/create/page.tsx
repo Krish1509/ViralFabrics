@@ -26,6 +26,7 @@ export default function CreateFabricPage() {
   // Check if we're in edit mode
   const editId = searchParams?.get('edit');
   const isEditMode = !!editId;
+  const forceRefresh = searchParams?.get('refresh') === 'true';
   
   const [formData, setFormData] = useState<FabricFormData>({
     items: [{
@@ -88,6 +89,25 @@ export default function CreateFabricPage() {
     
     try {
       setLoading(true);
+      
+      // Clear existing form data to prevent showing old data
+      setFormData({
+        items: [{
+          qualityCode: '',
+          qualityName: '',
+          weaver: '',
+          weaverQualityName: '',
+          greighWidth: '',
+          finishWidth: '',
+          weight: '',
+          gsm: '',
+          danier: '',
+          reed: '',
+          pick: '',
+          greighRate: '',
+          images: []
+        }]
+      });
       // Use a longer timeout for better reliability in edit mode
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased to 30s timeout for better reliability
@@ -105,11 +125,18 @@ export default function CreateFabricPage() {
       }, 1000);
       
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/fabrics/${editId}`, {
+      // Use multiple cache-busting parameters, especially if force refresh is requested
+      const cacheBuster = forceRefresh 
+        ? `t=${Date.now()}&r=${Math.random()}&v=${Math.floor(Math.random() * 10000)}&force=true`
+        : `t=${Date.now()}&r=${Math.random()}&v=${Math.floor(Math.random() * 10000)}`;
+      const response = await fetch(`/api/fabrics/${editId}?${cacheBuster}`, {
         signal: controller.signal,
+        method: 'GET',
         headers: {
-          'Cache-Control': 'no-cache', // Prevent caching issues
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
           'Pragma': 'no-cache',
+          'Expires': '0',
+          'If-Modified-Since': '0',
           ...(token && { 'Authorization': `Bearer ${token}` })
         }
       });
@@ -127,8 +154,11 @@ export default function CreateFabricPage() {
       if (data.success && data.data) {
         const allItems = data.data;
         
-        // Set the original quality code for edit mode
-        setOriginalQualityCode(data.qualityCode || '');
+        // Set the original quality code for edit mode (from first item)
+        const loadedQualityCode = allItems[0]?.qualityCode || '';
+        setOriginalQualityCode(loadedQualityCode);
+        console.log('🔄 Loaded fabric for edit - Quality Code:', loadedQualityCode, 'Edit ID:', editId);
+        console.log('📊 All items loaded:', allItems.length, 'First item:', allItems[0]);
         
         // Set the original item count for edit mode
         setOriginalItemCount(allItems.length);
@@ -159,6 +189,12 @@ export default function CreateFabricPage() {
         });
         
         showValidationMessage('success', `Loaded ${allItems.length} item(s) for editing!`);
+        
+        // Clean up URL parameters after successful load
+        if (forceRefresh) {
+          const newUrl = window.location.pathname + `?edit=${editId}`;
+          window.history.replaceState({}, '', newUrl);
+        }
       } else {
         throw new Error(data.message || 'Failed to load fabric data');
       }
@@ -176,14 +212,20 @@ export default function CreateFabricPage() {
       setLoading(false);
       setTimeoutCountdown(0); // Reset countdown
     }
-  }, [editId]);
+  }, [editId, forceRefresh]);
 
   // Load fabric data for editing
   useEffect(() => {
     if (isEditMode && editId) {
-      loadFabricForEdit();
+      // Always reload fabric data to ensure we have the latest information
+      // Add a small delay to ensure any previous updates are processed
+      const timeoutId = setTimeout(() => {
+        loadFabricForEdit();
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
     }
-  }, [isEditMode, editId]);
+  }, [isEditMode, editId, loadFabricForEdit]);
 
   // Reset validation states when edit mode changes
   useEffect(() => {
@@ -817,7 +859,9 @@ export default function CreateFabricPage() {
         try {
           // Check if quality code changed - this affects how we handle the update
           const currentQualityCode = formData.items[0]?.qualityCode?.trim();
-          const qualityCodeChanged = originalQualityCode !== currentQualityCode;
+          const qualityCodeChanged = originalQualityCode && originalQualityCode !== currentQualityCode;
+          
+          console.log('Update check - Original:', originalQualityCode, 'Current:', currentQualityCode, 'Changed:', qualityCodeChanged);
           
           if (qualityCodeChanged) {
             // Quality code changed - this is a major change that affects all items
@@ -854,6 +898,9 @@ export default function CreateFabricPage() {
         
           if (updateData.success) {
               showValidationMessage('success', '✅ All items updated successfully with new quality code!');
+              
+              // Update the original quality code to the new one
+              setOriginalQualityCode(currentQualityCode);
               
               // Set flag to refresh fabrics page when user returns
               sessionStorage.setItem('fabricsPageShouldRefresh', 'true');
@@ -908,7 +955,9 @@ export default function CreateFabricPage() {
               body: JSON.stringify({
                 ...apiData[0],
                 updateAllItems: true, // Signal to backend to update all related items
-                allItems: apiData // Send all items data
+                allItems: apiData, // Send all items data
+                originalItemCount: originalItemCount, // Send original count to prevent duplicates
+                originalQualityCode: originalQualityCode // Send original quality code for validation
               })
             });
 
@@ -969,6 +1018,9 @@ export default function CreateFabricPage() {
               setIsQualityCodeValid(false);
               setQualityCodeCache({}); // Clear cache on successful submission
               showValidationMessage('success', '✅ Fabric updated successfully!');
+              
+              // Update the original quality code to current one (in case it was changed)
+              setOriginalQualityCode(formData.items[0]?.qualityCode?.trim() || '');
               
               // Set flag to refresh fabrics page when user returns
               sessionStorage.setItem('fabricsPageShouldRefresh', 'true');
@@ -1050,7 +1102,7 @@ export default function CreateFabricPage() {
   };
 
   // Loading skeleton - Show immediately to prevent flickering
-  if (!mounted || pageLoading || (isEditMode && loading)) {
+  if (!mounted || pageLoading) {
     return (
       <div className={`min-h-screen rounded-2xl transition-colors duration-300 ${
         isDarkMode 
@@ -1321,8 +1373,8 @@ export default function CreateFabricPage() {
         isDarkMode ? 'text-white' : 'text-gray-900'
       }`}>
 
-        {/* Loading Indicator for Edit Mode */}
-        {isEditMode && loading && (
+        {/* Loading Indicator for Edit Mode - Only show if actually loading and not mounted */}
+        {isEditMode && loading && !mounted && (
           <div className="mb-4 sm:mb-6 p-4 sm:p-6 rounded-xl border border-blue-500/30 bg-blue-500/10">
             <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
               <div className="animate-spin rounded-full h-5 w-5 sm:h-6 sm:w-6 border-b-2 border-blue-500"></div>
@@ -1379,14 +1431,14 @@ export default function CreateFabricPage() {
                     }
                   }}
                   placeholder="e.g., 1001-WL"
-                  disabled={isEditMode && loading}
+                  disabled={loading}
                     className={`w-full p-2 sm:p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-sm sm:text-base ${
                     errors.qualityCode 
                       ? 'border-red-500 focus:ring-red-400' 
                       : isQualityCodeValid 
                         ? 'border-green-500 focus:ring-green-400' 
                         : ''
-                  } ${isEditMode && loading ? 'opacity-50 cursor-not-allowed' : ''} ${
+                  } ${loading ? 'opacity-50 cursor-not-allowed' : ''} ${
                     isDarkMode 
                       ? 'bg-gray-700 border-gray-500 text-white placeholder-gray-400 hover:border-gray-400' 
                       : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 hover:border-gray-400'
