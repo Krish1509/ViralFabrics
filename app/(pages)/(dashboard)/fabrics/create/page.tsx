@@ -853,7 +853,7 @@ export default function CreateFabricPage() {
           const updateData = await updateResponse.json();
         
           if (updateData.success) {
-              showValidationMessage('success', 'All items updated successfully with new quality code!');
+              showValidationMessage('success', '✅ All items updated successfully with new quality code!');
               
               // Set flag to refresh fabrics page when user returns
               sessionStorage.setItem('fabricsPageShouldRefresh', 'true');
@@ -877,10 +877,13 @@ export default function CreateFabricPage() {
               };
               sessionStorage.setItem('editedFabricData', JSON.stringify(updatedFabricData));
               
+              // Show success message and redirect after a short delay
               setTimeout(() => {
-                // Use URL parameter to force refresh
-                router.push('/fabrics?refresh=true');
-              }, 800);
+                showValidationMessage('success', '🔄 Redirecting to fabrics page...');
+                setTimeout(() => {
+                  router.push('/fabrics');
+                }, 1000);
+              }, 500);
             } else {
               // Handle quality code validation error
               if (updateData.message && updateData.message.includes('already exists and cannot be used')) {
@@ -965,7 +968,7 @@ export default function CreateFabricPage() {
               setErrors({});
               setIsQualityCodeValid(false);
               setQualityCodeCache({}); // Clear cache on successful submission
-              showValidationMessage('success', 'Fabric updated successfully!');
+              showValidationMessage('success', '✅ Fabric updated successfully!');
               
               // Set flag to refresh fabrics page when user returns
               sessionStorage.setItem('fabricsPageShouldRefresh', 'true');
@@ -989,9 +992,12 @@ export default function CreateFabricPage() {
               };
               sessionStorage.setItem('editedFabricData', JSON.stringify(updatedFabricData));
               
+              // Show success message and redirect after a short delay
               setTimeout(() => {
-                // Use URL parameter to force refresh
-                router.push('/fabrics?refresh=true');
+                showValidationMessage('success', '🔄 Redirecting to fabrics page...');
+                setTimeout(() => {
+                  router.push('/fabrics');
+                }, 1000);
               }, 500);
                 }
             }
@@ -1020,14 +1026,17 @@ export default function CreateFabricPage() {
           setErrors({});
           setIsQualityCodeValid(false);
           setQualityCodeCache({}); // Clear cache on successful submission
-          showValidationMessage('success', `Fabric created successfully with ${formData.items.length} item(s)!`);
+          showValidationMessage('success', `✅ Fabric created successfully with ${formData.items.length} item(s)!`);
           
           // Set flag to refresh fabrics page when user returns
           sessionStorage.setItem('fabricsPageShouldRefresh', 'true');
           
+          // Show success message and redirect after a short delay
           setTimeout(() => {
-            // Use URL parameter to force refresh
-            router.push('/fabrics?refresh=true');
+            showValidationMessage('success', '🔄 Redirecting to fabrics page...');
+            setTimeout(() => {
+              router.push('/fabrics');
+            }, 1000);
           }, 500);
         } else {
           showValidationMessage('error', data.message || 'Operation failed');
@@ -2240,7 +2249,7 @@ export default function CreateFabricPage() {
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  <span>Saving...</span>
+                  <span>{isEditMode ? 'Updating...' : 'Creating...'}</span>
                 </>
               ) : (
                 <>

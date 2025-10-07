@@ -202,16 +202,16 @@ export default function FabricsPage() {
           bValue = b.weaver?.toLowerCase() || '';
           break;
         case 'gsm':
-          aValue = parseFloat(a.gsm) || 0;
-          bValue = parseFloat(b.gsm) || 0;
+          aValue = a.gsm || 0;
+          bValue = b.gsm || 0;
           break;
         case 'weight':
-          aValue = parseFloat(a.weight) || 0;
-          bValue = parseFloat(b.weight) || 0;
+          aValue = a.weight || 0;
+          bValue = b.weight || 0;
           break;
         case 'greighRate':
-          aValue = parseFloat(a.greighRate) || 0;
-          bValue = parseFloat(b.greighRate) || 0;
+          aValue = a.greighRate || 0;
+          bValue = b.greighRate || 0;
           break;
         default:
           aValue = new Date(a.createdAt || a.updatedAt || 0);
@@ -295,10 +295,14 @@ export default function FabricsPage() {
           });
         }
         
-        // Only show refresh message when user manually clicks refresh button
+        // Show refresh message when data is updated
         if (forceRefresh && fabrics.length > 0) {
-          setRefreshMessage('Data refreshed successfully!');
+          setRefreshMessage('✅ Data refreshed successfully!');
           setTimeout(() => setRefreshMessage(null), 3000);
+        } else if (forceRefresh && fabrics.length === 0) {
+          // This is likely a return from create/edit page
+          setRefreshMessage('🔄 Loading updated data...');
+          setTimeout(() => setRefreshMessage(null), 2000);
         }
       } else {
         throw new Error(data.message || 'Failed to fetch fabrics');
@@ -468,43 +472,51 @@ export default function FabricsPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const forceRefresh = urlParams.get('refresh') === 'true';
     
-    if (shouldRefresh === 'true' || forceRefresh) {
+    // Always clean up sessionStorage and URL params first
+    if (shouldRefresh === 'true') {
       sessionStorage.removeItem('fabricsPageShouldRefresh');
-      
-      // If we have edited fabric data, update the specific fabric in state
-      if (editedFabricData) {
-        try {
-          const fabricData = JSON.parse(editedFabricData);
-          sessionStorage.removeItem('editedFabricData');
+    }
+    if (forceRefresh) {
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+    
+    // If we have edited fabric data, update the specific fabric in state
+    if (editedFabricData) {
+      try {
+        const fabricData = JSON.parse(editedFabricData);
+        sessionStorage.removeItem('editedFabricData');
+        
+        // Update the specific fabric in the local state
+        setFabrics(prev => {
+          const updated = prev.map(fabric => 
+            fabric._id === fabricData._id ? { ...fabric, ...fabricData, updatedAt: new Date().toISOString() } : fabric
+          );
           
-          // Update the specific fabric in the local state
-          setFabrics(prev => {
-            const updated = prev.map(fabric => 
-              fabric._id === fabricData._id ? { ...fabric, ...fabricData, updatedAt: new Date().toISOString() } : fabric
-            );
-            
-            // Re-sort the list based on current sort criteria
-            return sortFabrics(updated, filters.sortBy, filters.sortOrder);
-          });
-          
-          // Update pagination info if needed
-          setPaginationInfo(prev => ({
-            ...prev,
-            totalCount: prev.totalCount // Keep same count since we're just updating
-          }));
-          
-          // Load filter data
-          setTimeout(() => {
-            fetchQualityNames();
-          }, 1000);
-          
-          return; // Don't fetch from server since we updated locally
-        } catch (error) {
-          console.error('Error parsing edited fabric data:', error);
-        }
+          // Re-sort the list based on current sort criteria
+          return sortFabrics(updated, filters.sortBy, filters.sortOrder);
+        });
+        
+        // Update pagination info if needed
+        setPaginationInfo(prev => ({
+          ...prev,
+          totalCount: prev.totalCount // Keep same count since we're just updating
+        }));
+        
+        // Load filter data
+        setTimeout(() => {
+          fetchQualityNames();
+        }, 1000);
+        
+        return; // Don't fetch from server since we updated locally
+      } catch (error) {
+        console.error('Error parsing edited fabric data:', error);
+        // Fall through to normal fetch if parsing fails
       }
-      
-      // Force refresh from server
+    }
+    
+    // Force refresh from server if we have refresh flags OR if this is a new page load
+    if (shouldRefresh === 'true' || forceRefresh || fabrics.length === 0) {
       fetchFabrics(true, 1, 10);
     } else {
       // Normal initial load
@@ -515,12 +527,6 @@ export default function FabricsPage() {
     setTimeout(() => {
       fetchQualityNames();
     }, 1000);
-    
-    // Clean up URL parameters
-    if (forceRefresh) {
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, '', newUrl);
-    }
   }, []);
 
   // Refresh data when user returns from create/edit page
@@ -529,40 +535,10 @@ export default function FabricsPage() {
       if (document.visibilityState === 'visible') {
         // Check if we're returning from create/edit page by looking at sessionStorage
         const shouldRefresh = sessionStorage.getItem('fabricsPageShouldRefresh');
-        const editedFabricData = sessionStorage.getItem('editedFabricData');
         
         if (shouldRefresh === 'true') {
           sessionStorage.removeItem('fabricsPageShouldRefresh');
-          
-          // If we have edited fabric data, update the specific fabric in state
-          if (editedFabricData) {
-            try {
-              const fabricData = JSON.parse(editedFabricData);
-              sessionStorage.removeItem('editedFabricData');
-              
-              // Update the specific fabric in the local state
-              setFabrics(prev => {
-                const updated = prev.map(fabric => 
-                  fabric._id === fabricData._id ? { ...fabric, ...fabricData, updatedAt: new Date().toISOString() } : fabric
-                );
-                
-                // Re-sort the list based on current sort criteria
-                return sortFabrics(updated, filters.sortBy, filters.sortOrder);
-              });
-              
-              // Update pagination info if needed
-              setPaginationInfo(prev => ({
-                ...prev,
-                totalCount: prev.totalCount // Keep same count since we're just updating
-              }));
-              
-              return; // Don't fetch from server since we updated locally
-            } catch (error) {
-              console.error('Error parsing edited fabric data:', error);
-            }
-          }
-          
-          // Fallback to full refresh if no edited data or parsing failed
+          // Always refresh data when returning from create/edit page
           fetchFabrics(true, currentPage, itemsPerPage, 0, false);
         }
       }
@@ -573,34 +549,10 @@ export default function FabricsPage() {
     // Also check on focus (for cases where visibilitychange doesn't fire)
     const handleFocus = () => {
       const shouldRefresh = sessionStorage.getItem('fabricsPageShouldRefresh');
-      const editedFabricData = sessionStorage.getItem('editedFabricData');
       
       if (shouldRefresh === 'true') {
         sessionStorage.removeItem('fabricsPageShouldRefresh');
-        
-        // If we have edited fabric data, update the specific fabric in state
-        if (editedFabricData) {
-          try {
-            const fabricData = JSON.parse(editedFabricData);
-            sessionStorage.removeItem('editedFabricData');
-            
-            // Update the specific fabric in the local state
-            setFabrics(prev => {
-              const updated = prev.map(fabric => 
-                fabric._id === fabricData._id ? { ...fabric, ...fabricData, updatedAt: new Date().toISOString() } : fabric
-              );
-              
-              // Re-sort the list based on current sort criteria
-              return sortFabrics(updated, filters.sortBy, filters.sortOrder);
-            });
-            
-            return; // Don't fetch from server since we updated locally
-          } catch (error) {
-            console.error('Error parsing edited fabric data:', error);
-          }
-        }
-        
-        // Fallback to full refresh if no edited data or parsing failed
+        // Always refresh data when returning from create/edit page
         fetchFabrics(true, currentPage, itemsPerPage, 0, false);
       }
     };
@@ -612,6 +564,39 @@ export default function FabricsPage() {
       window.removeEventListener('focus', handleFocus);
     };
   }, [currentPage, itemsPerPage, filters.sortBy, filters.sortOrder]);
+
+    // Additional effect to handle page focus/return from other pages
+    useEffect(() => {
+      const handlePageFocus = () => {
+        // Check if we should refresh when page gains focus
+        const shouldRefresh = sessionStorage.getItem('fabricsPageShouldRefresh');
+        const editedFabricData = sessionStorage.getItem('editedFabricData');
+        
+        if (shouldRefresh === 'true') {
+          sessionStorage.removeItem('fabricsPageShouldRefresh');
+          
+          // Show appropriate message based on whether it's an edit or create
+          if (editedFabricData) {
+            setRefreshMessage('🔄 Loading updated fabric data...');
+          } else {
+            setRefreshMessage('🔄 Loading new fabric data...');
+          }
+          
+          // Force refresh the data
+          fetchFabrics(true, currentPage, itemsPerPage, 0, false);
+        }
+      };
+
+      // Listen for page focus events
+      window.addEventListener('focus', handlePageFocus);
+      
+      // Also check immediately when component mounts (in case user navigated back)
+      handlePageFocus();
+
+      return () => {
+        window.removeEventListener('focus', handlePageFocus);
+      };
+    }, [currentPage, itemsPerPage]);
 
   // Removed auto-refresh on visibility change - was causing unnecessary refreshes
 

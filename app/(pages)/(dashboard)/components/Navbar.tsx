@@ -32,7 +32,8 @@ import {
   CheckIcon,
   ArrowsPointingOutIcon,
   ArrowsPointingInIcon,
-  DevicePhoneMobileIcon
+  DevicePhoneMobileIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { useDarkMode } from '@/app/contexts/DarkModeContext';
 import { BRAND_NAME } from '@/lib/config';
@@ -82,6 +83,7 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
     address: '',
     password: ''
   });
+  const [isClearingCache, setIsClearingCache] = useState(false);
   // Remove unused PWA state since we're using props from layout
 
   // Track screen size with debouncing
@@ -226,6 +228,47 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
   const closeProfileDropdown = useCallback(() => {
     setIsProfileDropdownOpen(false);
   }, []);
+
+  const handleClearCacheAndRefresh = useCallback(async () => {
+    setIsClearingCache(true);
+    closeProfileDropdown();
+    
+    try {
+      // Clear all localStorage except authentication data
+      const token = localStorage.getItem('token');
+      const user = localStorage.getItem('user');
+      const darkMode = localStorage.getItem('darkMode');
+      
+      // Clear all localStorage
+      localStorage.clear();
+      
+      // Restore essential data
+      if (token) localStorage.setItem('token', token);
+      if (user) localStorage.setItem('user', user);
+      if (darkMode) localStorage.setItem('darkMode', darkMode);
+      
+      // Clear sessionStorage
+      sessionStorage.clear();
+      
+      // Clear cookies (if any)
+      document.cookie.split(";").forEach((c) => {
+        const eqPos = c.indexOf("=");
+        const name = eqPos > -1 ? c.substr(0, eqPos) : c;
+        document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+        document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + window.location.hostname;
+      });
+      
+      // Clear browser cache by reloading with cache-busting
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+      
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+      // Fallback: just reload the page
+      window.location.reload();
+    }
+  }, [closeProfileDropdown]);
 
   const handleSaveField = useCallback(async (field: string, value: string) => {
     try {
@@ -572,6 +615,28 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
                         isDarkMode ? 'border-slate-700' : 'border-gray-200'
                       }`}>
                         <button
+                          onClick={handleClearCacheAndRefresh}
+                          disabled={isClearingCache}
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
+                            isClearingCache
+                              ? isDarkMode 
+                                ? 'text-gray-500 cursor-not-allowed' 
+                                : 'text-gray-400 cursor-not-allowed'
+                              : isDarkMode 
+                                ? 'text-cyan-400 hover:bg-cyan-500/10' 
+                                : 'text-cyan-600 hover:bg-cyan-50'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2">
+                            {isClearingCache ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                            ) : (
+                              <ArrowPathIcon className="h-4 w-4" />
+                            )}
+                            <span>{isClearingCache ? 'Clearing Cache...' : 'Clear Cache & Refresh'}</span>
+                          </div>
+                        </button>
+                        <button
                           onClick={() => {
                             closeProfileDropdown();
                             // Clear session and redirect to login for account change
@@ -859,6 +924,28 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
                       <div className={`border-t transition-colors duration-300 ${
                         isDarkMode ? 'border-slate-700' : 'border-gray-200'
                       }`}>
+                        <button
+                          onClick={handleClearCacheAndRefresh}
+                          disabled={isClearingCache}
+                          className={`w-full text-left px-3 py-2 text-sm transition-colors duration-200 ${
+                            isClearingCache
+                              ? isDarkMode 
+                                ? 'text-gray-500 cursor-not-allowed' 
+                                : 'text-gray-400 cursor-not-allowed'
+                              : isDarkMode 
+                                ? 'text-cyan-400 hover:bg-cyan-500/10' 
+                                : 'text-cyan-600 hover:bg-cyan-50'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2">
+                            {isClearingCache ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                            ) : (
+                              <ArrowPathIcon className="h-4 w-4" />
+                            )}
+                            <span>{isClearingCache ? 'Clearing Cache...' : 'Clear Cache & Refresh'}</span>
+                          </div>
+                        </button>
                         <button
                           onClick={() => {
                             closeProfileDropdown();
