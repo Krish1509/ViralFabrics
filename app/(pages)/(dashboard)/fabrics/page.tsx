@@ -177,6 +177,7 @@ export default function FabricsPage() {
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const [retryCount, setRetryCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [isChangingPage, setIsChangingPage] = useState(false);
 
   // Helper function to sort fabrics based on sort criteria
   const sortFabrics = (fabrics: Fabric[], sortBy: string, sortOrder: string) => {
@@ -259,6 +260,7 @@ export default function FabricsPage() {
       const limitValue = limit === 'All' ? 1000 : limit;
       params.append('limit', limitValue.toString());
       params.append('page', page.toString());
+      params.append('groupByQuality', 'true'); // Enable quality code pagination
       
       const token = localStorage.getItem('token');
       const response = await fetch(`/api/fabrics?${params}`, {
@@ -336,31 +338,62 @@ export default function FabricsPage() {
     }
   };
 
-  // Pagination handlers - Instant page change without loading
+  // Enhanced pagination handler with bulletproof error handling and loading states
   const handlePageChange = async (newPage: number) => {
-    if (newPage === currentPage) return;
-    
-    // Validate page number
-    if (newPage < 1 || newPage > totalPages) {
+    // Prevent duplicate calls
+    if (newPage === currentPage || isChangingPage) {
       return;
     }
     
-    // Instant page change - no loading states
-    setCurrentPage(newPage);
+    // Validate page number with strict bounds checking
+    if (newPage < 1 || newPage > totalPages || totalPages === 0) {
+      return;
+    }
     
-    // Fetch data in background without showing loading
-    fetchFabrics(false, newPage, itemsPerPage, 0, false);
+    // Set loading states immediately for smooth UX
+    setIsChangingPage(true);
+    
+    try {
+      // Update current page state immediately for responsive UI
+      setCurrentPage(newPage);
+      
+      // Fetch new page data with timeout protection
+      await fetchFabrics(false, newPage, itemsPerPage, 0, false);
+    } catch (error) {
+      console.error('❌ Page change failed:', error);
+      // Revert page state on error
+      setCurrentPage(currentPage);
+    } finally {
+      // Always clean up loading states
+      setIsChangingPage(false);
+    }
   };
 
   const handleItemsPerPageChange = async (newItemsPerPage: number | 'All') => {
-    if (newItemsPerPage === itemsPerPage) return;
+    if (newItemsPerPage === itemsPerPage) {
+      return;
+    }
     
-    // Update state first
-    setItemsPerPage(newItemsPerPage);
-    setCurrentPage(1); // Always reset to first page when changing items per page
+    if (isChangingPage) {
+      // Don't return, just wait a bit and try again
+      setTimeout(() => handleItemsPerPageChange(newItemsPerPage), 100);
+      return;
+    }
     
-    // Then fetch new data without loading
-    await fetchFabrics(false, 1, newItemsPerPage, 0, false);
+    // Set loading states immediately
+    setIsChangingPage(true);
+    
+    try {
+      // Update state first
+      setItemsPerPage(newItemsPerPage);
+      setCurrentPage(1); // Always reset to first page when changing items per page
+      
+      // Fetch first page with new items per page - force refresh to ensure fresh data
+      await fetchFabrics(false, 1, newItemsPerPage, 0, false);
+    } finally {
+      // Always clean up loading states
+      setIsChangingPage(false);
+    }
   };
 
   // Fetch quality names for filter
@@ -1124,19 +1157,12 @@ export default function FabricsPage() {
     return [...fabrics]; // Server already sends filtered and sorted data
   }, [fabrics]);
 
-  // Pagination calculations
+  // Pagination calculations - now using server-side quality code pagination
   const totalQualityGroups = useMemo(() => {
-    // Count unique quality groups from filtered fabrics
-    const groups = filteredAndSortedFabrics.reduce((groups, fabric) => {
-      const key = `${fabric.qualityCode}-${fabric.qualityName}`;
-      if (!groups[key]) {
-        groups[key] = [];
-      }
-      groups[key].push(fabric);
-      return groups;
-    }, {} as Record<string, Fabric[]>);
-    return Object.keys(groups).length;
-  }, [filteredAndSortedFabrics]);
+    // Since we're using server-side quality code pagination, 
+    // the total count comes from paginationInfo.totalCount
+    return paginationInfo.totalCount || 0;
+  }, [paginationInfo.totalCount]);
 
   const totalPages = useMemo(() => {
     if (itemsPerPage === 'All') return 1;
@@ -1221,22 +1247,25 @@ export default function FabricsPage() {
     setBulkActions(false);
   };
 
-  // Skeleton loading component
+  // Enhanced skeleton loading component with smooth animations
   const SkeletonCard = () => (
-    <div className={` rounded-lg border animate-pulse ${
-      isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+    <div className={`rounded-lg border animate-pulse transition-all duration-300 ease-in-out ${
+      isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white/80 border-gray-200'
     }`}>
-      <div className="flex items-center space-x-4">
-        <div className={`w-16 h-16 rounded-lg ${
-          isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+      <div className="flex items-center space-x-4 p-4">
+        <div className={`w-16 h-16 rounded-lg animate-pulse ${
+          isDarkMode ? 'bg-gradient-to-br from-gray-700 to-gray-600' : 'bg-gradient-to-br from-gray-200 to-gray-100'
         }`}></div>
-        <div className="flex-1 space-y-2">
-          <div className={`h-4 rounded ${
-            isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+        <div className="flex-1 space-y-3">
+          <div className={`h-4 rounded animate-pulse ${
+            isDarkMode ? 'bg-gradient-to-r from-gray-700 to-gray-600' : 'bg-gradient-to-r from-gray-200 to-gray-100'
           }`} style={{ width: '60%' }}></div>
-          <div className={`h-3 rounded ${
-            isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+          <div className={`h-3 rounded animate-pulse ${
+            isDarkMode ? 'bg-gradient-to-r from-gray-700 to-gray-600' : 'bg-gradient-to-r from-gray-200 to-gray-100'
           }`} style={{ width: '40%' }}></div>
+          <div className={`h-3 rounded animate-pulse ${
+            isDarkMode ? 'bg-gradient-to-r from-gray-700 to-gray-600' : 'bg-gradient-to-r from-gray-200 to-gray-100'
+          }`} style={{ width: '30%' }}></div>
         </div>
       </div>
     </div>
@@ -1399,7 +1428,7 @@ export default function FabricsPage() {
             <button
               onClick={() => fetchFabrics(true, currentPage, itemsPerPage, 0, true)}
               disabled={loading}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md ${
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 shadow-sm hover:shadow-md hover:scale-105 ${
                 loading ? 'opacity-50 cursor-not-allowed' : ''
               } ${
                 isDarkMode 
@@ -1408,7 +1437,7 @@ export default function FabricsPage() {
               }`}
               title="Refresh Data"
             >
-              <ArrowPathIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              <ArrowPathIcon className={`h-4 w-4 transition-transform duration-300 ${loading ? 'animate-spin' : 'hover:rotate-180'}`} />
             </button>
           </div>
         </div>
@@ -1469,46 +1498,64 @@ export default function FabricsPage() {
         isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
       } shadow-lg`}>
         {loading ? (
-          <div>
+          <div className="animate-in fade-in-0 slide-in-from-top-4 duration-500">
             {viewMode === 'cards' ? (
-              // Card View Skeleton - Improved
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              // Card View Skeleton - Enhanced with smooth animations
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 p-4">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div key={i} className={`p-4 sm:p-5 rounded-xl border ${
+                  <div key={i} className={`p-4 sm:p-5 rounded-xl border transition-all duration-300 ease-in-out ${
                     isDarkMode ? 'bg-slate-800/50 border-slate-600' : 'bg-white border-gray-200'
-                  } animate-pulse shadow-sm`}>
-                    {/* Image skeleton */}
-                    <div className={`w-full h-36 sm:h-40 lg:h-44 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-100'} rounded-lg mb-4`}></div>
+                  } animate-pulse shadow-sm hover:shadow-md`} style={{ animationDelay: `${i * 100}ms` }}>
+                    {/* Image skeleton with gradient */}
+                    <div className={`w-full h-36 sm:h-40 lg:h-44 rounded-lg mb-4 animate-pulse ${
+                      isDarkMode ? 'bg-gradient-to-br from-slate-700 to-slate-600' : 'bg-gradient-to-br from-gray-200 to-gray-100'
+                    }`}></div>
                     
-                    {/* Quality info skeleton */}
-                    <div className="mb-3">
-                      <div className={`w-2/3 h-4 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'} rounded mb-2`}></div>
-                      <div className={`w-1/2 h-3 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'} rounded`}></div>
+                    {/* Quality info skeleton with smooth gradients */}
+                    <div className="mb-3 space-y-2">
+                      <div className={`w-2/3 h-4 rounded animate-pulse ${
+                        isDarkMode ? 'bg-gradient-to-r from-slate-700 to-slate-600' : 'bg-gradient-to-r from-gray-200 to-gray-100'
+                      }`}></div>
+                      <div className={`w-1/2 h-3 rounded animate-pulse ${
+                        isDarkMode ? 'bg-gradient-to-r from-slate-700 to-slate-600' : 'bg-gradient-to-r from-gray-200 to-gray-100'
+                      }`}></div>
                     </div>
                     
-                    {/* Weavers section skeleton */}
-                    <div className={`p-3 rounded-lg border ${
+                    {/* Weavers section skeleton with enhanced styling */}
+                    <div className={`p-3 rounded-lg border transition-all duration-300 ${
                       isDarkMode ? 'bg-slate-700/30 border-slate-600' : 'bg-gray-50 border-gray-200'
                     }`}>
-                      <div className={`w-1/3 h-3 ${isDarkMode ? 'bg-slate-600' : 'bg-gray-200'} rounded mb-2`}></div>
+                      <div className={`w-1/3 h-3 rounded mb-2 animate-pulse ${
+                        isDarkMode ? 'bg-gradient-to-r from-slate-600 to-slate-500' : 'bg-gradient-to-r from-gray-200 to-gray-100'
+                      }`}></div>
                       <div className="space-y-2">
-                        <div className={`w-full h-8 ${isDarkMode ? 'bg-slate-600' : 'bg-gray-200'} rounded`}></div>
-                        <div className={`w-3/4 h-8 ${isDarkMode ? 'bg-slate-600' : 'bg-gray-200'} rounded`}></div>
+                        <div className={`w-full h-8 rounded animate-pulse ${
+                          isDarkMode ? 'bg-gradient-to-r from-slate-600 to-slate-500' : 'bg-gradient-to-r from-gray-200 to-gray-100'
+                        }`}></div>
+                        <div className={`w-3/4 h-8 rounded animate-pulse ${
+                          isDarkMode ? 'bg-gradient-to-r from-slate-600 to-slate-500' : 'bg-gradient-to-r from-gray-200 to-gray-100'
+                        }`}></div>
                       </div>
                     </div>
                     
-                    {/* Actions skeleton */}
+                    {/* Actions skeleton with smooth gradients */}
                     <div className="mt-4 flex space-x-2">
-                      <div className={`flex-1 h-8 ${isDarkMode ? 'bg-slate-600' : 'bg-gray-200'} rounded`}></div>
-                      <div className={`flex-1 h-8 ${isDarkMode ? 'bg-slate-600' : 'bg-gray-200'} rounded`}></div>
-                      <div className={`flex-1 h-8 ${isDarkMode ? 'bg-slate-600' : 'bg-gray-200'} rounded`}></div>
+                      <div className={`flex-1 h-8 rounded animate-pulse ${
+                        isDarkMode ? 'bg-gradient-to-r from-slate-600 to-slate-500' : 'bg-gradient-to-r from-gray-200 to-gray-100'
+                      }`}></div>
+                      <div className={`flex-1 h-8 rounded animate-pulse ${
+                        isDarkMode ? 'bg-gradient-to-r from-slate-600 to-slate-500' : 'bg-gradient-to-r from-gray-200 to-gray-100'
+                      }`}></div>
+                      <div className={`flex-1 h-8 rounded animate-pulse ${
+                        isDarkMode ? 'bg-gradient-to-r from-slate-600 to-slate-500' : 'bg-gradient-to-r from-gray-200 to-gray-100'
+                      }`}></div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              // Table View Skeleton - Improved
-              <div className="p-4">
+              // Table View Skeleton - Enhanced with smooth animations
+              <div className="p-4 animate-in fade-in-0 slide-in-from-top-4 duration-500">
             <div className="overflow-x-auto">
                   <table className="w-full min-w-[800px]">
                 <thead className={`${
@@ -1519,7 +1566,9 @@ export default function FabricsPage() {
                           <th key={i} className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
                             isDarkMode ? 'text-slate-300' : 'text-gray-500'
                       }`}>
-                            <div className={`w-16 h-3 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+                            <div className={`w-16 h-3 rounded animate-pulse ${
+                              isDarkMode ? 'bg-gradient-to-r from-slate-700 to-slate-600' : 'bg-gradient-to-r from-gray-200 to-gray-100'
+                            }`}></div>
                       </th>
                     ))}
                   </tr>
@@ -1530,12 +1579,16 @@ export default function FabricsPage() {
                   {[1, 2, 3, 4, 5].map((row) => (
                         <tr key={row} className={`${
                           isDarkMode ? 'bg-slate-800/30 hover:bg-slate-700/40' : 'bg-white hover:bg-gray-50'
-                    } transition-all duration-300 ease-in-out`}>
+                    } transition-all duration-300 ease-in-out`} style={{ animationDelay: `${row * 100}ms` }}>
                           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((cell) => (
                             <td key={cell} className="px-4 py-4">
                               <div className="space-y-2">
-                                <div className={`w-20 h-3 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
-                                <div className={`w-16 h-3 ${isDarkMode ? 'bg-slate-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
+                                <div className={`w-20 h-3 rounded animate-pulse ${
+                                  isDarkMode ? 'bg-gradient-to-r from-slate-700 to-slate-600' : 'bg-gradient-to-r from-gray-200 to-gray-100'
+                                }`}></div>
+                                <div className={`w-16 h-3 rounded animate-pulse ${
+                                  isDarkMode ? 'bg-gradient-to-r from-slate-700 to-slate-600' : 'bg-gradient-to-r from-gray-200 to-gray-100'
+                                }`}></div>
                               </div>
                         </td>
                       ))}
@@ -1600,15 +1653,15 @@ export default function FabricsPage() {
             }`}>
               <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:items-center sm:space-x-3 lg:space-x-4">
                 <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <span className="hidden sm:inline">Showing {paginationInfo.totalCount > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage) + 1 : 0} to{' '}
-                  {Math.min(currentPage * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage), paginationInfo.totalCount)} of{' '}
-                  {paginationInfo.totalCount} fabrics</span>
-                  <span className="sm:hidden">{paginationInfo.totalCount > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage) + 1 : 0}-{Math.min(currentPage * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage), paginationInfo.totalCount)} of {paginationInfo.totalCount}</span>
+        <span className="hidden sm:inline">Showing {paginationInfo.totalCount > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage) + 1 : 0} to{' '}
+        {Math.min(currentPage * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage), paginationInfo.totalCount)} of{' '}
+        {paginationInfo.totalCount} weavers</span>
+                  <span className="sm:hidden">{paginationInfo.totalCount > 0 ? (currentPage - 1) * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage) + 1 : 0}-{Math.min(currentPage * (itemsPerPage === 'All' ? paginationInfo.totalCount : itemsPerPage), paginationInfo.totalCount)} of {paginationInfo.totalCount} weavers</span>
                 </span>
                 
                 {/* Items per page dropdown */}
                 <div className="flex items-center space-x-2">
-                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Show:</span>
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Weavers per page:</span>
                   <select
                     value={itemsPerPage}
                     onChange={(e) => {
@@ -1634,64 +1687,197 @@ export default function FabricsPage() {
                 <div className="flex items-center space-x-1 sm:space-x-2">
                   <button
                     onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
+                    disabled={currentPage === 1 || isChangingPage || loading}
                     className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow-md ${
-                      currentPage === 1
+                      currentPage === 1 || isChangingPage || loading
                         ? isDarkMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                         : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
                     }`}
                   >
-                    <span className="hidden sm:inline">Previous</span>
-                    <span className="sm:hidden">Prev</span>
+                    {isChangingPage ? (
+                      <span className="flex items-center space-x-2">
+                        <div className={`animate-spin rounded-full h-3 w-3 border-b-2 ${
+                          isDarkMode ? 'border-slate-400' : 'border-slate-600'
+                        }`}></div>
+                        <span className="hidden sm:inline">Loading...</span>
+                        <span className="sm:hidden">...</span>
+                      </span>
+                    ) : (
+                      <>
+                        <span className="hidden sm:inline">Previous</span>
+                        <span className="sm:hidden">Prev</span>
+                      </>
+                    )}
                   </button>
                   
-                  {/* Top Page numbers */}
+                  {/* Smart Page numbers */}
                   <div className="flex items-center space-x-1">
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNum;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
+                    {(() => {
+                      const pages = [];
+                      
+                      if (totalPages <= 7) {
+                        // Show all pages if 7 or fewer
+                        for (let i = 1; i <= totalPages; i++) {
+                          pages.push(
+                            <button
+                              key={i}
+                              onClick={() => handlePageChange(i)}
+                              disabled={isChangingPage || loading}
+                              className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-all duration-200 hover:scale-105 ${
+                                currentPage === i
+                                    ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                    : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
+                              } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              {i}
+                            </button>
+                          );
+                        }
                       } else {
-                        pageNum = currentPage - 2 + i;
+                        // Smart pagination for more than 7 pages
+                        
+                        // Always show first page
+                        pages.push(
+                          <button
+                            key={1}
+                            onClick={() => handlePageChange(1)}
+                            disabled={isChangingPage || loading}
+                            className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                              currentPage === 1
+                                  ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                  : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
+                            } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            1
+                          </button>
+                        );
+                        
+                        if (currentPage <= 4) {
+                          // Show: 1, 2, 3, 4, 5, ..., last
+                          for (let i = 2; i <= 5; i++) {
+                            pages.push(
+                              <button
+                                key={i}
+                                onClick={() => handlePageChange(i)}
+                                disabled={isChangingPage || loading}
+                                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                                  currentPage === i
+                                      ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                      : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
+                                } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                {i}
+                              </button>
+                            );
+                          }
+                          pages.push(
+                            <span key="ellipsis1" className={`px-2 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                              ...
+                            </span>
+                          );
+                        } else if (currentPage >= totalPages - 3) {
+                          // Show: 1, ..., last-4, last-3, last-2, last-1, last
+                          pages.push(
+                            <span key="ellipsis1" className={`px-2 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                              ...
+                            </span>
+                          );
+                          for (let i = totalPages - 4; i <= totalPages; i++) {
+                            pages.push(
+                              <button
+                                key={i}
+                                onClick={() => handlePageChange(i)}
+                                disabled={isChangingPage || loading}
+                                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                                  currentPage === i
+                                      ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                      : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
+                                } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                {i}
+                              </button>
+                            );
+                          }
+                        } else {
+                          // Show: 1, ..., current-1, current, current+1, ..., last
+                          pages.push(
+                            <span key="ellipsis1" className={`px-2 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                              ...
+                            </span>
+                          );
+                          for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+                            pages.push(
+                              <button
+                                key={i}
+                                onClick={() => handlePageChange(i)}
+                                disabled={isChangingPage || loading}
+                                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                                  currentPage === i
+                                      ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                      : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
+                                } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                {i}
+                              </button>
+                            );
+                          }
+                          pages.push(
+                            <span key="ellipsis2" className={`px-2 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                              ...
+                            </span>
+                          );
+                        }
+                        
+                        // Always show last page (if not already shown)
+                        if (currentPage < totalPages - 3) {
+                          pages.push(
+                            <button
+                              key={totalPages}
+                              onClick={() => handlePageChange(totalPages)}
+                              disabled={isChangingPage || loading}
+                              className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                                currentPage === totalPages
+                                    ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
+                                    : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
+                              } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              {totalPages}
+                            </button>
+                          );
+                        }
                       }
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => handlePageChange(pageNum)}
-                          className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow-md ${
-                            currentPage === pageNum
-                              ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
-                              : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
+                      
+                      return pages;
+                    })()}
                   </div>
                   
                   <button
                     onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
+                    disabled={currentPage === totalPages || isChangingPage || loading}
                     className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow-md ${
-                      currentPage === totalPages
+                      currentPage === totalPages || isChangingPage || loading
                         ? isDarkMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                         : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
                     }`}
                   >
-                    Next
+                    {isChangingPage ? (
+                      <span className="flex items-center space-x-2">
+                        <div className={`animate-spin rounded-full h-3 w-3 border-b-2 ${
+                          isDarkMode ? 'border-slate-400' : 'border-slate-600'
+                        }`}></div>
+                        <span>Loading...</span>
+                      </span>
+                    ) : (
+                      'Next'
+                    )}
                   </button>
                 </div>
               )}
             </div>
 
-          <div className="p-4">
+          <div className="p-4 animate-in fade-in-0 slide-in-from-top-4 duration-700">
             {viewMode === 'cards' ? (
-              // Card View
+              // Card View with smooth animations
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {(() => {
                   // Group fabrics by qualityCode for card view while preserving sort order
@@ -1721,7 +1907,7 @@ export default function FabricsPage() {
                     const itemsToShow = isExpanded ? fabrics : fabrics.slice(0, 1);
                     
                     return (
-                      <div key={qualityCode} className={`rounded-lg sm:rounded-xl border ${
+                      <div key={qualityCode} className={`rounded-lg sm:rounded-xl border transition-all duration-300 ease-in-out hover:shadow-lg hover:scale-[1.02] ${
                         isDarkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-blue-50 border-blue-300'
                       }`}>
                         {/* Image Section - Responsive with Touch Support */}
@@ -2161,8 +2347,8 @@ export default function FabricsPage() {
                 })()}
               </div>
             ) : (
-              // Table View
-            <div className="overflow-x-auto">
+              // Table View with smooth animations
+            <div className="overflow-x-auto animate-in fade-in-0 slide-in-from-top-4 duration-700">
               <table className="w-full min-w-[600px] sm:min-w-[800px]">
                 <thead className={`${
                   isDarkMode ? 'bg-gradient-to-r from-slate-800/80 to-slate-700/80 border-b border-slate-600' : 'bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-300'
@@ -2251,7 +2437,7 @@ export default function FabricsPage() {
                       return (
                         <tr key={qualityCode} className={`hover:${
                           isDarkMode ? 'bg-gray-700/40' : 'bg-gray-100/90'
-                        } transition-all duration-300 ease-in-out border-b ${
+                        } transition-all duration-300 ease-in-out border-b hover:shadow-sm hover:scale-[1.01] ${
                           isDarkMode ? 'border-gray-600' : 'border-gray-300'
                         }`}>
                           {/* Quality Information */}
@@ -2574,17 +2760,17 @@ export default function FabricsPage() {
         )}
       </div>
 
-          {/* Bottom Pagination Controls */}
-          {itemsPerPage !== 'All' && totalPages > 1 && (
+          {/* Bottom Pagination Controls - removed, using top pagination only */}
+          {false && (
             <div className={`px-3 sm:px-4 py-2 sm:py-3 border-t flex justify-center items-center ${
               isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
             }`}>
             <div className="flex items-center space-x-1 sm:space-x-2">
               <button
                 onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
+                disabled={currentPage === 1 || isChangingPage || loading}
                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md ${
-                  currentPage === 1
+                  currentPage === 1 || isChangingPage || loading
                       ? isDarkMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                       : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
                 }`}
@@ -2611,11 +2797,12 @@ export default function FabricsPage() {
                     <button
                       key={pageNum}
                       onClick={() => handlePageChange(pageNum)}
+                      disabled={isChangingPage || loading}
                         className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow-md ${
                         currentPage === pageNum
                             ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
                             : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
-                      }`}
+                      } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {pageNum}
                     </button>
@@ -2625,9 +2812,9 @@ export default function FabricsPage() {
               
               <button
                 onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
+                disabled={currentPage === totalPages || isChangingPage || loading}
                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md ${
-                  currentPage === totalPages
+                  currentPage === totalPages || isChangingPage || loading
                       ? isDarkMode ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                       : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600 border border-slate-600' : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
                 }`}

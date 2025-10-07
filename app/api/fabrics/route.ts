@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
     const skip = (page - 1) * limit; // Calculate skip value for pagination
     const sortBy = searchParams.get('sortBy') || 'createdAt'; // Default sort field
     const sortOrder = searchParams.get('sortOrder') || 'desc'; // Default sort order
+    const groupByQuality = searchParams.get('groupByQuality') === 'true'; // New parameter for quality code pagination
     
     // Build query
     const query: any = {};
@@ -63,25 +64,95 @@ export async function GET(req: NextRequest) {
       }
     }
     
-    // Get total count for pagination info
-    const totalCount = await Fabric.countDocuments(query).maxTimeMS(5000);
+    let fabrics, totalCount, totalPages, hasNextPage, hasPrevPage;
     
-    // Build sort object dynamically
+    // Build sort object dynamically (needed for both branches)
     const sortObj: any = {};
     sortObj[sortBy] = sortOrder === 'asc' ? 1 : -1;
     
-    // Optimized query with pagination, limits and timeout
-    const fabrics = await Fabric.find(query)
-      .sort(sortObj)
-      .skip(skip)
-      .limit(limit)
-      .lean()
-      .maxTimeMS(5000); // 5 second timeout for reliable loading
-    
-    // Calculate pagination info
-    const totalPages = Math.ceil(totalCount / limit);
-    const hasNextPage = page < totalPages;
-    const hasPrevPage = page > 1;
+    if (groupByQuality) {
+      try {
+        // Quality code pagination - get unique quality codes with their weaver counts
+        const qualityGroups = await Fabric.aggregate([
+          { $match: query },
+          {
+            $group: {
+              _id: { qualityCode: "$qualityCode", qualityName: "$qualityName" },
+              weaverCount: { $sum: 1 },
+              firstCreated: { $min: "$createdAt" },
+              lastCreated: { $max: "$createdAt" },
+              weavers: { $addToSet: "$weaver" }
+            }
+          },
+          {
+            $project: {
+              qualityCode: "$_id.qualityCode",
+              qualityName: "$_id.qualityName",
+              weaverCount: 1,
+              firstCreated: 1,
+              lastCreated: 1,
+              weaverList: "$weavers"
+            }
+          },
+          { $sort: { [sortBy === 'createdAt' ? 'firstCreated' : 'qualityCode']: sortOrder === 'asc' ? 1 : -1 } }
+        ], { maxTimeMS: 5000 });
+        
+        // Get total count of unique quality codes
+        totalCount = qualityGroups.length;
+        
+        // Apply pagination to quality groups
+        const paginatedGroups = qualityGroups.slice(skip, skip + limit);
+        
+        // Get all fabrics for the paginated quality codes
+        const qualityCodes = paginatedGroups.map(group => group.qualityCode);
+        const qualityNames = paginatedGroups.map(group => group.qualityName);
+        
+        fabrics = await Fabric.find({
+          ...query,
+          qualityCode: { $in: qualityCodes },
+          qualityName: { $in: qualityNames }
+        })
+          .sort(sortObj)
+          .lean()
+          .maxTimeMS(5000);
+        
+        // Calculate pagination info for quality codes
+        totalPages = Math.ceil(totalCount / limit);
+        hasNextPage = page < totalPages;
+        hasPrevPage = page > 1;
+      } catch (aggregationError) {
+        console.error('Aggregation failed, falling back to regular pagination:', aggregationError);
+        // Fallback to regular pagination if aggregation fails
+        totalCount = await Fabric.countDocuments(query).maxTimeMS(5000);
+        
+        fabrics = await Fabric.find(query)
+          .sort(sortObj)
+          .skip(skip)
+          .limit(limit)
+          .lean()
+          .maxTimeMS(5000);
+        
+        totalPages = Math.ceil(totalCount / limit);
+        hasNextPage = page < totalPages;
+        hasPrevPage = page > 1;
+      }
+    } else {
+      // Regular pagination - individual fabric records
+      totalCount = await Fabric.countDocuments(query).maxTimeMS(5000);
+      
+      // Optimized query with pagination, limits and timeout
+      fabrics = await Fabric.find(query)
+        .sort(sortObj)
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .maxTimeMS(5000); // 5 second timeout for reliable loading
+      
+      // Calculate pagination info
+      totalPages = Math.ceil(totalCount / limit);
+      hasNextPage = page < totalPages;
+      hasPrevPage = page > 1;
+    }
     
     // Add cache headers for super fast loading
     const headers = {
@@ -98,14 +169,16 @@ export async function GET(req: NextRequest) {
         totalCount,
         limit,
         hasNextPage,
-        hasPrevPage
+        hasPrevPage,
+        groupByQuality: groupByQuality
       }
     }), { status: 200, headers });
     
   } catch (error) {
+    console.error('Error fetching fabrics:', error);
     return new Response(JSON.stringify({ 
       success: false, 
-      message: "Failed to fetch fabrics" 
+      message: `Failed to fetch fabrics: ${error instanceof Error ? error.message : 'Unknown error'}` 
     }), { status: 500 });
   }
 }

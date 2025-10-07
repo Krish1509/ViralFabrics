@@ -292,27 +292,32 @@ export default function CreateFabricPage() {
     });
   };
 
-  // Check if quality code already exists when creating new fabric
+  // Check if quality code already exists (regardless of weaver/weaverQualityName)
   const checkQualityCodeExists = async (qualityCode: string) => {
-    if (!qualityCode.trim() || isEditMode) return; // Skip if editing or empty
+    if (!qualityCode.trim() || isEditMode) {
+      return; // Skip if editing or empty
+    }
 
+    const qualityCodeKey = qualityCode.trim().toLowerCase();
+    
     // Check cache first for instant response
-    const normalizedCode = qualityCode.trim().toLowerCase();
-    if (qualityCodeCache.hasOwnProperty(normalizedCode)) {
-      const exists = qualityCodeCache[normalizedCode];
+    if (qualityCodeCache.hasOwnProperty(qualityCodeKey)) {
+      const exists = qualityCodeCache[qualityCodeKey];
       if (exists) {
-        // Quality code exists - this is OK, just show info message
-        setErrors(prev => ({ ...prev, qualityCode: '' })); // Clear error
-        setIsQualityCodeValid(true); // Mark as valid
-        showValidationMessage('info', `Quality code "${qualityCode}" exists. You can add new items to this quality code.`);
+        // Quality code exists - show error and block submission
+        setErrors(prev => ({ ...prev, [`items.0.qualityCode`]: 'Quality code already exists' }));
+        setIsQualityCodeValid(false); // Mark as invalid
+        showValidationMessage('warning', `Quality code "${qualityCode}" already exists. Please use a different code or create a new unique quality code.`);
       } else {
-        setErrors(prev => ({ ...prev, qualityCode: '' }));
+        setErrors(prev => ({ ...prev, [`items.0.qualityCode`]: '' }));
         setIsQualityCodeValid(true);
+        showValidationMessage('success', `Quality code "${qualityCode}" is new and available.`);
       }
       return;
     }
     
     setCheckingQualityCode(true);
+    
     try {
       // Use a more specific endpoint and add timeout
       const controller = new AbortController();
@@ -340,34 +345,38 @@ export default function CreateFabricPage() {
         );
         
         if (exactMatch) {
-          // Quality code already exists - this is OK, just show info message
-          setQualityCodeCache(prev => ({ ...prev, [normalizedCode]: true }));
-          setErrors(prev => ({ ...prev, qualityCode: '' })); // Clear error
-          setIsQualityCodeValid(true); // Mark as valid
-          showValidationMessage('info', `Quality code "${qualityCode}" exists. You can add new items to this quality code.`);
+          // Quality code already exists - show error and block submission
+          setQualityCodeCache(prev => ({ ...prev, [qualityCodeKey]: true }));
+          setErrors(prev => ({ ...prev, [`items.0.qualityCode`]: 'Quality code already exists' }));
+          setIsQualityCodeValid(false); // Mark as invalid
+          showValidationMessage('warning', `Quality code "${qualityCode}" already exists. Please use a different code or create a new unique quality code.`);
         } else {
           // Quality code is unique, clear any existing error
-          setQualityCodeCache(prev => ({ ...prev, [normalizedCode]: false }));
-          setErrors(prev => ({ ...prev, qualityCode: '' }));
+          setQualityCodeCache(prev => ({ ...prev, [qualityCodeKey]: false }));
+          setErrors(prev => ({ ...prev, [`items.0.qualityCode`]: '' }));
           setIsQualityCodeValid(true);
+          showValidationMessage('success', `Quality code "${qualityCode}" is new and available.`);
         }
       } else {
         // API didn't return expected data structure, assume it's valid
-        setQualityCodeCache(prev => ({ ...prev, [normalizedCode]: false }));
-        setErrors(prev => ({ ...prev, qualityCode: '' }));
+        setQualityCodeCache(prev => ({ ...prev, [qualityCodeKey]: false }));
+        setErrors(prev => ({ ...prev, [`items.0.qualityCode`]: '' }));
         setIsQualityCodeValid(true);
+        showValidationMessage('success', `Quality code "${qualityCode}" is new and available.`);
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
         // Request timed out, assume it's valid to avoid blocking the user
-        setQualityCodeCache(prev => ({ ...prev, [normalizedCode]: false }));
-        setErrors(prev => ({ ...prev, qualityCode: '' }));
+        setQualityCodeCache(prev => ({ ...prev, [qualityCodeKey]: false }));
+        setErrors(prev => ({ ...prev, [`items.0.qualityCode`]: '' }));
         setIsQualityCodeValid(true);
+        showValidationMessage('success', `Quality code "${qualityCode}" is new and available.`);
       } else {
         // Other error, assume it's valid to avoid blocking the user
-        setQualityCodeCache(prev => ({ ...prev, [normalizedCode]: false }));
-        setErrors(prev => ({ ...prev, qualityCode: '' }));
+        setQualityCodeCache(prev => ({ ...prev, [qualityCodeKey]: false }));
+        setErrors(prev => ({ ...prev, [`items.0.qualityCode`]: '' }));
         setIsQualityCodeValid(true);
+        showValidationMessage('success', `Quality code "${qualityCode}" is new and available.`);
       }
     } finally {
       setCheckingQualityCode(false);
@@ -405,12 +414,12 @@ export default function CreateFabricPage() {
     // Only check in create mode, not edit mode (to avoid annoying validations)
     if (field === 'qualityCode' && value.trim() && !isEditMode) {
       // Clear any existing error first
-      setErrors(prev => ({ ...prev, qualityCode: '' }));
+      setErrors(prev => ({ ...prev, [`items.0.qualityCode`]: '' }));
       
-      // Faster debounce - check after 300ms instead of 1000ms
+      // Faster debounce - check after 300ms
       setTimeout(() => {
         if (value.trim() === formData.items[0]?.qualityCode) {
-        checkQualityCodeExists(value);
+          checkQualityCodeExists(value);
         }
       }, 300);
     }
@@ -801,7 +810,7 @@ export default function CreateFabricPage() {
     const qualityName = formData.items[0]?.qualityName?.trim();
     
     if (!qualityCode) {
-      newErrors.qualityCode = 'Quality Code is required';
+      newErrors[`items.0.qualityCode`] = 'Quality Code is required';
     }
     
     if (!qualityName) {
@@ -818,6 +827,11 @@ export default function CreateFabricPage() {
         newErrors[`items.${index}.weaverQualityName`] = 'Weaver Quality Name is required';
       }
     });
+    
+    // Check if quality code validation failed
+    if (errors[`items.0.qualityCode`] && errors[`items.0.qualityCode`].includes('already exists')) {
+      newErrors[`items.0.qualityCode`] = errors[`items.0.qualityCode`];
+    }
     
     return newErrors;
   };
@@ -1427,13 +1441,13 @@ export default function CreateFabricPage() {
                       checkQualityCodeExists(e.target.value);
                     } else {
                       // Clear error if field is empty
-                      setErrors(prev => ({ ...prev, qualityCode: '' }));
+                      setErrors(prev => ({ ...prev, [`items.0.qualityCode`]: '' }));
                     }
                   }}
                   placeholder="e.g., 1001-WL"
                   disabled={loading}
                     className={`w-full p-2 sm:p-3 pr-10 rounded-lg border transition-all duration-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-sm sm:text-base ${
-                    errors.qualityCode 
+                    errors[`items.0.qualityCode`] 
                       ? 'border-red-500 focus:ring-red-400' 
                       : isQualityCodeValid 
                         ? 'border-green-500 focus:ring-green-400' 
@@ -1471,7 +1485,7 @@ export default function CreateFabricPage() {
                       </svg>
                     </div>
                   )}
-                  {errors.qualityCode && !checkingQualityCode && (
+                  {errors[`items.0.qualityCode`] && !checkingQualityCode && (
                     <div className="absolute right-3 top-3" title="Quality code error">
                       <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1479,11 +1493,11 @@ export default function CreateFabricPage() {
                     </div>
                   )}
                 </div>
-                 {errors.qualityCode && (
+                 {errors[`items.0.qualityCode`] && (
                    <div className="mt-2 p-2 sm:p-3 bg-red-900/20 border border-red-500/30 rounded-lg animate-in slide-in-from-top-2">
                      <p className="text-red-400 text-xs sm:text-sm flex items-center">
                        <XMarkIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
-                       <span className="flex-1">{errors.qualityCode}</span>
+                       <span className="flex-1">{errors[`items.0.qualityCode`]}</span>
                      </p>
                    </div>
                  )}
