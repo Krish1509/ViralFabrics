@@ -11,6 +11,7 @@ import {
   TrashIcon,
   ChevronDownIcon
 } from '@heroicons/react/24/outline';
+import { FileText } from 'lucide-react';
 import { Order } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { createPortal } from 'react-dom';
@@ -642,12 +643,19 @@ export default function DispatchForm({
   const [currentQualitySearch, setCurrentQualitySearch] = useState('');
   const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
 
-  // Load existing dispatch data when form opens (optimized for immediate display)
+  // Load existing dispatch data when form opens (smart logic)
   useEffect(() => {
     console.log('🔄 DispatchForm useEffect triggered:', { isOpen, orderId: order?.orderId, existingDispatchesLength: existingDispatches?.length });
     
     if (isOpen && order?.orderId) {
       console.log('📋 Form opened, starting data loading process...');
+      
+      // Smart logic: Use isEditing prop to determine if we should fetch data
+      console.log('🔍 Dispatch Smart Logic:', {
+        isEditing,
+        willFetchData: isEditing,
+        orderId: order.orderId
+      });
       
       // Reset states but don't reset form data yet - let API call determine what to show
       setErrors({});
@@ -659,19 +667,23 @@ export default function DispatchForm({
       setLoadingExistingData(true);
       setHasExistingData(false);
       
-      // Always fetch fresh data from API when form opens
-      console.log('🔄 Form opened - fetching fresh dispatch data from API...');
-      console.log('🔄 Order details:', { orderId: order.orderId, order: order });
-      
-      // Use setTimeout to ensure state updates are processed before API call
-      setTimeout(() => {
-      fetchExistingDispatchData();
-      }, 100);
+      // Smart API logic:
+      // - If isEditing is true → Fetch API (edit mode)
+      // - If isEditing is false → Skip API call (add mode)
+      if (isEditing) {
+        console.log('📊 Edit mode detected - fetching existing dispatch data');
+        setTimeout(() => {
+          fetchExistingDispatchData();
+        }, 100);
+      } else {
+        console.log('⚡ Add mode detected - skipping API call');
+        setLoadingExistingData(false);
+      }
     } else if (!isOpen) {
       // Reset loading state when form is closed
       setLoadingExistingData(false);
     }
-  }, [isOpen, order?.orderId]);
+  }, [isOpen, order?.orderId, isEditing]);
 
   // Update quality search states when qualities are loaded and form data exists
   useEffect(() => {
@@ -1819,6 +1831,8 @@ export default function DispatchForm({
                 </span>
               </div>
             </div>
+            
+            
             <button
               onClick={onClose}
               className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${

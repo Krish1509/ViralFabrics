@@ -15,6 +15,7 @@ import {
   ChevronUpIcon,
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
+import { FileText } from 'lucide-react';
 import { Order, Mill, Quality } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { createPortal } from 'react-dom';
@@ -826,18 +827,24 @@ export default function MillInputForm({
     }
   }, [mills, localMills.length]);
 
-  // Load existing data when form opens (optimized for immediate display)
+  // Load existing data when form opens (smart logic)
   useEffect(() => {
     console.log('🔄 MillInputForm useEffect triggered:', { 
       isOpen, 
       orderId: order?.orderId, 
       existingMillInputsCount: existingMillInputs?.length,
-      isEditing 
+      isEditing
     });
     
     if (isOpen && order?.orderId) {
       console.log('📋 Form opened, starting data loading process...');
-      console.log('Form mode from prop:', isEditing ? 'EDIT' : 'ADD');
+      
+      // Smart logic: Use isEditing prop to determine if we should fetch data
+      console.log('🔍 Mill Input Smart Logic:', {
+        isEditing,
+        willFetchData: isEditing,
+        orderId: order.orderId
+      });
       
       // Reset states but don't reset form data yet - let API call determine what to show
       setLocalMillInputs([]);
@@ -850,20 +857,24 @@ export default function MillInputForm({
       setHasExistingData(false);
       setLoadingExistingData(true);
       
-      // Always fetch fresh data from API when form opens
-      console.log('🔄 Form opened - fetching fresh mill input data from API...');
-      console.log('🔄 Order details:', { orderId: order.orderId, order: order });
-      
-      // Use setTimeout to ensure state updates are processed before API call
-      setTimeout(() => {
-      fetchExistingMillInputData();
-      }, 100);
+      // Smart API logic:
+      // - If isEditing is true → Fetch API (edit mode)
+      // - If isEditing is false → Skip API call (add mode)
+      if (isEditing) {
+        console.log('📊 Edit mode detected - fetching existing mill input data');
+        setTimeout(() => {
+          fetchExistingMillInputData();
+        }, 100);
+      } else {
+        console.log('⚡ Add mode detected - skipping API call');
+        setLoadingExistingData(false);
+      }
     } else if (!isOpen) {
       // Reset loading state when form is closed
       setHasExistingData(false);
       setLoadingExistingData(false);
     }
-  }, [isOpen, order?.orderId]);
+  }, [isOpen, order?.orderId, isEditing]);
 
   // Helper function to get mill name by ID
   const getMillName = (millId: string) => {
@@ -2277,6 +2288,8 @@ export default function MillInputForm({
                   </span>
              </div>
            </div>
+           
+           
           <button
             onClick={onClose}
               className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${

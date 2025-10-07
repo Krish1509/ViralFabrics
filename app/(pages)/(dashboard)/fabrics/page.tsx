@@ -178,6 +178,54 @@ export default function FabricsPage() {
   const [retryCount, setRetryCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper function to sort fabrics based on sort criteria
+  const sortFabrics = (fabrics: Fabric[], sortBy: string, sortOrder: string) => {
+    return [...fabrics].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+      
+      switch (sortBy) {
+        case 'createdAt':
+          aValue = new Date(a.createdAt || a.updatedAt || 0);
+          bValue = new Date(b.createdAt || b.updatedAt || 0);
+          break;
+        case 'updatedAt':
+          aValue = new Date(a.updatedAt || a.createdAt || 0);
+          bValue = new Date(b.updatedAt || b.createdAt || 0);
+          break;
+        case 'qualityName':
+          aValue = a.qualityName?.toLowerCase() || '';
+          bValue = b.qualityName?.toLowerCase() || '';
+          break;
+        case 'weaver':
+          aValue = a.weaver?.toLowerCase() || '';
+          bValue = b.weaver?.toLowerCase() || '';
+          break;
+        case 'gsm':
+          aValue = parseFloat(a.gsm) || 0;
+          bValue = parseFloat(b.gsm) || 0;
+          break;
+        case 'weight':
+          aValue = parseFloat(a.weight) || 0;
+          bValue = parseFloat(b.weight) || 0;
+          break;
+        case 'greighRate':
+          aValue = parseFloat(a.greighRate) || 0;
+          bValue = parseFloat(b.greighRate) || 0;
+          break;
+        default:
+          aValue = new Date(a.createdAt || a.updatedAt || 0);
+          bValue = new Date(b.createdAt || b.updatedAt || 0);
+      }
+      
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+      } else {
+        return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+      }
+    });
+  };
+
   // Optimized fetch fabrics with better caching and faster loading
   const fetchFabrics = async (forceRefresh = false, page = currentPage, limit = itemsPerPage, retryCount = 0, showLoading = true) => {
     // Disable caching for now to ensure pagination works correctly
@@ -414,14 +462,156 @@ export default function FabricsPage() {
   };
 
   useEffect(() => {
-    // Super fast initial load - only 5 items
-    fetchFabrics(false, 1, 10);
+    // Check for refresh flags immediately on page load
+    const shouldRefresh = sessionStorage.getItem('fabricsPageShouldRefresh');
+    const editedFabricData = sessionStorage.getItem('editedFabricData');
+    const urlParams = new URLSearchParams(window.location.search);
+    const forceRefresh = urlParams.get('refresh') === 'true';
+    
+    if (shouldRefresh === 'true' || forceRefresh) {
+      sessionStorage.removeItem('fabricsPageShouldRefresh');
+      
+      // If we have edited fabric data, update the specific fabric in state
+      if (editedFabricData) {
+        try {
+          const fabricData = JSON.parse(editedFabricData);
+          sessionStorage.removeItem('editedFabricData');
+          
+          // Update the specific fabric in the local state
+          setFabrics(prev => {
+            const updated = prev.map(fabric => 
+              fabric._id === fabricData._id ? { ...fabric, ...fabricData, updatedAt: new Date().toISOString() } : fabric
+            );
+            
+            // Re-sort the list based on current sort criteria
+            return sortFabrics(updated, filters.sortBy, filters.sortOrder);
+          });
+          
+          // Update pagination info if needed
+          setPaginationInfo(prev => ({
+            ...prev,
+            totalCount: prev.totalCount // Keep same count since we're just updating
+          }));
+          
+          // Load filter data
+          setTimeout(() => {
+            fetchQualityNames();
+          }, 1000);
+          
+          return; // Don't fetch from server since we updated locally
+        } catch (error) {
+          console.error('Error parsing edited fabric data:', error);
+        }
+      }
+      
+      // Force refresh from server
+      fetchFabrics(true, 1, 10);
+    } else {
+      // Normal initial load
+      fetchFabrics(false, 1, 10);
+    }
     
     // Load filter data much later (lazy loading for speed)
     setTimeout(() => {
       fetchQualityNames();
     }, 1000);
+    
+    // Clean up URL parameters
+    if (forceRefresh) {
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
   }, []);
+
+  // Refresh data when user returns from create/edit page
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Check if we're returning from create/edit page by looking at sessionStorage
+        const shouldRefresh = sessionStorage.getItem('fabricsPageShouldRefresh');
+        const editedFabricData = sessionStorage.getItem('editedFabricData');
+        
+        if (shouldRefresh === 'true') {
+          sessionStorage.removeItem('fabricsPageShouldRefresh');
+          
+          // If we have edited fabric data, update the specific fabric in state
+          if (editedFabricData) {
+            try {
+              const fabricData = JSON.parse(editedFabricData);
+              sessionStorage.removeItem('editedFabricData');
+              
+              // Update the specific fabric in the local state
+              setFabrics(prev => {
+                const updated = prev.map(fabric => 
+                  fabric._id === fabricData._id ? { ...fabric, ...fabricData, updatedAt: new Date().toISOString() } : fabric
+                );
+                
+                // Re-sort the list based on current sort criteria
+                return sortFabrics(updated, filters.sortBy, filters.sortOrder);
+              });
+              
+              // Update pagination info if needed
+              setPaginationInfo(prev => ({
+                ...prev,
+                totalCount: prev.totalCount // Keep same count since we're just updating
+              }));
+              
+              return; // Don't fetch from server since we updated locally
+            } catch (error) {
+              console.error('Error parsing edited fabric data:', error);
+            }
+          }
+          
+          // Fallback to full refresh if no edited data or parsing failed
+          fetchFabrics(true, currentPage, itemsPerPage, 0, false);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Also check on focus (for cases where visibilitychange doesn't fire)
+    const handleFocus = () => {
+      const shouldRefresh = sessionStorage.getItem('fabricsPageShouldRefresh');
+      const editedFabricData = sessionStorage.getItem('editedFabricData');
+      
+      if (shouldRefresh === 'true') {
+        sessionStorage.removeItem('fabricsPageShouldRefresh');
+        
+        // If we have edited fabric data, update the specific fabric in state
+        if (editedFabricData) {
+          try {
+            const fabricData = JSON.parse(editedFabricData);
+            sessionStorage.removeItem('editedFabricData');
+            
+            // Update the specific fabric in the local state
+            setFabrics(prev => {
+              const updated = prev.map(fabric => 
+                fabric._id === fabricData._id ? { ...fabric, ...fabricData, updatedAt: new Date().toISOString() } : fabric
+              );
+              
+              // Re-sort the list based on current sort criteria
+              return sortFabrics(updated, filters.sortBy, filters.sortOrder);
+            });
+            
+            return; // Don't fetch from server since we updated locally
+          } catch (error) {
+            console.error('Error parsing edited fabric data:', error);
+          }
+        }
+        
+        // Fallback to full refresh if no edited data or parsing failed
+        fetchFabrics(true, currentPage, itemsPerPage, 0, false);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [currentPage, itemsPerPage, filters.sortBy, filters.sortOrder]);
 
   // Removed auto-refresh on visibility change - was causing unnecessary refreshes
 
@@ -553,6 +743,12 @@ export default function FabricsPage() {
             newSet.delete(deletingFabric._id);
             return newSet;
           });
+          
+          // Update pagination info
+          setPaginationInfo(prev => ({
+            ...prev,
+            totalCount: Math.max(0, prev.totalCount - 1)
+          }));
         }, 1000);
         
         setShowDeleteConfirmation(false);
@@ -652,6 +848,12 @@ export default function FabricsPage() {
             deletedIds.forEach(id => newSet.delete(id));
             return newSet;
           });
+          
+          // Update pagination info
+          setPaginationInfo(prev => ({
+            ...prev,
+            totalCount: Math.max(0, prev.totalCount - deletedCount)
+          }));
         }, 1000);
         
         // Clear states immediately

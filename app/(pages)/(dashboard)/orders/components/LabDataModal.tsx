@@ -31,7 +31,6 @@ interface LabDataModalProps {
     items: OrderItem[];
   };
   onLabDataUpdate: (operationType?: 'add' | 'edit' | 'delete' | 'deleteAll') => void;
-  skipInitialFetch?: boolean; // New prop to skip initial API call for new lab entries
 }
 
 // Custom Date Picker Component (from OrderForm)
@@ -411,7 +410,7 @@ function CustomDatePicker({
   );
 }
 
-export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate, skipInitialFetch = false }: LabDataModalProps) {
+export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }: LabDataModalProps) {
   const { isDarkMode, mounted } = useDarkMode();
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [labData, setLabData] = useState<LabData>({
@@ -526,15 +525,14 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate, 
   // Initialize local items when modal opens
   useEffect(() => {
     if (isOpen) {
-      // Check if any items already have lab data or if order has labData array
+      // Smart logic: Check if order already has lab data
       const hasExistingLabData = order.items.some(item => 
         item.labData && item.labData.labSendDate && item.labData.labSendDate !== null
       ) || (order as any).labData && (order as any).labData.length > 0;
       
-      console.log('🔍 Lab Modal Optimization:', {
-        skipInitialFetch,
+      console.log('🔍 Lab Modal Smart Logic:', {
         hasExistingLabData,
-        willFetchData: !skipInitialFetch && hasExistingLabData,
+        willFetchData: hasExistingLabData, // Always fetch if data exists
         orderId: order._id
       });
       
@@ -556,15 +554,18 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate, 
       setItemToDelete(null);
       setShowDeleteAllConfirm(false);
       
-      // Only fetch existing lab data if:
-      // 1. Not skipping initial fetch AND
-      // 2. There's existing lab data in the order items
-      // This optimization avoids unnecessary API calls when adding new labs
-      if (!skipInitialFetch && hasExistingLabData) {
+      // Smart API logic:
+      // - If order has existing lab data → Fetch API (edit mode)
+      // - If no existing data → Skip API call (add mode)
+      if (hasExistingLabData) {
+        console.log('📊 Order has existing lab data - fetching for edit mode');
         fetchExistingLabData();
+      } else {
+        console.log('⚡ No existing lab data - skipping API call for add mode');
+        setLoadingData(false);
       }
     }
-  }, [isOpen, order.items, skipInitialFetch]);
+  }, [isOpen, order.items]);
 
   // Load lab data when item is selected for editing
   const handleEditLabData = async (item: OrderItem) => {
@@ -1063,25 +1064,6 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate, 
                   Order Items ({localItems.length})
                 </h3>
                 
-                {/* Load Existing Data Button - Show when we skipped initial fetch but there might be existing data */}
-                {skipInitialFetch && !loadingData && (
-                  <button
-                    onClick={() => fetchExistingLabData()}
-                    disabled={loadingData}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
-                      isDarkMode
-                        ? 'bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/30 hover:border-blue-500/50'
-                        : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300'
-                    }`}
-                  >
-                    {loadingData ? (
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <FileText className="h-4 w-4" />
-                    )}
-                    {loadingData ? 'Loading...' : 'Load Existing Data'}
-                  </button>
-                )}
                 
                 {/* Delete All Lab Data Button */}
                 {localItems.some(item => item.labData?.labSendDate) && (

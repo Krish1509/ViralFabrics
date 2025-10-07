@@ -854,9 +854,33 @@ export default function CreateFabricPage() {
         
           if (updateData.success) {
               showValidationMessage('success', 'All items updated successfully with new quality code!');
+              
+              // Set flag to refresh fabrics page when user returns
+              sessionStorage.setItem('fabricsPageShouldRefresh', 'true');
+              
+              // Store the updated fabric data for immediate state update
+              const updatedFabricData = {
+                _id: editId,
+                qualityCode: currentQualityCode,
+                qualityName: formData.items[0]?.qualityName?.trim(),
+                weaver: formData.items[0]?.weaver?.trim(),
+                weaverQualityName: formData.items[0]?.weaverQualityName?.trim(),
+                greighWidth: parseFloat(formData.items[0]?.greighWidth) || 0,
+                finishWidth: parseFloat(formData.items[0]?.finishWidth) || 0,
+                weight: parseFloat(formData.items[0]?.weight) || 0,
+                gsm: parseFloat(formData.items[0]?.gsm) || 0,
+                danier: formData.items[0]?.danier || '',
+                reed: parseInt(formData.items[0]?.reed) || 0,
+                pick: parseInt(formData.items[0]?.pick) || 0,
+                greighRate: parseFloat(formData.items[0]?.greighRate) || 0,
+                images: formData.items[0]?.images || []
+              };
+              sessionStorage.setItem('editedFabricData', JSON.stringify(updatedFabricData));
+              
               setTimeout(() => {
-                router.push('/fabrics');
-              }, 1500);
+                // Use URL parameter to force refresh
+                router.push('/fabrics?refresh=true');
+              }, 800);
             } else {
               // Handle quality code validation error
               if (updateData.message && updateData.message.includes('already exists and cannot be used')) {
@@ -942,9 +966,33 @@ export default function CreateFabricPage() {
               setIsQualityCodeValid(false);
               setQualityCodeCache({}); // Clear cache on successful submission
               showValidationMessage('success', 'Fabric updated successfully!');
+              
+              // Set flag to refresh fabrics page when user returns
+              sessionStorage.setItem('fabricsPageShouldRefresh', 'true');
+              
+              // Store the updated fabric data for immediate state update
+              const updatedFabricData = {
+                _id: editId,
+                qualityCode: formData.items[0]?.qualityCode?.trim(),
+                qualityName: formData.items[0]?.qualityName?.trim(),
+                weaver: formData.items[0]?.weaver?.trim(),
+                weaverQualityName: formData.items[0]?.weaverQualityName?.trim(),
+                greighWidth: parseFloat(formData.items[0]?.greighWidth) || 0,
+                finishWidth: parseFloat(formData.items[0]?.finishWidth) || 0,
+                weight: parseFloat(formData.items[0]?.weight) || 0,
+                gsm: parseFloat(formData.items[0]?.gsm) || 0,
+                danier: formData.items[0]?.danier || '',
+                reed: parseInt(formData.items[0]?.reed) || 0,
+                pick: parseInt(formData.items[0]?.pick) || 0,
+                greighRate: parseFloat(formData.items[0]?.greighRate) || 0,
+                images: formData.items[0]?.images || []
+              };
+              sessionStorage.setItem('editedFabricData', JSON.stringify(updatedFabricData));
+              
               setTimeout(() => {
-                router.push('/fabrics');
-              }, 1000);
+                // Use URL parameter to force refresh
+                router.push('/fabrics?refresh=true');
+              }, 500);
                 }
             }
           } else {
@@ -973,9 +1021,14 @@ export default function CreateFabricPage() {
           setIsQualityCodeValid(false);
           setQualityCodeCache({}); // Clear cache on successful submission
           showValidationMessage('success', `Fabric created successfully with ${formData.items.length} item(s)!`);
+          
+          // Set flag to refresh fabrics page when user returns
+          sessionStorage.setItem('fabricsPageShouldRefresh', 'true');
+          
           setTimeout(() => {
-            router.push('/fabrics');
-          }, 1000);
+            // Use URL parameter to force refresh
+            router.push('/fabrics?refresh=true');
+          }, 500);
         } else {
           showValidationMessage('error', data.message || 'Operation failed');
         }

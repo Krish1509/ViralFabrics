@@ -250,6 +250,9 @@ export default function OrdersPage() {
   const [orderDispatches, setOrderDispatches] = useState<{[key: string]: any[]}>({});
   const [mills, setMills] = useState<Mill[]>([]);
   
+  // Force re-render state for button updates
+  const [forceRender, setForceRender] = useState(0);
+  
   // Performance optimization - single cache system
   const dataCache = useRef<{
     orders: { data: any, timestamp: number } | null;
@@ -283,37 +286,41 @@ export default function OrdersPage() {
   const hasMillInputs = useCallback((order: Order) => {
     const millInputs = (order as any).millInputs;
     return Array.isArray(millInputs) && millInputs.length > 0;
-  }, []);
+  }, [forceRender]);
 
   const hasMillOutputs = useCallback((order: Order) => {
     const millOutputs = (order as any).millOutputs;
     return Array.isArray(millOutputs) && millOutputs.length > 0;
-  }, []);
+  }, [forceRender]);
 
   const hasDispatches = useCallback((order: Order) => {
     const dispatches = (order as any).dispatches;
     return Array.isArray(dispatches) && dispatches.length > 0;
-  }, []);
+  }, [forceRender]);
 
   const hasLabData = useCallback((order: Order) => {
     // Check if order has labData array with items
     if (order.labData && Array.isArray(order.labData) && order.labData.length > 0) {
+      console.log('🔍 hasLabData: order.labData exists, length:', order.labData.length, 'orderId:', order.orderId, 'forceRender:', forceRender);
       return true;
     }
     
     // Check if any item has lab data (check for labSendDate as it's the primary field)
     if (order.items && Array.isArray(order.items)) {
-      return order.items.some(item => 
+      const hasItemLabData = order.items.some(item => 
         item.labData && (
           item.labData.labSendDate || 
           item.labData.sampleNumber || 
           item.labData.approvalDate
         )
       );
+      console.log('🔍 hasLabData: checking items, hasItemLabData:', hasItemLabData, 'orderId:', order.orderId, 'forceRender:', forceRender);
+      return hasItemLabData;
     }
     
+    console.log('🔍 hasLabData: no lab data found, orderId:', order.orderId, 'forceRender:', forceRender);
     return false;
-  }, []);
+  }, [forceRender]);
 
   const handleViewModeChange = useCallback((newMode: 'table' | 'cards') => {
     setViewMode(newMode);
@@ -2494,12 +2501,27 @@ export default function OrdersPage() {
     setSelectedOrderForMillInputForm(order);
     setShowMillInputForm(true);
     
-    // Don't pass stale data - let the form fetch fresh data from API
-    // This ensures we always show the most current data
-    setIsEditingMillInput(false); // Will be updated by the form after API fetch
-    setExistingMillInputs([]); // Start with empty array
+    // Smart logic: Check if order has existing mill input data
+    const hasExistingData = hasMillInputs(order);
+    console.log('🔍 Mill Input Smart Detection:', {
+      orderId: order.orderId,
+      hasExistingData,
+      mode: hasExistingData ? 'EDIT' : 'ADD'
+    });
     
-    console.log('Mill Input form opened - will fetch fresh data from API');
+    // Set editing mode based on existing data
+    setIsEditingMillInput(hasExistingData);
+    
+    // For edit mode, we need to fetch existing data from API
+    // For add mode, we start with empty array
+    if (hasExistingData) {
+      console.log('📊 Order has existing mill input data - will fetch for edit mode');
+      // Don't set existing data here - let the form fetch fresh data from API
+      setExistingMillInputs([]);
+    } else {
+      console.log('⚡ No existing mill input data - add mode');
+      setExistingMillInputs([]);
+    }
     
     // Load qualities data in background (non-blocking)
     if (qualities.length === 0) {
@@ -2516,12 +2538,27 @@ export default function OrdersPage() {
     setSelectedOrderForMillOutput(order);
     setShowMillOutputForm(true);
     
-    // Don't pass stale data - let the form fetch fresh data from API
-    // This ensures we always show the most current data
-    setIsEditingMillOutput(false); // Will be updated by the form after API fetch
-    setExistingMillOutputs([]); // Start with empty array
+    // Smart logic: Check if order has existing mill output data
+    const hasExistingData = hasMillOutputs(order);
+    console.log('🔍 Mill Output Smart Detection:', {
+      orderId: order.orderId,
+      hasExistingData,
+      mode: hasExistingData ? 'EDIT' : 'ADD'
+    });
     
-    console.log('Mill Output form opened - will fetch fresh data from API');
+    // Set editing mode based on existing data
+    setIsEditingMillOutput(hasExistingData);
+    
+    // For edit mode, we need to fetch existing data from API
+    // For add mode, we start with empty array
+    if (hasExistingData) {
+      console.log('📊 Order has existing mill output data - will fetch for edit mode');
+      // Don't set existing data here - let the form fetch fresh data from API
+      setExistingMillOutputs([]);
+    } else {
+      console.log('⚡ No existing mill output data - add mode');
+      setExistingMillOutputs([]);
+    }
     
     // Load qualities data in background (non-blocking)
     if (qualities.length === 0) {
@@ -2538,11 +2575,27 @@ export default function OrdersPage() {
     setSelectedOrderForDispatch(order);
     setShowDispatchForm(true);
     
-    // Reset states for fresh data loading
-    setIsEditingDispatch(false);
-    setExistingDispatches([]);
+    // Smart logic: Check if order has existing dispatch data
+    const hasExistingData = hasDispatches(order);
+    console.log('🔍 Dispatch Smart Detection:', {
+      orderId: order.orderId,
+      hasExistingData,
+      mode: hasExistingData ? 'EDIT' : 'ADD'
+    });
     
-    console.log('✅ Dispatch form opened immediately - fetching fresh data from API in background');
+    // Set editing mode based on existing data
+    setIsEditingDispatch(hasExistingData);
+    
+    // For edit mode, we need to fetch existing data from API
+    // For add mode, we start with empty array
+    if (hasExistingData) {
+      console.log('📊 Order has existing dispatch data - will fetch for edit mode');
+      // Don't set existing data here - let the form fetch fresh data from API
+      setExistingDispatches([]);
+    } else {
+      console.log('⚡ No existing dispatch data - add mode');
+      setExistingDispatches([]);
+    }
     
     // Load parties data in background (non-blocking) if not available
     if (parties.length === 0) {
@@ -4599,6 +4652,7 @@ export default function OrdersPage() {
                          {/* Column 1: Lab, Input, Output, Dispatch */}
                          <div className="space-y-2">
                            <button
+                             key={`lab-${order._id}-${forceRender}`}
                              onClick={() => handleLabData(order)}
                              className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                                isDarkMode
@@ -4609,6 +4663,8 @@ export default function OrdersPage() {
                            >
                              <BeakerIcon className="h-4 w-4" />
                              <span>{hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}</span>
+                             {/* Debug info */}
+                             <span className="text-xs opacity-50">({forceRender})</span>
                              {/* Status indicator */}
                              <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                                isDarkMode ? 'border-gray-800' : 'border-white'
@@ -4618,6 +4674,7 @@ export default function OrdersPage() {
                            </button>
 
                            <button
+                             key={`mill-input-${order._id}-${forceRender}`}
                              onClick={() => handleMillInput(order)}
                              className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                                isDarkMode
@@ -4637,6 +4694,7 @@ export default function OrdersPage() {
                            </button>
 
                            <button
+                             key={`mill-output-${order._id}-${forceRender}`}
                              onClick={() => handleMillOutput(order)}
                              className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                                isDarkMode
@@ -4656,6 +4714,7 @@ export default function OrdersPage() {
                            </button>
 
                            <button
+                             key={`dispatch-${order._id}-${forceRender}`}
                              onClick={() => handleDispatch(order)}
                              className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                                isDarkMode
@@ -5479,6 +5538,7 @@ export default function OrdersPage() {
                   {/* Column 1: Add Lab, Add Mill Input, Mill Output, Dispatch */}
                   <div className="space-y-2">
                     <button
+                      key={`lab-card-${order._id}-${forceRender}`}
                       onClick={() => {
                         setSelectedOrderForLabData(order);
                         setShowLabDataModal(true);
@@ -5500,6 +5560,8 @@ export default function OrdersPage() {
                     >
                       <BeakerIcon className="h-4 w-4" />
                       <span>{hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}</span>
+                      {/* Debug info */}
+                      <span className="text-xs opacity-50">({forceRender})</span>
                       {/* Status indicator */}
                       <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                         isDarkMode ? 'border-gray-800' : 'border-white'
@@ -5509,6 +5571,7 @@ export default function OrdersPage() {
                     </button>
 
                     <button
+                      key={`mill-input-card-${order._id}-${forceRender}`}
                       onClick={() => handleMillInput(order)}
                       className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                         isDarkMode
@@ -5528,6 +5591,7 @@ export default function OrdersPage() {
                     </button>
 
                     <button
+                      key={`mill-output-card-${order._id}-${forceRender}`}
                       onClick={() => handleMillOutput(order)}
                       className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                         isDarkMode
@@ -5547,6 +5611,7 @@ export default function OrdersPage() {
                     </button>
 
                     <button
+                      key={`dispatch-card-${order._id}-${forceRender}`}
                       onClick={() => handleDispatch(order)}
                       className={`w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 flex items-center justify-center space-x-2 relative ${
                         isDarkMode
@@ -5967,7 +6032,6 @@ export default function OrdersPage() {
          <LabAddModal
            isOpen={showLabAddModal}
            order={selectedOrderForLab}
-           skipInitialFetch={true} // Skip initial API call for new lab entries
            onClose={() => {
              setShowLabAddModal(false);
              setSelectedOrderForLab(null);
@@ -5992,6 +6056,7 @@ export default function OrdersPage() {
                       }));
                       // Clear labData array
                       updatedOrder.labData = [];
+                      console.log('🗑️ Lab data cleared for order:', orderId, 'updatedOrder.labData:', updatedOrder.labData, 'items with labData:', updatedOrder.items.filter(item => item.labData).length);
                     } else if (operationType === 'add' || operationType === 'edit') {
                       // Mark as having lab data (will be updated with real data from API)
                       updatedOrder.labData = [{ _id: 'temp', order: orderId, createdAt: new Date() }];
@@ -6011,6 +6076,13 @@ export default function OrdersPage() {
                   return order;
                 })
               );
+              
+              // Force re-render to update button text immediately
+              setForceRender(prev => {
+                const newValue = prev + 1;
+                console.log('🔄 Force render triggered for lab data:', operationType, 'new value:', newValue);
+                return newValue;
+              });
               
               // Refresh lab data in background to get the latest state
               setTimeout(() => {
@@ -6619,6 +6691,9 @@ export default function OrdersPage() {
                     return order;
                   })
                 );
+                
+                // Force re-render to update button text immediately
+                setForceRender(prev => prev + 1);
               }
               
               // Refresh mill input data specifically for this order
@@ -6717,6 +6792,9 @@ export default function OrdersPage() {
                   return order;
                 })
               );
+              
+              // Force re-render to update button text immediately
+              setForceRender(prev => prev + 1);
             }
             
             // Optional: Fetch fresh data in background (non-blocking)
@@ -6796,6 +6874,9 @@ export default function OrdersPage() {
                   return order;
                 })
               );
+              
+              // Force re-render to update button text immediately
+              setForceRender(prev => prev + 1);
             }
             
             // Optional: Fetch fresh data in background (non-blocking)

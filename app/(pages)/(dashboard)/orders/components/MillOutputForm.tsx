@@ -13,6 +13,7 @@ import {
   MagnifyingGlassIcon,
   BeakerIcon
 } from '@heroicons/react/24/outline';
+import { FileText } from 'lucide-react';
 import { Order } from '@/types';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { createPortal } from 'react-dom';
@@ -657,12 +658,19 @@ export default function MillOutputForm({
   const [currentQualitySearch, setCurrentQualitySearch] = useState('');
   const [recentlyAddedQuality, setRecentlyAddedQuality] = useState<string | null>(null);
 
-  // Load existing mill output data when form opens (smooth pattern like edit order page)
+  // Load existing mill output data when form opens (smart logic)
   useEffect(() => {
     console.log('🔄 MillOutputForm useEffect triggered:', { isOpen, orderId: order?.orderId, existingMillOutputsLength: existingMillOutputs?.length });
     
     if (isOpen && order?.orderId) {
       console.log('📂 Form opened, loading existing mill output data...');
+      
+      // Smart logic: Use isEditing prop to determine if we should fetch data
+      console.log('🔍 Mill Output Smart Logic:', {
+        isEditing,
+        willFetchData: isEditing,
+        orderId: order.orderId
+      });
       
       // Reset all states first to avoid showing stale data
       setHasExistingData(false);
@@ -685,19 +693,23 @@ export default function MillOutputForm({
         }]
       });
       
-      // Always fetch fresh data from API when form opens to avoid stale data
-      console.log('🔄 Form opened - fetching fresh mill output data from API...');
-      console.log('🔄 Order details:', { orderId: order.orderId, order: order });
-      
-      // Use setTimeout to ensure state updates are processed before API call
-      setTimeout(() => {
-        fetchExistingMillOutputData();
-      }, 100);
+      // Smart API logic:
+      // - If isEditing is true → Fetch API (edit mode)
+      // - If isEditing is false → Skip API call (add mode)
+      if (isEditing) {
+        console.log('📊 Edit mode detected - fetching existing mill output data');
+        setTimeout(() => {
+          fetchExistingMillOutputData();
+        }, 100);
+      } else {
+        console.log('⚡ Add mode detected - skipping API call');
+        setLoadingData(false);
+      }
     } else if (!isOpen) {
       // Reset loading state when form is closed
       setLoadingData(false);
     }
-  }, [isOpen, order?.orderId]);
+  }, [isOpen, order?.orderId, isEditing]);
 
   // Function to fetch qualities directly from API
   const fetchQualitiesDirectly = async () => {
@@ -1851,6 +1863,8 @@ export default function MillOutputForm({
                 </span>
               </div>
             </div>
+            
+            
           <button
             onClick={onClose}
               className={`p-2 rounded-lg transition-all duration-200 hover:scale-110 ${
