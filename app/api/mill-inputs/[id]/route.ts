@@ -51,7 +51,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { mill, millDate, chalanNo, greighMtr, pcs, notes } = body;
+    const { mill, millDate, chalanNo, greighMtr, pcs, quality, processName, additionalMeters, notes } = body;
 
     // Check if mill input exists
     const existingMillInput = await MillInput.findById(id);
@@ -77,10 +77,37 @@ export async function PUT(
     }
 
     // Check if mill exists
-    const { Mill } = await import('@/models');
+    const { Mill, Quality } = await import('@/models');
     const millExists = await Mill.findById(mill);
     if (!millExists) {
       return NextResponse.json(notFoundResponse('Mill'), { status: 404 });
+    }
+
+    // Check if quality exists only if provided
+    if (quality) {
+      const qualityExists = await Quality.findById(quality);
+      if (!qualityExists) {
+        return NextResponse.json(notFoundResponse('Quality'), { status: 404 });
+      }
+    }
+
+    // Validate additional meters if provided
+    if (additionalMeters && Array.isArray(additionalMeters)) {
+      for (let i = 0; i < additionalMeters.length; i++) {
+        const additional = additionalMeters[i];
+        if (!additional.greighMtr || additional.greighMtr <= 0) {
+          return NextResponse.json(validationErrorResponse(`Valid greigh meters is required for additional meter ${i + 1}`), { status: 400 });
+        }
+        if (!additional.pcs || additional.pcs <= 0) {
+          return NextResponse.json(validationErrorResponse(`Valid number of pieces is required for additional meter ${i + 1}`), { status: 400 });
+        }
+        if (additional.quality) {
+          const additionalQualityExists = await Quality.findById(additional.quality);
+          if (!additionalQualityExists) {
+            return NextResponse.json(notFoundResponse(`Quality for additional meter ${i + 1}`), { status: 404 });
+          }
+        }
+      }
     }
 
     // Check if chalan number already exists for this order (excluding current record)
@@ -102,6 +129,15 @@ export async function PUT(
         chalanNo: chalanNo.trim(),
         greighMtr: parseFloat(greighMtr),
         pcs: parseInt(pcs),
+        quality: quality || undefined,
+        processName: processName ? processName.trim() : '',
+        additionalMeters: additionalMeters && Array.isArray(additionalMeters) ? additionalMeters.map(additional => ({
+          greighMtr: parseFloat(additional.greighMtr),
+          pcs: parseInt(additional.pcs),
+          quality: additional.quality || undefined,
+          processName: additional.processName ? additional.processName.trim() : '',
+          notes: additional.notes?.trim()
+        })) : [],
         notes: notes?.trim()
       },
       { new: true, runValidators: true }
@@ -115,6 +151,8 @@ export async function PUT(
     const populatedMillInput = await MillInput.findById(updatedMillInput._id)
       .populate('mill', 'name contactPerson contactPhone')
       .populate('order', 'orderId orderType party')
+      .populate('quality', 'name')
+      .populate('additionalMeters.quality', 'name')
       .lean();
 
     await logUpdate('mill_input', id, { 

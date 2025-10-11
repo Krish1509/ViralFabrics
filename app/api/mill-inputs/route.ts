@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
     try {
       // Use a more robust population approach
       const queryBuilder = MillInput.find(query)
+        .select('orderId order mill millDate chalanNo greighMtr pcs quality processName additionalMeters notes createdAt updatedAt')
         .populate('mill', 'name contactPerson contactPhone')
         .populate('order', 'orderId orderType party')
         .maxTimeMS(200);
@@ -75,6 +76,7 @@ export async function GET(request: NextRequest) {
     } catch (populateError) {
       // Fallback: get basic data with minimal population
       millInputs = await MillInput.find(query)
+        .select('orderId order mill millDate chalanNo greighMtr pcs quality processName additionalMeters notes createdAt updatedAt')
         .populate('mill', 'name')
         .populate('order', 'orderId')
         .sort({ millDate: -1, createdAt: -1 })

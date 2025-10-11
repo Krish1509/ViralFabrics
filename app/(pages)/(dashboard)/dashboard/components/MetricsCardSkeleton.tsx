@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useDarkMode } from '@/app/contexts/DarkModeContext';
+import { useDarkMode } from '../../hooks/useDarkMode';
 
 const MetricsCardSkeleton: React.FC = () => {
   const { isDarkMode } = useDarkMode();

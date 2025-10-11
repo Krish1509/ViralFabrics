@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   ShoppingBagIcon, 
   ClockIcon, 
   CheckCircleIcon, 
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
-import { useDarkMode } from '@/app/contexts/DarkModeContext';
+import { useDarkMode } from '../hooks/useDarkMode';
 import MetricsCard from './components/MetricsCard';
 import MetricsCardSkeleton from './components/MetricsCardSkeleton';
 import DashboardFilters from './components/DashboardFilters';
@@ -65,6 +66,7 @@ const dashboardCache = {
 
 export default function DashboardPage() {
   const { isDarkMode, mounted } = useDarkMode();
+  const router = useRouter();
   
   // Load cached data immediately for instant display
   const [stats, setStats] = useState<DashboardStats | null>(() => {
@@ -119,6 +121,40 @@ export default function DashboardPage() {
     endDate: '',
     financialYear: 'all'
   });
+
+  // Navigation functions for metrics cards
+  const navigateToOrders = useCallback((statusFilter: string) => {
+    console.log('🔧 Dashboard navigation - statusFilter:', statusFilter);
+    console.log('🔧 Dashboard navigation - router object:', router);
+    const params = new URLSearchParams();
+    if (statusFilter && statusFilter !== 'all') {
+      params.set('status', statusFilter);
+    }
+    const queryString = params.toString();
+    const finalUrl = `/orders${queryString ? `?${queryString}` : ''}`;
+    console.log('🔧 Dashboard navigation - final URL:', finalUrl);
+    try {
+      router.push(finalUrl);
+      console.log('🔧 Dashboard navigation - router.push called successfully');
+    } catch (error) {
+      console.error('🔧 Dashboard navigation - router.push failed:', error);
+    }
+  }, [router]);
+
+  const handleTotalOrdersClick = useCallback(() => {
+    console.log('🔧 Total Orders card clicked!');
+    navigateToOrders('all');
+  }, [navigateToOrders]);
+
+  const handlePendingOrdersClick = useCallback(() => {
+    console.log('🔧 Pending Orders card clicked!');
+    navigateToOrders('pending');
+  }, [navigateToOrders]);
+
+  const handleDeliveredOrdersClick = useCallback(() => {
+    console.log('🔧 Delivered Orders card clicked!');
+    navigateToOrders('delivered');
+  }, [navigateToOrders]);
 
   const fetchDashboardData = useCallback(async (isRetry = false, currentFilters = filters) => {
     try {
@@ -347,6 +383,7 @@ export default function DashboardPage() {
                   icon={ShoppingBagIcon}
                   color="blue"
                   subtitle="All time orders"
+                  onClick={handleTotalOrdersClick}
                 />
               </div>
               <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
@@ -356,6 +393,7 @@ export default function DashboardPage() {
                   icon={ClockIcon}
                   color="yellow"
                   subtitle="Awaiting processing"
+                  onClick={handlePendingOrdersClick}
                 />
               </div>
               <div className="animate-fade-in" style={{ animationDelay: '0.2s' }}>
@@ -365,6 +403,7 @@ export default function DashboardPage() {
                   icon={CheckCircleIcon}
                   color="green"
                   subtitle="Successfully delivered"
+                  onClick={handleDeliveredOrdersClick}
                 />
               </div>
             </>

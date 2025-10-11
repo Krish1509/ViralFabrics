@@ -16,7 +16,7 @@ import {
   PhotoIcon
 } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
-import { useDarkMode } from '@/app/contexts/DarkModeContext';
+import { useDarkMode } from '../hooks/useDarkMode';
 import { Fabric, FabricFilters } from '@/types/fabric';
 
 import FabricDetails from './components/FabricDetails';

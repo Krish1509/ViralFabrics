@@ -35,7 +35,7 @@ import {
   DevicePhoneMobileIcon,
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
-import { useDarkMode } from '@/app/contexts/DarkModeContext';
+import { useDarkMode } from '../hooks/useDarkMode';
 import { BRAND_NAME } from '@/lib/config';
 import GlobalSkeleton from './GlobalSkeleton';
 
@@ -65,7 +65,7 @@ interface NavbarProps {
 }
 
 export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleSidebar, onToggleCollapse, isCollapsed, updateUser, sessionStatus = 'active', isLoading = false, isInstalled = false, isInstalling = false, onInstallClick, onOpenInApp }: NavbarProps) {
-  const { isDarkMode, toggleDarkMode, setSystemTheme, mounted, isTransitioning, themeSwitchRef } = useDarkMode();
+  const { isDarkMode, toggleDarkMode, setSystemTheme, mounted, themeSwitchRef } = useDarkMode();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState(3);
@@ -209,11 +209,9 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
   }, []);
 
   const handleThemeToggle = useCallback(() => {
-    if (isTransitioning) return; // Prevent rapid toggling
-    
     // Toggle dark mode with smooth animation
     toggleDarkMode();
-  }, [toggleDarkMode, isTransitioning]);
+  }, [toggleDarkMode]);
 
   // Helper functions
   const getUserInitials = useCallback((name: string) => {
@@ -433,12 +431,12 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
               <button
                 ref={themeSwitchRef}
                 onClick={handleThemeToggle}
-                disabled={isTransitioning}
+                disabled={false}
                 className={`p-3 rounded-lg transition-all duration-500 cursor-pointer relative overflow-hidden ${
                   isDarkMode 
                     ? 'bg-white/10 text-white hover:bg-white/20' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                } shadow-lg backdrop-blur-sm group ${isTransitioning ? 'opacity-50 cursor-not-allowed' : ''}`}
+                } shadow-lg backdrop-blur-sm group`}
                 aria-label="Toggle dark mode"
               >
                 {/* Icon with rotation animation */}
@@ -739,12 +737,12 @@ export default function Navbar({ user, onLogout, isLoggingOut = false, onToggleS
               <button
                 ref={themeSwitchRef}
                 onClick={handleThemeToggle}
-                disabled={isTransitioning}
+                disabled={false}
                 className={`p-2 rounded-lg transition-all duration-500 cursor-pointer relative overflow-hidden ${
                   isDarkMode 
                     ? 'bg-white/10 text-white hover:bg-white/20' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                } shadow-lg backdrop-blur-sm group ${isTransitioning ? 'opacity-50 cursor-not-allowed' : ''}`}
+                } shadow-lg backdrop-blur-sm group`}
                 aria-label="Toggle dark mode"
               >
                 {/* Icon with rotation animation */}

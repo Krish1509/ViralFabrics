@@ -23,7 +23,13 @@ export async function GET(request: NextRequest) {
       return Response.json(unauthorizedResponse('Unauthorized'), { status: 401 });
     }
 
-    await dbConnect();
+    // Connect to database with timeout
+    await Promise.race([
+      dbConnect(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database connection timeout')), 5000)
+      )
+    ]);
     
     const { searchParams } = new URL(request.url);
     const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 1000); // Increased limit to handle all orders
@@ -55,23 +61,211 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Build query
+    // Build query with proper search logic
     const query: any = {
-      $or: [
-        { softDeleted: false },
-        { softDeleted: { $exists: false } }
+      $and: [
+        {
+          $or: [
+            { softDeleted: false },
+            { softDeleted: { $exists: false } }
+          ]
+        }
       ]
     };
     
+    let searchConditions: any[] = [];
     if (search) {
-      query.$or = [
-        { orderId: { $regex: search, $options: 'i' } },
-        { poNumber: { $regex: search, $options: 'i' } },
-        { styleNo: { $regex: search, $options: 'i' } },
-        { contactName: { $regex: search, $options: 'i' } },
-        { contactPhone: { $regex: search, $options: 'i' } },
-        { 'party.name': { $regex: search, $options: 'i' } }
-      ];
+      const searchPattern = search.trim();
+      let needsPostProcessing = false;
+      
+      // Check if search has type prefix (e.g., "orderId:123", "party:ABC")
+      if (searchPattern.includes(':')) {
+        const [searchType, searchValue] = searchPattern.split(':', 2);
+        const trimmedValue = searchValue.trim();
+        
+        switch (searchType.toLowerCase()) {
+          case 'orderid':
+          case 'order':
+            searchConditions = [
+              { orderId: { $regex: trimmedValue, $options: 'i' } },
+              { orderId: trimmedValue } // Exact match
+            ];
+            break;
+          case 'ponumber':
+          case 'po':
+            searchConditions = [
+              { poNumber: { $regex: trimmedValue, $options: 'i' } }
+            ];
+            break;
+          case 'styleno':
+          case 'style':
+            searchConditions = [
+              { styleNo: { $regex: trimmedValue, $options: 'i' } }
+            ];
+            break;
+          case 'party':
+            // For party search, we need to find party IDs first, then search orders
+            try {
+              const parties = await Party.find({
+                $or: [
+                  { name: { $regex: trimmedValue, $options: 'i' } },
+                  { contactName: { $regex: trimmedValue, $options: 'i' } },
+                  { contactPhone: { $regex: trimmedValue, $options: 'i' } }
+                ]
+              }).select('_id').lean().maxTimeMS(2000);
+              
+              const partyIds = parties.map(p => p._id);
+              console.log(`🔍 Party Search: Found ${parties.length} parties matching "${trimmedValue}":`, partyIds);
+              if (partyIds.length > 0) {
+                searchConditions = [
+                  { party: { $in: partyIds } },
+                  { orderId: { $regex: trimmedValue, $options: 'i' } },
+                  { contactName: { $regex: trimmedValue, $options: 'i' } },
+                  { poNumber: { $regex: trimmedValue, $options: 'i' } },
+                  { styleNo: { $regex: trimmedValue, $options: 'i' } },
+                  { contactPhone: { $regex: trimmedValue, $options: 'i' } }
+                ];
+              } else {
+                // No parties found, search other fields as fallback
+                searchConditions = [
+                  { orderId: { $regex: trimmedValue, $options: 'i' } },
+                  { contactName: { $regex: trimmedValue, $options: 'i' } },
+                  { poNumber: { $regex: trimmedValue, $options: 'i' } },
+                  { styleNo: { $regex: trimmedValue, $options: 'i' } },
+                  { contactPhone: { $regex: trimmedValue, $options: 'i' } }
+                ];
+              }
+            } catch (error) {
+              console.error('Party search error:', error);
+              // Fallback to basic search
+              searchConditions = [
+                { orderId: { $regex: trimmedValue, $options: 'i' } },
+                { contactName: { $regex: trimmedValue, $options: 'i' } },
+                { poNumber: { $regex: trimmedValue, $options: 'i' } },
+                { styleNo: { $regex: trimmedValue, $options: 'i' } },
+                { contactPhone: { $regex: trimmedValue, $options: 'i' } }
+              ];
+            }
+            needsPostProcessing = true;
+            break;
+          case 'quality':
+            // For quality search, we need to find quality IDs first, then search orders
+            try {
+              const qualities = await Quality.find({
+                $or: [
+                  { name: { $regex: trimmedValue, $options: 'i' } },
+                  { description: { $regex: trimmedValue, $options: 'i' } }
+                ]
+              }).select('_id').lean().maxTimeMS(2000);
+              
+              const qualityIds = qualities.map(q => q._id);
+              console.log(`🔍 Quality Search: Found ${qualities.length} qualities matching "${trimmedValue}":`, qualityIds);
+              if (qualityIds.length > 0) {
+                searchConditions = [
+                  { 'items.quality': { $in: qualityIds } },
+                  { orderId: { $regex: trimmedValue, $options: 'i' } },
+                  { 'items.description': { $regex: trimmedValue, $options: 'i' } },
+                  { 'items.weaverSupplierName': { $regex: trimmedValue, $options: 'i' } },
+                  { contactName: { $regex: trimmedValue, $options: 'i' } }
+                ];
+              } else {
+                // No qualities found, search other fields as fallback
+                searchConditions = [
+                  { orderId: { $regex: trimmedValue, $options: 'i' } },
+                  { 'items.description': { $regex: trimmedValue, $options: 'i' } },
+                  { 'items.weaverSupplierName': { $regex: trimmedValue, $options: 'i' } },
+                  { contactName: { $regex: trimmedValue, $options: 'i' } }
+                ];
+              }
+            } catch (error) {
+              console.error('Quality search error:', error);
+              // Fallback to basic search
+              searchConditions = [
+                { orderId: { $regex: trimmedValue, $options: 'i' } },
+                { 'items.description': { $regex: trimmedValue, $options: 'i' } },
+                { 'items.weaverSupplierName': { $regex: trimmedValue, $options: 'i' } },
+                { contactName: { $regex: trimmedValue, $options: 'i' } }
+              ];
+            }
+            needsPostProcessing = true;
+            break;
+          case 'phone':
+            searchConditions = [
+              { contactPhone: { $regex: trimmedValue, $options: 'i' } }
+            ];
+            break;
+          default:
+            // Fallback to general search
+            searchConditions = [
+              { orderId: { $regex: trimmedValue, $options: 'i' } },
+              { poNumber: { $regex: trimmedValue, $options: 'i' } },
+              { styleNo: { $regex: trimmedValue, $options: 'i' } },
+              { contactName: { $regex: trimmedValue, $options: 'i' } },
+              { contactPhone: { $regex: trimmedValue, $options: 'i' } },
+              { 'items.description': { $regex: trimmedValue, $options: 'i' } },
+              { 'items.weaverSupplierName': { $regex: trimmedValue, $options: 'i' } }
+            ];
+            needsPostProcessing = true;
+        }
+      } else {
+        // Enhanced general search across all fields including party and quality
+        // First, try to find matching parties and qualities
+        let partyIds: any[] = [];
+        let qualityIds: any[] = [];
+        
+        try {
+          // Search for matching parties
+          const parties = await Party.find({
+            $or: [
+              { name: { $regex: searchPattern, $options: 'i' } },
+              { contactName: { $regex: searchPattern, $options: 'i' } },
+              { contactPhone: { $regex: searchPattern, $options: 'i' } }
+            ]
+          }).select('_id').lean().maxTimeMS(2000);
+          partyIds = parties.map(p => p._id);
+          
+          // Search for matching qualities
+          const qualities = await Quality.find({
+            $or: [
+              { name: { $regex: searchPattern, $options: 'i' } },
+              { description: { $regex: searchPattern, $options: 'i' } }
+            ]
+          }).select('_id').lean().maxTimeMS(2000);
+          qualityIds = qualities.map(q => q._id);
+        } catch (error) {
+          console.error('General search party/quality lookup error:', error);
+        }
+        
+        searchConditions = [
+          // Exact matches
+          { orderId: { $regex: searchPattern, $options: 'i' } },
+          { poNumber: { $regex: searchPattern, $options: 'i' } },
+          { styleNo: { $regex: searchPattern, $options: 'i' } },
+          { contactName: { $regex: searchPattern, $options: 'i' } },
+          { contactPhone: { $regex: searchPattern, $options: 'i' } },
+          { 'items.description': { $regex: searchPattern, $options: 'i' } },
+          { 'items.weaverSupplierName': { $regex: searchPattern, $options: 'i' } }
+        ];
+        
+        // Add party and quality matches if found
+        if (partyIds.length > 0) {
+          searchConditions.push({ party: { $in: partyIds } });
+        }
+        if (qualityIds.length > 0) {
+          searchConditions.push({ 'items.quality': { $in: qualityIds } });
+        }
+        
+        // Add exact match for numeric order IDs (highest priority)
+        if (/^\d+$/.test(searchPattern)) {
+          searchConditions.unshift({ orderId: searchPattern });
+        }
+        needsPostProcessing = true;
+      }
+      
+      query.$and.push({
+        $or: searchConditions
+      });
+      
     }
     
     if (orderType) {
@@ -112,8 +306,13 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .skip((page - 1) * limit)
       .lean()
-      .maxTimeMS(150) // Ultra-fast timeout
+      .maxTimeMS(8000) // Increased timeout for search operations
       .hint({ createdAt: -1 }); // Force index usage for better performance
+
+    // Debug search results
+    if (search) {
+      console.log(`🔍 Search completed: Found ${orders.length} orders`);
+    }
 
     // Use Promise.all to parallelize all data fetching
     const [labs, millInputs, millOutputs, dispatches, total] = await Promise.all([
@@ -130,7 +329,7 @@ export async function GET(request: NextRequest) {
           .select('orderItemId labSendDate labSendData labSendNumber status')
           .lean()
           .hint({ order: 1, softDeleted: 1 }) // Force index usage
-          .maxTimeMS(150); // Ultra-fast timeout
+          .maxTimeMS(3000); // Increased timeout for reliability
         } catch (labError) {
           return [];
         }
@@ -150,7 +349,7 @@ export async function GET(request: NextRequest) {
           .populate('quality', 'name')
           .lean()
           .hint({ order: 1 }) // Force index usage
-          .maxTimeMS(150); // Ultra-fast timeout
+          .maxTimeMS(3000); // Increased timeout for reliability
           
           return millInputs;
         } catch (millError) {
@@ -171,7 +370,7 @@ export async function GET(request: NextRequest) {
           .select('order recdDate millBillNo finishedMtr')
           .lean()
           .hint({ order: 1 }) // Force index usage
-          .maxTimeMS(150); // Ultra-fast timeout
+          .maxTimeMS(3000); // Increased timeout for reliability
           
           return millOutputs;
         } catch (millError) {
@@ -192,7 +391,7 @@ export async function GET(request: NextRequest) {
           .select('order dispatchDate dispatchNo quantity')
           .lean()
           .hint({ order: 1 }) // Force index usage
-          .maxTimeMS(150); // Ultra-fast timeout
+          .maxTimeMS(3000); // Increased timeout for reliability
           
           return dispatches;
         } catch (dispatchError) {
@@ -202,11 +401,124 @@ export async function GET(request: NextRequest) {
       })() : Promise.resolve([]),
       
       // Get total count in parallel with optimized query
-      Order.countDocuments(query).maxTimeMS(150).hint({ createdAt: -1 })
+      Order.countDocuments(query).maxTimeMS(3000).hint({ createdAt: -1 })
     ]);
 
+    // Enhanced fuzzy search function
+    const fuzzyMatch = (text: string, searchTerm: string): boolean => {
+      if (!text || !searchTerm) return false;
+      
+      const textLower = text.toLowerCase().trim();
+      const searchLower = searchTerm.toLowerCase().trim();
+      
+      // Exact match (highest priority)
+      if (textLower === searchLower) return true;
+      
+      // Starts with match (high priority)
+      if (textLower.startsWith(searchLower)) return true;
+      
+      // Contains match (medium priority)
+      if (textLower.includes(searchLower)) return true;
+      
+      // Fuzzy match - check if all characters in search term exist in order
+      let searchIndex = 0;
+      for (let i = 0; i < textLower.length && searchIndex < searchLower.length; i++) {
+        if (textLower[i] === searchLower[searchIndex]) {
+          searchIndex++;
+        }
+      }
+      
+      // If we found all characters in order, it's a fuzzy match
+      if (searchIndex === searchLower.length) return true;
+      
+      // Word boundary match - check if search term matches word boundaries
+      const words = textLower.split(/\s+/);
+      for (const word of words) {
+        if (word.startsWith(searchLower) || word.includes(searchLower)) {
+          return true;
+        }
+      }
+      
+      return false;
+    };
+
+    // Post-process search results for party and quality names with enhanced fuzzy search
+    let filteredOrders = orders;
+    if (search) {
+      const searchPattern = search.trim();
+      const [searchType, searchValue] = searchPattern.includes(':') ? searchPattern.split(':', 2) : ['all', searchPattern];
+      const trimmedValue = searchValue.trim();
+      
+      // Check if this search type needs post-processing
+      const needsPostProcessing = ['party', 'quality', 'all'].includes(searchType.toLowerCase());
+      
+      if (needsPostProcessing) {
+        console.log(`🔍 Post-processing needed for search type: ${searchType}`);
+        filteredOrders = orders.filter(order => {
+          let hasMatch = false;
+          let initialQueryMatch = false;
+          
+          // Check if order matched the initial MongoDB query
+          const orderFields = [
+            order.orderId,
+            order.poNumber,
+            order.styleNo,
+            order.contactName,
+            order.contactPhone
+          ];
+          
+          // Check items fields
+          if (order.items && Array.isArray(order.items)) {
+            order.items.forEach((item: any) => {
+              if (item.description) orderFields.push(item.description);
+              if (item.weaverSupplierName) orderFields.push(item.weaverSupplierName);
+            });
+          }
+          
+          // Check if any field matches the search term
+          initialQueryMatch = orderFields.some(field => 
+            field && fuzzyMatch(field.toString(), trimmedValue)
+          );
+          
+          // Check party name search with fuzzy matching
+          if (searchType.toLowerCase() === 'party' || searchType.toLowerCase() === 'all') {
+            if (order.party && typeof order.party === 'object' && 'name' in order.party) {
+              const partyName = (order.party as any).name;
+              if (partyName && fuzzyMatch(partyName, trimmedValue)) {
+                hasMatch = true;
+              }
+            }
+          }
+          
+          // Check quality name search with fuzzy matching
+          if (searchType.toLowerCase() === 'quality' || searchType.toLowerCase() === 'all') {
+            if (order.items && Array.isArray(order.items)) {
+              for (const item of order.items) {
+                if (item.quality && typeof item.quality === 'object' && 'name' in item.quality) {
+                  const qualityName = (item.quality as any).name;
+                  if (qualityName && fuzzyMatch(qualityName, trimmedValue)) {
+                    hasMatch = true;
+                    break; // Found a match, no need to check other items
+                  }
+                }
+              }
+            }
+          }
+          
+          
+          // For specific search types, only return if we found a match
+          if (searchType.toLowerCase() === 'party' || searchType.toLowerCase() === 'quality') {
+            return hasMatch;
+          }
+          
+          // For general search, return true if we found a match OR if it matched the initial MongoDB query
+          return hasMatch || initialQueryMatch;
+        });
+      }
+    }
+
     // Attach lab data and mill input process data to order items
-    if (orders.length > 0) {
+    if (filteredOrders.length > 0) {
       // Create a map of orderItemId to lab data
       const labMap = new Map();
       if (labs.length > 0) {
@@ -252,7 +564,7 @@ export async function GET(request: NextRequest) {
       }
       
       // Attach lab data and process data to order items
-      orders.forEach(order => {
+      filteredOrders.forEach(order => {
         if (order.items) {
           order.items.forEach((item: any) => {
             // Attach lab data
@@ -355,13 +667,18 @@ export async function GET(request: NextRequest) {
     // Cache the result for future requests
     const responseData = {
       success: true,
-      data: orders,
+      data: filteredOrders,
       pagination: {
         page,
         limit,
-        total,
-        pages: Math.ceil(total / limit)
-      }
+        total: filteredOrders.length, // Use filtered count
+        pages: Math.ceil(filteredOrders.length / limit)
+      },
+      searchInfo: search ? {
+        query: search,
+        resultsCount: filteredOrders.length,
+        hasResults: filteredOrders.length > 0
+      } : null
     };
     
     // Store in cache
@@ -381,9 +698,28 @@ export async function GET(request: NextRequest) {
     return new Response(JSON.stringify(responseData), { headers });
     
   } catch (error) {
+    console.error('Orders API Error:', error);
+    
+    // Handle specific error types
+    if (error instanceof Error) {
+      if (error.message.includes('timeout')) {
+        return new Response(JSON.stringify({
+          success: false,
+          message: 'Request timeout. Please try again with a simpler search.'
+        }), { status: 408 });
+      }
+      
+      if (error.message.includes('Database connection')) {
+        return new Response(JSON.stringify({
+          success: false,
+          message: 'Database connection failed. Please try again.'
+        }), { status: 503 });
+      }
+    }
+    
     return new Response(JSON.stringify({
       success: false,
-      message: 'Failed to fetch orders'
+      message: 'Failed to fetch orders. Please try again.'
     }), { status: 500 });
   }
 }

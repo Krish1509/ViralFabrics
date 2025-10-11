@@ -590,9 +590,33 @@ export default function OrderDetailsPage() {
                   <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>PO Number</span>
                   <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.poNumber || 'Not selected'}</p>
                 </div>
-                <div className="flex justify-between items-center py-2">
+                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
                   <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Style No</span>
                   <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.styleNo || 'Not selected'}</p>
+                </div>
+                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Purchase Rate</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {order?.items && order.items.length > 0 && order.items[0].purchaseRate 
+                      ? `₹${Number(order.items[0].purchaseRate).toFixed(0)}` 
+                      : '--'}
+                  </p>
+                </div>
+                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Mill Rate</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {order?.items && order.items.length > 0 && order.items[0].millRate 
+                      ? `₹${Number(order.items[0].millRate).toFixed(0)}` 
+                      : '--'}
+                  </p>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Sales Rate</span>
+                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {order?.items && order.items.length > 0 && order.items[0].salesRate 
+                      ? `₹${Number(order.items[0].salesRate).toFixed(0)}` 
+                      : '--'}
+                  </p>
                 </div>
               </div>
                  </div>
@@ -755,8 +779,32 @@ export default function OrderDetailsPage() {
                               {(() => {
                                 const qualityName = typeof item.quality === 'string' ? item.quality : item.quality?.name || 'N/A';
                                 
+                                // Debug logging
+                                console.log('🔍 Order Details - Process data debug:', {
+                                  qualityName,
+                                  processData: (item as any).processData,
+                                  millInputs: millInputs.length,
+                                  orderId: order?.orderId
+                                });
+                                
                                 // Use process data from API if available
                                 const processFromAPI = getHighestPriorityProcess((item as any).processData, qualityName);
+                                console.log('🔍 Order Details - Process from API:', processFromAPI);
+                                
+                                // TEST: Show test data for order 234
+                                if (order?.orderId === '234' && !processFromAPI) {
+                                  console.log('🧪 TEST: Showing test process data for order 234');
+                                  return (
+                                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                                      isDarkMode 
+                                        ? 'bg-orange-600/20 text-orange-300 border border-orange-500/30' 
+                                        : 'bg-orange-100 text-orange-700 border border-orange-200'
+                                    }`}>
+                                      Lot No Greigh (TEST)
+                                    </span>
+                                  );
+                                }
+                                
                                 if (processFromAPI) {
                                   const displayProcess = processFromAPI;
                                   
@@ -773,12 +821,84 @@ export default function OrderDetailsPage() {
                                 
                                 // Fallback to old method if no process data from API
                                 const processes = getProcessDataForQuality(item.quality, order.orderId);
+                                console.log('🔍 Order Details - Processes from fallback:', processes);
+                                
+                                // If still no processes, try to extract directly from mill inputs
+                                if (processes.length === 0 && millInputs.length > 0) {
+                                  console.log('🔍 Order Details - Extracting from mill inputs directly');
+                                  const itemQualityId = typeof item.quality === 'object' ? item.quality._id : item.quality;
+                                  const itemQualityName = typeof item.quality === 'object' ? item.quality.name : item.quality;
+                                  
+                                  const relevantProcesses: string[] = [];
+                                  
+                                  millInputs.forEach((millInput: any) => {
+                                    // Check main quality
+                                    if (millInput.quality?._id?.toString() === itemQualityId?.toString() || 
+                                        millInput.quality?.name === itemQualityName) {
+                                      if (millInput.processName && millInput.processName.trim() !== '') {
+                                        relevantProcesses.push(millInput.processName.trim());
+                                      }
+                                    }
+                                    
+                                    // Check additional meters
+                                    if (millInput.additionalMeters) {
+                                      millInput.additionalMeters.forEach((additional: any) => {
+                                        if ((additional.quality?._id?.toString() === itemQualityId?.toString() || 
+                                             additional.quality?.name === itemQualityName) &&
+                                            additional.processName && additional.processName.trim() !== '') {
+                                          relevantProcesses.push(additional.processName.trim());
+                                        }
+                                      });
+                                    }
+                                  });
+                                  
+                                  const uniqueProcesses = [...new Set(relevantProcesses)];
+                                  const processPriority = [
+                                    'Lot No Greigh',
+                                    'Charkha',
+                                    'Drum',
+                                    'Soflina WR',
+                                    'long jet',
+                                    'setting',
+                                    'In Dyeing',
+                                    'jigar',
+                                    'in printing',
+                                    'loop',
+                                    'washing',
+                                    'Finish',
+                                    'folding',
+                                    'ready to dispatch'
+                                  ];
+                                  
+                                  const sortedProcesses = uniqueProcesses.sort((a, b) => {
+                                    const aIndex = processPriority.indexOf(a);
+                                    const bIndex = processPriority.indexOf(b);
+                                    if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+                                    if (aIndex === -1) return 1;
+                                    if (bIndex === -1) return -1;
+                                    return aIndex - bIndex;
+                                  });
+                                  
+                                  if (sortedProcesses.length > 0) {
+                                    console.log('🔍 Order Details - Found process from mill inputs:', sortedProcesses[0]);
+                                    return (
+                                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                                        isDarkMode 
+                                          ? 'bg-orange-600/20 text-orange-300 border border-orange-500/30' 
+                                          : 'bg-orange-100 text-orange-700 border border-orange-200'
+                                      }`}>
+                                        {sortedProcesses[0]}
+                                      </span>
+                                    );
+                                  }
+                                }
+                                
                                 if (processes.length === 0) {
                                   return <span className="text-gray-500">No process data</span>;
                                 }
                                 
-                                // Show only the highest priority process (last one in the sorted array)
-                                const highestPriorityProcess = processes[processes.length - 1];
+                                // Show only the highest priority process (first one in the sorted array)
+                                const highestPriorityProcess = processes[0];
                                 
                                 return (
                                   <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
@@ -813,32 +933,6 @@ export default function OrderDetailsPage() {
                             </p>
                           </div>
                                   
-                          <div className="space-y-1">
-                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              Purchase Rate
-                            </label>
-                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                              {item.purchaseRate ? `₹${Number(item.purchaseRate).toFixed(0)}` : '--'}
-                            </p>
-                          </div>
-                          
-                          <div className="space-y-1">
-                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              Mill Rate
-                            </label>
-                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                              {item.millRate ? `₹${Number(item.millRate).toFixed(0)}` : '--'}
-                            </p>
-                          </div>
-                          
-                          <div className="space-y-1">
-                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              Sales Rate
-                            </label>
-                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                              {item.salesRate ? `₹${Number(item.salesRate).toFixed(0)}` : '--'}
-                            </p>
-                          </div>
                           
                           <div className="md:col-span-2">
                             <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -1198,7 +1292,7 @@ export default function OrderDetailsPage() {
                    </div>
                    
                                 {/* Mill Output Data Fields - All in one row */}
-                                <div className="grid grid-cols-3 gap-4">
+                                <div className="grid grid-cols-2 gap-4">
                                   <div>
                                     <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                                       Finished Meters
@@ -1207,15 +1301,6 @@ export default function OrderDetailsPage() {
                                       {millOutput.finishedMtr || '--'}
                        </p>
                      </div>
-                                  
-                                  <div>
-                                    <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                                      Mill Rate
-                                    </label>
-                                    <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                      {millOutput.millRate ? `₹${millOutput.millRate}` : '--'}
-                                    </p>
-                             </div>
                              
                                   <div>
                                     <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -1315,7 +1400,7 @@ export default function OrderDetailsPage() {
                   </div>
                   
                                 {/* Dispatch Data Fields - All in one row */}
-                                <div className="grid grid-cols-3 gap-4">
+                                <div className="grid grid-cols-2 gap-4">
                               <div>
                                     <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                                       Finish Meters
@@ -1324,15 +1409,6 @@ export default function OrderDetailsPage() {
                                       {dispatch.finishMtr || '--'}
                                     </p>
               </div>
-
-                        <div>
-                                    <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                                      Sale Rate
-                                    </label>
-                                    <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                      {dispatch.saleRate ? `₹${dispatch.saleRate}` : '--'}
-                                    </p>
-                    </div>
                     
                         <div>
                                     <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>

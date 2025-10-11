@@ -19,7 +19,7 @@ import {
   ArrowRightOnRectangleIcon,
   MoonIcon
 } from '@heroicons/react/24/outline';
-import { useDarkMode } from '@/app/contexts/DarkModeContext';
+import { useDarkMode } from '../hooks/useDarkMode';
 import { BRAND_NAME, BRAND_COPYRIGHT, BRAND_TAGLINE } from '@/lib/config';
 import GlobalSkeleton from './GlobalSkeleton';
 
@@ -65,7 +65,7 @@ export default function Sidebar({
   onOpenInApp
 }: SidebarProps) {
   const pathname = usePathname();
-  const { isDarkMode, mounted, toggleDarkMode, isTransitioning, themeSwitchRef } = useDarkMode();
+  const { isDarkMode, mounted, toggleDarkMode, themeSwitchRef } = useDarkMode();
   const [screenSize, setScreenSize] = useState<number>(0);
   const [hasSetInitialState, setHasSetInitialState] = useState<boolean>(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
@@ -449,19 +449,19 @@ export default function Sidebar({
                     {/* Dark/White Mode Toggle Button */}
                     <button
                       ref={themeSwitchRef}
-                      disabled={isTransitioning}
+                      disabled={false}
                       className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
                         isDarkMode 
                           ? 'text-yellow-300 hover:bg-yellow-500/10' 
                           : 'text-gray-600 hover:bg-gray-50'
-                      } ${isTransitioning ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      }`}
                       onClick={() => {
                         closeProfileDropdown();
                         toggleDarkMode();
                       }}
                     >
                       <div className="flex items-center space-x-2">
-                        {isTransitioning ? (
+                        {false ? (
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
                         ) : isDarkMode ? (
                           <SunIcon className="h-4 w-4" />
@@ -469,7 +469,7 @@ export default function Sidebar({
                           <MoonIcon className="h-4 w-4" />
                         )}
                         <span>
-                          {isTransitioning 
+                          {false 
                             ? 'Switching...' 
                             : isDarkMode 
                               ? 'Switch to Light Mode' 

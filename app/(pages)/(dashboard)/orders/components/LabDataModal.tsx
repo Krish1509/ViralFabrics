@@ -56,6 +56,14 @@ function CustomDatePicker({
   // Format date for display (dd/mm/yyyy)
   const formatDateForDisplay = (dateString: string) => {
     if (!dateString) return '';
+    
+    // Handle ISO date string (YYYY-MM-DD)
+    if (dateString.includes('-')) {
+      const [year, month, day] = dateString.split('-');
+      return `${day}/${month}/${year}`;
+    }
+    
+    // Handle other date formats
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return dateString;
     return date.toLocaleDateString('en-GB'); // dd/mm/yyyy format
@@ -69,12 +77,13 @@ function CustomDatePicker({
     const parts = inputValue.split('/');
     if (parts.length === 3) {
       const day = parseInt(parts[0]);
-      const month = parseInt(parts[1]) - 1;
+      const month = parseInt(parts[1]) - 1; // Month is 0-indexed
       const year = parseInt(parts[2]);
       
-      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year) && day >= 1 && day <= 31 && month >= 0 && month <= 11) {
         const date = new Date(year, month, day);
-        if (!isNaN(date.getTime())) {
+        // Validate the date is correct (handles invalid dates like 31/02/2024)
+        if (date.getDate() === day && date.getMonth() === month && date.getFullYear() === year) {
           return date.toISOString().split('T')[0];
         }
       }
@@ -84,7 +93,17 @@ function CustomDatePicker({
   };
 
   const handleDateSelect = (date: Date) => {
-    const formattedDate = date.toISOString().split('T')[0];
+    // Create a new date object to avoid any timezone issues
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const day = date.getDate();
+    
+    // Create date in local timezone
+    const selectedDate = new Date(year, month, day);
+    const formattedDate = selectedDate.toISOString().split('T')[0];
+    
+    console.log('Date selected:', { year, month, day, formattedDate, originalDate: date });
+    
     onChange(formattedDate);
     setInputValue(formatDateForDisplay(formattedDate));
     setShowCalendar(false);
@@ -144,11 +163,15 @@ function CustomDatePicker({
     const startingDay = firstDay.getDay();
     
     const days = [];
+    // Add empty cells for days before the first day of the month
     for (let i = 0; i < startingDay; i++) {
       days.push(null);
     }
+    // Add all days of the month
     for (let i = 1; i <= daysInMonth; i++) {
-      days.push(new Date(year, month, i));
+      // Create date object with explicit year, month, day to avoid timezone issues
+      const dayDate = new Date(year, month, i);
+      days.push(dayDate);
     }
     return days;
   };
@@ -860,7 +883,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
         setSuccessMessage('All lab data deleted successfully!');
         setTimeout(() => setSuccessMessage(''), 3000);
 
-        // Notify parent component
+        // Notify parent component with force refresh
         onLabDataUpdate('deleteAll');
       } else {
         setError(result.message || 'Failed to delete all lab data');

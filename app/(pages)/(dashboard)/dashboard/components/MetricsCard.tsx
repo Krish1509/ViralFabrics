@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
-import { useDarkMode } from '@/app/contexts/DarkModeContext';
+import { useDarkMode } from '../../hooks/useDarkMode';
 
 interface MetricsCardProps {
   title: string;
@@ -14,6 +14,7 @@ interface MetricsCardProps {
     isPositive: boolean;
   };
   subtitle?: string;
+  onClick?: () => void;
 }
 
 const colorClasses = {
@@ -97,17 +98,31 @@ export default function MetricsCard({
   icon: Icon, 
   color, 
   trend, 
-  subtitle 
+  subtitle,
+  onClick 
 }: MetricsCardProps) {
   const { isDarkMode } = useDarkMode();
   const colors = isDarkMode ? colorClasses[color].dark : colorClasses[color].light;
 
+  const handleClick = (e: React.MouseEvent) => {
+    console.log('🔧 MetricsCard clicked:', { title, onClick: !!onClick });
+    alert(`MetricsCard clicked: ${title}`); // Temporary alert for testing
+    if (onClick) {
+      onClick();
+    } else {
+      console.log('🔧 MetricsCard - no onClick handler provided');
+    }
+  };
+
   return (
-    <div className={`${colors.bg} ${colors.border} border rounded-xl p-4 sm:p-6 hover:shadow-lg transition-all duration-500 transform hover:-translate-y-1 ${
-      isDarkMode 
-        ? 'hover:shadow-xl hover:shadow-black/30 backdrop-blur-sm' 
-        : 'hover:shadow-xl hover:shadow-gray-200/50 backdrop-blur-sm'
-    }`}>
+    <div 
+      onClick={handleClick}
+      className={`${colors.bg} ${colors.border} border rounded-xl p-4 sm:p-6 hover:shadow-lg transition-all duration-500 transform hover:-translate-y-1 ${
+        isDarkMode 
+          ? 'hover:shadow-xl hover:shadow-black/30 backdrop-blur-sm' 
+          : 'hover:shadow-xl hover:shadow-gray-200/50 backdrop-blur-sm'
+      } ${onClick ? 'cursor-pointer' : ''}`}
+    >
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <p className={`text-sm font-medium mb-1 transition-colors duration-300 ${
@@ -120,6 +135,11 @@ export default function MetricsCard({
             <p className={`text-xs mt-1 transition-colors duration-300 ${
               isDarkMode ? 'text-gray-400' : 'text-gray-500'
             }`}>{subtitle}</p>
+          )}
+          {onClick && (
+            <p className={`text-xs mt-1 transition-colors duration-300 ${
+              isDarkMode ? 'text-blue-400' : 'text-blue-600'
+            }`}>Click to view →</p>
           )}
           {trend && (
             <div className="flex items-center mt-2">

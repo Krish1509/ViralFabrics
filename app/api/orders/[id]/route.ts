@@ -129,42 +129,115 @@ export async function GET(
             // Find process data for this specific quality
             let qualityProcessData = null;
             
-            // Check all mill inputs for this quality
+            // Collect all processes for this quality from all mill inputs
+            const allProcesses: string[] = [];
+            
             for (const millInputData of millInputs) {
               // Check main quality
               if (millInputData.quality?._id?.toString() === itemQualityId || 
                   millInputData.quality?.name === itemQualityName) {
-                qualityProcessData = {
-                  mainProcess: millInputData.processName || '',
-                  additionalProcesses: []
-                };
-                break;
+                if (millInputData.processName && millInputData.processName.trim() !== '') {
+                  allProcesses.push(millInputData.processName.trim());
+                }
               }
               
               // Check additional meters for this quality
               if (millInputData.additionalMeters) {
-                const matchingAdditional = millInputData.additionalMeters.find((additional: any) => 
-                  additional.quality?._id?.toString() === itemQualityId || 
-                  additional.quality?.name === itemQualityName
-                );
-                
-                if (matchingAdditional) {
-                  qualityProcessData = {
-                    mainProcess: matchingAdditional.processName || '',
-                    additionalProcesses: []
-                  };
-                  break;
-                }
+                millInputData.additionalMeters.forEach((additional: any) => {
+                  if ((additional.quality?._id?.toString() === itemQualityId || 
+                       additional.quality?.name === itemQualityName) &&
+                      additional.processName && additional.processName.trim() !== '') {
+                    allProcesses.push(additional.processName.trim());
+                  }
+                });
               }
             }
             
-            // If no quality-specific data found, use the first mill input's main process data as fallback
-            if (!qualityProcessData) {
-              const firstMillInput = millInputs[0];
+            // Remove duplicates and sort by priority
+            const uniqueProcesses = [...new Set(allProcesses)];
+            const processPriority = [
+              'Lot No Greigh',
+              'Charkha',
+              'Drum',
+              'Soflina WR',
+              'long jet',
+              'setting',
+              'In Dyeing',
+              'jigar',
+              'in printing',
+              'loop',
+              'washing',
+              'Finish',
+              'folding',
+              'ready to dispatch'
+            ];
+            
+            const sortedProcesses = uniqueProcesses.sort((a, b) => {
+              const aIndex = processPriority.indexOf(a);
+              const bIndex = processPriority.indexOf(b);
+              if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+              if (aIndex === -1) return 1;
+              if (bIndex === -1) return -1;
+              return aIndex - bIndex;
+            });
+            
+            if (sortedProcesses.length > 0) {
               qualityProcessData = {
-                mainProcess: firstMillInput.processName || '',
-                additionalProcesses: firstMillInput.additionalMeters?.map((additional: any) => additional.processName || '') || []
+                mainProcess: sortedProcesses[0], // Highest priority process
+                additionalProcesses: sortedProcesses.slice(1) // Rest of the processes
               };
+            }
+            
+            // If no quality-specific data found, collect all processes from all mill inputs as fallback
+            if (!qualityProcessData && millInputs.length > 0) {
+              const fallbackProcesses: string[] = [];
+              
+              millInputs.forEach((millInput: any) => {
+                if (millInput.processName && millInput.processName.trim() !== '') {
+                  fallbackProcesses.push(millInput.processName.trim());
+                }
+                if (millInput.additionalMeters) {
+                  millInput.additionalMeters.forEach((additional: any) => {
+                    if (additional.processName && additional.processName.trim() !== '') {
+                      fallbackProcesses.push(additional.processName.trim());
+                    }
+                  });
+                }
+              });
+              
+              const uniqueFallbackProcesses = [...new Set(fallbackProcesses)];
+              const processPriority = [
+                'Lot No Greigh',
+                'Charkha',
+                'Drum',
+                'Soflina WR',
+                'long jet',
+                'setting',
+                'In Dyeing',
+                'jigar',
+                'in printing',
+                'loop',
+                'washing',
+                'Finish',
+                'folding',
+                'ready to dispatch'
+              ];
+              
+              const sortedFallbackProcesses = uniqueFallbackProcesses.sort((a, b) => {
+                const aIndex = processPriority.indexOf(a);
+                const bIndex = processPriority.indexOf(b);
+                if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+                if (aIndex === -1) return 1;
+                if (bIndex === -1) return -1;
+                return aIndex - bIndex;
+              });
+              
+              if (sortedFallbackProcesses.length > 0) {
+                qualityProcessData = {
+                  mainProcess: sortedFallbackProcesses[0],
+                  additionalProcesses: sortedFallbackProcesses.slice(1)
+                };
+              }
             }
             
             item.processData = qualityProcessData;

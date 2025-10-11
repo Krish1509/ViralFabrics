@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useDarkMode } from '@/app/contexts/DarkModeContext';
+import { useDarkMode } from '../(dashboard)/hooks/useDarkMode';
 import { 
   EyeIcon, 
   EyeSlashIcon, 
@@ -39,7 +39,7 @@ function LoginForm() {
   const [isPasswordShown, setIsPasswordShown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const { isDarkMode, toggleDarkMode, mounted: darkModeMounted, isTransitioning, themeSwitchRef } = useDarkMode();
+  const { isDarkMode, toggleDarkMode, mounted: darkModeMounted, themeSwitchRef } = useDarkMode();
   const [isCheckingSession, setIsCheckingSession] = useState(false);
   const [formData, setFormData] = useState<LoginFormData>({
     username: '',
@@ -330,12 +330,12 @@ function LoginForm() {
             <button
               ref={themeSwitchRef}
               onClick={toggleDarkMode}
-              disabled={isTransitioning}
+              disabled={false}
               className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
                 isDarkMode
                   ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/90 border border-slate-600/50 hover:shadow-slate-500/25'
                   : 'bg-white/90 text-slate-700 hover:bg-white border border-slate-200/50 shadow-xl hover:shadow-slate-300/25'
-              } ${isTransitioning ? 'opacity-50 cursor-not-allowed' : ''}`}
+              }`}
               aria-label="Toggle dark mode"
             >
               {isDarkMode ? (
@@ -394,12 +394,12 @@ function LoginForm() {
             <button
               ref={themeSwitchRef}
               onClick={toggleDarkMode}
-              disabled={isTransitioning}
+              disabled={false}
               className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
                 isDarkMode
                   ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/90 border border-slate-600/50 hover:shadow-slate-500/25'
                   : 'bg-white/90 text-slate-700 hover:bg-white border border-slate-200/50 shadow-xl hover:shadow-slate-300/25'
-              } ${isTransitioning ? 'opacity-50 cursor-not-allowed' : ''}`}
+              }`}
               aria-label="Toggle dark mode"
             >
               {isDarkMode ? (
@@ -488,12 +488,12 @@ function LoginForm() {
             <button
               ref={themeSwitchRef}
               onClick={toggleDarkMode}
-              disabled={isTransitioning}
+              disabled={false}
               className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
                 isDarkMode
                   ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600 hover:shadow-slate-500/25'
                   : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-xl hover:shadow-slate-300/25'
-              } ${isTransitioning ? 'opacity-50 cursor-not-allowed' : ''}`}
+              }`}
               aria-label="Toggle dark mode"
             >
               {isDarkMode ? (
