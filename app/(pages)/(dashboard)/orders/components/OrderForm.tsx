@@ -629,7 +629,7 @@ function EnhancedDropdown({
                 className={`w-full p-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
                   isDarkMode ? 'text-white' : 'text-gray-900'
                 } ${value === (option._id || (option as any).id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${
-                  recentlyAddedId === (option._id || (option as any).id) ? 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500' : ''
+                  recentlyAddedId === (option._id || (option as any).id) ? 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500 animate-pulse' : ''
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -1358,19 +1358,65 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
   // Handle newly added qualities - auto-select and highlight
   useEffect(() => {
     if (qualities.length > 0 && recentlyAddedQuality) {
-      const newQuality = qualities.find(quality => quality._id === recentlyAddedQuality);
+      const newQuality = qualities.find(quality => {
+        const qualityId = quality._id || (quality as any).id || '';
+        return qualityId === recentlyAddedQuality;
+      });
+      
       if (newQuality) {
-        // Find the first empty quality field and auto-fill it
+        console.log('🔍 Found newly added quality in useEffect:', { newQuality, recentlyAddedQuality, activeQualityDropdown });
+        
+        // If we have an active dropdown, use that specific dropdown
+        if (activeQualityDropdown !== null) {
+          const qualityId = getQualityId(newQuality);
+          console.log('🔍 Auto-selecting quality in active dropdown:', { activeQualityDropdown, qualityId, qualityName: newQuality.name });
+          
+          // Set the quality for the active dropdown
+          handleItemChange(activeQualityDropdown, 'quality', qualityId);
+          
+          // Update the search state for this specific dropdown
+          setQualitySearchStates(prev => ({
+            ...prev,
+            [activeQualityDropdown]: newQuality.name
+          }));
+          
+          // Update the current quality search
+          setCurrentQualitySearch(newQuality.name);
+          
+          // Close the dropdown
+          setActiveQualityDropdown(null);
+          
+          console.log('✅ Quality auto-selected in active dropdown:', activeQualityDropdown);
+        } else {
+          // If no active dropdown, find the first empty quality field and auto-fill it
         const emptyItemIndex = formData.items.findIndex(item => !item.quality);
         if (emptyItemIndex !== -1) {
-          handleItemChange(emptyItemIndex, 'quality', newQuality._id);
+            const qualityId = getQualityId(newQuality);
+            console.log('🔍 Auto-filling empty quality field:', { emptyItemIndex, qualityId, qualityName: newQuality.name });
+            
+            handleItemChange(emptyItemIndex, 'quality', qualityId);
           setQualitySearchStates(prev => ({ ...prev, [emptyItemIndex]: newQuality.name }));
+            
+            console.log('✅ Quality auto-filled in empty field:', emptyItemIndex);
+          } else {
+            console.log('⚠️ No empty quality fields found for auto-fill');
+          }
         }
-        setRecentlyAddedQuality(null); // Clear the flag
-        onSetRecentlyAddedQuality?.(null); // Clear the parent state
+        
+        // Clear the flag after auto-selection
+        setRecentlyAddedQuality(null);
+        onSetRecentlyAddedQuality?.(null);
+        
+        // Clear the "recently added" indicator after 3 seconds
+        setTimeout(() => {
+          setRecentlyAddedQuality(null);
+          console.log('🔄 Cleared recently added quality indicator');
+        }, 3000);
+      } else {
+        console.log('⚠️ Newly added quality not found in qualities list:', { recentlyAddedQuality, qualitiesCount: qualities.length });
       }
     }
-  }, [qualities, recentlyAddedQuality, onSetRecentlyAddedQuality]);
+  }, [qualities, recentlyAddedQuality, onSetRecentlyAddedQuality, activeQualityDropdown]);
 
   // Clear loading state when parties are loaded or after timeout
   useEffect(() => {
@@ -1402,7 +1448,46 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
 
   // Helper function to get quality ID (handles both _id and id from API)
   const getQualityId = (quality: any) => {
-    return quality._id || quality.id || '';
+    if (!quality) {
+      console.error('❌ getQualityId: quality is null/undefined');
+      return '';
+    }
+    
+    // Handle case where quality might be a string (already an ID)
+    if (typeof quality === 'string') {
+      console.log('🔍 getQualityId: quality is already a string ID:', quality);
+      return quality;
+    }
+    
+    // Handle case where quality is an object
+    if (typeof quality === 'object') {
+      // Check for both _id and id (MongoDB uses _id, but toJSON transform converts to id)
+      const id = quality._id || quality.id || '';
+      console.log('🔍 getQualityId:', { 
+        quality, 
+        extractedId: id, 
+        has_id: !!quality._id, 
+        has_id_field: !!quality.id,
+        qualityKeys: Object.keys(quality)
+      });
+      
+      if (!id) {
+        console.error('❌ getQualityId: No valid ID found in quality object:', quality);
+        return '';
+      }
+      
+      // Ensure the ID is a string
+      const stringId = String(id);
+      if (stringId === 'undefined' || stringId === 'null' || stringId === '') {
+        console.error('❌ getQualityId: Invalid ID value:', { id, stringId });
+        return '';
+      }
+      
+      return stringId;
+    }
+    
+    console.error('❌ getQualityId: Unexpected quality type:', typeof quality, quality);
+    return '';
   };
 
   // Helper function to get party ID (handles both _id and id from API)
@@ -1417,7 +1502,24 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
 
   // Helper function to validate if a quality still exists
   const validateQualityExists = (qualityId: string) => {
-    return qualities.some(quality => quality._id === qualityId);
+    // Check if quality exists in the qualities prop (handle both _id and id fields)
+    const existsInProps = qualities.some(quality => {
+      const qualityIdFromProps = quality._id || (quality as any).id || '';
+      return qualityIdFromProps === qualityId;
+    });
+    
+    // Also check if it's a recently added quality (might not be in props yet)
+    const isRecentlyAdded = recentlyAddedQuality === qualityId;
+    
+    console.log('🔍 validateQualityExists:', { 
+      qualityId, 
+      existsInProps, 
+      isRecentlyAdded, 
+      qualitiesCount: qualities.length,
+      recentlyAddedQuality 
+    });
+    
+    return existsInProps || isRecentlyAdded;
   };
 
   // Delete functions
@@ -1501,6 +1603,8 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
       return;
     }
 
+    console.log('🗑️ Starting quality deletion for:', { qualityId, qualityName: quality.name });
+
     setDeletingQuality(qualityId);
     
     try {
@@ -1524,6 +1628,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         // If the deleted quality was selected in any item, clear those selections
         const updatedItems = formData.items.map(item => {
           if (item.quality === qualityId) {
+            console.log('🔍 Clearing quality selection for item:', item);
             return { ...item, quality: '' };
           }
           return item;
@@ -1536,6 +1641,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
           Object.keys(newStates).forEach(key => {
             const index = parseInt(key);
             if (!isNaN(index) && newStates[index] === quality.name) {
+              console.log('🔍 Clearing quality search state for index:', index);
               newStates[index] = '';
             }
           });
@@ -1551,13 +1657,15 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         setActiveQualityDropdown(null);
         setCurrentQualitySearch('');
         
-        // Refresh qualities list from server
-        await onAddQuality(null); // This will trigger a refresh
+        // Refresh qualities list from server (non-blocking)
+        onAddQuality(null);
+        console.log('✅ Qualities refresh initiated after deletion');
       } else {
         setValidationMessage({ type: 'error', text: data.message || 'Failed to delete quality' });
       }
     } catch (error) {
-      setValidationMessage({ type: 'error', text: 'Failed to delete quality' });
+      console.error('❌ Error deleting quality:', error);
+      setValidationMessage({ type: 'error', text: 'Failed to delete quality. Please try again.' });
     } finally {
       setDeletingQuality(null);
     }
@@ -2428,7 +2536,7 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                           Quality <span className="text-red-500">*</span>
                         </label>
                                                  <EnhancedDropdown
-                          key={`quality-dropdown-${index}-${qualities.length}-${deleteCounter}`}
+                          key={`quality-dropdown-${index}-${qualities.length}-${deleteCounter}-${recentlyAddedQuality || 'none'}`}
                           options={getFilteredQualities(index)}
                            value={item.quality as string}
                            onChange={(value) => handleItemChange(index, 'quality', value)}
@@ -2453,19 +2561,44 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
                           }}
                           isLoading={qualitiesLoading}
                                                        onSelect={(quality) => {
+                            console.log('🔍 onSelect called with quality:', quality);
+                            console.log('🔍 Quality type:', typeof quality);
+                            console.log('🔍 Quality keys:', quality ? Object.keys(quality) : 'null/undefined');
+                            
                             const qualityId = getQualityId(quality);
-                            if (!validateQualityExists(qualityId)) {
-                              setValidationMessage({ type: 'error', text: 'Quality not found' });
+                            console.log('🔍 Quality selected:', { qualityId, qualityName: quality?.name, index });
+                            console.log('🔍 Current qualities count:', qualities.length);
+                            console.log('🔍 Recently added quality:', recentlyAddedQuality);
+                            
+                            if (!qualityId || qualityId === '') {
+                              console.error('❌ No quality ID found:', { quality, qualityId });
+                              setValidationMessage({ type: 'error', text: 'Invalid quality data. Please try again.' });
                               return;
                             }
+                            
+                            // Additional safety check - ensure qualityId is a string
+                            if (typeof qualityId !== 'string') {
+                              console.error('❌ Quality ID is not a string:', { quality, qualityId, type: typeof qualityId });
+                              setValidationMessage({ type: 'error', text: 'Invalid quality ID format. Please try again.' });
+                              return;
+                            }
+                            
+                            if (!validateQualityExists(qualityId)) {
+                              console.error('❌ Quality validation failed:', { qualityId, qualityName: quality?.name });
+                              setValidationMessage({ type: 'error', text: 'Quality not found. Please try refreshing the page.' });
+                              return;
+                            }
+                            
+                            console.log('✅ Quality validation passed, updating form data');
                             handleItemChange(index, 'quality', qualityId);
-                            setQualitySearchStates(prev => ({ ...prev, [index]: quality.name }));
-                            setCurrentQualitySearch(quality.name);
+                            setQualitySearchStates(prev => ({ ...prev, [index]: quality?.name || '' }));
+                            setCurrentQualitySearch(quality?.name || '');
                               setActiveQualityDropdown(null);
                             }}
                            isDarkMode={isDarkMode}
                            error={errors[`items.${index}.quality`]}
                            onAddNew={() => {
+                             console.log('🔍 Opening quality modal for dropdown:', index);
                              setActiveQualityDropdown(index);
                              setShowQualityModal(true);
                            }}
@@ -3117,45 +3250,31 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         {showQualityModal && (
           <QualityModal
             onClose={() => setShowQualityModal(false)}
-            onSuccess={(newQualityName, newQualityData) => {
-              // Call the parent's onAddQuality function
+            onSuccess={async (newQualityName, newQualityData) => {
+              console.log('🎉 Quality modal success:', { newQualityName, newQualityData, activeQualityDropdown });
+              
+              // Call the parent's onAddQuality function to update the qualities list
               onAddQuality(newQualityData);
               
-              // Immediately select the new quality for the active dropdown
+              // Set the recently added quality ID for auto-selection
               if (newQualityData && activeQualityDropdown !== null) {
-                // Set the quality for the active dropdown
-                handleItemChange(activeQualityDropdown, 'quality', getQualityId(newQualityData));
+                const qualityId = getQualityId(newQualityData);
+                console.log('🔍 Setting recently added quality for auto-selection:', { qualityId, qualityName: newQualityData.name, dropdownIndex: activeQualityDropdown });
                 
-                // Update the search state for this specific dropdown
-                setQualitySearchStates(prev => ({
-                  ...prev,
-                  [activeQualityDropdown]: newQualityData.name
-                }));
+                // Set the recently added indicator - this will trigger the useEffect for auto-selection
+                setRecentlyAddedQuality(qualityId);
                 
-                // Update the current quality search
-                setCurrentQualitySearch(newQualityData.name);
-                
-                // Set the recently added indicator
-                setRecentlyAddedQuality(getQualityId(newQualityData));
-                
-                // Close the dropdown immediately
-                setActiveQualityDropdown(null);
-                
-                // Clear the "recently added" indicator after 3 seconds
-                setTimeout(() => {
-                  setRecentlyAddedQuality(null);
-                }, 3000);
-                
-                // Force a re-render to ensure the selection is displayed
-                setTimeout(() => {
-                  setFormData(prev => {
-                    return { ...prev };
-                  });
-                }, 100);
+                // Also set the active dropdown index so we know which dropdown to fill
+                setActiveQualityDropdown(activeQualityDropdown);
                 
                 // Show success message
-                setValidationMessage({ type: 'success', text: 'New quality added and selected successfully!' });
+                setValidationMessage({ type: 'success', text: 'New quality added and will be selected automatically!' });
+                
+                console.log('✅ Quality auto-selection initiated for dropdown:', activeQualityDropdown);
               } else {
+                // If no active dropdown, just show success message
+                console.log('⚠️ No active dropdown found, quality added but not auto-selected');
+                setValidationMessage({ type: 'success', text: 'New quality added successfully!' });
                 }
               
               setShowQualityModal(false);

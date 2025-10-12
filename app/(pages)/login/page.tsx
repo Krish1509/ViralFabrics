@@ -39,6 +39,8 @@ function LoginForm() {
   const [isPasswordShown, setIsPasswordShown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
   const { isDarkMode, toggleDarkMode, mounted: darkModeMounted, themeSwitchRef } = useDarkMode();
   const [isCheckingSession, setIsCheckingSession] = useState(false);
   const [formData, setFormData] = useState<LoginFormData>({
@@ -89,9 +91,9 @@ function LoginForm() {
       setIsCheckingSession(true);
       
       try {
-        // Ultra-fast session validation with timeout
+        // Reasonable session validation with timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
         
         const response = await fetch('/api/auth/validate-session', {
           headers: {
@@ -160,11 +162,12 @@ function LoginForm() {
 
     setIsLoading(true);
     setErrors({});
+    setRetryCount(0);
     
     try {
-      // Ultra-fast timeout for login
+      // Reasonable timeout for login
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds max
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds - more generous
       
       // Single login API call - no parallel prefetch
       const response = await fetch('/api/auth/login', {
@@ -202,7 +205,18 @@ function LoginForm() {
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        setErrors({ general: 'Login is taking longer than expected. This may be due to server load. Please try again in a moment.' });
+        if (retryCount < 2) {
+          // Auto-retry once
+          setRetryCount(prev => prev + 1);
+          setIsRetrying(true);
+          setTimeout(() => {
+            setIsRetrying(false);
+            handleSubmit(e);
+          }, 2000); // Wait 2 seconds before retry
+          return;
+        } else {
+          setErrors({ general: 'Login is taking longer than expected. Please wait a moment and try again. If the problem persists, please contact support.' });
+        }
       } else if (error instanceof Error && error.message.includes('fetch')) {
         setErrors({ general: 'Unable to connect to the server. Please check your internet connection and try again.' });
       } else {
@@ -556,6 +570,22 @@ function LoginForm() {
             </div>
           )}
 
+          {/* Loading Progress Indicator */}
+          {isLoading && (
+            <div className={`mb-6 lg:mb-8 p-3 lg:p-4 rounded-xl flex items-center space-x-3 shadow-lg w-full lg:w-80 xl:w-96 ${
+              isDarkMode 
+                ? 'bg-blue-900/30 border border-blue-700/50 backdrop-blur-sm' 
+                : 'bg-blue-50 border border-blue-200 shadow-blue-100'
+            }`}>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+              <span className={`text-sm font-medium ${
+                isDarkMode ? 'text-blue-300' : 'text-blue-800'
+              }`}>
+                {isRetrying ? `Retrying login... (${retryCount}/2)` : 'Connecting to server...'}
+              </span>
+            </div>
+          )}
+
           {/* Remember Me Alert */}
           {showRememberMeAlert && (
             <div className={`mb-6 ml-8 lg:mb-8 p-4 lg:p-5 rounded-xl flex items-center space-x-3 shadow-lg w-full lg:w-80 xl:w-96 border-2 ${
@@ -728,16 +758,21 @@ function LoginForm() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || isRetrying}
               className={`w-full lg:w-80 xl:w-96 flex items-center justify-center px-6 lg:px-8 py-3 lg:py-4 rounded-xl font-semibold text-base lg:text-lg transition-all duration-300 cursor-pointer shadow-xl ${
-                isLoading
+                isLoading || isRetrying
                   ? 'bg-slate-400 text-slate-200 cursor-not-allowed'
                   : isDarkMode
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/25 transform hover:scale-105'
                     : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/25 transform hover:scale-105'
               }`}
             >
-              {isLoading ? (
+              {isRetrying ? (
+                <div className="flex items-center space-x-2 lg:space-x-3">
+                  <div className="animate-spin rounded-full h-4 w-4 lg:h-5 lg:w-5 border-b-2 border-white"></div>
+                  <span>Retrying... ({retryCount}/2)</span>
+                </div>
+              ) : isLoading ? (
                 <div className="flex items-center space-x-2 lg:space-x-3">
                   <div className="animate-spin rounded-full h-4 w-4 lg:h-5 lg:w-5 border-b-2 border-white"></div>
                   <span>Signing in...</span>

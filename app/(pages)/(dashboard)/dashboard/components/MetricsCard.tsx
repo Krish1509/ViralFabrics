@@ -106,7 +106,6 @@ export default function MetricsCard({
 
   const handleClick = (e: React.MouseEvent) => {
     console.log('🔧 MetricsCard clicked:', { title, onClick: !!onClick });
-    alert(`MetricsCard clicked: ${title}`); // Temporary alert for testing
     if (onClick) {
       onClick();
     } else {

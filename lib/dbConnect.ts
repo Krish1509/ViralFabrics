@@ -47,12 +47,12 @@ export default async function dbConnect(): Promise<Mongoose> {
     const opts = {
       bufferCommands: false, // Disable buffering for faster responses
       maxPoolSize: 5, // Increased pool for better reliability
-      serverSelectionTimeoutMS: 2000, // More reasonable timeout
-      socketTimeoutMS: 5000, // More reasonable socket timeout
+      serverSelectionTimeoutMS: 5000, // More reasonable timeout
+      socketTimeoutMS: 10000, // More reasonable socket timeout
       family: 4, // Use IPv4, skip trying IPv6
       retryWrites: true, // Enable retries for reliability
       retryReads: true, // Enable retries for reliability
-      connectTimeoutMS: 2000, // More reasonable connection timeout
+      connectTimeoutMS: 5000, // More reasonable connection timeout
       maxIdleTimeMS: 10000, // Longer idle time for stability
       heartbeatFrequencyMS: 2000, // More reasonable heartbeat
       maxConnecting: 2, // Allow 2 connections for reliability

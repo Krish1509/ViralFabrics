@@ -10,7 +10,7 @@ import { logLogin } from "@/lib/logger";
 export async function POST(req: Request) {
   // Set a timeout for the entire login process
   const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Login timeout')), 20000); // 20 seconds timeout for Vercel
+    setTimeout(() => reject(new Error('Login timeout')), 30000); // 30 seconds timeout - more generous
   });
 
   try {
@@ -48,7 +48,7 @@ async function performLogin(req: Request) {
       return NextResponse.json({ message: "Database connection failed. Please try again." }, { status: 503 });
     }
     
-    // Ultra-fast user lookup with optimized query - single query with $or
+    // Optimized user lookup with reasonable timeout
     const user = await User.findOne({
       $or: [
         { username: username.trim() },
@@ -56,7 +56,7 @@ async function performLogin(req: Request) {
       ]
     })
     .select('+password')
-    .maxTimeMS(100); // Ultra-fast timeout
+    .maxTimeMS(5000); // 5 second timeout - much more reasonable
 
     if (!user) {
       // Log in background - don't wait for it
@@ -114,7 +114,7 @@ async function performLogin(req: Request) {
 
     // Start all background tasks in parallel - don't wait for any
     Promise.all([
-      // Reset failed login attempts - ultra-fast update
+      // Reset failed login attempts - reasonable timeout
       User.findByIdAndUpdate(user._id, {
         $inc: { loginCount: 1 },
         $set: { 
@@ -123,7 +123,7 @@ async function performLogin(req: Request) {
           accountLocked: false
         },
         $unset: { lockExpiresAt: 1 }
-      }).maxTimeMS(50), // Ultra-fast timeout
+      }).maxTimeMS(3000), // 3 second timeout - more reasonable
       // Log successful login - non-blocking
       (Log as ILogModel).logUserAction({
         userId: user._id.toString(),

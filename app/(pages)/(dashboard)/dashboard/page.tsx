@@ -125,36 +125,40 @@ export default function DashboardPage() {
   // Navigation functions for metrics cards
   const navigateToOrders = useCallback((statusFilter: string) => {
     console.log('🔧 Dashboard navigation - statusFilter:', statusFilter);
-    console.log('🔧 Dashboard navigation - router object:', router);
-    const params = new URLSearchParams();
+    console.log('🔧 Dashboard navigation - statusFilter type:', typeof statusFilter);
+    
+    // Build the URL with proper status parameter
+    let url = '/orders';
+    
+    // Always add status parameter except for 'all'
     if (statusFilter && statusFilter !== 'all') {
-      params.set('status', statusFilter);
+      url = `/orders?status=${statusFilter}`;
+      console.log('🔧 Dashboard navigation - Added status parameter:', statusFilter);
+    } else {
+      console.log('🔧 Dashboard navigation - All orders (no status filter)');
     }
-    const queryString = params.toString();
-    const finalUrl = `/orders${queryString ? `?${queryString}` : ''}`;
-    console.log('🔧 Dashboard navigation - final URL:', finalUrl);
-    try {
-      router.push(finalUrl);
-      console.log('🔧 Dashboard navigation - router.push called successfully');
-    } catch (error) {
-      console.error('🔧 Dashboard navigation - router.push failed:', error);
-    }
-  }, [router]);
+    
+    console.log('🔧 Dashboard navigation - final URL:', url);
+    console.log('🔧 Dashboard navigation - About to navigate to:', url);
+    
+    // Use window.location for more reliable navigation
+    window.location.href = url;
+  }, []);
 
   const handleTotalOrdersClick = useCallback(() => {
     console.log('🔧 Total Orders card clicked!');
-    navigateToOrders('all');
-  }, [navigateToOrders]);
+    window.location.href = '/orders';
+  }, []);
 
   const handlePendingOrdersClick = useCallback(() => {
     console.log('🔧 Pending Orders card clicked!');
-    navigateToOrders('pending');
-  }, [navigateToOrders]);
+    window.location.href = '/orders?status=pending';
+  }, []);
 
   const handleDeliveredOrdersClick = useCallback(() => {
     console.log('🔧 Delivered Orders card clicked!');
-    navigateToOrders('delivered');
-  }, [navigateToOrders]);
+    window.location.href = '/orders?status=delivered';
+  }, []);
 
   const fetchDashboardData = useCallback(async (isRetry = false, currentFilters = filters) => {
     try {

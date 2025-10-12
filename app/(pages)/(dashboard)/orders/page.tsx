@@ -1578,7 +1578,7 @@ export default function OrdersPage() {
             
             console.log('🎯 Page is now functional with pending orders!');
           }
-        } else {
+            } else {
           console.error('❌ Orders API failed:', ordersResponse.status);
           showMessage('error', 'Failed to load orders. Please refresh the page.');
           setLoading(false);
@@ -3883,25 +3883,25 @@ export default function OrdersPage() {
                           : isDarkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'
                       }`}
                     >
-                      Latest
-                    </button>
-                    <button
+                  Latest
+                </button>
+                <button
                       onClick={() => {
                         handleFilterChange('orderFilter', 'oldest_first');
                         setShowSortDropdown(false);
                       }}
                       className={`w-full text-left px-3 py-2 text-xs hover:bg-opacity-50 transition-colors first:rounded-t-lg last:rounded-b-lg ${
-                        filters.orderFilter === 'oldest_first'
+                    filters.orderFilter === 'oldest_first'
                           ? isDarkMode ? 'bg-blue-600/20 text-blue-400' : 'bg-blue-100 text-blue-700'
                           : isDarkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'
                       }`}
                     >
-                      Oldest
-                    </button>
+                  Oldest
+              </button>
                   </div>
                 )}
-              </div>
             </div>
+          </div>
 
             {/* Status Filter - Dropdown Select */}
             <div className="flex items-center gap-3">
@@ -6187,12 +6187,28 @@ export default function OrdersPage() {
             setShowPartyModal(true);
           }}
           onRefreshParties={fetchParties}
-          onAddQuality={(newQualityData?: any) => {
+          onAddQuality={async (newQualityData?: any) => {
             if (newQualityData) {
-              setQualities(prev => [...prev, newQualityData]);
-              setFormQualities(prev => [...prev, newQualityData]);
+              console.log('🎉 Adding new quality to state:', newQualityData);
+              
+              // Immediately add to both states for instant UI update
+              setQualities(prev => {
+                const updated = [...prev, newQualityData];
+                console.log('📊 Qualities updated:', updated.length);
+                return updated;
+              });
+              
+              setFormQualities(prev => {
+                const updated = [...prev, newQualityData];
+                console.log('📊 FormQualities updated:', updated.length);
+                return updated;
+              });
+              
+              console.log('✅ Quality added to local state immediately');
             } else {
-              fetchQualities();
+              // Refresh from server
+              console.log('🔄 Refreshing qualities from server...');
+              await fetchQualities();
             }
           }}
           onRemoveParty={(partyId: string) => {
@@ -6212,21 +6228,40 @@ export default function OrdersPage() {
               return filtered;
             });
           }}
-          onRemoveQuality={(qualityId: string) => {
+          onRemoveQuality={async (qualityId: string) => {
             console.log('🔄 onRemoveQuality called with ID:', qualityId);
             console.log('📊 Current qualities count:', qualities.length);
             console.log('📊 Current formQualities count:', formQualities.length);
             
-            // Immediately remove from both main and form states
+            // Immediately remove from both main and form states (handle both _id and id fields)
             setQualities(prev => {
-              const filtered = prev.filter(quality => quality._id !== qualityId);
+              const filtered = prev.filter(quality => {
+                const qualityIdFromItem = quality._id || (quality as any).id || '';
+                return qualityIdFromItem !== qualityId;
+              });
               console.log('📊 Qualities after filter:', filtered.length);
               return filtered;
             });
             setFormQualities(prev => {
-              const filtered = prev.filter(quality => quality._id !== qualityId);
+              const filtered = prev.filter(quality => {
+                const qualityIdFromItem = quality._id || (quality as any).id || '';
+                return qualityIdFromItem !== qualityId;
+              });
               console.log('📊 FormQualities after filter:', filtered.length);
               return filtered;
+            });
+            
+            // Clear recently added quality if it was the deleted one
+            if (recentlyAddedQualityId === qualityId) {
+              setRecentlyAddedQualityId(null);
+              console.log('🔄 Cleared recently added quality ID');
+            }
+            
+            // Refresh from server to ensure consistency (non-blocking)
+            fetchQualities().then(() => {
+              console.log('✅ Qualities refreshed from server after deletion');
+            }).catch(error => {
+              console.error('❌ Failed to refresh qualities after deletion:', error);
             });
           }}
           onSetRecentlyAddedParty={setRecentlyAddedPartyId}
@@ -6262,38 +6297,31 @@ export default function OrdersPage() {
             
             // Immediately update both qualities states for instant UI update
             if (newQualityData) {
-              setQualities(prev => [...prev, newQualityData]);
-              setFormQualities(prev => [...prev, newQualityData]);
+              console.log('🎉 Quality modal success - adding to state:', newQualityData);
+              
+              setQualities(prev => {
+                const updated = [...prev, newQualityData];
+                console.log('📊 Main qualities updated:', updated.length);
+                return updated;
+              });
+              
+              setFormQualities(prev => {
+                const updated = [...prev, newQualityData];
+                console.log('📊 Form qualities updated:', updated.length);
+                return updated;
+              });
+              
               // Set the recently added quality ID for auto-selection
               setRecentlyAddedQualityId(newQualityData._id);
+              console.log('✅ Quality added to local state immediately:', newQualityData.name);
             }
             
-            // Refresh qualities from API to ensure consistency
-            await fetchQualities();
-            
-            // Also refresh form qualities to ensure OrderForm gets updated
-            try {
-              const token = localStorage.getItem('token');
-              if (token) {
-                const response = await fetch('/api/qualities?limit=100&force=true', {
-                  headers: { 
-                    'Authorization': `Bearer ${token}`,
-                    'Cache-Control': 'no-cache, no-store, must-revalidate'
-                  }
-                });
-                
-                if (response.ok) {
-                  const data = await response.json();
-                  if (data.success && data.data) {
-                    const qualitiesArray = Array.isArray(data.data) ? data.data : [];
-                    setFormQualities(qualitiesArray);
-                    console.log('✅ Form qualities refreshed after new quality creation');
-                  }
-                }
-              }
-            } catch (error) {
-              console.error('❌ Failed to refresh form qualities:', error);
-            }
+            // Refresh qualities from API to ensure consistency (non-blocking)
+            fetchQualities().then(() => {
+              console.log('✅ Qualities refreshed from server');
+            }).catch(error => {
+              console.error('❌ Failed to refresh qualities:', error);
+            });
           }}
         />
       )}
