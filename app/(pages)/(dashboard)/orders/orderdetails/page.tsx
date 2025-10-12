@@ -529,19 +529,19 @@ export default function OrderDetailsPage() {
                   <ArrowLeftIcon className="h-5 w-5" />
               </button>
               <div>
-                  <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    Order #{order?.orderId}
-                </h1>
-                  <div className="flex items-center space-x-3 mt-1">
-                    <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+                  <div className="flex items-center space-x-4">
+                    <h1 className={`text-4xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      Order #{order?.orderId}
+                    </h1>
+                    <span className={`inline-flex items-center px-4 py-2 text-sm font-bold rounded-full ${
                      order?.status === 'delivered'
-                        ? isDarkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-800'
-                        : isDarkMode ? 'bg-yellow-900/30 text-yellow-400' : 'bg-yellow-100 text-yellow-800'
+                        ? isDarkMode ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-green-100 text-green-800 border border-green-200'
+                        : isDarkMode ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-500/30' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
                     }`}>
-                      {order?.status === 'delivered' ? <CheckCircleIcon className="h-3 w-3 mr-1" /> : <ClockIcon className="h-3 w-3 mr-1" />}
+                      {order?.status === 'delivered' ? <CheckCircleIcon className="h-4 w-4 mr-2" /> : <ClockIcon className="h-4 w-4 mr-2" />}
                       {order?.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Pending'}
                    </span>
-                </div>
+                  </div>
               </div>
             </div>
               
@@ -568,85 +568,61 @@ export default function OrderDetailsPage() {
           {/* Header Cards Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
             {/* Order Information */}
-            <div className={`p-3 rounded-lg shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-2 mb-3">
-                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-blue-600/20' : 'bg-blue-100'}`}>
-                  <DocumentTextIcon className={`h-5 w-5 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+            <div className={`p-6 rounded-xl shadow-lg border-2 ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-xl hover:border-gray-500' : 'bg-white border-gray-200 hover:shadow-xl hover:border-gray-300'} transition-all duration-300`}>
+              <div className="flex items-center space-x-3 mb-4">
+                <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-blue-600/20' : 'bg-blue-100'}`}>
+                  <DocumentTextIcon className={`h-8 w-8 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`} />
                 </div>
-                <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Order Information
                 </h2>
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Order ID</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.orderId}</p>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Order ID</span>
+                  <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.orderId}</p>
                 </div>
-                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Order Type</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.orderType || 'Not selected'}</p>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Order Type</span>
+                  <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.orderType || 'Not selected'}</p>
                 </div>
-                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>PO Number</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.poNumber || 'Not selected'}</p>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Style No</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.styleNo || 'Not selected'}</p>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Purchase Rate</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {order?.items && order.items.length > 0 && order.items[0].purchaseRate 
-                      ? `₹${Number(order.items[0].purchaseRate).toFixed(0)}` 
-                      : '--'}
-                  </p>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Mill Rate</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {order?.items && order.items.length > 0 && order.items[0].millRate 
-                      ? `₹${Number(order.items[0].millRate).toFixed(0)}` 
-                      : '--'}
-                  </p>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>PO Number</span>
+                  <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.poNumber || 'Not selected'}</p>
                 </div>
                 <div className="flex justify-between items-center py-2">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Sales Rate</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {order?.items && order.items.length > 0 && order.items[0].salesRate 
-                      ? `₹${Number(order.items[0].salesRate).toFixed(0)}` 
-                      : '--'}
-                  </p>
+                  <span className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Style No</span>
+                  <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{order?.styleNo || 'Not selected'}</p>
                 </div>
               </div>
                  </div>
 
             {/* Party Information */}
-            <div className={`p-3 rounded-lg shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-2 mb-3">
-                <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-green-600/20' : 'bg-green-100'}`}>
-                  <UserIcon className={`h-6 w-6 ${isDarkMode ? 'text-green-400' : 'text-green-600'}`} />
+            <div className={`p-6 rounded-xl shadow-lg border-2 ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-xl hover:border-gray-500' : 'bg-white border-gray-200 hover:shadow-xl hover:border-gray-300'} transition-all duration-300`}>
+              <div className="flex items-center space-x-3 mb-4">
+                <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-green-600/20' : 'bg-green-100'}`}>
+                  <UserIcon className={`h-8 w-8 ${isDarkMode ? 'text-green-400' : 'text-green-600'}`} />
                 </div>
-                <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Party Information
                 </h2>
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Name</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Name</span>
+                  <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {party?.name || 'Not available'}
                   </p>
                 </div>
-                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Contact</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Contact</span>
+                  <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {party?.contactName || 'Not available'}
                   </p>
                 </div>
                 <div className="flex justify-between items-center py-2">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Phone</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  <span className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Phone</span>
+                  <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {party?.contactPhone || 'Not available'}
                   </p>
                 </div>
@@ -654,31 +630,31 @@ export default function OrderDetailsPage() {
             </div>
 
             {/* Important Dates */}
-            <div className={`p-3 rounded-lg shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-2 mb-3">
-                <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-purple-600/20' : 'bg-purple-100'}`}>
-                  <CalendarIcon className={`h-6 w-6 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`} />
+            <div className={`p-6 rounded-xl shadow-lg border-2 ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-xl hover:border-gray-500' : 'bg-white border-gray-200 hover:shadow-xl hover:border-gray-300'} transition-all duration-300`}>
+              <div className="flex items-center space-x-3 mb-4">
+                <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-purple-600/20' : 'bg-purple-100'}`}>
+                  <CalendarIcon className={`h-8 w-8 ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`} />
                 </div>
-                <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Important Dates
                 </h2>
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Arrival Date</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Arrival Date</span>
+                  <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {order?.arrivalDate ? formatDate(order.arrivalDate) : 'Not selected'}
                   </p>
                 </div>
-                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>PO Date</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>PO Date</span>
+                  <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {order?.poDate ? formatDate(order.poDate) : 'Not selected'}
                   </p>
                 </div>
                 <div className="flex justify-between items-center py-2">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Delivery Date</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  <span className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Delivery Date</span>
+                  <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {order?.deliveryDate ? formatDate(order.deliveryDate) : 'Not selected'}
                   </p>
                 </div>
@@ -686,19 +662,19 @@ export default function OrderDetailsPage() {
             </div>
 
             {/* System Timestamps */}
-            <div className={`p-3 rounded-lg shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-2 mb-3">
-                <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-100'}`}>
-                  <ClockIconSolid className={`h-6 w-6 ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`} />
+            <div className={`p-6 rounded-xl shadow-lg border-2 ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-xl hover:border-gray-500' : 'bg-white border-gray-200 hover:shadow-xl hover:border-gray-300'} transition-all duration-300`}>
+              <div className="flex items-center space-x-3 mb-4">
+                <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-100'}`}>
+                  <ClockIconSolid className={`h-8 w-8 ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`} />
                 </div>
-                <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   System Timestamps
                 </h2>
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Created</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Created</span>
+                  <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {order?.createdAt ? new Date(order.createdAt).toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'short',
@@ -709,8 +685,8 @@ export default function OrderDetailsPage() {
                   </p>
                 </div>
                 <div className="flex justify-between items-center py-2">
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Updated</span>
-                  <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  <span className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Updated</span>
+                  <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {order?.updatedAt ? new Date(order.updatedAt).toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'short',
@@ -728,45 +704,45 @@ export default function OrderDetailsPage() {
           <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Order Items Cards */}
             {order?.items && order.items.length > 0 && (
-              <div className={`p-4 rounded-lg shadow-sm border ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-                <div className="flex items-center space-x-2 mb-4">
-                  <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-indigo-600/20' : 'bg-indigo-100'}`}>
-                    <DocumentTextIcon className={`h-5 w-5 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`} />
+              <div className={`p-6 rounded-xl shadow-lg border-2 ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-xl hover:border-gray-500' : 'bg-white border-gray-200 hover:shadow-xl hover:border-gray-300'} transition-all duration-300`}>
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-indigo-600/20' : 'bg-indigo-100'}`}>
+                    <DocumentTextIcon className={`h-8 w-8 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`} />
                   </div>
-                  <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  <h2 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     Order Items ({order?.items?.length || 0})
                   </h2>
                 </div>
                 <div className="space-y-3">
                   {order.items.map((item, index) => (
-                    <div key={index} className={`p-2 rounded-lg border ${isDarkMode ? 'bg-gray-600 border-gray-500 hover:bg-gray-500 hover:shadow-lg' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:shadow-md'} transition-all duration-200`}>
-                      <div className="space-y-2">
+                    <div key={index} className={`p-6 rounded-xl border-2 ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-xl hover:border-gray-500' : 'bg-white border-gray-200 hover:bg-gray-50 hover:shadow-lg hover:border-gray-300'} transition-all duration-300 shadow-md`}>
+                      <div className="space-y-6">
                         <div className="flex items-center justify-between">
-                          <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          <h3 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                             Item {index + 1}
                           </h3>
-                          <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                            isDarkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'
+                          <span className={`px-4 py-2 rounded-full text-lg font-bold ${
+                            isDarkMode ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-blue-100 text-blue-700 border border-blue-200'
                           }`}>
                             #{index + 1}
                           </span>
                         </div>
                           
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="space-y-1">
-                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div className="space-y-2">
+                            <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                               Quality
                             </label>
-                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               {typeof item.quality === 'string' ? item.quality : item.quality?.name || '--'}
                             </p>
                           </div>
                           
-                          <div className="space-y-1">
-                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          <div className="space-y-2">
+                            <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                               Quantity
                             </label>
-                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               {item.quantity || '--'}
                             </p>
                           </div>
@@ -914,72 +890,112 @@ export default function OrderDetailsPage() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          <div className="space-y-1">
-                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          <div className="space-y-2">
+                            <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                               Description
                             </label>
-                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               {item.description || '--'}
                             </p>
                           </div>
                                      
-                          <div className="space-y-1">
-                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          <div className="space-y-2">
+                            <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                               Weaver
                             </label>
-                            <p className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                               {item.weaverSupplierName || '--'}
+                            </p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Purchase Rate
+                            </label>
+                            <p className={`text-xl font-bold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                              {item.purchaseRate ? `₹${Number(item.purchaseRate).toFixed(2)}` : '--'}
+                            </p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Mill Rate
+                            </label>
+                            <p className={`text-xl font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                              {item.millRate ? `₹${Number(item.millRate).toFixed(2)}` : '--'}
+                            </p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Sales Rate
+                            </label>
+                            <p className={`text-xl font-bold ${isDarkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                              {item.salesRate ? `₹${Number(item.salesRate).toFixed(2)}` : '--'}
                             </p>
                           </div>
                                   
                           
                           <div className="md:col-span-2">
-                            <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                               Images
                             </label>
-                            <div className="flex items-center space-x-3 mt-2">
+                            <div className="mt-4">
                               {item.imageUrls && item.imageUrls.length > 0 ? (
-                                <>
-                                  <div className="relative group">
-                                    <img
-                                      src={item.imageUrls[0]}
-                                      alt={`Item ${index + 1} - Image 1`}
-                                      className="w-16 h-16 rounded-lg border-2 border-gray-200 dark:border-gray-600 object-cover cursor-pointer hover:scale-110 transition-all duration-200 shadow-sm hover:shadow-lg"
-                                      onClick={() => handleImageClick(item.imageUrls!, 0)}
-                                      onError={(e) => {
-                                        const target = e.target as HTMLImageElement;
-                                        target.style.display = 'none';
-                                        // Show fallback icon if image fails to load
-                                        const fallback = target.nextElementSibling as HTMLElement;
-                                        if (fallback) fallback.style.display = 'block';
-                                      }}
-                                      loading="lazy"
-                                    />
-                                    <PhotoIcon className="h-6 w-6 text-gray-400 absolute inset-0 m-auto hidden" />
-                                    {/* Hover tooltip */}
-                                    <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
-                                      Click to view images
+                                <div className="flex flex-wrap gap-6">
+                                  {item.imageUrls.slice(0, 2).map((imageUrl, imgIndex) => (
+                                    <div key={imgIndex} className="relative group">
+                                      <img
+                                        src={imageUrl}
+                                        alt={`Item ${index + 1} - Image ${imgIndex + 1}`}
+                                        className="w-48 h-48 rounded-2xl border-3 border-gray-200 dark:border-gray-600 object-cover cursor-pointer hover:scale-110 transition-all duration-300 shadow-2xl hover:shadow-3xl hover:border-blue-400 dark:hover:border-blue-500"
+                                        onClick={() => handleImageClick(item.imageUrls!, imgIndex)}
+                                        onError={(e) => {
+                                          const target = e.target as HTMLImageElement;
+                                          target.style.display = 'none';
+                                          // Show fallback icon if image fails to load
+                                          const fallback = target.nextElementSibling as HTMLElement;
+                                          if (fallback) fallback.style.display = 'block';
+                                        }}
+                                        loading="lazy"
+                                      />
+                                      <PhotoIcon className="h-16 w-16 text-gray-400 absolute inset-0 m-auto hidden" />
+                                      {/* Enhanced hover tooltip */}
+                                      <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-black/90 text-white text-base px-4 py-3 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-20 shadow-lg">
+                                        <div className="flex items-center space-x-2">
+                                          <PhotoIcon className="h-5 w-5" />
+                                          <span>Click to view all images</span>
+                                        </div>
+                                        {/* Tooltip arrow */}
+                                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-black/90"></div>
+                                      </div>
                                     </div>
-                                  </div>
-                                  {item.imageUrls.length > 1 && (
+                                  ))}
+                                  {item.imageUrls.length > 2 && (
                                     <button
                                       onClick={() => handleImageClick(item.imageUrls!, 0)}
-                                      className={`text-xs px-2 py-1 rounded-full font-semibold border transition-all duration-200 ${
+                                      className={`w-48 h-48 flex items-center justify-center rounded-2xl border-3 border-dashed transition-all duration-300 hover:scale-105 ${
                                         isDarkMode 
-                                          ? 'bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/30 hover:border-blue-500/50' 
-                                          : 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200 hover:border-blue-300'
+                                          ? 'border-gray-500 text-gray-400 hover:text-gray-300 hover:bg-gray-700/50 hover:border-blue-400' 
+                                          : 'border-gray-300 text-gray-500 hover:text-gray-600 hover:bg-gray-50 hover:border-blue-500'
                                       }`}
                                       title={`View all ${item.imageUrls.length} images`}
                                     >
-                                      +{item.imageUrls.length - 1}
+                                      <div className="text-center">
+                                        <PhotoIcon className="h-12 w-12 mx-auto mb-3" />
+                                        <span className="text-lg font-bold">
+                                          +{item.imageUrls.length - 2}
+                                        </span>
+                                        <p className="text-sm mt-1">More Images</p>
+                                      </div>
                                     </button>
                                   )}
-                                </>
+                                </div>
                               ) : (
-                                <div className="flex items-center space-x-1">
-                                  <PhotoIcon className="h-4 w-4 text-gray-400" />
-                                  <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                <div className="flex items-center space-x-2">
+                                  <PhotoIcon className="h-6 w-6 text-gray-400" />
+                                  <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                                     No images
                                   </span>
                                 </div>
@@ -995,77 +1011,77 @@ export default function OrderDetailsPage() {
                           )}
                           
             {/* Lab Data Section */}
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-2 mb-3">
-                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-yellow-600/20' : 'bg-yellow-100'}`}>
-                  <BeakerIcon className={`h-6 w-6 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`} />
-                                      </div>
-                <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            <div className={`p-6 rounded-xl shadow-lg border-2 ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-xl hover:border-gray-500' : 'bg-white border-gray-200 hover:shadow-xl hover:border-gray-300'} transition-all duration-300`}>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-yellow-600/20' : 'bg-yellow-100'}`}>
+                  <BeakerIcon className={`h-8 w-8 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`} />
+                </div>
+                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Lab Data ({order?.items?.length || 0})
                 </h2>
-                                      </div>
-              <div className="space-y-2">
+              </div>
+              <div className="space-y-4">
                 {order?.items?.map((item, index) => (
-                  <div key={index} className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
-                    <div className="space-y-2">
+                  <div key={index} className={`p-6 rounded-xl border-2 ${isDarkMode ? 'bg-gray-600 border-gray-500 hover:bg-gray-500 hover:shadow-lg' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:shadow-md'} transition-all duration-300`}>
+                    <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                           Sample {index + 1}
-                      </h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          isDarkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'
+                        </h3>
+                        <span className={`px-4 py-2 rounded-full text-sm font-bold ${
+                          isDarkMode ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-blue-100 text-blue-700 border border-blue-200'
                         }`}>
                           Item {index + 1}
-                                    </span>
-                                  </div>
-                                  
-                      <div className="grid grid-cols-1 gap-2">
-                                    <div>
-                          <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                             Lab Send Date *
                           </label>
-                          <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                             {item.labData?.labSendDate ? formatDate(item.labData.labSendDate) : '--'}
-                                       </p>
-                                     </div>
-                                     
-                        <div>
-                          <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                                           Approval Date
+                          </p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            Approval Date
                           </label>
-                          <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                             {item.labData?.approvalDate ? formatDate(item.labData.approvalDate) : '--'}
                           </p>
-                                   </div>
-                                  
-                                    <div>
-                          <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                             Sample Number
                           </label>
-                          <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                             {item.labData?.sampleNumber || '--'}
-                                      </p>
-                                    </div>
-                                </div>
-                                   </div>
+                          </p>
                         </div>
-                      ))}
+                      </div>
                     </div>
+                  </div>
+                ))}
+              </div>
                   </div>
                 </div>
 
           {/* Mill Input Data Section */}
-          <div className="mt-4">
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-2 mb-3">
-                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-teal-600/20' : 'bg-teal-100'}`}>
-                  <CogIcon className={`h-6 w-6 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`} />
-                     </div>
-                <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+          <div className="mt-6">
+            <div className={`p-6 rounded-xl shadow-lg border-2 ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-xl hover:border-gray-500' : 'bg-white border-gray-200 hover:shadow-xl hover:border-gray-300'} transition-all duration-300`}>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-teal-600/20' : 'bg-teal-100'}`}>
+                  <CogIcon className={`h-8 w-8 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`} />
+                </div>
+                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Mill Input Data {millInputs.length > 0 && `(${millInputs.length})`}
                   {loadingSections.millInputs && (
-                    <div className="ml-2 inline-flex items-center">
-                      <div className={`animate-spin rounded-full h-4 w-4 border-2 ${
+                    <div className="ml-3 inline-flex items-center">
+                      <div className={`animate-spin rounded-full h-5 w-5 border-2 ${
                         isDarkMode 
                           ? 'border-gray-600 border-t-blue-400' 
                           : 'border-gray-300 border-t-blue-600'
@@ -1073,7 +1089,7 @@ export default function OrderDetailsPage() {
                     </div>
                   )}
                 </h2>
-                     </div>
+              </div>
                        {(() => {
                 return millInputs && millInputs.length > 0;
               })() ? (
@@ -1090,76 +1106,76 @@ export default function OrderDetailsPage() {
                           }, {});
 
                     return Object.entries(groupedByMill).map(([millName, millInputsForMill]: [string, any]) => (
-                      <div key={millName} className={`rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
+                      <div key={millName} className={`rounded-xl border-2 ${isDarkMode ? 'bg-gray-600 border-gray-500' : 'bg-gray-50 border-gray-200'}`}>
                         {/* Mill Name Header */}
-                        <div className={`px-2 py-2 border-b ${isDarkMode ? 'border-gray-600 bg-gray-800' : 'border-gray-200 bg-gray-100'}`}>
-                          <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        <div className={`px-6 py-4 border-b-2 ${isDarkMode ? 'border-gray-500 bg-gray-700' : 'border-gray-200 bg-gray-100'}`}>
+                          <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                             {millName}
                           </h3>
-                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          <p className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                             {millInputsForMill.length} {millInputsForMill.length === 1 ? 'entry' : 'entries'}
                           </p>
                        </div>
 
                         {/* Mill Input Entries */}
-                        <div className="p-1">
-              <div className="space-y-4">
+                        <div className="p-6">
+              <div className="space-y-6">
                             {millInputsForMill.map((millInput: any, index: number) => (
-                              <div key={millInput._id || index} className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
-                                <div className="mb-3">
-                                  <h4 className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              <div key={millInput._id || index} className={`p-6 rounded-xl border-2 ${isDarkMode ? 'bg-gray-500 border-gray-400 hover:bg-gray-400 hover:shadow-lg' : 'bg-white border-gray-200 hover:bg-gray-50 hover:shadow-md'} transition-all duration-300`}>
+                                <div className="mb-4">
+                                  <h4 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                                     Entry {index + 1}
                            </h4>
                          </div>
                          
                                 {/* All Data Fields - Main + Additional */}
-                                <div className="space-y-2">
+                                <div className="space-y-4">
                                   {/* Row 1: Mill Date and Chalan Number */}
-                                  <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                      <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                      <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                                         Mill Date
                                       </label>
-                                      <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                      <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                                         {millInput.millDate ? formatDate(millInput.millDate) : '--'}
                                       </p>
                  </div>
 
-                                    <div>
-                                      <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    <div className="space-y-2">
+                                      <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                                         Chalan Number
                                       </label>
-                                      <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                      <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                                         {millInput.chalanNo || '--'}
                                       </p>
                     </div>
                   </div>
                   
                                   {/* Row 2: Greigh Meters, Number of Pieces, and Quality */}
-                                  <div className="grid grid-cols-3 gap-4">
-                              <div>
-                                      <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                              <div className="space-y-2">
+                                      <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                                         Greigh Meters
                                       </label>
-                                      <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                      <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                                         {millInput.greighMtr || '--'}
                       </p>
                     </div>
                              
-                                    <div>
-                                      <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    <div className="space-y-2">
+                                      <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                                         Number of Pieces
                                       </label>
-                                      <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                      <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                                         {millInput.pcs || '--'}
                             </p>
                           </div>
 
-                            <div>
-                                      <label className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                            <div className="space-y-2">
+                                      <label className={`text-base font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                                         Quality
                                       </label>
-                                      <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                      <p className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                                         {typeof millInput.quality === 'object' ? millInput.quality.name : millInput.quality || '--'}
                             </p>
                           </div>
@@ -1222,17 +1238,17 @@ export default function OrderDetailsPage() {
                   </div>
                   
           {/* Mill Output Data Section */}
-          <div className="mt-4">
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-2 mb-3">
-                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-emerald-600/20' : 'bg-emerald-100'}`}>
-                  <BuildingOfficeIcon className={`h-6 w-6 ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                    </div>
-                <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+          <div className="mt-6">
+            <div className={`p-6 rounded-xl shadow-lg border-2 ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-xl hover:border-gray-500' : 'bg-white border-gray-200 hover:shadow-xl hover:border-gray-300'} transition-all duration-300`}>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-emerald-600/20' : 'bg-emerald-100'}`}>
+                  <BuildingOfficeIcon className={`h-8 w-8 ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                </div>
+                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Mill Output Data {millOutputs.length > 0 && `(${millOutputs.length})`}
                   {loadingSections.millOutputs && (
-                    <div className="ml-2 inline-flex items-center">
-                      <div className={`animate-spin rounded-full h-4 w-4 border-2 ${
+                    <div className="ml-3 inline-flex items-center">
+                      <div className={`animate-spin rounded-full h-5 w-5 border-2 ${
                         isDarkMode 
                           ? 'border-gray-600 border-t-blue-400' 
                           : 'border-gray-300 border-t-blue-600'
@@ -1240,7 +1256,7 @@ export default function OrderDetailsPage() {
                     </div>
                   )}
                 </h2>
-                            </div>
+              </div>
               {(() => {
                 return millOutputs && millOutputs.length > 0;
               })() ? (
@@ -1330,17 +1346,17 @@ export default function OrderDetailsPage() {
              </div>
 
           {/* Dispatch Data Section */}
-          <div className="mt-4">
-            <div className={`p-1 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:shadow-lg' : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'} transition-all duration-200`}>
-              <div className="flex items-center space-x-2 mb-3">
-                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-100'}`}>
-                  <TruckIcon className={`h-6 w-6 ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`} />
+          <div className="mt-6">
+            <div className={`p-6 rounded-xl shadow-lg border-2 ${isDarkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600 hover:shadow-xl hover:border-gray-500' : 'bg-white border-gray-200 hover:shadow-xl hover:border-gray-300'} transition-all duration-300`}>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-orange-600/20' : 'bg-orange-100'}`}>
+                  <TruckIcon className={`h-8 w-8 ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`} />
                 </div>
-                <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Dispatch Data {dispatches.length > 0 && `(${dispatches.length})`}
                   {loadingSections.dispatches && (
-                    <div className="ml-2 inline-flex items-center">
-                      <div className={`animate-spin rounded-full h-4 w-4 border-2 ${
+                    <div className="ml-3 inline-flex items-center">
+                      <div className={`animate-spin rounded-full h-5 w-5 border-2 ${
                         isDarkMode 
                           ? 'border-gray-600 border-t-blue-400' 
                           : 'border-gray-300 border-t-blue-600'
@@ -1348,7 +1364,7 @@ export default function OrderDetailsPage() {
                     </div>
                   )}
                 </h2>
-                </div>
+              </div>
               {(() => {
                 return dispatches && dispatches.length > 0;
               })() ? (
