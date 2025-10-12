@@ -51,12 +51,9 @@ export async function GET(request: NextRequest) {
       if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
         return Response.json({
           success: true,
-          data: cached.data,
+          data: cached.data.data,
           message: 'Orders loaded from cache',
-          total: cached.data.total,
-          page: cached.data.page,
-          limit: cached.data.limit,
-          totalPages: cached.data.totalPages
+          pagination: cached.data.pagination
         });
       }
     }
@@ -671,8 +668,8 @@ export async function GET(request: NextRequest) {
       pagination: {
         page,
         limit,
-        total: filteredOrders.length, // Use filtered count
-        pages: Math.ceil(filteredOrders.length / limit)
+        total: total, // Use actual total count from database
+        pages: Math.ceil(total / limit)
       },
       searchInfo: search ? {
         query: search,

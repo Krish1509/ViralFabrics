@@ -4126,10 +4126,10 @@ export default function OrdersPage() {
                             key={1}
                             onClick={() => handlePageChange(1)}
                             disabled={isChangingPage || loading}
-                            className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                               currentPage === 1
-                                  ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
-                                  : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                                  ? isDarkMode ? 'bg-blue-600 text-white shadow-lg border-blue-500' : 'bg-blue-500 text-white shadow-lg border-blue-400'
+                                  : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                             } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             1
@@ -4144,10 +4144,10 @@ export default function OrdersPage() {
                                 key={i}
                                 onClick={() => handlePageChange(i)}
                                 disabled={isChangingPage || loading}
-                                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                                className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                                   currentPage === i
-                                      ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
-                                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                                      ? isDarkMode ? 'bg-blue-600 text-white shadow-lg border-blue-500' : 'bg-blue-500 text-white shadow-lg border-blue-400'
+                                      : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                                 } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                               >
                                 {i}
@@ -4172,10 +4172,10 @@ export default function OrdersPage() {
                                 key={i}
                                 onClick={() => handlePageChange(i)}
                                 disabled={isChangingPage || loading}
-                                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                                className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                                   currentPage === i
-                                      ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
-                                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                                      ? isDarkMode ? 'bg-blue-600 text-white shadow-lg border-blue-500' : 'bg-blue-500 text-white shadow-lg border-blue-400'
+                                      : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                                 } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                               >
                                 {i}
@@ -4195,10 +4195,10 @@ export default function OrdersPage() {
                                 key={i}
                                 onClick={() => handlePageChange(i)}
                                 disabled={isChangingPage || loading}
-                                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                                className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                                   currentPage === i
-                                      ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
-                                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                                      ? isDarkMode ? 'bg-blue-600 text-white shadow-lg border-blue-500' : 'bg-blue-500 text-white shadow-lg border-blue-400'
+                                      : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                                 } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                               >
                                 {i}
@@ -4219,10 +4219,10 @@ export default function OrdersPage() {
                               key={totalPages}
                               onClick={() => handlePageChange(totalPages)}
                               disabled={isChangingPage || loading}
-                              className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                              className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                                 currentPage === totalPages
-                                    ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
-                                    : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                                    ? isDarkMode ? 'bg-blue-600 text-white shadow-lg border-blue-500' : 'bg-blue-500 text-white shadow-lg border-blue-400'
+                                    : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                               } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               {totalPages}
@@ -5119,10 +5119,10 @@ export default function OrdersPage() {
               <button
                 onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
-                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                   currentPage === 1
-                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                      ? isDarkMode ? 'bg-gray-800 text-gray-500 cursor-not-allowed border-gray-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-300'
+                      : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                 }`}
               >
                 <span className="hidden sm:inline">Previous</span>
@@ -5142,10 +5142,10 @@ export default function OrdersPage() {
                         <button
                           key={i}
                           onClick={() => handlePageChange(i)}
-                          className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm transition-colors ${
+                          className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                             currentPage === i
-                                ? isDarkMode ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-md'
-                                : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                                ? isDarkMode ? 'bg-blue-600 text-white shadow-lg border-blue-500' : 'bg-blue-500 text-white shadow-lg border-blue-400'
+                                : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                           }`}
                         >
                           {i}
@@ -5272,10 +5272,10 @@ export default function OrdersPage() {
                   handlePageChange(nextPage);
                 }}
                 disabled={currentPage === totalPages}
-                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                   currentPage === totalPages
-                      ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                      ? isDarkMode ? 'bg-gray-800 text-gray-500 cursor-not-allowed border-gray-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-300'
+                      : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                 }`}
               >
                 Next
@@ -5971,10 +5971,10 @@ export default function OrdersPage() {
               <button
                 onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1 || isChangingPage || loading}
-                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                   currentPage === 1 || isChangingPage || loading
-                    ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                    ? isDarkMode ? 'bg-gray-800 text-gray-500 cursor-not-allowed border-gray-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-300'
+                    : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                 }`}
               >
                 <span className="hidden sm:inline">Previous</span>
@@ -5994,10 +5994,10 @@ export default function OrdersPage() {
                           key={i}
                           onClick={() => handlePageChange(i)}
                           disabled={isChangingPage || loading}
-                          className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                          className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                             currentPage === i
-                              ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
-                              : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                              ? isDarkMode ? 'bg-blue-600 text-white shadow-lg border-blue-500' : 'bg-blue-500 text-white shadow-lg border-blue-400'
+                              : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                           } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           {i}
@@ -6013,10 +6013,10 @@ export default function OrdersPage() {
                         key={1}
                         onClick={() => handlePageChange(1)}
                         disabled={isChangingPage || loading}
-                        className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                           currentPage === 1
-                            ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
-                            : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                            ? isDarkMode ? 'bg-blue-600 text-white shadow-lg border-blue-500' : 'bg-blue-500 text-white shadow-lg border-blue-400'
+                            : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                         } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         1
@@ -6031,10 +6031,10 @@ export default function OrdersPage() {
                             key={i}
                             onClick={() => handlePageChange(i)}
                             disabled={isChangingPage || loading}
-                            className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                               currentPage === i
-                                ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
-                                : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                                ? isDarkMode ? 'bg-blue-600 text-white shadow-lg border-blue-500' : 'bg-blue-500 text-white shadow-lg border-blue-400'
+                                : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                             } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             {i}
@@ -6059,10 +6059,10 @@ export default function OrdersPage() {
                             key={i}
                             onClick={() => handlePageChange(i)}
                             disabled={isChangingPage || loading}
-                            className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                               currentPage === i
-                                ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
-                                : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                                ? isDarkMode ? 'bg-blue-600 text-white shadow-lg border-blue-500' : 'bg-blue-500 text-white shadow-lg border-blue-400'
+                                : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                             } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             {i}
@@ -6082,10 +6082,10 @@ export default function OrdersPage() {
                             key={i}
                             onClick={() => handlePageChange(i)}
                             disabled={isChangingPage || loading}
-                            className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                               currentPage === i
-                                ? isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
-                                : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                                ? isDarkMode ? 'bg-blue-600 text-white shadow-lg border-blue-500' : 'bg-blue-500 text-white shadow-lg border-blue-400'
+                                : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                             } ${(isChangingPage || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             {i}
@@ -6125,10 +6125,10 @@ export default function OrdersPage() {
               <button
                 onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages || isChangingPage || loading}
-                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border-2 ${
                   currentPage === totalPages || isChangingPage || loading
-                    ? isDarkMode ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                    ? isDarkMode ? 'bg-gray-800 text-gray-500 cursor-not-allowed border-gray-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-300'
+                    : isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600 hover:border-gray-500 border-gray-600 shadow-md hover:shadow-lg' : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-400 shadow-md hover:shadow-lg'
                 }`}
               >
                 Next
