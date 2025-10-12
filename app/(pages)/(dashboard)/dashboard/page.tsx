@@ -132,7 +132,7 @@ export default function DashboardPage() {
     
     // Always add status parameter except for 'all'
     if (statusFilter && statusFilter !== 'all') {
-      url = `/orders?status=${statusFilter}`;
+      url = `/orders`;
       console.log('🔧 Dashboard navigation - Added status parameter:', statusFilter);
     } else {
       console.log('🔧 Dashboard navigation - All orders (no status filter)');
@@ -152,12 +152,12 @@ export default function DashboardPage() {
 
   const handlePendingOrdersClick = useCallback(() => {
     console.log('🔧 Pending Orders card clicked!');
-    window.location.href = '/orders?status=pending';
+    window.location.href = '/orders';
   }, []);
 
   const handleDeliveredOrdersClick = useCallback(() => {
     console.log('🔧 Delivered Orders card clicked!');
-    window.location.href = '/orders?status=delivered';
+    window.location.href = '/orders';
   }, []);
 
   const fetchDashboardData = useCallback(async (isRetry = false, currentFilters = filters) => {
