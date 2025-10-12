@@ -435,10 +435,10 @@ export default function OrderDetailsPage() {
         <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-gray-600 px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-6 h-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-              <div className="w-32 h-5 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+              <div className="w-6 h-6 bg-gray-100 dark:bg-gray-700 rounded animate-pulse"></div>
+              <div className="w-32 h-5 bg-gray-100 dark:bg-gray-700 rounded animate-pulse"></div>
             </div>
-            <div className="w-6 h-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+            <div className="w-6 h-6 bg-gray-100 dark:bg-gray-700 rounded animate-pulse"></div>
           </div>
         </div>
 
@@ -448,8 +448,8 @@ export default function OrderDetailsPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="bg-white dark:bg-slate-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
-                <div className="w-16 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
-                <div className="w-12 h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                <div className="w-16 h-4 bg-gray-100 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
+                <div className="w-12 h-3 bg-gray-100 dark:bg-gray-700 rounded animate-pulse"></div>
               </div>
             ))}
           </div>
@@ -457,14 +457,14 @@ export default function OrderDetailsPage() {
           {/* Main Content */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-white dark:bg-slate-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
-              <div className="w-20 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
-              <div className="w-full h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
-              <div className="w-full h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+              <div className="w-20 h-4 bg-gray-100 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
+              <div className="w-full h-12 bg-gray-100 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
+              <div className="w-full h-12 bg-gray-100 dark:bg-gray-700 rounded animate-pulse"></div>
             </div>
             <div className="bg-white dark:bg-slate-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
-              <div className="w-16 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
-              <div className="w-full h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
-              <div className="w-full h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+              <div className="w-16 h-4 bg-gray-100 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
+              <div className="w-full h-12 bg-gray-100 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
+              <div className="w-full h-12 bg-gray-100 dark:bg-gray-700 rounded animate-pulse"></div>
             </div>
           </div>
 
@@ -472,8 +472,8 @@ export default function OrderDetailsPage() {
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="bg-white dark:bg-slate-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
-                <div className="w-24 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
-                <div className="w-full h-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                <div className="w-24 h-4 bg-gray-100 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
+                <div className="w-full h-16 bg-gray-100 dark:bg-gray-700 rounded animate-pulse"></div>
               </div>
             ))}
           </div>

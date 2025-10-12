@@ -38,7 +38,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [isPasswordShown, setIsPasswordShown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  // Removed showSuccessMessage state
   const [retryCount, setRetryCount] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
   const { isDarkMode, toggleDarkMode, mounted: darkModeMounted, themeSwitchRef } = useDarkMode();
@@ -131,13 +131,7 @@ function LoginForm() {
     checkActiveSession();
   }, []); // Empty dependency array - only run once
 
-  useEffect(() => {
-    if (searchParams?.get('registered') === 'true') {
-      setShowSuccessMessage(true);
-      const timer = setTimeout(() => setShowSuccessMessage(false), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [searchParams]);
+  // Removed registration success message logic
 
 
   const validateForm = (): boolean => {
@@ -191,9 +185,6 @@ function LoginForm() {
         // Store token and user data immediately
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
-        
-        // Show success message and redirect in parallel
-        setShowSuccessMessage(true);
         
         // Redirect immediately - no delay
         router.push('/dashboard');
@@ -444,57 +435,19 @@ function LoginForm() {
             ? 'bg-slate-900' 
             : 'bg-white'
         }`}>
-          {/* Mobile Particles - Only visible on 1024px and below */}
+          {/* Mobile Particles - Simplified for better performance */}
           <div className="lg:hidden absolute inset-0 pointer-events-none">
-            {/* Subtle floating particles with smooth animations */}
-            <div className="absolute top-1/5 left-1/6 w-1.5 h-1.5 bg-blue-400/40 rounded-full shadow-lg shadow-blue-400/30 animate-pulse duration-3000"></div>
-            <div className="absolute top-1/3 right-1/5 w-1 h-1 bg-indigo-400/35 rounded-full shadow-md shadow-indigo-400/25 animate-pulse duration-2500 delay-1000"></div>
-            <div className="absolute bottom-1/3 left-1/4 w-1.5 h-1.5 bg-purple-400/30 rounded-full shadow-lg shadow-purple-400/20 animate-pulse duration-4000 delay-500"></div>
-            <div className="absolute bottom-1/4 right-1/6 w-1 h-1 bg-blue-300/40 rounded-full shadow-md shadow-blue-300/25 animate-pulse duration-3500 delay-1500"></div>
-            <div className="absolute top-2/5 left-1/8 w-1 h-1 bg-indigo-300/35 rounded-full shadow-lg shadow-indigo-300/20 animate-pulse duration-3000 delay-2000"></div>
-            
-            {/* Elegant floating orbs with gentle glow */}
-            <div className="absolute top-20 left-1/3 w-2.5 h-2.5 bg-blue-400/25 rounded-full shadow-xl shadow-blue-400/20 animate-pulse duration-5000 delay-300"></div>
-            <div className="absolute bottom-28 right-1/4 w-2 h-2 bg-indigo-400/30 rounded-full shadow-lg shadow-indigo-400/25 animate-pulse duration-4500 delay-1200"></div>
-            
-            {/* Smooth floating elements with professional look */}
-            <div className="absolute top-12 left-1/2 w-1.5 h-1.5 bg-purple-400/25 rounded-full shadow-lg shadow-purple-400/15 animate-pulse duration-4000 delay-700"></div>
-            <div className="absolute bottom-20 left-1/5 w-1 h-1 bg-blue-300/30 rounded-full shadow-md shadow-blue-300/20 animate-pulse duration-3500 delay-1400"></div>
-            
-            {/* Additional subtle elements for depth */}
-            <div className="absolute top-1/2 right-1/6 w-1 h-1 bg-indigo-400/20 rounded-full shadow-sm shadow-indigo-400/15 animate-pulse duration-6000 delay-800"></div>
-            <div className="absolute bottom-1/6 left-1/3 w-1.5 h-1.5 bg-purple-300/25 rounded-full shadow-lg shadow-purple-300/15 animate-pulse duration-5000 delay-1600"></div>
-            
-            {/* Extra mobile particles for better coverage */}
-            <div className="absolute top-1/6 right-1/8 w-1 h-1 bg-blue-300/25 rounded-full shadow-sm shadow-blue-300/15 animate-pulse duration-5000 delay-900"></div>
-            <div className="absolute bottom-1/5 left-1/5 w-1.5 h-1.5 bg-indigo-300/20 rounded-full shadow-md shadow-indigo-300/15 animate-pulse duration-4500 delay-1100"></div>
-            <div className="absolute top-3/5 right-1/4 w-1 h-1 bg-purple-300/30 rounded-full shadow-sm shadow-purple-300/20 animate-pulse duration-3800 delay-1300"></div>
-            
-            {/* Additional mobile particles for rich coverage */}
-            <div className="absolute top-1/8 left-1/4 w-1 h-1 bg-blue-400/20 rounded-full shadow-sm shadow-blue-400/15 animate-pulse duration-4200 delay-400"></div>
-            <div className="absolute top-2/3 right-1/3 w-1.5 h-1.5 bg-indigo-400/25 rounded-full shadow-md shadow-indigo-400/20 animate-pulse duration-4800 delay-600"></div>
-            <div className="absolute bottom-1/8 right-1/3 w-1 h-1 bg-purple-400/20 rounded-full shadow-sm shadow-purple-400/15 animate-pulse duration-3600 delay-1000"></div>
-            <div className="absolute top-4/5 left-1/3 w-1.5 h-1.5 bg-blue-300/30 rounded-full shadow-md shadow-blue-300/20 animate-pulse duration-5200 delay-1200"></div>
-            <div className="absolute bottom-2/5 left-1/6 w-1 h-1 bg-indigo-300/25 rounded-full shadow-sm shadow-indigo-300/15 animate-pulse duration-4400 delay-800"></div>
-            <div className="absolute top-1/2 left-1/8 w-1 h-1 bg-purple-300/20 rounded-full shadow-sm shadow-purple-300/15 animate-pulse duration-5000 delay-1500"></div>
-            <div className="absolute bottom-3/5 right-1/5 w-1.5 h-1.5 bg-blue-400/25 rounded-full shadow-md shadow-blue-400/20 animate-pulse duration-4600 delay-1100"></div>
+            {/* Reduced particles for better performance */}
+            <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-blue-400/30 rounded-full animate-pulse duration-4000"></div>
+            <div className="absolute bottom-1/3 right-1/4 w-1 h-1 bg-indigo-400/25 rounded-full animate-pulse duration-5000 delay-1000"></div>
+            <div className="absolute top-1/2 right-1/3 w-1 h-1 bg-purple-400/20 rounded-full animate-pulse duration-6000 delay-2000"></div>
           </div>
           
-          {/* Desktop Particles - Only visible on 1024px and above (Very Subtle) */}
+          {/* Desktop Particles - Simplified for better performance */}
           <div className="hidden lg:block absolute inset-0 pointer-events-none">
-            {/* Minimal subtle particles for desktop */}
-            <div className="absolute top-1/4 left-1/6 w-1 h-1 bg-slate-400/10 rounded-full shadow-sm shadow-slate-400/5 animate-pulse duration-8000"></div>
-            <div className="absolute bottom-1/4 right-1/6 w-1 h-1 bg-slate-500/8 rounded-full shadow-sm shadow-slate-500/5 animate-pulse duration-10000 delay-2000"></div>
-            <div className="absolute top-1/3 right-1/8 w-1 h-1 bg-slate-400/8 rounded-full shadow-sm shadow-slate-400/5 animate-pulse duration-12000 delay-1000"></div>
-            <div className="absolute bottom-1/3 left-1/8 w-1 h-1 bg-slate-500/6 rounded-full shadow-sm shadow-slate-500/5 animate-pulse duration-9000 delay-3000"></div>
-            
-            {/* Additional desktop particles for better coverage */}
-            <div className="absolute top-1/6 left-1/5 w-1 h-1 bg-slate-400/8 rounded-full shadow-sm shadow-slate-400/5 animate-pulse duration-11000 delay-500"></div>
-            <div className="absolute top-2/3 right-1/5 w-1 h-1 bg-slate-500/6 rounded-full shadow-sm shadow-slate-500/5 animate-pulse duration-9500 delay-1500"></div>
-            <div className="absolute bottom-1/6 right-1/4 w-1 h-1 bg-slate-400/7 rounded-full shadow-sm shadow-slate-400/5 animate-pulse duration-13000 delay-2500"></div>
-            <div className="absolute top-4/5 left-1/4 w-1 h-1 bg-slate-500/5 rounded-full shadow-sm shadow-slate-500/5 animate-pulse duration-14000 delay-1800"></div>
-            <div className="absolute bottom-2/5 left-1/5 w-1 h-1 bg-slate-400/6 rounded-full shadow-sm shadow-slate-400/5 animate-pulse duration-10500 delay-2200"></div>
-            <div className="absolute top-1/2 right-1/6 w-1 h-1 bg-slate-500/7 rounded-full shadow-sm shadow-slate-500/5 animate-pulse duration-11500 delay-700"></div>
+            {/* Minimal particles for desktop performance */}
+            <div className="absolute top-1/3 left-1/4 w-1 h-1 bg-slate-400/8 rounded-full animate-pulse duration-8000"></div>
+            <div className="absolute bottom-1/3 right-1/4 w-1 h-1 bg-slate-500/6 rounded-full animate-pulse duration-10000 delay-2000"></div>
           </div>
           
           {/* Dark Mode Toggle - Right Section (Desktop Only) */}
@@ -534,23 +487,7 @@ function LoginForm() {
             </p>
           </div>
 
-          {/* Success Message */}
-          {showSuccessMessage && (
-            <div className={`mb-6 lg:mb-8 p-3 lg:p-4 rounded-xl flex items-center space-x-3 shadow-lg ${
-              isDarkMode 
-                ? 'bg-green-900/30 border border-green-700/50 backdrop-blur-sm' 
-                : 'bg-green-50 border border-green-200 shadow-green-100'
-            }`}>
-              <CheckCircleIcon className={`h-5 w-5 lg:h-6 lg:w-6 ${
-                isDarkMode ? 'text-green-400' : 'text-green-600'
-              }`} />
-              <span className={`text-sm font-medium ${
-                isDarkMode ? 'text-green-300' : 'text-green-800'
-              }`}>
-                Registration successful! Please log in.
-              </span>
-            </div>
-          )}
+          {/* Success Message - Removed */}
 
           {/* Error Message */}
           {errors.general && (
@@ -572,7 +509,7 @@ function LoginForm() {
 
           {/* Loading Progress Indicator */}
           {isLoading && (
-            <div className={`mb-6 lg:mb-8 p-3 lg:p-4 rounded-xl flex items-center space-x-3 shadow-lg w-full lg:w-80 xl:w-96 ${
+            <div className={`mb-6 lg:mb-8 p-3 lg:p-4 ml-8 rounded-xl flex items-center space-x-3 shadow-lg w-full lg:w-80 xl:w-96 ${
               isDarkMode 
                 ? 'bg-blue-900/30 border border-blue-700/50 backdrop-blur-sm' 
                 : 'bg-blue-50 border border-blue-200 shadow-blue-100'
