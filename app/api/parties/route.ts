@@ -3,10 +3,7 @@ import Party from "@/models/Party";
 import { requireAuth } from "@/lib/session";
 import { type NextRequest } from "next/server";
 import { logCreate } from "@/lib/logger";
-
-// Professional in-memory cache for parties data
-const partiesCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for better performance
+import { partiesCache, CACHE_TTL, clearPartiesCache } from "@/lib/partiesCache";
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
@@ -174,6 +171,9 @@ export async function POST(req: NextRequest) {
       contactName: createdParty.contactName,
       contactPhone: createdParty.contactPhone
     }, req);
+
+    // Invalidate cache to ensure fresh data on next GET request
+    clearPartiesCache();
 
     // Return the created party without sensitive fields
     const partySafe = {

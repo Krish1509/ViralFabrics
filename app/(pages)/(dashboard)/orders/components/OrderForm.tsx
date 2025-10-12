@@ -3284,14 +3284,15 @@ export default function OrderForm({ order, parties, qualities, onClose, onSucces
         {showPartyModal && (
           <PartyModal
             onClose={() => setShowPartyModal(false)}
-            onSuccess={(newPartyData) => {
-              onRefreshParties();
+            onSuccess={async (newPartyData) => {
               if (newPartyData) {
                 setPendingNewParty(newPartyData);
                 // Show success message
                 setValidationMessage({ type: 'success', text: 'New party added and selected successfully!' });
               }
               setShowPartyModal(false);
+              // Refresh parties from API to ensure consistency
+              await onRefreshParties();
             }}
           />
         )}

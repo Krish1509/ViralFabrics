@@ -4,6 +4,7 @@ import Order from "@/models/Order";
 import { requireAuth } from "@/lib/session";
 import { type NextRequest } from "next/server";
 import { logUpdate, logDelete } from "@/lib/logger";
+import { clearPartiesCache } from "@/lib/partiesCache";
 
 export async function GET(
   req: NextRequest,
@@ -145,6 +146,9 @@ export async function PUT(
     // Log the party update
     await logUpdate('party', id, updateData, updatedParty.toObject(), req);
 
+    // Invalidate cache to ensure fresh data on next GET request
+    clearPartiesCache();
+
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -234,6 +238,9 @@ export async function DELETE(
 
     // Log the party deletion
     await logDelete('party', id, { name: existingParty.name }, req);
+
+    // Invalidate cache to ensure fresh data on next GET request
+    clearPartiesCache();
 
     return new Response(
       JSON.stringify({ 
