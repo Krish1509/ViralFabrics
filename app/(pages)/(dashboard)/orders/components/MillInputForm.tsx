@@ -868,6 +868,21 @@ export default function MillInputForm({
       } else {
         console.log('⚡ Add mode detected - skipping API call');
         setLoadingExistingData(false);
+        // Reset form to initial state for add mode
+        setFormData({
+          orderId: order.orderId || '',
+          mill: '',
+          millItems: [{
+            id: '1',
+            millDate: '',
+            chalanNo: '',
+            greighMtr: '',
+            pcs: '',
+            quality: '',
+            process: '',
+            additionalMeters: []
+          }],
+        });
       }
     } else if (!isOpen) {
       // Reset loading state when form is closed
@@ -1073,6 +1088,14 @@ export default function MillInputForm({
     console.log('🔄 Starting to fetch mill input data for order:', order?.orderId);
     if (!order?.orderId) {
       console.log('No order ID available for fetching mill inputs');
+      setHasExistingData(false);
+      setLoadingExistingData(false);
+      return;
+    }
+    
+    // Double-check that we're in edit mode
+    if (!isEditing) {
+      console.log('⚠️ Not in edit mode, skipping data fetch');
       setHasExistingData(false);
       setLoadingExistingData(false);
       return;
@@ -1290,7 +1313,8 @@ export default function MillInputForm({
     try {
       // Group mill inputs by mill and chalan number
       const groupedInputs = groupMillInputsByMillAndChalan(millInputsData);
-      console.log('Grouped inputs from API:', groupedInputs);
+      console.log('🔍 Raw mill inputs data:', millInputsData);
+      console.log('🔍 Grouped inputs from API:', groupedInputs);
       
       if (groupedInputs.length > 0) {
         const firstGroup = groupedInputs[0];
@@ -1402,7 +1426,7 @@ export default function MillInputForm({
       );
       
       if (existingGroup) {
-        // Add as additional input
+        // Add as additional input (this shouldn't happen with the current API structure)
         existingGroup.additionalInputs.push({
           greighMtr: input.greighMtr,
           pcs: input.pcs,
@@ -1413,7 +1437,7 @@ export default function MillInputForm({
         // Create new group with main input and any additional meters from the database
         const additionalInputs: any[] = [];
         
-        // Add the main input as the first additional input if it has additional meters
+        // Add additional meters from the database record
         if (input.additionalMeters && Array.isArray(input.additionalMeters) && input.additionalMeters.length > 0) {
           input.additionalMeters.forEach((additional: any, addIndex: number) => {
             additionalInputs.push({
@@ -1423,14 +1447,10 @@ export default function MillInputForm({
               processName: additional.processName || ''
             });
           });
-        } else {
-          }
+        }
         
-        // IMPORTANT: If we have additional meters, we need to create a form structure that includes
-        // both the main input (M1) and the additional inputs (M2, M3, etc.)
-        // The main input should be the first item in the form, and additional meters should be
-        // the additional items that get rendered as M2, M3, etc.
-        
+        // Create one group per mill input record
+        // The main input (M1) is the primary data, and additional meters (M2, M3, etc.) are in the additionalInputs array
         groups.push({
           millId: input.mill._id,
           millDate: input.millDate,
@@ -1614,11 +1634,19 @@ export default function MillInputForm({
   };
 
   const removeMillItem = (itemId: string) => {
+    console.log('🗑️ Removing mill item:', itemId);
+    console.log('🔍 Current mill items:', formData.millItems.length);
+    
     if (formData.millItems.length > 1) {
+      const newMillItems = formData.millItems.filter(item => item.id !== itemId);
+      console.log('🔍 New mill items after removal:', newMillItems.length);
+      
       setFormData({
         ...formData,
-        millItems: formData.millItems.filter(item => item.id !== itemId)
+        millItems: newMillItems
       });
+    } else {
+      console.log('⚠️ Cannot remove the last mill item');
     }
   };
 
@@ -1784,6 +1812,14 @@ export default function MillInputForm({
       newErrors.mill = 'Please select a mill';
     }
 
+    // Check for duplicate chalan numbers within the form
+    const chalanNumbers = formData.millItems.map(item => item.chalanNo.trim()).filter(chalan => chalan);
+    const duplicateChalans = chalanNumbers.filter((chalan, index) => chalanNumbers.indexOf(chalan) !== index);
+    
+    if (duplicateChalans.length > 0) {
+      newErrors.duplicateChalans = `Duplicate chalan numbers found: ${duplicateChalans.join(', ')}`;
+    }
+
     formData.millItems.forEach((item, itemIndex) => {
       if (!item.quality || item.quality.trim() === '') {
         newErrors[`quality_${item.id}`] = 'Quality is required';
@@ -1837,6 +1873,15 @@ export default function MillInputForm({
     try {
       const token = localStorage.getItem('token');
       
+      const wasUpdating = hasExistingData;
+      
+      console.log('🔍 Submit logic:', {
+        hasExistingData,
+        wasUpdating,
+        isEditing,
+        orderId: order?.orderId
+      });
+      
       if (hasExistingData) {
         setSavingProgress('Updating existing mill inputs...');
         // Update existing mill inputs
@@ -1858,7 +1903,7 @@ export default function MillInputForm({
             // Show success message for 1 second, then close
       setTimeout(() => {
         setSuccessMessage('');
-        onSuccess(hasExistingData ? 'edit' : 'add');
+        onSuccess(wasUpdating ? 'edit' : 'add');
         onClose();
       }, 1000);
     } catch (error) {
@@ -1876,9 +1921,30 @@ export default function MillInputForm({
 
     console.log('📝 Creating mill inputs for items:', formData.millItems.length, 'items');
     console.log('📝 Form data mill items:', formData.millItems);
+    
+    // Validate that we have valid data to create
+    if (formData.millItems.length === 0) {
+      throw new Error('No mill items to create');
+    }
+    
+    // Check for empty or invalid items
+    const validItems = formData.millItems.filter(item => 
+      item.millDate && 
+      item.chalanNo && 
+      item.greighMtr && 
+      item.pcs && 
+      item.quality && 
+      item.process
+    );
+    
+    if (validItems.length === 0) {
+      throw new Error('No valid mill items to create');
+    }
+    
+    console.log('📝 Valid items to create:', validItems.length);
 
-    // Prepare all requests in parallel
-    const requests = formData.millItems.map(async (item, index) => {
+    // Prepare all requests in parallel using only valid items
+    const requests = validItems.map(async (item, index) => {
       console.log(`📝 Processing item ${index + 1}:`, item);
       // Prepare additional meters data
       const additionalMeters = item.additionalMeters
@@ -1956,161 +2022,38 @@ export default function MillInputForm({
   const updateExistingMillInputs = async (token: string | null) => {
     if (!token) throw new Error('No authentication token');
     
-    console.log('🔄 Starting smart mill input update process...');
+    console.log('🔄 Starting mill input update process...');
+    console.log('🔍 Current form data:', formData);
     
-    // First fetch all existing mill inputs for this order
-    const response = await fetch(`/api/mill-inputs?orderId=${order?.orderId}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    try {
+      // First, delete all existing mill inputs for this order using bulk delete
+      console.log(`🗑️ Deleting all mill inputs for order: ${order?.orderId}`);
+      const deleteResponse = await fetch(`/api/mill-inputs?orderId=${order?.orderId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-    if (response.ok) {
-      const data = await response.json();
-      if (data.success && data.data && data.data.millInputs && data.data.millInputs.length > 0) {
-        const existingInputs = data.data.millInputs;
-        console.log('📋 Found existing mill inputs:', existingInputs.length, 'records');
-        
-        // Group existing inputs by chalan number and date for easier matching
-        const existingByChalanAndDate = new Map();
-        existingInputs.forEach((input: any) => {
-          const key = `${input.chalanNo}_${input.millDate}`;
-          if (!existingByChalanAndDate.has(key)) {
-            existingByChalanAndDate.set(key, []);
-          }
-          existingByChalanAndDate.get(key).push(input);
-        });
-        
-        console.log('📋 Existing inputs grouped by chalan/date:', existingByChalanAndDate.size, 'groups');
-        
-        // Process each form item
-        const updatePromises: Promise<any>[] = [];
-        const createPromises: Promise<any>[] = [];
-        const deletePromises: Promise<any>[] = [];
-        
-        // Track which existing records we've processed
-        const processedExistingIds = new Set();
-        
-        formData.millItems.forEach((item, index) => {
-          const chalanNo = item.chalanNo.trim();
-          const key = `${chalanNo}_${item.millDate}`;
-          const existingGroup = existingByChalanAndDate.get(key);
-          const existingInput = existingGroup && existingGroup[0] ? existingGroup[0] : null;
-          
-          if (existingInput) {
-            // Update existing record
-            console.log(`🔄 Updating existing mill input for chalan: ${chalanNo}`);
-            const updateData = {
-              mill: formData.mill,
-              millDate: item.millDate,
-              chalanNo: chalanNo,
-              greighMtr: parseFloat(item.greighMtr),
-              pcs: parseInt(item.pcs),
-              quality: item.quality,
-              processName: item.process,
-              additionalMeters: item.additionalMeters
-                .filter(additional => additional.meters && additional.pieces && additional.quality)
-                .map(additional => ({
-                  greighMtr: parseFloat(additional.meters),
-                  pcs: parseInt(additional.pieces),
-                  quality: additional.quality,
-                  processName: additional.process || ''
-                })),
-              notes: ''
-            };
-            
-            updatePromises.push(
-              fetch(`/api/mill-inputs/${existingInput._id}`, {
-                method: 'PUT',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify(updateData)
-              }).then(async response => {
-                const data = await response.json();
-                console.log(`✅ Updated mill input for chalan: ${chalanNo}`, data);
-                return data;
-              })
-            );
-            
-            processedExistingIds.add(existingInput._id);
-          } else {
-            // Create new record
-            console.log(`➕ Creating new mill input for chalan: ${chalanNo}`);
-            const createData = {
-              orderId: formData.orderId,
-              mill: formData.mill,
-              millDate: item.millDate,
-              chalanNo: chalanNo,
-              greighMtr: parseFloat(item.greighMtr),
-              pcs: parseInt(item.pcs),
-              quality: item.quality,
-              processName: item.process,
-              additionalMeters: item.additionalMeters
-                .filter(additional => additional.meters && additional.pieces && additional.quality)
-                .map(additional => ({
-                  greighMtr: parseFloat(additional.meters),
-                  pcs: parseInt(additional.pieces),
-                  quality: additional.quality,
-                  processName: additional.process || ''
-                })),
-              notes: ''
-            };
-            
-            createPromises.push(
-              fetch('/api/mill-inputs', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify(createData)
-              }).then(async response => {
-                const data = await response.json();
-                console.log(`✅ Created new mill input for chalan: ${chalanNo}`, data);
-                return data;
-              })
-            );
-          }
-        });
-        
-        // Delete records that are no longer in the form
-        existingInputs.forEach((input: any) => {
-          if (!processedExistingIds.has(input._id)) {
-            console.log(`🗑️ Deleting mill input for chalan: ${input.chalanNo}`);
-            deletePromises.push(
-              fetch(`/api/mill-inputs/${input._id}`, {
-                method: 'DELETE',
-                headers: {
-                  'Authorization': `Bearer ${token}`
-                }
-              }).then(async response => {
-                const data = await response.json();
-                console.log(`✅ Deleted mill input for chalan: ${input.chalanNo}`, data);
-                return data;
-              })
-            );
-          }
-        });
-        
-        // Execute all operations
-        console.log(`🔄 Executing ${updatePromises.length} updates, ${createPromises.length} creates, ${deletePromises.length} deletes`);
-        
-        const allPromises = [...updatePromises, ...createPromises, ...deletePromises];
-        await Promise.all(allPromises);
-        
-        console.log('✅ Mill input update process completed with proper PUT/POST/DELETE operations');
+      if (deleteResponse.ok) {
+        const deleteData = await deleteResponse.json();
+        console.log('✅ Successfully deleted existing mill inputs:', deleteData.data?.deletedCount || 0);
       } else {
-        // No existing data, create new ones
-        console.log('➕ No existing mill inputs found, creating new ones...');
-        await createNewMillInputs(token);
+        console.error('❌ Failed to delete existing mill inputs:', deleteResponse.status);
+        // Continue with creation even if deletion fails
       }
-    } else {
-      // API call failed, fallback to create new ones
-      console.log('❌ Failed to fetch existing mill inputs, creating new ones...');
+      
+      // Wait a moment to ensure deletion is complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Then create new mill inputs with the updated data
+      console.log('🔄 Creating new mill inputs after deletion...');
       await createNewMillInputs(token);
+      
+    } catch (error) {
+      console.error('❌ Error in update process:', error);
+      throw error;
     }
   };
 
@@ -2438,6 +2381,13 @@ export default function MillInputForm({
                     isDarkMode ? 'text-red-400' : 'text-red-600'
                   }`}>
                     {errors.mill}
+                  </p>
+                )}
+                {errors.duplicateChalans && (
+                  <p className={`text-sm mt-1 ${
+                    isDarkMode ? 'text-red-400' : 'text-red-600'
+                  }`}>
+                    {errors.duplicateChalans}
                   </p>
                 )}
                 </div>

@@ -23,11 +23,13 @@ export interface IMillInput extends Document {
   pcs: number;
   quality?: mongoose.Types.ObjectId;
   processName?: string;
+  process?: mongoose.Types.ObjectId;
   additionalMeters?: Array<{
     greighMtr: number;
     pcs: number;
     quality?: mongoose.Types.ObjectId;
     processName?: string;
+    process?: mongoose.Types.ObjectId;
     notes?: string;
   }>;
   notes?: string;
@@ -139,6 +141,11 @@ const MillInputSchema = new Schema<IMillInput>({
     trim: true,
     maxlength: [100, "Process name cannot exceed 100 characters"]
   },
+  process: {
+    type: Schema.Types.ObjectId,
+    ref: "Process",
+    index: true
+  },
   additionalMeters: [
     {
       greighMtr: {
@@ -159,6 +166,10 @@ const MillInputSchema = new Schema<IMillInput>({
         type: String,
         trim: true,
         maxlength: [100, "Process name cannot exceed 100 characters"]
+      },
+      process: {
+        type: Schema.Types.ObjectId,
+        ref: "Process"
       },
       notes: {
         type: String,

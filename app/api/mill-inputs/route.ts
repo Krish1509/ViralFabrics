@@ -103,6 +103,36 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  try {
+    await dbConnect();
+    
+    // Validate session - temporarily disabled for faster response
+    // const session = await getSession(request);
+    // if (!session) {
+    //   return NextResponse.json(unauthorizedResponse('Unauthorized'), { status: 401 });
+    // }
+
+    const { searchParams } = new URL(request.url);
+    const orderId = searchParams.get('orderId');
+
+    if (!orderId) {
+      return NextResponse.json(validationErrorResponse('Order ID is required for bulk deletion'), { status: 400 });
+    }
+
+    // Delete all mill inputs for the specified order
+    const result = await MillInput.deleteMany({ orderId });
+    
+    console.log(`🗑️ Deleted ${result.deletedCount} mill inputs for order: ${orderId}`);
+
+    return NextResponse.json(successResponse({ deletedCount: result.deletedCount }, 'Mill inputs deleted successfully'));
+
+  } catch (error: any) {
+    console.error('Error deleting mill inputs:', error);
+    return NextResponse.json(errorResponse('Failed to delete mill inputs'), { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     await dbConnect();

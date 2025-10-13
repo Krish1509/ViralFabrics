@@ -155,30 +155,33 @@ export async function GET(
             
             // Remove duplicates and sort by priority
             const uniqueProcesses = [...new Set(allProcesses)];
+            
+            // Define process priority order (higher number = higher priority)
             const processPriority = [
-              'Lot No Greigh',
-              'Charkha',
-              'Drum',
-              'Soflina WR',
-              'long jet',
-              'setting',
-              'In Dyeing',
-              'jigar',
-              'in printing',
-              'loop',
-              'washing',
-              'Finish',
-              'folding',
-              'ready to dispatch'
+              'Lot No Greigh',    // 1
+              'Charkha',          // 2
+              'Drum',             // 3
+              'Soflina WR',       // 4
+              'long jet',         // 5
+              'setting',          // 6
+              'In Dyeing',        // 7
+              'jigar',            // 8
+              'in printing',      // 9
+              'loop',             // 10
+              'washing',          // 11
+              'Finish',           // 12
+              'folding',          // 13
+              'ready to dispatch' // 14
             ];
             
+            // Sort by priority (highest number first)
             const sortedProcesses = uniqueProcesses.sort((a, b) => {
               const aIndex = processPriority.indexOf(a);
               const bIndex = processPriority.indexOf(b);
               if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
               if (aIndex === -1) return 1;
               if (bIndex === -1) return -1;
-              return aIndex - bIndex;
+              return bIndex - aIndex; // Higher index = higher priority
             });
             
             if (sortedProcesses.length > 0) {
@@ -206,30 +209,33 @@ export async function GET(
               });
               
               const uniqueFallbackProcesses = [...new Set(fallbackProcesses)];
+              
+              // Define process priority order (higher number = higher priority)
               const processPriority = [
-                'Lot No Greigh',
-                'Charkha',
-                'Drum',
-                'Soflina WR',
-                'long jet',
-                'setting',
-                'In Dyeing',
-                'jigar',
-                'in printing',
-                'loop',
-                'washing',
-                'Finish',
-                'folding',
-                'ready to dispatch'
+                'Lot No Greigh',    // 1
+                'Charkha',          // 2
+                'Drum',             // 3
+                'Soflina WR',       // 4
+                'long jet',         // 5
+                'setting',          // 6
+                'In Dyeing',        // 7
+                'jigar',            // 8
+                'in printing',      // 9
+                'loop',             // 10
+                'washing',          // 11
+                'Finish',           // 12
+                'folding',          // 13
+                'ready to dispatch' // 14
               ];
               
+              // Sort by priority (highest number first)
               const sortedFallbackProcesses = uniqueFallbackProcesses.sort((a, b) => {
                 const aIndex = processPriority.indexOf(a);
                 const bIndex = processPriority.indexOf(b);
                 if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
                 if (aIndex === -1) return 1;
                 if (bIndex === -1) return -1;
-                return aIndex - bIndex;
+                return bIndex - aIndex; // Higher index = higher priority
               });
               
               if (sortedFallbackProcesses.length > 0) {

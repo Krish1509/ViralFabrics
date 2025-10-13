@@ -35,37 +35,35 @@ const getHighestPriorityProcess = (processData: any, qualityName?: string) => {
   
   if (allProcesses.length === 0) return null;
   
-  // Define process priority order (highest to lowest priority)
+  // Define process priority order (higher number = higher priority)
   const processPriority = [
-    'ready to dispatch',
-    'folding',
-    'Finish',
-    'washing',
-    'loop',
-    'in printing',
-    'jigar',
-    'In Dyeing',
-    'setting',
-    'long jet',
-    'Soflina WR',
-    'Drum',
-    'Charkha',
-    'Lot No Greigh'
+    'Lot No Greigh',    // 1
+    'Charkha',          // 2
+    'Drum',             // 3
+    'Soflina WR',       // 4
+    'long jet',         // 5
+    'setting',          // 6
+    'In Dyeing',        // 7
+    'jigar',            // 8
+    'in printing',      // 9
+    'loop',             // 10
+    'washing',          // 11
+    'Finish',           // 12
+    'folding',          // 13
+    'ready to dispatch' // 14
   ];
   
-  // Find the highest priority process
-  let highestPriorityProcess = allProcesses[0];
-  let highestPriorityIndex = processPriority.length;
-  
-  allProcesses.forEach(process => {
-    const index = processPriority.indexOf(process);
-    if (index !== -1 && index < highestPriorityIndex) {
-      highestPriorityIndex = index;
-      highestPriorityProcess = process;
-    }
+  // Sort by priority (highest number first) and return the first one
+  const sortedProcesses = allProcesses.sort((a, b) => {
+    const aIndex = processPriority.indexOf(a);
+    const bIndex = processPriority.indexOf(b);
+    if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return bIndex - aIndex; // Higher index = higher priority
   });
   
-  return highestPriorityProcess;
+  return sortedProcesses[0]; // Return highest priority process
 };
 
 export default function OrderDetailsPage() {
@@ -829,41 +827,45 @@ export default function OrderDetailsPage() {
                                   });
                                   
                                   const uniqueProcesses = [...new Set(relevantProcesses)];
+                                  
+                                  // Define process priority order (higher number = higher priority)
                                   const processPriority = [
-                                    'Lot No Greigh',
-                                    'Charkha',
-                                    'Drum',
-                                    'Soflina WR',
-                                    'long jet',
-                                    'setting',
-                                    'In Dyeing',
-                                    'jigar',
-                                    'in printing',
-                                    'loop',
-                                    'washing',
-                                    'Finish',
-                                    'folding',
-                                    'ready to dispatch'
+                                    'Lot No Greigh',    // 1
+                                    'Charkha',          // 2
+                                    'Drum',             // 3
+                                    'Soflina WR',       // 4
+                                    'long jet',         // 5
+                                    'setting',          // 6
+                                    'In Dyeing',        // 7
+                                    'jigar',            // 8
+                                    'in printing',      // 9
+                                    'loop',             // 10
+                                    'washing',          // 11
+                                    'Finish',           // 12
+                                    'folding',          // 13
+                                    'ready to dispatch' // 14
                                   ];
                                   
+                                  // Sort by priority (highest number first)
                                   const sortedProcesses = uniqueProcesses.sort((a, b) => {
                                     const aIndex = processPriority.indexOf(a);
                                     const bIndex = processPriority.indexOf(b);
                                     if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
                                     if (aIndex === -1) return 1;
                                     if (bIndex === -1) return -1;
-                                    return aIndex - bIndex;
+                                    return bIndex - aIndex; // Higher index = higher priority
                                   });
                                   
                                   if (sortedProcesses.length > 0) {
-                                    console.log('🔍 Order Details - Found process from mill inputs:', sortedProcesses[0]);
+                                    const highestPriorityProcess = sortedProcesses[0];
+                                    console.log('🔍 Order Details - Found highest priority process:', highestPriorityProcess);
                                     return (
                                       <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
                                         isDarkMode 
                                           ? 'bg-orange-600/20 text-orange-300 border border-orange-500/30' 
                                           : 'bg-orange-100 text-orange-700 border border-orange-200'
                                       }`}>
-                                        {sortedProcesses[0]}
+                                        {highestPriorityProcess}
                                       </span>
                                     );
                                   }

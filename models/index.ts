@@ -9,6 +9,7 @@ export { default as Log } from './Log';
 export { Mill, MillInput } from './Mill';
 export { default as MillOutput } from './MillOutput';
 export { default as Dispatch } from './Dispatch';
+export { default as Process } from './Process';
 
 // Export TypeScript interfaces for all models
 export type { 
@@ -63,6 +64,11 @@ export type {
   IDispatch, 
   IDispatchModel
 } from './Dispatch';
+
+export type { 
+  IProcess, 
+  IProcessModel
+} from './Process';
 
 // Export common types and utilities
 export type { Document, Model, Schema } from 'mongoose';

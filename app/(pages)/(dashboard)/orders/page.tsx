@@ -63,37 +63,35 @@ const getHighestPriorityProcess = (processData: any, qualityName?: string) => {
   
   if (allProcesses.length === 0) return null;
   
-  // Define process priority order (highest to lowest priority)
+  // Define process priority order (higher number = higher priority)
   const processPriority = [
-    'ready to dispatch',
-    'folding',
-    'Finish',
-    'washing',
-    'loop',
-    'in printing',
-    'jigar',
-    'In Dyeing',
-    'setting',
-    'long jet',
-    'Soflina WR',
-    'Drum',
-    'Charkha',
-    'Lot No Greigh'
+    'Lot No Greigh',    // 1
+    'Charkha',          // 2
+    'Drum',             // 3
+    'Soflina WR',       // 4
+    'long jet',         // 5
+    'setting',          // 6
+    'In Dyeing',        // 7
+    'jigar',            // 8
+    'in printing',      // 9
+    'loop',             // 10
+    'washing',          // 11
+    'Finish',           // 12
+    'folding',          // 13
+    'ready to dispatch' // 14
   ];
   
-  // Find the highest priority process
-  let highestPriorityProcess = allProcesses[0];
-  let highestPriorityIndex = processPriority.length;
-  
-  allProcesses.forEach(process => {
-    const index = processPriority.indexOf(process);
-    if (index !== -1 && index < highestPriorityIndex) {
-      highestPriorityIndex = index;
-      highestPriorityProcess = process;
-    }
+  // Sort by priority (highest number first) and return the first one
+  const sortedProcesses = allProcesses.sort((a, b) => {
+    const aIndex = processPriority.indexOf(a);
+    const bIndex = processPriority.indexOf(b);
+    if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return bIndex - aIndex; // Higher index = higher priority
   });
   
-  return highestPriorityProcess;
+  return sortedProcesses[0]; // Return highest priority process
 };
 
 export default function OrdersPage() {
@@ -309,9 +307,23 @@ export default function OrdersPage() {
 
   // Professional helper functions for button states - declared early to maintain hooks order
   const hasMillInputs = useCallback((order: Order) => {
-    const millInputs = (order as any).millInputs;
-    return Array.isArray(millInputs) && millInputs.length > 0;
-  }, [forceRender]);
+    // Check both order.millInputs property and orderMillInputs state
+    const orderMillInputsProperty = (order as any).millInputs;
+    const orderMillInputsState = orderMillInputs[order.orderId];
+    
+    const hasPropertyData = Array.isArray(orderMillInputsProperty) && orderMillInputsProperty.length > 0;
+    const hasStateData = Array.isArray(orderMillInputsState) && orderMillInputsState.length > 0;
+    
+    console.log('🔍 hasMillInputs check:', {
+      orderId: order.orderId,
+      hasPropertyData,
+      hasStateData,
+      propertyLength: orderMillInputsProperty?.length || 0,
+      stateLength: orderMillInputsState?.length || 0
+    });
+    
+    return hasPropertyData || hasStateData;
+  }, [forceRender, orderMillInputs]);
 
   const hasMillOutputs = useCallback((order: Order) => {
     const millOutputs = (order as any).millOutputs;
@@ -648,7 +660,7 @@ export default function OrdersPage() {
         if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
         if (aIndex === -1) return 1;
         if (bIndex === -1) return -1;
-        return aIndex - bIndex;
+        return bIndex - aIndex; // Higher index = higher priority (setting=6, charkha=2)
       });
       console.log(`🔄 Sorted processes for ${key}:`, result[key]);
     });
@@ -4693,105 +4705,99 @@ export default function OrdersPage() {
                                          // Check if we have mill input data for this order
                                          const orderMillInputsData = orderMillInputs[order.orderId] || [];
                                          
-                                         // Debug logging
-                                         console.log('🔍 Process data debug:', {
-                                           orderId: order.orderId,
-                                           qualityId,
-                                           qualityName,
-                                           processDataByQuality: Object.keys(processDataByQuality),
-                                           itemQuality: item.quality,
-                                           orderMillInputsData: orderMillInputsData.length,
-                                           processDataLoading
-                                         });
+                                         // Debug logging removed for performance
                                          
                                          // Get process data for this specific quality and order
                                          const processes = getProcessDataForQuality(item.quality, order.orderId);
-                                         console.log('🔍 Processes found:', processes);
-                                         console.log('🔍 Order mill inputs:', orderMillInputsData);
                                          
-                                         // If no processed data but we have mill inputs, try to extract process from mill inputs
-                                         if (processes.length === 0 && Array.isArray(orderMillInputsData) && orderMillInputsData.length > 0) {
-                                           console.log('🔍 No processed data, checking mill inputs directly');
-                                           
-                                           // Look for process data in mill inputs for this quality
-                                           const relevantMillInputs = orderMillInputsData.filter((input: any) => {
-                                             // Add null checks for input.quality
-                                             if (!input.quality) return false;
-                                             
-                                             const inputQualityId = typeof input.quality === 'object' ? input.quality._id : input.quality;
-                                             const itemQualityId = typeof item.quality === 'object' ? item.quality._id : item.quality;
-                                             return inputQualityId === itemQualityId && input.processName;
-                                           });
-                                           
-                                           console.log('🔍 Relevant mill inputs for quality:', relevantMillInputs);
-                                           
-                                           if (relevantMillInputs.length > 0) {
-                                             // Collect all process names from relevant mill inputs
-                                             const allProcesses = relevantMillInputs
-                                               .map((input: any) => input.processName)
-                                               .filter((process: string) => process && process.trim() !== '');
-                                             
-                                             // Also check additional meters for more processes
-                                             relevantMillInputs.forEach((input: any) => {
-                                               if (input.additionalMeters && Array.isArray(input.additionalMeters)) {
-                                                 input.additionalMeters.forEach((additional: any) => {
-                                                   if (additional.quality && additional.processName) {
-                                                     const additionalQualityId = typeof additional.quality === 'object' ? additional.quality._id : additional.quality;
-                                                     const itemQualityId = typeof item.quality === 'object' ? item.quality._id : item.quality;
-                                                     if (additionalQualityId === itemQualityId && additional.processName) {
-                                                       allProcesses.push(additional.processName);
-                                                     }
-                                                   }
-                                                 });
-                                               }
-                                             });
-                                             
-                                             // Remove duplicates and sort by priority
-                                             const uniqueProcesses = [...new Set(allProcesses)];
-                                             const processPriority = [
-                                               'Lot No Greigh',
-                                               'Charkha',
-                                               'Drum',
-                                               'Soflina WR',
-                                               'long jet',
-                                               'setting',
-                                               'In Dyeing',
-                                               'jigar',
-                                               'in printing',
-                                               'loop',
-                                               'washing',
-                                               'Finish',
-                                               'folding',
-                                               'ready to dispatch'
-                                             ];
-                                             
-                                             const sortedProcesses = uniqueProcesses.sort((a, b) => {
-                                               const aIndex = processPriority.indexOf(a);
-                                               const bIndex = processPriority.indexOf(b);
-                                               if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
-                                               if (aIndex === -1) return 1;
-                                               if (bIndex === -1) return -1;
-                                               return aIndex - bIndex;
-                                             });
-                                             
-                                             const highestPriorityProcess = sortedProcesses[0];
-                                             console.log('🔍 Found process from mill input:', highestPriorityProcess);
-                                             
-                                             return (
-                                               <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                                                 isDarkMode 
-                                                   ? 'bg-orange-600/20 text-orange-300 border border-orange-500/30' 
-                                                   : 'bg-orange-100 text-orange-700 border border-orange-200'
-                                               }`}>
-                                                 {highestPriorityProcess}
-                                               </div>
-                                             );
-                                           }
-                                         }
+                                         // This logic is now handled in the fallback section below
                                          
                                          if (processes.length === 0) {
                                            // Check if we have any mill input data at all for this order
                                            const hasAnyMillInputs = Array.isArray(orderMillInputsData) && orderMillInputsData.length > 0;
+                                           
+                                           // If we have mill inputs but no processed data, try to extract from mill inputs directly
+                                           if (hasAnyMillInputs) {
+                                             
+                                             // Look for process data in mill inputs for this quality
+                                             const relevantMillInputs = orderMillInputsData.filter((input: any) => {
+                                               if (!input.quality) return false;
+                                               
+                                               const inputQualityId = typeof input.quality === 'object' ? input.quality._id : input.quality;
+                                               const itemQualityId = typeof item.quality === 'object' ? item.quality._id : item.quality;
+                                               
+                                               return inputQualityId === itemQualityId && input.processName;
+                                             });
+                                             
+                                             if (relevantMillInputs.length > 0) {
+                                               
+                                               // Collect all process names from relevant mill inputs
+                                               const allProcesses = relevantMillInputs
+                                                 .map((input: any) => input.processName)
+                                                 .filter((process: string) => process && process.trim() !== '');
+                                               
+                                               // Also check additional meters for more processes
+                                               relevantMillInputs.forEach((input: any) => {
+                                                 if (input.additionalMeters && Array.isArray(input.additionalMeters)) {
+                                                   input.additionalMeters.forEach((additional: any) => {
+                                                     if (additional.quality && additional.processName) {
+                                                       const additionalQualityId = typeof additional.quality === 'object' ? additional.quality._id : additional.quality;
+                                                       const itemQualityId = typeof item.quality === 'object' ? item.quality._id : item.quality;
+                                                       if (additionalQualityId === itemQualityId && additional.processName) {
+                                                         allProcesses.push(additional.processName);
+                                                       }
+                                                     }
+                                                   });
+                                                 }
+                                               });
+                                               
+                                               if (allProcesses.length > 0) {
+                                                 // Remove duplicates and sort by priority
+                                                 const uniqueProcesses = [...new Set(allProcesses)];
+                                                 
+                                                 // Define process priority order (higher number = higher priority)
+                                                 const processPriority = [
+                                                   'Lot No Greigh',    // 1
+                                                   'Charkha',          // 2
+                                                   'Drum',             // 3
+                                                   'Soflina WR',       // 4
+                                                   'long jet',         // 5
+                                                   'setting',          // 6
+                                                   'In Dyeing',        // 7
+                                                   'jigar',            // 8
+                                                   'in printing',      // 9
+                                                   'loop',             // 10
+                                                   'washing',          // 11
+                                                   'Finish',           // 12
+                                                   'folding',          // 13
+                                                   'ready to dispatch' // 14
+                                                 ];
+                                                 
+                                                 // Sort by priority (highest number first)
+                                                 const sortedProcesses = uniqueProcesses.sort((a, b) => {
+                                                   const aIndex = processPriority.indexOf(a);
+                                                   const bIndex = processPriority.indexOf(b);
+                                                   if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+                                                   if (aIndex === -1) return 1;
+                                                   if (bIndex === -1) return -1;
+                                                   return bIndex - aIndex; // Higher index = higher priority
+                                                 });
+                                                 
+                                                 const highestPriorityProcess = sortedProcesses[0];
+                                                 
+                                                 return (
+                                                   <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                                                     isDarkMode 
+                                                       ? 'bg-orange-600/20 text-orange-300 border border-orange-500/30' 
+                                                       : 'bg-orange-100 text-orange-700 border border-orange-200'
+                                                   }`}>
+                                                     {highestPriorityProcess}
+                                                   </div>
+                                                 );
+                                               }
+                                             }
+                                           }
+                                           
                                            return (
                                              <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                                                {hasAnyMillInputs ? 'Processing...' : 'No process data'}
