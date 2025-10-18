@@ -145,6 +145,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --foreground-rgb: 23, 23, 23;
 }
 
 /* Prevent white flash during hydration */
@@ -168,6 +169,7 @@ html.dark {
 .dark {
   --background: #0a0a0a;
   --foreground: #ededed;
+  --foreground-rgb: 237, 237, 237;
 }
 
 /* Light mode styles */
@@ -639,4 +641,109 @@ button{
   ::view-transition-new(root) {
     z-index: 2;
   }
+}
+
+/* High-Performance Circular Theme Switch Animation */
+@keyframes circular-reveal-fast {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes circular-reveal-clip-fast {
+  0% {
+    clip-path: circle(0% at var(--animation-x, 50%) var(--animation-y, 50%));
+  }
+  100% {
+    clip-path: circle(150% at var(--animation-x, 50%) var(--animation-y, 50%));
+  }
+}
+
+/* Alternative: Dark to Light transition animation - Fully Transparent */
+@keyframes dark-to-light-reveal {
+  0% {
+    clip-path: circle(0% at var(--animation-x, 50%) var(--animation-y, 50%));
+    background: transparent; /* Fully transparent */
+  }
+  50% {
+    background: transparent;
+  }
+  100% {
+    clip-path: circle(150% at var(--animation-x, 50%) var(--animation-y, 50%));
+    background: transparent; /* Fully transparent */
+  }
+}
+
+/* Alternative: Light to Dark transition animation - Fully Transparent */
+@keyframes light-to-dark-reveal {
+  0% {
+    clip-path: circle(0% at var(--animation-x, 50%) var(--animation-y, 50%));
+    background: transparent; /* Fully transparent */
+  }
+  50% {
+    background: transparent;
+  }
+  100% {
+    clip-path: circle(150% at var(--animation-x, 50%) var(--animation-y, 50%));
+    background: transparent; /* Fully transparent */
+  }
+}
+
+/* Optimized animation overlay with GPU acceleration - Fully Transparent */
+.theme-switch-circle-animation::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: transparent; /* Fully transparent overlay */
+  z-index: 9999;
+  pointer-events: none;
+  will-change: clip-path;
+  animation: circular-reveal-clip-fast 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+/* High-performance expanding circle effect - Fully Transparent */
+.theme-switch-circle-animation::after {
+  content: '';
+  position: fixed;
+  top: var(--animation-y, 50%);
+  left: var(--animation-x, 50%);
+  width: 8px;
+  height: 8px;
+  background: transparent; /* Fully transparent circle */
+  border-radius: 50%;
+  z-index: 10000;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  will-change: transform, opacity;
+  animation: circular-reveal-fast 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  box-shadow: none; /* No shadow */
+}
+
+/* Enhanced version with GPU acceleration */
+.theme-switch-circle-animation {
+  position: relative;
+  overflow: hidden;
+  will-change: clip-path;
+}
+
+/* Optimized root element animation */
+html.theme-switch-circle-animation {
+  animation: circular-reveal-clip-fast 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+/* Theme-specific animations */
+html.dark-to-light .theme-switch-circle-animation::before {
+  animation: dark-to-light-reveal 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+html.light-to-dark .theme-switch-circle-animation::before {
+  animation: light-to-dark-reveal 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }

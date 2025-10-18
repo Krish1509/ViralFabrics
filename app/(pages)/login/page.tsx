@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDarkMode } from '../(dashboard)/hooks/useDarkMode';
+// Removed react-theme-switch-animation import - using custom implementation
 import { 
   EyeIcon, 
   EyeSlashIcon, 
@@ -43,6 +44,51 @@ function LoginForm() {
   const [isRetrying, setIsRetrying] = useState(false);
   const { isDarkMode, toggleDarkMode, mounted: darkModeMounted, themeSwitchRef } = useDarkMode();
   const [isCheckingSession, setIsCheckingSession] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  // Custom circular animation function
+  const handleThemeToggle = (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (isAnimating) return; // Prevent multiple animations
+    
+    setIsAnimating(true);
+    
+    // Get the button position for animation origin
+    const button = event.currentTarget;
+    const rect = button.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    
+    // Create the circular animation
+    if (typeof window !== 'undefined') {
+      const root = window.document.documentElement;
+      
+      // Set CSS custom properties for animation origin
+      root.style.setProperty('--animation-x', `${x}px`);
+      root.style.setProperty('--animation-y', `${y}px`);
+      
+      // Add animation class with theme-specific animation
+      if (isDarkMode) {
+        // Switching from dark to light - use dark to light animation
+        root.classList.add('theme-switch-circle-animation', 'dark-to-light');
+      } else {
+        // Switching from light to dark - use light to dark animation
+        root.classList.add('theme-switch-circle-animation', 'light-to-dark');
+      }
+      
+      // Toggle theme immediately for better visual effect
+      toggleDarkMode();
+      
+      // Remove animation class after animation completes
+      setTimeout(() => {
+        root.classList.remove('theme-switch-circle-animation', 'dark-to-light', 'light-to-dark');
+        setIsAnimating(false);
+      }, 600);
+    } else {
+      // Fallback without animation
+      toggleDarkMode();
+      setIsAnimating(false);
+    }
+  };
   const [formData, setFormData] = useState<LoginFormData>({
     username: '',
     password: '',
@@ -78,7 +124,7 @@ function LoginForm() {
     }
   }, [formData.username, router]);
 
-  // Ultra-fast session check - only once on mount
+  // Ultra-fast session check - optimized for speed
   useEffect(() => {
     const checkActiveSession = async () => {
       const token = localStorage.getItem('token');
@@ -88,12 +134,31 @@ function LoginForm() {
         return; // No session data, stay on login page
       }
 
+      // Quick token validation without API call first
+      try {
+        const parsedUser = JSON.parse(userData);
+        const tokenExpiry = parsedUser.exp || 0;
+        const now = Math.floor(Date.now() / 1000);
+        
+        // If token is expired, clear it immediately
+        if (tokenExpiry < now) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          return;
+        }
+      } catch {
+        // Invalid user data, clear it
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        return;
+      }
+
       setIsCheckingSession(true);
       
       try {
-        // Reasonable session validation with timeout
+        // Fast session validation with shorter timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 2000); // Reduced to 2 seconds
         
         const response = await fetch('/api/auth/validate-session', {
           headers: {
@@ -159,15 +224,16 @@ function LoginForm() {
     setRetryCount(0);
     
     try {
-      // Reasonable timeout for login
+      // Faster timeout for login
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds - more generous
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // Reduced to 8 seconds
       
-      // Single login API call - no parallel prefetch
+      // Optimized login API call
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
         },
         body: JSON.stringify({
           username: formData.username,
@@ -196,17 +262,17 @@ function LoginForm() {
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        if (retryCount < 2) {
-          // Auto-retry once
+        if (retryCount < 1) { // Reduced retry count
+          // Auto-retry once with shorter delay
           setRetryCount(prev => prev + 1);
           setIsRetrying(true);
           setTimeout(() => {
             setIsRetrying(false);
             handleSubmit(e);
-          }, 2000); // Wait 2 seconds before retry
+          }, 1000); // Reduced to 1 second
           return;
         } else {
-          setErrors({ general: 'Login is taking longer than expected. Please wait a moment and try again. If the problem persists, please contact support.' });
+          setErrors({ general: 'Connection timeout. Please check your internet connection and try again.' });
         }
       } else if (error instanceof Error && error.message.includes('fetch')) {
         setErrors({ general: 'Unable to connect to the server. Please check your internet connection and try again.' });
@@ -247,7 +313,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row theme-switch-root">
+    <div className="min-h-screen flex flex-col lg:flex-row theme-switch-root" style={{ viewTransitionName: 'root' }}>
 
       {/* Left Side - Professional Design (Hidden on mobile, 55% on desktop) */}
       <div className={`hidden lg:block lg:w-[55%] relative overflow-hidden transition-all duration-700 ${
@@ -333,14 +399,13 @@ function LoginForm() {
           {/* Dark Mode Toggle - Left Section (Mobile Only) */}
           <div className="lg:hidden absolute top-4 right-4 z-20">
             <button
-              ref={themeSwitchRef}
-              onClick={toggleDarkMode}
-              disabled={false}
+              onClick={handleThemeToggle}
+              disabled={isAnimating}
               className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
                 isDarkMode
                   ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/90 border border-slate-600/50 hover:shadow-slate-500/25'
                   : 'bg-white/90 text-slate-700 hover:bg-white border border-slate-200/50 shadow-xl hover:shadow-slate-300/25'
-              }`}
+              } ${isAnimating ? 'opacity-75 cursor-not-allowed' : ''}`}
               aria-label="Toggle dark mode"
             >
               {isDarkMode ? (
@@ -397,14 +462,13 @@ function LoginForm() {
           {/* Dark Mode Toggle - Top Right of Left Side (Mobile) */}
           <div className="absolute top-4 right-4 z-20">
             <button
-              ref={themeSwitchRef}
-              onClick={toggleDarkMode}
-              disabled={false}
+              onClick={handleThemeToggle}
+              disabled={isAnimating}
               className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
                 isDarkMode
                   ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/90 border border-slate-600/50 hover:shadow-slate-500/25'
                   : 'bg-white/90 text-slate-700 hover:bg-white border border-slate-200/50 shadow-xl hover:shadow-slate-300/25'
-              }`}
+              } ${isAnimating ? 'opacity-75 cursor-not-allowed' : ''}`}
               aria-label="Toggle dark mode"
             >
               {isDarkMode ? (
@@ -453,14 +517,13 @@ function LoginForm() {
           {/* Dark Mode Toggle - Right Section (Desktop Only) */}
           <div className="hidden lg:block absolute top-4 right-4 z-20">
             <button
-              ref={themeSwitchRef}
-              onClick={toggleDarkMode}
-              disabled={false}
+              onClick={handleThemeToggle}
+              disabled={isAnimating}
               className={`p-3 rounded-full transition-all duration-300 shadow-lg hover:scale-110 transform ${
                 isDarkMode
                   ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600 hover:shadow-slate-500/25'
                   : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-xl hover:shadow-slate-300/25'
-              }`}
+              } ${isAnimating ? 'opacity-75 cursor-not-allowed' : ''}`}
               aria-label="Toggle dark mode"
             >
               {isDarkMode ? (
@@ -491,7 +554,7 @@ function LoginForm() {
 
           {/* Error Message */}
           {errors.general && (
-            <div className={`mb-6 lg:mb-8 p-3 lg:p-4 ml-6 rounded-xl flex items-center justify-center space-x-3 shadow-lg w-full lg:w-80 xl:w-96 ${
+            <div className={`mb-6 lg:mb-8 p-3 lg:p-4 rounded-xl flex items-center justify-center space-x-3 shadow-lg w-full lg:w-80 xl:w-96 ${
               isDarkMode 
                 ? 'bg-transparent border-none shadow-none ' 
                 : 'bg-transparent border-none shadow-none'
@@ -507,25 +570,11 @@ function LoginForm() {
             </div>
           )}
 
-          {/* Loading Progress Indicator */}
-          {isLoading && (
-            <div className={`mb-6 lg:mb-8 p-3 lg:p-4 ml-8 rounded-xl flex items-center space-x-3 shadow-lg w-full lg:w-80 xl:w-96 ${
-              isDarkMode 
-                ? 'bg-blue-900/30 border border-blue-700/50 backdrop-blur-sm' 
-                : 'bg-blue-50 border border-blue-200 shadow-blue-100'
-            }`}>
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
-              <span className={`text-sm font-medium ${
-                isDarkMode ? 'text-blue-300' : 'text-blue-800'
-              }`}>
-                {isRetrying ? `Retrying login... (${retryCount}/2)` : 'Connecting to server...'}
-              </span>
-            </div>
-          )}
+          {/* Loading Progress Indicator - Removed for cleaner UI */}
 
           {/* Remember Me Alert */}
           {showRememberMeAlert && (
-            <div className={`mb-6 ml-8 lg:mb-8 p-4 lg:p-5 rounded-xl flex items-center space-x-3 shadow-lg w-full lg:w-80 xl:w-96 border-2 ${
+            <div className={`mb-6 lg:mb-8 ml-8 p-4 lg:p-5 rounded-xl flex items-center space-x-3 shadow-lg w-full lg:w-80 xl:w-96 border-2 ${
               isDarkMode 
                 ? 'bg-blue-900/30 border-blue-500/50 backdrop-blur-sm' 
                 : 'bg-blue-50 border-blue-200 shadow-blue-100'
@@ -580,11 +629,11 @@ function LoginForm() {
                   onFocus={() => handleInputFocus('username')}
                   onBlur={handleInputBlur}
                   placeholder="Enter your username"
-                  className={`w-full pl-10 lg:pl-12 pr-4 py-3 lg:py-4 border-2 rounded-xl transition-all duration-300 focus:outline-none font-medium text-base ${
+                  className={`w-full pl-12 lg:pl-14 pr-4 py-4 lg:py-5 border-2 rounded-2xl transition-all duration-300 focus:outline-none font-medium text-base shadow-lg hover:shadow-xl focus:shadow-2xl ${
                     isDarkMode
-                      ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-400 focus:border-blue-500 focus:bg-slate-700 shadow-lg'
-                      : 'bg-white border-slate-200 text-slate-900 placeholder-slate-500 focus:border-blue-500 shadow-lg'
-                  } ${errors.username ? 'border-red-500' : ''}`}
+                      ? 'bg-slate-800/90 border-slate-600 text-white placeholder-slate-400 focus:border-blue-400 focus:bg-slate-700/90 backdrop-blur-sm'
+                      : 'bg-white/90 border-slate-200 text-slate-900 placeholder-slate-500 focus:border-blue-400 backdrop-blur-sm'
+                  } ${errors.username ? 'border-red-400 shadow-red-200' : ''}`}
                 />
                 {focusedField === 'username' && (
                   <div className={`absolute -top-2 left-3 lg:left-4 px-2 lg:px-3 text-xs font-semibold transition-colors duration-300 rounded-md ${
@@ -620,11 +669,11 @@ function LoginForm() {
                   onFocus={() => handleInputFocus('password')}
                   onBlur={handleInputBlur}
                   placeholder="Enter your password"
-                  className={`w-full pl-10 lg:pl-12 pr-12 lg:pr-14 py-3 lg:py-4 border-2 rounded-xl transition-all duration-300 focus:outline-none font-medium text-base ${
+                  className={`w-full pl-12 lg:pl-14 pr-14 lg:pr-16 py-4 lg:py-5 border-2 rounded-2xl transition-all duration-300 focus:outline-none font-medium text-base shadow-lg hover:shadow-xl focus:shadow-2xl ${
                     isDarkMode
-                      ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-400 focus:border-blue-500 focus:bg-slate-700 shadow-lg'
-                      : 'bg-white border-slate-200 text-slate-900 placeholder-slate-500 focus:border-blue-500 shadow-lg'
-                  } ${errors.password ? 'border-red-500' : ''}`}
+                      ? 'bg-slate-800/90 border-slate-600 text-white placeholder-slate-400 focus:border-blue-400 focus:bg-slate-700/90 backdrop-blur-sm'
+                      : 'bg-white/90 border-slate-200 text-slate-900 placeholder-slate-500 focus:border-blue-400 backdrop-blur-sm'
+                  } ${errors.password ? 'border-red-400 shadow-red-200' : ''}`}
                 />
                 {focusedField === 'password' && (
                   <div className={`absolute -top-2 left-3 lg:left-4 px-2 lg:px-3 text-xs font-semibold transition-colors duration-300 rounded-md ${
@@ -696,28 +745,34 @@ function LoginForm() {
             <button
               type="submit"
               disabled={isLoading || isRetrying}
-              className={`w-full lg:w-80 xl:w-96 flex items-center justify-center px-6 lg:px-8 py-3 lg:py-4 rounded-xl font-semibold text-base lg:text-lg transition-all duration-300 cursor-pointer shadow-xl ${
+              className={`w-full lg:w-80 xl:w-96 flex items-center justify-center px-8 lg:px-10 py-4 lg:py-5 rounded-2xl font-bold text-base lg:text-lg transition-all duration-300 cursor-pointer shadow-2xl border-2 ${
                 isLoading || isRetrying
-                  ? 'bg-slate-400 text-slate-200 cursor-not-allowed'
+                  ? 'bg-slate-400 text-slate-200 cursor-not-allowed border-slate-300'
                   : isDarkMode
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/25 transform hover:scale-105'
-                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/25 transform hover:scale-105'
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white hover:from-blue-500 hover:via-indigo-500 hover:to-purple-500 shadow-blue-500/30 border-blue-400/50 transform hover:scale-105 hover:shadow-blue-500/50'
+                    : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white hover:from-blue-500 hover:via-indigo-500 hover:to-purple-500 shadow-blue-500/30 border-blue-400/50 transform hover:scale-105 hover:shadow-blue-500/50'
               }`}
             >
               {isRetrying ? (
-                <div className="flex items-center space-x-2 lg:space-x-3">
-                  <div className="animate-spin rounded-full h-4 w-4 lg:h-5 lg:w-5 border-b-2 border-white"></div>
-                  <span>Retrying... ({retryCount}/2)</span>
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/30"></div>
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent absolute top-0 left-0"></div>
+                  </div>
+                  <span>Retrying... ({retryCount}/1)</span>
                 </div>
               ) : isLoading ? (
-                <div className="flex items-center space-x-2 lg:space-x-3">
-                  <div className="animate-spin rounded-full h-4 w-4 lg:h-5 lg:w-5 border-b-2 border-white"></div>
-                  <span>Signing in...</span>
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/30"></div>
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent absolute top-0 left-0"></div>
+                  </div>
+                  <span>Logging in...</span>
                 </div>
               ) : (
-                <div className="flex items-center space-x-2 lg:space-x-3">
-                  <span>Sign in</span>
-                  <ArrowRightIcon className="h-4 w-4 lg:h-5 lg:w-5" />
+                <div className="flex items-center space-x-3">
+                  <span>LOGIN</span>
+                  <ArrowRightIcon className="h-5 w-5" />
                 </div>
               )}
             </button>

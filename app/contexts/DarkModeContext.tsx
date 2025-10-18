@@ -1,7 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useModeAnimation, ThemeAnimationType } from 'react-theme-switch-animation';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
 interface DarkModeContextType {
   isDarkMode: boolean;
@@ -19,40 +18,37 @@ export function DarkModeProvider({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState<boolean>(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
-  
-  // Use the theme animation hook with blur circle animation
-  const { ref: themeSwitchRef, toggleSwitchTheme } = useModeAnimation({
-    animationType: ThemeAnimationType.BLUR_CIRCLE,
-    duration: 750,
-    easing: "ease-in-out",
-    blurAmount: 3,
-    globalClassName: "dark",
-    isDarkMode: isDarkMode,
-    onDarkModeChange: (isDark: boolean) => {
-      setIsDarkMode(isDark);
-      // Store in localStorage for persistence
-      localStorage.setItem('darkMode', isDark.toString());
-      
-      // Dispatch custom event for other components
-      const customEvent = new CustomEvent('darkModeChange', { 
-        detail: { isDark, timestamp: Date.now() },
-        bubbles: true,
-        cancelable: true
-      });
-      window.dispatchEvent(customEvent);
-    }
-  });
+  const themeSwitchRef = useRef<HTMLButtonElement | null>(null);
 
-  // Enhanced theme toggle using animation hook
+  // Simple theme toggle function
   const toggleDarkMode = useCallback(() => {
     setIsTransitioning(true);
-    toggleSwitchTheme();
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    
+    // Apply theme to document
+    if (newMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    
+    // Store in localStorage for persistence
+    localStorage.setItem('darkMode', newMode.toString());
+    
+    // Dispatch custom event for other components
+    const customEvent = new CustomEvent('darkModeChange', { 
+      detail: { isDark: newMode, timestamp: Date.now() },
+      bubbles: true,
+      cancelable: true
+    });
+    window.dispatchEvent(customEvent);
     
     // Clear transition state after animation
     setTimeout(() => {
       setIsTransitioning(false);
-    }, 750); // Match animation duration
-  }, [toggleSwitchTheme]);
+    }, 300);
+  }, [isDarkMode]);
 
   useEffect(() => {
     // Only run on client side to prevent hydration mismatch
