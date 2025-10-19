@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate') || '';
     const endDate = searchParams.get('endDate') || '';
     const sort = searchParams.get('sort') || 'latest_first';
+    const light = (searchParams.get('light') || 'false') === 'true';
     const force = searchParams.get('force') === 'true';
     
     // Create cache key for this query
@@ -296,9 +297,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Ultra-optimized query with minimal data fetching
-    const orders = await Order.find(query)
-      .populate('party', 'name contactName contactPhone')
-      .populate('items.quality', 'name')
+    const baseQuery = Order.find(query)
       .sort(sortOrder)
       .limit(limit)
       .skip((page - 1) * limit)
@@ -306,13 +305,30 @@ export async function GET(request: NextRequest) {
       .maxTimeMS(8000) // Increased timeout for search operations
       .hint({ createdAt: -1 }); // Force index usage for better performance
 
+    // In light mode, avoid heavy populates to speed up first paint
+    const orders = light
+      ? await baseQuery.select('_id orderId party status items createdAt')
+      : await baseQuery
+          .populate('party', 'name contactName contactPhone')
+          .populate('items.quality', 'name');
+
     // Debug search results
     if (search) {
       console.log(`🔍 Search completed: Found ${orders.length} orders`);
     }
 
-    // Use Promise.all to parallelize all data fetching
-    const [labs, millInputs, millOutputs, dispatches, total] = await Promise.all([
+    // If light mode, skip heavy joins for fastest response
+    let labs: any[] = [] as any[];
+    let millInputs: any[] = [] as any[];
+    let millOutputs: any[] = [] as any[];
+    let dispatches: any[] = [] as any[];
+
+    // Always compute total in parallel
+    let totalPromise = Order.countDocuments(query).maxTimeMS(3000).hint({ createdAt: -1 });
+
+    if (!light) {
+      // Use Promise.all to parallelize all data fetching
+      const results = await Promise.all([
       // Fetch lab data for all orders
       orders.length > 0 ? (async () => {
         try {
@@ -395,11 +411,15 @@ export async function GET(request: NextRequest) {
           console.error('Dispatch fetch error:', dispatchError);
           return [];
         }
-      })() : Promise.resolve([]),
-      
-      // Get total count in parallel with optimized query
-      Order.countDocuments(query).maxTimeMS(3000).hint({ createdAt: -1 })
-    ]);
+      })() : Promise.resolve([])
+      ]);
+
+      labs = results[0] as any[];
+      millInputs = results[1] as any[];
+      millOutputs = results[2] as any[];
+      dispatches = results[3] as any[];
+    }
+    const total = await totalPromise;
 
     // Enhanced fuzzy search function
     const fuzzyMatch = (text: string, searchTerm: string): boolean => {
@@ -514,8 +534,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Attach lab data and mill input process data to order items
-    if (filteredOrders.length > 0) {
+    // Attach lab/process data only when not in light mode
+    if (!light && filteredOrders.length > 0) {
       // Create a map of orderItemId to lab data
       const labMap = new Map();
       if (labs.length > 0) {

@@ -1552,7 +1552,7 @@ export default function OrdersPage() {
         
         // Load orders with pending status filter using proper API call
         console.log('📋 Loading orders with pending filter...');
-        const ordersResponse = await fetch('/api/orders?limit=10&page=1&force=true&status=pending', {
+        const ordersResponse = await fetch('/api/orders?limit=10&page=1&force=true&status=pending&light=true', {
             headers: { 
               'Authorization': `Bearer ${token}`,
               'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -1603,6 +1603,28 @@ export default function OrdersPage() {
         // PHASE 2: Load other APIs in background (non-blocking)
         console.log('📋 Phase 2: Loading other APIs in background...');
         setLoadingPhase('secondary');
+
+        // Upgrade orders data in background (fetch full data without light mode)
+        setTimeout(async () => {
+          try {
+            const fullResp = await fetch('/api/orders?limit=10&page=1&status=pending&light=false', {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Accept': 'application/json'
+              },
+              cache: 'no-store'
+            });
+            if (fullResp.ok) {
+              const fullData = await fullResp.json();
+              if (fullData.success && Array.isArray(fullData.data)) {
+                setOrdersSafe(fullData.data);
+                dataCache.current.orders = { data: fullData.data, timestamp: Date.now() };
+              }
+            }
+          } catch (e) {
+          }
+        }, 50);
         
         // Load mills in background
         setTimeout(async () => {
