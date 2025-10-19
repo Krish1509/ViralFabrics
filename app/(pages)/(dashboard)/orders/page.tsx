@@ -154,6 +154,7 @@ export default function OrdersPage() {
   const [ordersLoaded, setOrdersLoaded] = useState(false);
   const [initialLoadTime, setInitialLoadTime] = useState<number | null>(null);
   const [loadingPhase, setLoadingPhase] = useState<'critical' | 'secondary' | 'complete'>('critical');
+  const [isUpgradingData, setIsUpgradingData] = useState(false);
   
   // Debug orders state changes
   useEffect(() => {
@@ -1604,27 +1605,31 @@ export default function OrdersPage() {
         console.log('📋 Phase 2: Loading other APIs in background...');
         setLoadingPhase('secondary');
 
-        // Upgrade orders data in background (fetch full data without light mode)
-        setTimeout(async () => {
-          try {
-            const fullResp = await fetch('/api/orders?limit=10&page=1&status=pending&light=false', {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Accept': 'application/json'
-              },
-              cache: 'no-store'
-            });
-            if (fullResp.ok) {
-              const fullData = await fullResp.json();
-              if (fullData.success && Array.isArray(fullData.data)) {
-                setOrdersSafe(fullData.data);
-                dataCache.current.orders = { data: fullData.data, timestamp: Date.now() };
-              }
+        // Upgrade orders data in background (fetch full data without light mode) - IMMEDIATE
+        console.log('🔄 Upgrading orders data with full joins...');
+        setIsUpgradingData(true);
+        try {
+          const fullResp = await fetch('/api/orders?limit=10&page=1&status=pending&light=false', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Accept': 'application/json'
+            },
+            cache: 'no-store'
+          });
+          if (fullResp.ok) {
+            const fullData = await fullResp.json();
+            if (fullData.success && Array.isArray(fullData.data)) {
+              console.log('✅ Full orders data loaded with lab/mill/dispatch data');
+              setOrdersSafe(fullData.data);
+              dataCache.current.orders = { data: fullData.data, timestamp: Date.now() };
             }
-          } catch (e) {
           }
-        }, 50);
+        } catch (e) {
+          console.error('❌ Failed to upgrade orders data:', e);
+        } finally {
+          setIsUpgradingData(false);
+        }
         
         // Load mills in background
         setTimeout(async () => {
@@ -4977,6 +4982,11 @@ export default function OrdersPage() {
                            >
                              <BeakerIcon className="h-4 w-4" />
                              <span>{hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}</span>
+                             {isUpgradingData && (
+                               <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+                                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                               </div>
+                             )}
                              {/* Status indicator */}
                              <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                                isDarkMode ? 'border-gray-800' : 'border-white'
@@ -4997,6 +5007,11 @@ export default function OrdersPage() {
                            >
                              <CubeIcon className="h-4 w-4" />
                              <span>{hasMillInputs(order) ? "Edit Mill Input" : "Add Mill Input"}</span>
+                             {isUpgradingData && (
+                               <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+                                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                               </div>
+                             )}
                              {/* Status indicator */}
                              <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                                isDarkMode ? 'border-gray-800' : 'border-white'
@@ -5017,6 +5032,11 @@ export default function OrdersPage() {
                            >
                              <DocumentTextIcon className="h-4 w-4" />
                              <span>{hasMillOutputs(order) ? "Edit Mill Output" : "Add Mill Output"}</span>
+                             {isUpgradingData && (
+                               <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+                                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                               </div>
+                             )}
                              {/* Status indicator */}
                              <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                                isDarkMode ? 'border-gray-800' : 'border-white'
@@ -5037,6 +5057,11 @@ export default function OrdersPage() {
                            >
                              <TruckIcon className="h-4 w-4" />
                              <span>{hasDispatches(order) ? "Edit Dispatch" : "Add Dispatch"}</span>
+                             {isUpgradingData && (
+                               <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+                                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                               </div>
+                             )}
                              {/* Status indicator */}
                              <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                                isDarkMode ? 'border-gray-800' : 'border-white'
@@ -5860,6 +5885,11 @@ export default function OrdersPage() {
                     >
                       <BeakerIcon className="h-4 w-4" />
                       <span>{hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}</span>
+                      {isUpgradingData && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        </div>
+                      )}
                       {/* Status indicator */}
                       <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                         isDarkMode ? 'border-gray-800' : 'border-white'
@@ -5880,6 +5910,11 @@ export default function OrdersPage() {
                     >
                       <CubeIcon className="h-4 w-4" />
                       <span>{hasMillInputs(order) ? "Edit Mill Input" : "Add Mill Input"}</span>
+                      {isUpgradingData && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        </div>
+                      )}
                       {/* Status indicator */}
                       <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                         isDarkMode ? 'border-gray-800' : 'border-white'
@@ -5900,6 +5935,11 @@ export default function OrdersPage() {
                     >
                       <DocumentTextIcon className="h-4 w-4" />
                       <span>{hasMillOutputs(order) ? "Edit Mill Output" : "Add Mill Output"}</span>
+                      {isUpgradingData && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        </div>
+                      )}
                       {/* Status indicator */}
                       <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                         isDarkMode ? 'border-gray-800' : 'border-white'
@@ -5920,6 +5960,11 @@ export default function OrdersPage() {
                     >
                       <TruckIcon className="h-4 w-4" />
                       <span>{hasDispatches(order) ? "Edit Dispatch" : "Add Dispatch"}</span>
+                      {isUpgradingData && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        </div>
+                      )}
                       {/* Status indicator */}
                       <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${
                         isDarkMode ? 'border-gray-800' : 'border-white'
