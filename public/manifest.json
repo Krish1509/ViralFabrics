@@ -1,7 +1,7 @@
 {
-  "name": "Viral Fabrics",
-  "short_name": "Viral",
-  "description": "Premium Fabric Solutions - Complete CRM Management System for Order Tracking, Party Management, and Business Operations",
+  "name": "Viral Fabrics App",
+  "short_name": "Viral Fabrics",
+  "description": "Install Viral Fabrics App - Works on all devices: iOS, Android, Linux, Mac, Windows. Click to install web-based application for complete fabric business management.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1D293D",
@@ -37,9 +37,9 @@
   ],
   "shortcuts": [
     {
-      "name": "Orders",
+      "name": "Orders Management",
       "short_name": "Orders",
-      "description": "Manage and track orders",
+      "description": "Manage and track fabric orders",
       "url": "/orders",
       "icons": [
         {
@@ -51,7 +51,7 @@
     {
       "name": "Dashboard",
       "short_name": "Dashboard",
-      "description": "View dashboard and analytics",
+      "description": "View business analytics and reports",
       "url": "/dashboard",
       "icons": [
         {
@@ -63,18 +63,18 @@
   ],
   "screenshots": [
     {
-      "src": "/screenshots/dashboard.png",
+      "src": "/images/app-screenshot-1.png",
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Dashboard Overview"
+      "label": "Viral Fabrics Dashboard"
     },
     {
-      "src": "/screenshots/orders.png",
+      "src": "/images/app-screenshot-2.png",
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Order Management"
+      "label": "Order Management System"
     }
   ]
 }

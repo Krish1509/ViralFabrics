@@ -546,7 +546,7 @@ function LoginForm() {
             <p className={`text-lg sm:text-xl lg:text-xl transition-colors duration-300 font-medium ${
               isDarkMode ? 'text-slate-300' : 'text-slate-600'
             }`}>
-              Sign in to your account
+              Login to your account
             </p>
           </div>
 

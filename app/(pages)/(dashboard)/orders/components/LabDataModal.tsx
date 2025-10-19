@@ -57,58 +57,91 @@ function CustomDatePicker({
   const formatDateForDisplay = (dateString: string) => {
     if (!dateString) return '';
     
-    // Handle ISO date string (YYYY-MM-DD)
-    if (dateString.includes('-')) {
-      const [year, month, day] = dateString.split('-');
+    try {
+      // Handle ISO date string (YYYY-MM-DD)
+      if (dateString.includes('-') && dateString.length === 10) {
+        const [year, month, day] = dateString.split('-');
+        return `${day}/${month}/${year}`;
+      }
+      
+      // Handle other date formats
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      
+      // Format as dd/mm/yyyy
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
       return `${day}/${month}/${year}`;
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '';
     }
-    
-    // Handle other date formats
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-    return date.toLocaleDateString('en-GB'); // dd/mm/yyyy format
   };
 
-  // Use the shared date parsing function
+  // Parse date from display format (dd/mm/yyyy) to ISO format (YYYY-MM-DD)
   const parseDateFromDisplay = (inputValue: string) => {
     if (!inputValue) return '';
     
-    // Handle dd/mm/yyyy format
-    const parts = inputValue.split('/');
-    if (parts.length === 3) {
-      const day = parseInt(parts[0]);
-      const month = parseInt(parts[1]) - 1; // Month is 0-indexed
-      const year = parseInt(parts[2]);
-      
-      if (!isNaN(day) && !isNaN(month) && !isNaN(year) && day >= 1 && day <= 31 && month >= 0 && month <= 11) {
-        const date = new Date(year, month, day);
-        // Validate the date is correct (handles invalid dates like 31/02/2024)
-        if (date.getDate() === day && date.getMonth() === month && date.getFullYear() === year) {
-          return date.toISOString().split('T')[0];
+    try {
+      // Handle dd/mm/yyyy format
+      const parts = inputValue.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0]);
+        const month = parseInt(parts[1]) - 1; // Month is 0-indexed
+        const year = parseInt(parts[2]);
+        
+        // Validate input values
+        if (!isNaN(day) && !isNaN(month) && !isNaN(year) && 
+            day >= 1 && day <= 31 && month >= 0 && month <= 11 && year >= 1900) {
+          
+          const date = new Date(year, month, day);
+          
+          // Validate the date is correct (handles invalid dates like 31/02/2024)
+          if (date.getDate() === day && date.getMonth() === month && date.getFullYear() === year) {
+            // Return ISO format (YYYY-MM-DD)
+            const isoString = date.toISOString().split('T')[0];
+            console.log('Parsed date:', { inputValue, day, month, year, isoString });
+            return isoString;
+          }
         }
       }
+      
+      return '';
+    } catch (error) {
+      console.error('Error parsing date:', error);
+      return '';
     }
-    
-    return '';
   };
 
   const handleDateSelect = (date: Date) => {
-    // Create a new date object to avoid any timezone issues
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const day = date.getDate();
-    
-    // Create date in local timezone
-    const selectedDate = new Date(year, month, day);
-    const formattedDate = selectedDate.toISOString().split('T')[0];
-    
-    console.log('Date selected:', { year, month, day, formattedDate, originalDate: date });
-    
-    onChange(formattedDate);
-    setInputValue(formatDateForDisplay(formattedDate));
-    setShowCalendar(false);
-    setShowMonthPicker(false);
-    setShowYearPicker(false);
+    try {
+      // Create a new date object to avoid any timezone issues
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const day = date.getDate();
+      
+      // Create date in local timezone
+      const selectedDate = new Date(year, month, day);
+      const formattedDate = selectedDate.toISOString().split('T')[0];
+      
+      console.log('Date selected:', { 
+        year, 
+        month, 
+        day, 
+        formattedDate, 
+        originalDate: date,
+        displayFormat: formatDateForDisplay(formattedDate)
+      });
+      
+      onChange(formattedDate);
+      setInputValue(formatDateForDisplay(formattedDate));
+      setShowCalendar(false);
+      setShowMonthPicker(false);
+      setShowYearPicker(false);
+    } catch (error) {
+      console.error('Error selecting date:', error);
+    }
   };
 
   const clearDate = () => {
@@ -192,13 +225,17 @@ function CustomDatePicker({
           onChange={(e) => {
             const value = e.target.value;
             setInputValue(value);
-            // Only try to parse if it looks like a complete date
-            if (value.length >= 8) {
+            
+            // Only try to parse if it looks like a complete date (dd/mm/yyyy = 10 chars)
+            if (value.length === 10 && value.includes('/')) {
               const parsedDate = parseDateFromDisplay(value);
               if (parsedDate) {
                 onChange(parsedDate);
+              } else {
+                onChange('');
               }
-            } else {
+            } else if (value.length < 10) {
+              // Clear the value if it's not complete
               onChange('');
             }
           }}
@@ -441,6 +478,32 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
     approvalDate: '',
     sampleNumber: ''
   });
+
+  // Helper function to format dates consistently
+  const formatDateForDisplay = (dateString: string) => {
+    if (!dateString) return '';
+    
+    try {
+      // Handle ISO date string (YYYY-MM-DD)
+      if (dateString.includes('-') && dateString.length === 10) {
+        const [year, month, day] = dateString.split('-');
+        return `${day}/${month}/${year}`;
+      }
+      
+      // Handle other date formats
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      
+      // Format as dd/mm/yyyy
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '';
+    }
+  };
   const [isLoading, setIsLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
   const [error, setError] = useState('');
@@ -601,7 +664,8 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
     
     // Check if item already has lab data (check for labSendDate instead of sampleNumber)
     if (localItem?.labData?.labSendDate) {
-      // Existing lab data found - load it
+      // Existing lab data found - load it with proper formatting
+      console.log('Loading existing lab data:', localItem.labData);
       setLabData({
         labSendDate: localItem.labData.labSendDate || '',
         approvalDate: localItem.labData.approvalDate || '',
@@ -609,6 +673,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
       });
     } else {
       // New lab data - initialize with empty values
+      console.log('Initializing new lab data for item:', item._id);
       setLabData({
         labSendDate: '',
         approvalDate: '',
@@ -631,6 +696,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
     }
 
     // Validate date format
+    console.log('Validating lab send date:', labData.labSendDate);
     const labSendDate = new Date(labData.labSendDate);
     if (isNaN(labSendDate.getTime())) {
       setError('Invalid lab send date format');
@@ -639,6 +705,7 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
 
     // Validate approval date if provided
     if (labData.approvalDate) {
+      console.log('Validating approval date:', labData.approvalDate);
       const approvalDate = new Date(labData.approvalDate);
       if (isNaN(approvalDate.getTime())) {
         setError('Invalid approval date format');
@@ -649,6 +716,13 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
         return;
       }
     }
+
+    console.log('Date validation passed:', {
+      labSendDate: labData.labSendDate,
+      approvalDate: labData.approvalDate,
+      formattedLabSend: formatDateForDisplay(labData.labSendDate),
+      formattedApproval: labData.approvalDate ? formatDateForDisplay(labData.approvalDate) : 'N/A'
+    });
 
     setIsLoading(true);
     setError('');
@@ -1214,7 +1288,9 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                             <span className={`font-medium ${
                               isDarkMode ? 'text-gray-400' : 'text-gray-600'
                             }`}>Send Date:</span>
-                            <p className={isDarkMode ? 'text-white' : 'text-gray-800'}>{new Date(localItems.find(li => li._id === item._id)?.labData?.labSendDate || '').toLocaleDateString()}</p>
+                            <p className={isDarkMode ? 'text-white' : 'text-gray-800'}>
+                              {formatDateForDisplay(localItems.find(li => li._id === item._id)?.labData?.labSendDate || '')}
+                            </p>
                           </div>
                         )}
                         {localItems.find(li => li._id === item._id)?.labData?.approvalDate && (
@@ -1222,7 +1298,9 @@ export default function LabDataModal({ isOpen, onClose, order, onLabDataUpdate }
                             <span className={`font-medium ${
                               isDarkMode ? 'text-gray-400' : 'text-gray-600'
                             }`}>Approval:</span>
-                            <p className={isDarkMode ? 'text-white' : 'text-gray-800'}>{new Date(localItems.find(li => li._id === item._id)?.labData?.approvalDate || '').toLocaleDateString()}</p>
+                            <p className={isDarkMode ? 'text-white' : 'text-gray-800'}>
+                              {formatDateForDisplay(localItems.find(li => li._id === item._id)?.labData?.approvalDate || '')}
+                            </p>
                           </div>
                         )}
                         <div className="flex items-center gap-2">
