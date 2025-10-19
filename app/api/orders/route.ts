@@ -302,7 +302,7 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .skip((page - 1) * limit)
       .lean()
-      .maxTimeMS(8000) // Increased timeout for search operations
+      .maxTimeMS(5000) // Increased timeout for reliability
       .hint({ createdAt: -1 }); // Force index usage for better performance
 
     // In light mode, avoid heavy populates to speed up first paint

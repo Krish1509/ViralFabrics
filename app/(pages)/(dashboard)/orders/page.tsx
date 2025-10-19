@@ -308,57 +308,85 @@ export default function OrdersPage() {
 
   // Professional helper functions for button states - declared early to maintain hooks order
   const hasMillInputs = useCallback((order: Order) => {
-    // Check both order.millInputs property and orderMillInputs state
-    const orderMillInputsProperty = (order as any).millInputs;
-    const orderMillInputsState = orderMillInputs[order.orderId];
+    console.log('🔍 hasMillInputs: checking order:', order.orderId, 'forceRender:', forceRender);
     
-    const hasPropertyData = Array.isArray(orderMillInputsProperty) && orderMillInputsProperty.length > 0;
-    const hasStateData = Array.isArray(orderMillInputsState) && orderMillInputsState.length > 0;
+    // Check order-level millInputs array (this is how the API returns it)
+    const orderMillInputs = (order as any).millInputs;
+    const hasOrderMillInputs = Array.isArray(orderMillInputs) && orderMillInputs.length > 0;
     
-    console.log('🔍 hasMillInputs check:', {
-      orderId: order.orderId,
-      hasPropertyData,
-      hasStateData,
-      propertyLength: orderMillInputsProperty?.length || 0,
-      stateLength: orderMillInputsState?.length || 0
-    });
+    console.log('🔍 hasMillInputs: orderMillInputs:', orderMillInputs?.length || 0, 'hasOrderMillInputs:', hasOrderMillInputs, 'orderId:', order.orderId);
     
-    return hasPropertyData || hasStateData;
-  }, [forceRender, orderMillInputs]);
+    return hasOrderMillInputs;
+  }, [forceRender]);
 
   const hasMillOutputs = useCallback((order: Order) => {
-    const millOutputs = (order as any).millOutputs;
-    return Array.isArray(millOutputs) && millOutputs.length > 0;
+    console.log('🔍 hasMillOutputs: checking order:', order.orderId, 'forceRender:', forceRender);
+    
+    // Check order-level millOutputs array (this is how the API returns it)
+    const orderMillOutputs = (order as any).millOutputs;
+    const hasOrderMillOutputs = Array.isArray(orderMillOutputs) && orderMillOutputs.length > 0;
+    
+    console.log('🔍 hasMillOutputs: orderMillOutputs:', orderMillOutputs?.length || 0, 'hasOrderMillOutputs:', hasOrderMillOutputs, 'orderId:', order.orderId);
+    
+    return hasOrderMillOutputs;
   }, [forceRender]);
 
   const hasDispatches = useCallback((order: Order) => {
-    const dispatches = (order as any).dispatches;
-    return Array.isArray(dispatches) && dispatches.length > 0;
+    console.log('🔍 hasDispatches: checking order:', order.orderId, 'forceRender:', forceRender);
+    
+    // Check order-level dispatches array (this is how the API returns it)
+    const orderDispatches = (order as any).dispatches;
+    const hasOrderDispatches = Array.isArray(orderDispatches) && orderDispatches.length > 0;
+    
+    console.log('🔍 hasDispatches: orderDispatches:', orderDispatches?.length || 0, 'hasOrderDispatches:', hasOrderDispatches, 'orderId:', order.orderId);
+    
+    return hasOrderDispatches;
   }, [forceRender]);
 
-  const hasLabData = useCallback((order: Order) => {
-    // Check if order has labData array with items
-    if (order.labData && Array.isArray(order.labData) && order.labData.length > 0) {
-      console.log('🔍 hasLabData: order.labData exists, length:', order.labData.length, 'orderId:', order.orderId, 'forceRender:', forceRender);
-      return true;
+  // Debug function to log order structure
+  const debugOrderStructure = useCallback((order: Order) => {
+    console.log('🔍 DEBUG ORDER STRUCTURE for:', order.orderId);
+    console.log('🔍 Order keys:', Object.keys(order));
+    console.log('🔍 Order items:', order.items?.length || 0);
+    console.log('🔍 Order millInputs:', (order as any).millInputs?.length || 0);
+    console.log('🔍 Order millOutputs:', (order as any).millOutputs?.length || 0);
+    console.log('🔍 Order dispatches:', (order as any).dispatches?.length || 0);
+    
+    if (order.items && order.items.length > 0) {
+      console.log('🔍 First item labData:', order.items[0].labData);
     }
+    
+    console.log('🔍 Full order structure:', order);
+  }, []);
+
+  const hasLabData = useCallback((order: Order) => {
+    console.log('🔍 hasLabData: checking order:', order.orderId, 'forceRender:', forceRender);
+    
+    // Debug the order structure
+    debugOrderStructure(order);
     
     // Check if any item has lab data (check for labSendDate as it's the primary field)
     if (order.items && Array.isArray(order.items)) {
-      const hasItemLabData = order.items.some(item => 
-        item.labData && (
+      const hasItemLabData = order.items.some(item => {
+        const hasLab = item.labData && (
           item.labData.labSendDate || 
           item.labData.sampleNumber || 
-          item.labData.approvalDate
-        )
-      );
-      console.log('🔍 hasLabData: checking items, hasItemLabData:', hasItemLabData, 'orderId:', order.orderId, 'forceRender:', forceRender);
+          item.labData.approvalDate ||
+          item.labData.color ||
+          item.labData.shade ||
+          item.labData.labSendNumber ||
+          item.labData.status
+        );
+        console.log('🔍 hasLabData: item', item._id, 'hasLab:', hasLab, 'labData:', item.labData);
+        return hasLab;
+      });
+      console.log('🔍 hasLabData: hasItemLabData:', hasItemLabData, 'orderId:', order.orderId);
       return hasItemLabData;
     }
     
-    console.log('🔍 hasLabData: no lab data found, orderId:', order.orderId, 'forceRender:', forceRender);
+    console.log('🔍 hasLabData: no items found, orderId:', order.orderId);
     return false;
-  }, [forceRender]);
+  }, [forceRender, debugOrderStructure]);
 
   const handleViewModeChange = useCallback((newMode: 'table' | 'cards') => {
     setViewMode(newMode);
@@ -1553,13 +1581,12 @@ export default function OrdersPage() {
         
         // Load orders with pending status filter using proper API call
         console.log('📋 Loading orders with pending filter...');
-        const ordersResponse = await fetch('/api/orders?limit=10&page=1&force=true&status=pending&light=true', {
+        const ordersResponse = await fetch('/api/orders?limit=10&page=1&status=pending&light=true', {
             headers: { 
               'Authorization': `Bearer ${token}`,
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
               'Accept': 'application/json'
             },
-            cache: 'no-store'
+            cache: 'default'
         });
         
         if (ordersResponse.ok) {
@@ -1609,26 +1636,108 @@ export default function OrdersPage() {
         console.log('🔄 Upgrading orders data with full joins...');
         setIsUpgradingData(true);
         try {
+          // Add timeout to prevent hanging
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+          
           const fullResp = await fetch('/api/orders?limit=10&page=1&status=pending&light=false', {
             headers: {
               'Authorization': `Bearer ${token}`,
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
               'Accept': 'application/json'
             },
-            cache: 'no-store'
+            cache: 'default',
+            signal: controller.signal
           });
+          
+          clearTimeout(timeoutId);
+          
+          console.log('📡 Full data response status:', fullResp.status);
+          
           if (fullResp.ok) {
             const fullData = await fullResp.json();
+            console.log('📊 Full data received:', fullData.success, 'Orders count:', fullData.data?.length);
+            
             if (fullData.success && Array.isArray(fullData.data)) {
               console.log('✅ Full orders data loaded with lab/mill/dispatch data');
+              console.log('🔍 Sample order data:', JSON.stringify(fullData.data[0], null, 2));
+              
+              // Force state update to trigger re-render
               setOrdersSafe(fullData.data);
               dataCache.current.orders = { data: fullData.data, timestamp: Date.now() };
+              
+              // Force component re-render to update button states
+              setForceRender(prev => prev + 1);
+              
+              // Additional force re-render after a small delay to ensure buttons update
+              setTimeout(() => {
+                setForceRender(prev => prev + 1);
+                console.log('🔄 Additional force re-render triggered for button states');
+              }, 100);
+              
+              console.log('🔄 State updated, buttons should now show correct status');
+              console.log('🔍 Current orders state:', orders.length, 'orders');
+            } else {
+              console.error('❌ Full data response invalid:', fullData);
             }
+          } else {
+            console.error('❌ Full data request failed:', fullResp.status, fullResp.statusText);
           }
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('❌ Failed to upgrade orders data:', e);
+          if (e instanceof Error && e.name === 'AbortError') {
+            console.error('⏰ Data upgrade timed out after 10 seconds');
+          }
+          
+          // Fallback: Try to load full data again after a short delay
+          console.log('🔄 Retrying full data load in 2 seconds...');
+          setTimeout(async () => {
+            try {
+              const retryResp = await fetch('/api/orders?limit=10&page=1&status=pending&light=false', {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Accept': 'application/json'
+                },
+                cache: 'default'
+              });
+              
+              if (retryResp.ok) {
+                const retryData = await retryResp.json();
+                if (retryData.success && Array.isArray(retryData.data)) {
+                  console.log('✅ Retry successful - Full data loaded');
+                  setOrdersSafe(retryData.data);
+                  dataCache.current.orders = { data: retryData.data, timestamp: Date.now() };
+                  setForceRender(prev => prev + 1);
+                  
+                  // Additional force re-render after a small delay
+                  setTimeout(() => {
+                    setForceRender(prev => prev + 1);
+                    console.log('🔄 Retry force re-render triggered for button states');
+                  }, 100);
+                }
+              }
+            } catch (retryError) {
+              console.error('❌ Retry also failed:', retryError);
+            }
+          }, 2000);
         } finally {
           setIsUpgradingData(false);
+          console.log('🏁 Data upgrade completed');
+          
+          // Force multiple re-renders to ensure buttons update
+          setTimeout(() => {
+            setForceRender(prev => prev + 1);
+            console.log('🔄 Post-upgrade force re-render 1');
+          }, 50);
+          
+          setTimeout(() => {
+            setForceRender(prev => prev + 1);
+            console.log('🔄 Post-upgrade force re-render 2');
+          }, 150);
+          
+          setTimeout(() => {
+            setForceRender(prev => prev + 1);
+            console.log('🔄 Post-upgrade force re-render 3');
+          }, 300);
         }
         
         // Load mills in background
@@ -1876,12 +1985,46 @@ export default function OrdersPage() {
   }, [orders, ordersLoaded, processDataLoading]); // Run when orders change
 
   // Auto-refresh lab data states when orders change
+  // DEBUG: Log button states on every render
   useEffect(() => {
-    if (orders.length > 0 && ordersLoaded) {
-      // Lab data is already included in orders, so no additional API call needed
-      console.log('Lab data states updated for all orders');
+    if (orders.length > 0) {
+      console.log('🔄 COMPONENT RENDER - Checking all button states...');
+      orders.forEach(order => {
+        console.log('🔍 Order', order.orderId, 'full structure:', {
+          items: order.items?.length || 0,
+          millInputs: (order as any).millInputs?.length || 0,
+          millOutputs: (order as any).millOutputs?.length || 0,
+          dispatches: (order as any).dispatches?.length || 0,
+          firstItemLabData: order.items?.[0]?.labData
+        });
+      });
     }
-  }, [orders, ordersLoaded]); // Run when orders change
+  });
+
+  // Force button state update when orders change
+  useEffect(() => {
+    if (orders.length > 0 && ordersLoaded && !isUpgradingData) {
+      console.log('🔄 Orders loaded, checking button states for all orders...');
+      
+      orders.forEach(order => {
+        const hasLab = hasLabData(order);
+        const hasMillInput = hasMillInputs(order);
+        const hasMillOutput = hasMillOutputs(order);
+        const hasDispatch = hasDispatches(order);
+        
+        console.log('🔍 Order', order.orderId, 'button states:', {
+          hasLab,
+          hasMillInput,
+          hasMillOutput,
+          hasDispatch
+        });
+      });
+      
+      // Force re-render to update button states
+      setForceRender(prev => prev + 1);
+      console.log('🔄 Button state check completed, force re-render triggered');
+    }
+  }, [orders, ordersLoaded, isUpgradingData, hasLabData, hasMillInputs, hasMillOutputs, hasDispatches]);
 
   // Load additional data only when needed (lazy loading)
   const loadPartiesData = useCallback(async () => {
@@ -2684,6 +2827,13 @@ export default function OrdersPage() {
   };
 
   const handleLabData = (order: Order) => {
+    console.log('🔍 Opening lab data modal for order:', order.orderId);
+    
+    // Debug: Log current button state
+    const hasLab = hasLabData(order);
+    console.log('🔍 Button state check - hasLabData:', hasLab, 'for order:', order.orderId);
+    debugOrderStructure(order);
+    
     setSelectedOrderForLabData(order);
     setShowLabDataModal(true);
   };
@@ -3350,6 +3500,13 @@ export default function OrdersPage() {
         ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900' 
         : 'bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50'
     }`}>
+      
+      {/* Simple Loading Indicator */}
+      {isUpgradingData && (
+        <div className="fixed top-4 right-4 z-50">
+          <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent"></div>
+        </div>
+      )}
       {/* Enhanced Message System Styles */}
       <style jsx>{`
         @keyframes slideInRight {
@@ -4978,10 +5135,49 @@ export default function OrdersPage() {
                                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30'
                                  : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
                              }`}
-                             title={hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}
+                             title={(() => {
+                               console.log('🔍 BUTTON RENDER - Lab Data for order:', order.orderId);
+                               console.log('🔍 Order items:', order.items?.length || 0);
+                               if (order.items && order.items.length > 0) {
+                                 console.log('🔍 First item labData:', order.items[0].labData);
+                               }
+                               
+                               const hasLab = order.items?.some(item => {
+                                 const hasData = item.labData && (
+                                   item.labData.labSendDate || 
+                                   item.labData.sampleNumber || 
+                                   item.labData.approvalDate ||
+                                   item.labData.color ||
+                                   item.labData.shade ||
+                                   item.labData.labSendNumber ||
+                                   item.labData.status
+                                 );
+                                 console.log('🔍 Item', item._id, 'has lab data:', hasData, 'labData:', item.labData);
+                                 return hasData;
+                               });
+                               
+                               console.log('🔍 FINAL RESULT - hasLab:', hasLab, 'for order:', order.orderId);
+                               return hasLab ? "Edit Lab Data" : "Add Lab Data";
+                             })()}
                            >
                              <BeakerIcon className="h-4 w-4" />
-                             <span>{hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}</span>
+                             <span>{(() => {
+                               console.log('🔍 BUTTON TEXT RENDER - Lab Data for order:', order.orderId);
+                               const hasLab = order.items?.some(item => {
+                                 const hasData = item.labData && (
+                                   item.labData.labSendDate || 
+                                   item.labData.sampleNumber || 
+                                   item.labData.approvalDate ||
+                                   item.labData.color ||
+                                   item.labData.shade ||
+                                   item.labData.labSendNumber ||
+                                   item.labData.status
+                                 );
+                                 return hasData;
+                               });
+                               console.log('🔍 BUTTON TEXT - hasLab:', hasLab, 'for order:', order.orderId);
+                               return hasLab ? "Edit Lab Data" : "Add Lab Data";
+                             })()}</span>
                              {isUpgradingData && (
                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
@@ -5003,10 +5199,23 @@ export default function OrdersPage() {
                                  ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30'
                                  : 'bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100'
                              }`}
-                             title={hasMillInputs(order) ? "Edit Mill Input" : "Add Mill Input"}
+                             title={(() => {
+                               console.log('🔍 BUTTON RENDER - Mill Input for order:', order.orderId);
+                               console.log('🔍 Order millInputs:', (order as any).millInputs?.length || 0);
+                               console.log('🔍 Order millInputs data:', (order as any).millInputs);
+                               
+                               const hasMillInput = Array.isArray((order as any).millInputs) && (order as any).millInputs.length > 0;
+                               console.log('🔍 FINAL RESULT - hasMillInput:', hasMillInput, 'for order:', order.orderId);
+                               return hasMillInput ? "Edit Mill Input" : "Add Mill Input";
+                             })()}
                            >
                              <CubeIcon className="h-4 w-4" />
-                             <span>{hasMillInputs(order) ? "Edit Mill Input" : "Add Mill Input"}</span>
+                             <span>{(() => {
+                               console.log('🔍 BUTTON TEXT RENDER - Mill Input for order:', order.orderId);
+                               const hasMillInput = Array.isArray((order as any).millInputs) && (order as any).millInputs.length > 0;
+                               console.log('🔍 BUTTON TEXT - hasMillInput:', hasMillInput, 'for order:', order.orderId);
+                               return hasMillInput ? "Edit Mill Input" : "Add Mill Input";
+                             })()}</span>
                              {isUpgradingData && (
                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
@@ -5028,10 +5237,16 @@ export default function OrdersPage() {
                                  ? 'bg-teal-600/20 text-teal-400 border border-teal-500/30 hover:bg-teal-600/30'
                                  : 'bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100'
                              }`}
-                             title={hasMillOutputs(order) ? "Edit Mill Output" : "Add Mill Output"}
+                             title={(() => {
+                               const hasMillOutput = Array.isArray((order as any).millOutputs) && (order as any).millOutputs.length > 0;
+                               return hasMillOutput ? "Edit Mill Output" : "Add Mill Output";
+                             })()}
                            >
                              <DocumentTextIcon className="h-4 w-4" />
-                             <span>{hasMillOutputs(order) ? "Edit Mill Output" : "Add Mill Output"}</span>
+                             <span>{(() => {
+                               const hasMillOutput = Array.isArray((order as any).millOutputs) && (order as any).millOutputs.length > 0;
+                               return hasMillOutput ? "Edit Mill Output" : "Add Mill Output";
+                             })()}</span>
                              {isUpgradingData && (
                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
@@ -5053,10 +5268,16 @@ export default function OrdersPage() {
                                  ? 'bg-orange-600/20 text-orange-400 border border-orange-500/30 hover:bg-orange-600/30'
                                  : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
                              }`}
-                             title={hasDispatches(order) ? "Edit Dispatch" : "Add Dispatch"}
+                             title={(() => {
+                               const hasDispatch = Array.isArray((order as any).dispatches) && (order as any).dispatches.length > 0;
+                               return hasDispatch ? "Edit Dispatch" : "Add Dispatch";
+                             })()}
                            >
                              <TruckIcon className="h-4 w-4" />
-                             <span>{hasDispatches(order) ? "Edit Dispatch" : "Add Dispatch"}</span>
+                             <span>{(() => {
+                               const hasDispatch = Array.isArray((order as any).dispatches) && (order as any).dispatches.length > 0;
+                               return hasDispatch ? "Edit Dispatch" : "Add Dispatch";
+                             })()}</span>
                              {isUpgradingData && (
                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
@@ -5880,11 +6101,44 @@ export default function OrdersPage() {
                           ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30 hover:bg-amber-600/30 focus:ring-offset-gray-800'
                           : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 focus:ring-offset-white'
                       }`}
-                      title={hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}
-                      aria-label={hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}
+                      title={(() => {
+                        const hasLab = order.items?.some(item => item.labData && (
+                          item.labData.labSendDate || 
+                          item.labData.sampleNumber || 
+                          item.labData.approvalDate ||
+                          item.labData.color ||
+                          item.labData.shade ||
+                          item.labData.labSendNumber ||
+                          item.labData.status
+                        ));
+                        return hasLab ? "Edit Lab Data" : "Add Lab Data";
+                      })()}
+                      aria-label={(() => {
+                        const hasLab = order.items?.some(item => item.labData && (
+                          item.labData.labSendDate || 
+                          item.labData.sampleNumber || 
+                          item.labData.approvalDate ||
+                          item.labData.color ||
+                          item.labData.shade ||
+                          item.labData.labSendNumber ||
+                          item.labData.status
+                        ));
+                        return hasLab ? "Edit Lab Data" : "Add Lab Data";
+                      })()}
                     >
                       <BeakerIcon className="h-4 w-4" />
-                      <span>{hasLabData(order) ? "Edit Lab Data" : "Add Lab Data"}</span>
+                      <span>{(() => {
+                        const hasLab = order.items?.some(item => item.labData && (
+                          item.labData.labSendDate || 
+                          item.labData.sampleNumber || 
+                          item.labData.approvalDate ||
+                          item.labData.color ||
+                          item.labData.shade ||
+                          item.labData.labSendNumber ||
+                          item.labData.status
+                        ));
+                        return hasLab ? "Edit Lab Data" : "Add Lab Data";
+                      })()}</span>
                       {isUpgradingData && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
@@ -5906,10 +6160,16 @@ export default function OrdersPage() {
                           ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30'
                           : 'bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100'
                       }`}
-                      title={hasMillInputs(order) ? "Edit Mill Input" : "Add Mill Input"}
+                      title={(() => {
+                        const hasMillInput = Array.isArray((order as any).millInputs) && (order as any).millInputs.length > 0;
+                        return hasMillInput ? "Edit Mill Input" : "Add Mill Input";
+                      })()}
                     >
                       <CubeIcon className="h-4 w-4" />
-                      <span>{hasMillInputs(order) ? "Edit Mill Input" : "Add Mill Input"}</span>
+                      <span>{(() => {
+                        const hasMillInput = Array.isArray((order as any).millInputs) && (order as any).millInputs.length > 0;
+                        return hasMillInput ? "Edit Mill Input" : "Add Mill Input";
+                      })()}</span>
                       {isUpgradingData && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
@@ -5931,10 +6191,16 @@ export default function OrdersPage() {
                           ? 'bg-teal-600/20 text-teal-400 border border-teal-500/30 hover:bg-teal-600/30'
                           : 'bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100'
                       }`}
-                      title={hasMillOutputs(order) ? "Edit Mill Output" : "Add Mill Output"}
+                      title={(() => {
+                        const hasMillOutput = Array.isArray((order as any).millOutputs) && (order as any).millOutputs.length > 0;
+                        return hasMillOutput ? "Edit Mill Output" : "Add Mill Output";
+                      })()}
                     >
                       <DocumentTextIcon className="h-4 w-4" />
-                      <span>{hasMillOutputs(order) ? "Edit Mill Output" : "Add Mill Output"}</span>
+                      <span>{(() => {
+                        const hasMillOutput = Array.isArray((order as any).millOutputs) && (order as any).millOutputs.length > 0;
+                        return hasMillOutput ? "Edit Mill Output" : "Add Mill Output";
+                      })()}</span>
                       {isUpgradingData && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
@@ -5956,10 +6222,16 @@ export default function OrdersPage() {
                           ? 'bg-orange-600/20 text-orange-400 border border-orange-500/30 hover:bg-orange-600/30'
                           : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
                       }`}
-                      title={hasDispatches(order) ? "Edit Dispatch" : "Add Dispatch"}
+                      title={(() => {
+                        const hasDispatch = Array.isArray((order as any).dispatches) && (order as any).dispatches.length > 0;
+                        return hasDispatch ? "Edit Dispatch" : "Add Dispatch";
+                      })()}
                     >
                       <TruckIcon className="h-4 w-4" />
-                      <span>{hasDispatches(order) ? "Edit Dispatch" : "Add Dispatch"}</span>
+                      <span>{(() => {
+                        const hasDispatch = Array.isArray((order as any).dispatches) && (order as any).dispatches.length > 0;
+                        return hasDispatch ? "Edit Dispatch" : "Add Dispatch";
+                      })()}</span>
                       {isUpgradingData && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>

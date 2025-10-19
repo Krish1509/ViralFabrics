@@ -32,7 +32,7 @@ async function performLogin(req: Request) {
     const { username, password, rememberMe } = await req.json();
 
     if (!username || !password) {
-      return NextResponse.json({ message: "Username and password are required" }, { status: 400 });
+      return NextResponse.json({ message: "Please enter both username and password to continue." }, { status: 400 });
     }
 
     // Ultra-fast database connection - single attempt
@@ -61,7 +61,7 @@ async function performLogin(req: Request) {
     if (!user) {
       // Log in background - don't wait for it
       logLogin(username, false, req as any, 'User not found').catch(() => {});
-      return NextResponse.json({ message: "User not exist" }, { status: 401 });
+      return NextResponse.json({ message: "Username not found. Please check your username and try again." }, { status: 401 });
     }
 
     // Check if account is locked (non-blocking)
@@ -74,9 +74,13 @@ async function performLogin(req: Request) {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       // Record failed login attempt in background - don't wait
-      user.recordFailedLogin().catch(() => {});
+      User.findByIdAndUpdate(user._id, {
+        $inc: { failedLoginAttempts: 1 },
+        $set: { lastFailedLogin: new Date() }
+      }).maxTimeMS(2000).catch(() => {});
+      
       logLogin(username, false, req as any, 'Invalid password').catch(() => {});
-      return NextResponse.json({ message: "Wrong password" }, { status: 401 });
+      return NextResponse.json({ message: "Invalid password. Please check your password and try again." }, { status: 401 });
     }
 
     // Prepare JWT token and user data in parallel
@@ -146,6 +150,20 @@ async function performLogin(req: Request) {
     return NextResponse.json({ token, user: userSafe }, { status: 200 });
   } catch (error) {
     console.error('Login error:', error);
-    return NextResponse.json({ message: "Login failed" }, { status: 500 });
+    
+    // Provide more specific error messages based on error type
+    if (error instanceof Error) {
+      if (error.message.includes('timeout')) {
+        return NextResponse.json({ message: "Login request timed out. Please try again." }, { status: 408 });
+      }
+      if (error.message.includes('connection')) {
+        return NextResponse.json({ message: "Unable to connect to server. Please check your internet connection." }, { status: 503 });
+      }
+      if (error.message.includes('JSON')) {
+        return NextResponse.json({ message: "Invalid request format. Please try again." }, { status: 400 });
+      }
+    }
+    
+    return NextResponse.json({ message: "Login failed due to server error. Please try again." }, { status: 500 });
   }
 }
